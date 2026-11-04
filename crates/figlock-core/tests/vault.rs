@@ -109,7 +109,7 @@ fn two_devices_converge_on_items() {
         .unwrap();
     a.add_device_record(&b_record).unwrap();
 
-    let (ai, bi) = (a.items(false).unwrap(), b.items(false).unwrap());
+    let (ai, bi) = (a.items(false).0, b.items(false).0);
     assert_eq!(ai.len(), 5);
     assert_eq!(bi.len(), 5);
     let view = b.item(&token).unwrap();
@@ -186,17 +186,14 @@ fn delete_and_restore_travel_between_devices() {
     let fb1 = b.commit().unwrap().unwrap();
     a.apply_file(&fb1.bytes, b.device_id(), 1, T0 + 110)
         .unwrap();
-    assert!(
-        a.items(false).unwrap().is_empty(),
-        "deleted items are hidden"
-    );
+    assert!(a.items(false).0.is_empty(), "deleted items are hidden");
     assert!(a.item(&id).unwrap().deleted);
-    assert_eq!(a.items(true).unwrap().len(), 1);
+    assert_eq!(a.items(true).0.len(), 1);
 
     a.restore_item(&id, T0 + 200).unwrap();
     let fa = a.commit().unwrap().unwrap();
     b.apply_file(&fa.bytes, a.device_id(), 2, T0 + 210).unwrap();
-    assert_eq!(b.items(false).unwrap().len(), 1);
+    assert_eq!(b.items(false).0.len(), 1);
 }
 
 #[test]
@@ -400,7 +397,7 @@ fn files_from_unknown_or_tampered_sources_are_refused() {
         "replay of an applied file"
     );
     b.apply_file(&f2.bytes, a.device_id(), 2, T0 + 30).unwrap();
-    // A device never applies its own files back to itself.
+    // An already applied own file cannot be applied again.
     assert!(
         {
             let own = *a.device_id();
@@ -429,9 +426,9 @@ fn ops_stamped_far_in_the_future_are_held() {
         b.apply_file(&f.bytes, a.device_id(), 1, T0 + 100).is_err(),
         "held until B's clock catches up"
     );
-    assert!(b.items(true).unwrap().is_empty(), "nothing was applied");
+    assert!(b.items(true).0.is_empty(), "nothing was applied");
     b.apply_file(&f.bytes, a.device_id(), 1, ahead).unwrap();
-    assert_eq!(b.items(false).unwrap().len(), 1);
+    assert_eq!(b.items(false).0.len(), 1);
 }
 
 #[test]
@@ -542,4 +539,52 @@ fn vault_json_is_signed_and_names_only_public_data() {
     assert_eq!(v["kdf"]["m_kib"], 32768);
     assert_eq!(v["revision"], 1);
     assert!(c.secret_key.format().starts_with("FL1-"));
+}
+
+#[test]
+fn own_files_replay_after_unlock_to_restore_the_chain() {
+    let (mut a, c) = created();
+    let sk = sk_copy(&c);
+    let keys = DeviceKeys {
+        device_id: *a.device_id(),
+        sign_seed: figlock_core::Key::from_bytes(*a.device_keys().sign_seed.expose()),
+        agree_priv: figlock_core::Key::from_bytes(*a.device_keys().agree_priv.expose()),
+    };
+    let id = a
+        .add_item(ItemType::Note, "personal", &[("title", "one")], T0 + 10)
+        .unwrap();
+    let f1 = a.commit().unwrap().unwrap();
+    a.set_field(&id, "title", Some("two"), T0 + 20).unwrap();
+    let f2 = a.commit().unwrap().unwrap();
+    a.lock();
+
+    let (mut a, rec) = Vault::unlock(
+        &c.vault_json,
+        PW,
+        &sk,
+        keys,
+        "Laptop",
+        std::slice::from_ref(&c.device_record),
+        T0 + 100,
+    )
+    .unwrap();
+    assert!(rec.is_none());
+    let own = *a.device_id();
+    assert!(
+        a.apply_file(&f2.bytes, &own, 2, T0 + 100).is_err(),
+        "out of order"
+    );
+    a.apply_file(&f1.bytes, &own, 1, T0 + 100).unwrap();
+    a.apply_file(&f2.bytes, &own, 2, T0 + 100).unwrap();
+    assert_eq!(a.items(false).0[0].fields["title"].as_str(), "two");
+
+    a.set_field(&id, "notes", Some("later"), T0 + 200).unwrap();
+    let f3 = a.commit().unwrap().unwrap();
+    assert!(f3.path.ends_with("00000003.op"));
+
+    let (mut b, _) = second_device(&c, &sk, std::slice::from_ref(&c.device_record));
+    for (f, seq) in [(&f1, 1), (&f2, 2), (&f3, 3)] {
+        b.apply_file(&f.bytes, &own, seq, T0 + 300).unwrap();
+    }
+    assert_eq!(b.items(false).0[0].fields["notes"].as_str(), "later");
 }

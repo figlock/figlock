@@ -529,8 +529,9 @@ impl Vault {
     }
 
     // ---- reading ----
-    /// Verify, decrypt and apply another device's op file. Files must arrive in order per device
-    /// (`sync.md` 8); a file stamped too far in the future is refused so the caller can retry later.
+    /// Verify, decrypt and apply an op file, this device's own included (to restore state and the chain
+    /// head after an unlock). Files must arrive in order per device (`sync.md` 8); a file stamped too far
+    /// in the future is refused so the caller can retry later. A file is applied whole or not at all.
     pub fn apply_file(
         &mut self,
         bytes: &[u8],
@@ -538,9 +539,7 @@ impl Vault {
         seq: u64,
         now_ms: u64,
     ) -> Result<()> {
-        if *device == self.device.device_id {
-            return Err(Error);
-        }
+        let own = *device == self.device.device_id;
         let sign_pub = self.devices.get(device).copied();
         let id = FileId {
             vault_id: &self.vault_id,
@@ -549,7 +548,11 @@ impl Vault {
         };
         let payload = read_file(bytes, &self.keys.lk, sign_pub.as_ref(), &id, Kind::Op)?;
         let batch = OpBatch::decode(&payload)?;
-        let (last_seq, last_hash) = self.applied.get(device).copied().unwrap_or((0, [0; 32]));
+        let (last_seq, last_hash) = if own {
+            (self.own_seq, self.own_prev)
+        } else {
+            self.applied.get(device).copied().unwrap_or((0, [0; 32]))
+        };
         if batch.device != *device
             || batch.seq != seq
             || seq != last_seq + 1
@@ -557,34 +560,11 @@ impl Vault {
         {
             return Err(Error);
         }
-        // Validate everything before applying anything: a file is applied whole or not at all.
-        for op in &batch.ops {
-            match op {
-                Op::FieldSet {
-                    field, hlc, blob, ..
-                } => {
-                    if is_held(hlc.wall, now_ms)
-                        || blob
-                            .as_ref()
-                            .is_some_and(|b| b.len() > MAX_VALUE_BYTES + 64)
-                    {
-                        return Err(Error);
-                    }
-                    if !(field == FIELD_TYPE || field == FIELD_VAULT) && field.len() > 64 {
-                        return Err(Error);
-                    }
-                }
-                Op::ItemCreate { hlc, .. }
-                | Op::ItemDelete { hlc, .. }
-                | Op::ItemRestore { hlc, .. } => {
-                    if is_held(hlc.wall, now_ms) {
-                        return Err(Error);
-                    }
-                }
-            }
-        }
+        // Validate everything and fold the clock on a copy before touching state.
+        let mut hlc = self.hlc;
+        let mut writes = Vec::with_capacity(batch.ops.len());
         for op in batch.ops {
-            let (item, hlc, field, value) = match op {
+            let (item, stamp, field, value) = match op {
                 Op::ItemCreate {
                     item,
                     hlc,
@@ -595,12 +575,21 @@ impl Vault {
                     field,
                     hlc,
                     blob,
-                } => (
-                    item,
-                    hlc,
-                    field,
-                    blob.map_or(FieldValue::Removed, FieldValue::Blob),
-                ),
+                } => {
+                    if blob
+                        .as_ref()
+                        .is_some_and(|b| b.len() > MAX_VALUE_BYTES + 64)
+                        || !self.field_allowed(&item, &field)
+                    {
+                        return Err(Error);
+                    }
+                    (
+                        item,
+                        hlc,
+                        field,
+                        blob.map_or(FieldValue::Removed, FieldValue::Blob),
+                    )
+                }
                 Op::ItemDelete { item, hlc } => {
                     (item, hlc, FIELD_DELETED.to_owned(), FieldValue::Flag(true))
                 }
@@ -608,18 +597,49 @@ impl Vault {
                     (item, hlc, FIELD_DELETED.to_owned(), FieldValue::Flag(false))
                 }
             };
-            self.hlc.receive(hlc, now_ms)?;
-            self.state.apply(Write {
+            if is_held(stamp.wall, now_ms) {
+                return Err(Error);
+            }
+            hlc.receive(stamp, now_ms)?;
+            writes.push(Write {
                 item,
                 field,
-                stamp: hlc,
+                stamp,
                 device: *device,
                 value,
             });
         }
-        self.applied
-            .insert(*device, (seq, Sha256::digest(bytes).into()));
+        for w in writes {
+            self.state.apply(w);
+        }
+        self.hlc = hlc;
+        let head = (seq, Sha256::digest(bytes).into());
+        if own {
+            (self.own_seq, self.own_prev) = head;
+        } else {
+            self.applied.insert(*device, head);
+        }
         Ok(())
+    }
+
+    /// Whether a remote `FieldSet` may write `field`: the vault's own `_type` and `_vault`, or a schema
+    /// field of the item's type (any type while the item's type is not yet known).
+    fn field_allowed(&mut self, item: &ItemId, field: &str) -> bool {
+        if field == FIELD_TYPE || field == FIELD_VAULT {
+            return true;
+        }
+        match self.item_type(item) {
+            Ok(t) => validate_field(t, field).is_ok(),
+            Err(_) => [
+                ItemType::Login,
+                ItemType::Token,
+                ItemType::Note,
+                ItemType::EnvBundle,
+                ItemType::SshKey,
+            ]
+            .into_iter()
+            .any(|t| validate_field(t, field).is_ok()),
+        }
     }
 
     fn read_text(&mut self, id: &ItemId, field: &str) -> Result<Option<Zeroizing<String>>> {
@@ -684,16 +704,121 @@ impl Vault {
         })
     }
 
-    /// All items, optionally including deleted ones, ordered by id.
-    pub fn items(&mut self, include_deleted: bool) -> Result<Vec<ItemView>> {
+    /// All readable items, optionally including deleted ones, ordered by id, plus the ids of items that
+    /// could not be read (corrupt or hostile writes) so one bad item never hides the rest.
+    pub fn items(&mut self, include_deleted: bool) -> (Vec<ItemView>, Vec<ItemId>) {
         let ids: Vec<ItemId> = self.state.items().keys().copied().collect();
-        let mut out = Vec::new();
+        let (mut out, mut corrupt) = (Vec::new(), Vec::new());
         for id in ids {
-            let view = self.item(&id)?;
-            if include_deleted || !view.deleted {
-                out.push(view);
+            match self.item(&id) {
+                Ok(view) if include_deleted || !view.deleted => out.push(view),
+                Ok(_) => {}
+                Err(_) => corrupt.push(id),
             }
         }
-        Ok(out)
+        (out, corrupt)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const PW: &str = "correct horse battery staple";
+    const T0: u64 = 1_700_000_000_000;
+
+    fn pair() -> (Vault, Vault) {
+        let (a, c) = Vault::create(PW, "A", KdfParams::FLOOR, T0).unwrap();
+        let sk = SecretKey::parse(&c.secret_key.format()).unwrap();
+        let (b, _) = Vault::unlock(
+            &c.vault_json,
+            PW,
+            &sk,
+            DeviceKeys::generate().unwrap(),
+            "B",
+            &[c.device_record],
+            T0 + 1,
+        )
+        .unwrap();
+        (a, b)
+    }
+
+    fn forge(a: &Vault, seq: u64, prev: [u8; 32], ops: Vec<Op>) -> Vec<u8> {
+        let batch = OpBatch {
+            device: a.device.device_id,
+            seq,
+            prev,
+            ops,
+        };
+        let id = FileId {
+            vault_id: &a.vault_id,
+            device_id: &a.device.device_id,
+            seq,
+        };
+        build_file(
+            Kind::Op,
+            &a.keys.lk,
+            &a.device.sign_seed,
+            &id,
+            a.epoch,
+            &batch.encode(),
+        )
+        .unwrap()
+    }
+
+    fn set(item: ItemId, field: &str, wall: u64, counter: u16) -> Op {
+        Op::FieldSet {
+            item,
+            field: field.into(),
+            hlc: Stamp { wall, counter },
+            blob: Some(vec![7; 40]),
+        }
+    }
+
+    #[test]
+    fn counter_overflow_applies_nothing_and_a_later_retry_works() {
+        let (a, mut b) = pair();
+        let ops = vec![
+            set([1; 16], "title", T0 + 1, 0),
+            set([1; 16], "notes", T0 + 1, 0xFFFF),
+        ];
+        let file = forge(&a, 1, [0; 32], ops);
+        let dev = a.device.device_id;
+        assert!(b.apply_file(&file, &dev, 1, T0 + 1).is_err());
+        assert!(b.state.items().is_empty(), "no partial writes");
+        assert!(b.applied.is_empty());
+        b.apply_file(&file, &dev, 1, T0 + 5).unwrap();
+        assert_eq!(b.state.items()[&[1; 16]].len(), 2);
+    }
+
+    #[test]
+    fn remote_reserved_and_schema_invalid_fields_are_refused() {
+        let (a, mut b) = pair();
+        let dev = a.device.device_id;
+        for field in ["_ik", "_deleted", "_other", "bogus", "url/ABC"] {
+            let file = forge(&a, 1, [0; 32], vec![set([1; 16], field, T0 + 2, 0)]);
+            assert!(b.apply_file(&file, &dev, 1, T0 + 5).is_err(), "{field}");
+        }
+        assert!(b.state.items().is_empty());
+    }
+
+    #[test]
+    fn a_hostile_type_overwrite_corrupts_only_that_item() {
+        let (mut a, mut b) = pair();
+        let good = a
+            .add_item(ItemType::Note, "p", &[("title", "good")], T0 + 2)
+            .unwrap();
+        let bad = a
+            .add_item(ItemType::Note, "p", &[("title", "bad")], T0 + 3)
+            .unwrap();
+        let f1 = a.commit().unwrap().unwrap();
+        let dev = a.device.device_id;
+        b.apply_file(&f1.bytes, &dev, 1, T0 + 10).unwrap();
+        let hostile = forge(&a, 2, a.own_prev, vec![set(bad, FIELD_TYPE, T0 + 50, 0)]);
+        b.apply_file(&hostile, &dev, 2, T0 + 60).unwrap();
+        let (items, corrupt) = b.items(false);
+        assert_eq!(corrupt, vec![bad]);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, good);
     }
 }
