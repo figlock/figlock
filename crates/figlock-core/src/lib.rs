@@ -21,9 +21,11 @@ mod merge;
 mod pairing;
 mod payload;
 mod reader;
+mod schema;
 mod secret;
 mod secret_key;
 mod signing;
+mod vault;
 mod wire;
 
 pub use aead::{VERSION, open, seal};
@@ -45,9 +47,11 @@ pub use payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem, pa
 pub use reader::{
     LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
+pub use schema::{ItemType, MAX_VALUE_BYTES, is_secret_field, validate_field};
 pub use secret::Key;
 pub use secret_key::SecretKey;
 pub use signing::{sign_json, verify_json};
+pub use vault::{Committed, Created, DeviceKeys, FieldValue, ItemView, Vault};
 pub use wire::{aad, hlc_bytes, u16be, u32be, u64be};
 
 /// Deterministic entry points that take explicit nonces and ephemeral keys, for the test vectors only.
