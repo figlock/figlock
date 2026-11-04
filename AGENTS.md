@@ -131,6 +131,24 @@ the end.
 - Never put real vault data, tokens or personal details into OpenDesign; it sends some telemetry and may
   call cloud models. Use made-up sample items.
 
+### OpenDesign setup on a machine
+
+- Install the desktop app (macOS arm64 dmg from the `nexu-io/open-design` GitHub Releases, verify the
+  `.sha256` file) into `/Applications`.
+- Turn product analytics and quality traces **off** in Settings (the first-run privacy prompt can default to
+  sharing). Verify `telemetry.metrics` and `telemetry.content` are `false` in the app's `app-config.json`
+  under `~/Library/Application Support/Open Design/namespaces/release-stable/data/`. A separate always-on
+  safety and reliability channel exists and cannot be turned off.
+- Connect Claude Code from the app's **Settings > MCP** panel: copy the `claude mcp add-json --scope user
+  open-design '...'` command it shows and run it. It lives in the user-level `~/.claude.json`, never in this
+  repo. The snippet is machine-specific (it contains temporary socket paths and your data dir), so do not
+  copy it from docs or another machine, and never commit it.
+- The entry relaunches the app headless when it is not running. If Claude Code cannot reach it, re-copy the
+  command from Settings, or run the bundled CLI with the running app's daemon URL:
+  `od mcp install claude --daemon-url <url>` (the plain `od` command is not on PATH; use the app's bundled
+  `daemon-cli.mjs` via its Helper binary).
+- After connecting, start a new Claude Code session and check `/mcp` shows `open-design` as connected.
+
 ## Repo layout (monorepo)
 
 ```
