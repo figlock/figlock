@@ -22,8 +22,12 @@ test:
     if [ -f Cargo.toml ]; then cargo test --workspace; fi
     if [ -f pnpm-workspace.yaml ]; then pnpm -r --if-present run test; fi
 
-# Everything CI runs: lint plus tests.
-check: lint test
+# WCAG contrast check of the design tokens.
+design-check:
+    python3 -I design/check-contrast.py
+
+# Everything CI runs: lint, tests and the design token check.
+check: lint test design-check
 
 # Supply-chain checks: advisories, licenses, bans, sources.
 deny:

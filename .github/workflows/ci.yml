@@ -40,6 +40,7 @@ jobs:
               - 'apps/**'
               - 'packages/**'
               - 'site/**'
+              - 'design/**'
               - 'relay/**'
               - 'package.json'
               - 'pnpm-*.yaml'
@@ -69,6 +70,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4
+      - name: Design tokens meet WCAG AA
+        run: just design-check
       - name: Install, lint and test
         run: |
           if [ -f pnpm-workspace.yaml ]; then
