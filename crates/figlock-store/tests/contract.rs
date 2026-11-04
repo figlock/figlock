@@ -288,13 +288,43 @@ fn foreign_files_in_the_folder_are_ignored_not_trusted() {
     std::fs::create_dir_all(d.path().join(".hidden-dir")).unwrap();
     std::fs::write(d.path().join(".hidden-dir/x.op"), b"junk").unwrap();
     let paths: Vec<_> = s.list("").unwrap().into_iter().map(|e| e.path).collect();
-    // Capitalised or spaced names are listed (they exist) but can never be addressed through get or put.
-    assert!(paths.contains(&"vault.json".to_string()));
+    std::fs::write(d.path().join(".Upper.icloud"), b"").unwrap();
+    assert_eq!(paths, vec!["vault.json".to_string()]);
+    // Every listed path is addressable.
+    for p in &paths {
+        s.get(p).unwrap();
+    }
     assert!(
         !paths
             .iter()
             .any(|p| p.contains(".DS_Store") || p.contains(".hidden-dir"))
     );
+}
+
+#[test]
+fn list_tolerates_concurrent_writes_and_deletes() {
+    let d = tempfile::tempdir().unwrap();
+    let s = Arc::new(LocalFolder::open(d.path()).unwrap());
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let writer = {
+        let (s, stop) = (s.clone(), stop.clone());
+        std::thread::spawn(move || {
+            let mut i = 0u32;
+            while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                let p = format!("log/aa/{:08}.op", i % 8);
+                let _ = s.put_new(&p, b"x");
+                s.put_replace(&p, b"y").unwrap();
+                s.delete(&p).unwrap();
+                i += 1;
+            }
+        })
+    };
+    for _ in 0..2000 {
+        s.list("").unwrap();
+        s.list("log/aa/").unwrap();
+    }
+    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    writer.join().unwrap();
 }
 
 #[cfg(unix)]

@@ -181,10 +181,18 @@ fn walk(dir: &Path, rel: &str, depth: usize, out: &mut Vec<Entry>) -> Result<()>
         Err(e) => return Err(e.into()),
     };
     for entry in read {
-        let entry = entry?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e.into()),
+        };
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
-        let meta = fs::symlink_metadata(entry.path())?;
+        let meta = match fs::symlink_metadata(entry.path()) {
+            Ok(m) => m,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(e.into()),
+        };
         let join = |n: &str| {
             if rel.is_empty() {
                 n.to_owned()
@@ -196,7 +204,7 @@ fn walk(dir: &Path, rel: &str, depth: usize, out: &mut Vec<Entry>) -> Result<()>
             continue;
         }
         if meta.is_dir() {
-            if !name.starts_with('.') {
+            if !name.starts_with('.') && validate_path(&join(name)).is_ok() {
                 walk(&entry.path(), &join(name), depth + 1, out)?;
             }
         } else if meta.is_file() {
@@ -205,13 +213,15 @@ fn walk(dir: &Path, rel: &str, depth: usize, out: &mut Vec<Entry>) -> Result<()>
                 .and_then(|n| n.strip_suffix(".icloud"))
             {
                 // iCloud Drive placeholder for a file that is not downloaded yet.
-                out.push(Entry {
-                    path: join(real),
-                    size: 0,
-                    mtime: None,
-                    available: false,
-                });
-            } else if !name.starts_with('.') {
+                if validate_path(&join(real)).is_ok() {
+                    out.push(Entry {
+                        path: join(real),
+                        size: 0,
+                        mtime: None,
+                        available: false,
+                    });
+                }
+            } else if !name.starts_with('.') && validate_path(&join(name)).is_ok() {
                 out.push(Entry {
                     path: join(name),
                     size: meta.len(),
