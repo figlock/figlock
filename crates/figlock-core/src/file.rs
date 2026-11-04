@@ -119,7 +119,7 @@ pub fn read_file(
     }
     let epoch = u32::from_be_bytes(hdr[4..8].try_into().map_err(|_| Error)?);
     let n = u32::from_be_bytes(data[8..12].try_into().map_err(|_| Error)?) as usize;
-    if data.len() != 12 + n + SIG_LEN {
+    if n != data.len() - (FILE_HEADER_LEN + 4) - SIG_LEN {
         return Err(Error);
     }
     let (envelope, sig) = (&data[12..12 + n], &data[12 + n..]);
@@ -129,4 +129,23 @@ pub fn read_file(
         .verify_strict(&sig_input(id, hdr, envelope), &Signature::from_bytes(&sig))
         .map_err(|_| Error)?;
     open(lk, envelope, &file_aad(expect, id, epoch))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn oversized_length_field_is_rejected() {
+        let key = Key::from_bytes([7u8; 32]);
+        let id = FileId {
+            vault_id: &[1; 16],
+            device_id: &[2; 16],
+            seq: 1,
+        };
+        let mut data = vec![b'F', b'L', 1, 1, 0, 0, 0, 1];
+        data.extend_from_slice(&u32::MAX.to_be_bytes());
+        data.extend_from_slice(&[0u8; 80]);
+        assert!(read_file(&data, &key, Some(&[0u8; 32]), &id, Kind::Op).is_err());
+    }
 }

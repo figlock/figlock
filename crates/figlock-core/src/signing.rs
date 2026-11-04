@@ -1,28 +1,77 @@
 //! Signed JSON: device records and `vault.json` (`crypto.md` 7.4).
 //!
 //! The signed bytes are `"figlock/v1/<context>" || 0x00 || JCS(object)`. JCS (RFC 8785) is produced by
-//! `serde_json`, whose maps are sorted. That is exact for the value types FigLock signs: strings, integers,
-//! booleans, arrays and objects with ASCII keys. Floats and `null` are rejected so no ambiguity can arise.
+//! an explicit serializer that sorts object keys itself. That is exact for the value types FigLock signs:
+//! strings, integers within +-2^53, booleans, arrays and objects with ASCII keys. Floats, `null` and larger
+//! integers are rejected so no ambiguity can arise.
 
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use serde_json::Value;
 
 use crate::{Error, Key, Result};
 
-fn jcs(value: &Value) -> Result<Vec<u8>> {
-    fn check(v: &Value) -> Result<()> {
-        match v {
-            Value::Null => Err(Error),
-            Value::Number(n) if !(n.is_u64() || n.is_i64()) => Err(Error),
-            Value::Array(a) => a.iter().try_for_each(check),
-            Value::Object(m) => m
-                .iter()
-                .try_for_each(|(k, v)| if k.is_ascii() { check(v) } else { Err(Error) }),
-            _ => Ok(()),
+const MAX_SAFE_INT: u64 = 1 << 53;
+
+fn write_string(s: &str, out: &mut Vec<u8>) -> Result<()> {
+    serde_json::to_writer(out, s).map_err(|_| Error)
+}
+
+fn write_jcs(v: &Value, out: &mut Vec<u8>) -> Result<()> {
+    match v {
+        Value::Null => Err(Error),
+        Value::Bool(b) => {
+            out.extend_from_slice(if *b { b"true" } else { b"false" });
+            Ok(())
+        }
+        Value::Number(n) => {
+            let in_range = n
+                .as_u64()
+                .map(|u| u <= MAX_SAFE_INT)
+                .or_else(|| n.as_i64().map(|i| i.unsigned_abs() <= MAX_SAFE_INT))
+                .unwrap_or(false);
+            if !in_range {
+                return Err(Error);
+            }
+            out.extend_from_slice(n.to_string().as_bytes());
+            Ok(())
+        }
+        Value::String(s) => write_string(s, out),
+        Value::Array(a) => {
+            out.push(b'[');
+            for (i, item) in a.iter().enumerate() {
+                if i > 0 {
+                    out.push(b',');
+                }
+                write_jcs(item, out)?;
+            }
+            out.push(b']');
+            Ok(())
+        }
+        Value::Object(m) => {
+            if !m.keys().all(|k| k.is_ascii()) {
+                return Err(Error);
+            }
+            let mut entries: Vec<_> = m.iter().collect();
+            entries.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
+            out.push(b'{');
+            for (i, (k, val)) in entries.into_iter().enumerate() {
+                if i > 0 {
+                    out.push(b',');
+                }
+                write_string(k, out)?;
+                out.push(b':');
+                write_jcs(val, out)?;
+            }
+            out.push(b'}');
+            Ok(())
         }
     }
-    check(value)?;
-    serde_json::to_vec(value).map_err(|_| Error)
+}
+
+fn jcs(value: &Value) -> Result<Vec<u8>> {
+    let mut out = Vec::new();
+    write_jcs(value, &mut out)?;
+    Ok(out)
 }
 
 fn message(context: &str, value: &Value) -> Result<Vec<u8>> {
@@ -53,4 +102,37 @@ pub fn verify_json(
 #[cfg(feature = "vector-hooks")]
 pub fn canonical_json(value: &Value) -> Result<Vec<u8>> {
     jcs(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Map, json};
+
+    #[test]
+    fn keys_are_sorted_regardless_of_insertion_order() {
+        let mut m = Map::new();
+        m.insert("b".into(), json!(1));
+        m.insert("a".into(), json!({"z": true, "y": [2, "x"]}));
+        m.insert("B".into(), json!(false));
+        let out = jcs(&Value::Object(m)).unwrap();
+        assert_eq!(out, br#"{"B":false,"a":{"y":[2,"x"],"z":true},"b":1}"#);
+    }
+
+    #[test]
+    fn integers_beyond_2_pow_53_are_rejected() {
+        assert!(jcs(&json!(1u64 << 53)).is_ok());
+        assert!(jcs(&json!(-(1i64 << 53))).is_ok());
+        assert!(jcs(&json!((1u64 << 53) + 1)).is_err());
+        assert!(jcs(&json!(-(1i64 << 53) - 1)).is_err());
+        assert!(jcs(&json!(u64::MAX)).is_err());
+        assert!(jcs(&json!(i64::MIN)).is_err());
+    }
+
+    #[test]
+    fn floats_null_and_non_ascii_keys_are_rejected() {
+        assert!(jcs(&json!(1.5)).is_err());
+        assert!(jcs(&json!({"a": null})).is_err());
+        assert!(jcs(&json!({"é": 1})).is_err());
+    }
 }
