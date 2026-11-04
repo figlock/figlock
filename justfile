@@ -34,7 +34,7 @@ vectors-check:
 design-check:
     python3 -I design/check-contrast.py
 
-# Everything CI runs: lint, tests and the design token check.
+# Everything CI runs: lint, tests, the design token check and the vector drift check.
 check: lint test design-check vectors-check
 
 # Supply-chain checks: advisories, licenses, bans, sources.
