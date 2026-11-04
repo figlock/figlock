@@ -1,8 +1,9 @@
 //! FigLock core: crypto, items, op log, merge and search. Pure logic, no I/O.
 //!
 //! This crate currently holds the crypto module (`docs/spec/crypto.md`, the container and invite parts of
-//! `sync.md` and `pairing-recovery.md`). Every rule is checked against the test vectors in
-//! `docs/spec/vectors/` by `tests/vectors.rs`.
+//! `sync.md` and `pairing-recovery.md`) and the sync logic of `sync.md` (hybrid logical clock, field-level
+//! merge, op batch and snapshot payloads, reader decisions). Every rule is checked against the test vectors in
+//! `docs/spec/vectors/` by `tests/vectors.rs` and `tests/sync.rs`.
 //!
 //! Conventions, from the spec:
 //! - one generic [`Error`] for every verification or decryption failure;
