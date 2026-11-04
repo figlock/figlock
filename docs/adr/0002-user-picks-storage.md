@@ -10,7 +10,7 @@ There is no FigLock backend (AGENTS.md non-negotiables). Storage must be somethi
 
 ## Decision
 
-There is no default silently chosen. Setup asks the user to pick, and suggests iCloud Drive (a synced folder) for an iPhone plus Mac only setup, and Google Drive for anything mixed. All adapters implement the same four-operation BlobStore contract (`sync.md` 2).
+There is no default silently chosen. Setup asks the user to pick, and suggests iCloud Drive (a synced folder) for an iPhone plus Mac only setup, and Google Drive for anything mixed. All adapters implement the same five-operation BlobStore contract (`sync.md` 2).
 
 ## Consequences
 
