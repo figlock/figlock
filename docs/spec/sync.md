@@ -192,9 +192,10 @@ A snapshot is the full merged state at a point in time:
 ```
 {
   "v": 1, "device": <16>, "seq": <u64 of writer's own op seq covered>,
-  "hw": { <device_id>: <highest seq included>, ... },     # high-water marks
-  "purge_horizon": <hlc>,
-  "items": [ { "item", "wrapped_ik", "fields": { field_id: [hlc, device_id, blob|null], ... } }, ... ],
+  "hw": { <device_id as 16 bytes>: <highest seq included>, ... },     # high-water marks
+  "purge_horizon": <8-byte hlc>,
+  "items": [ { "item", "wrapped_ik", "deleted": [hlc, device_id, bool] | null,
+                "fields": { field_id: [hlc (8 bytes), device_id (16 bytes), blob | null], ... } }, ... ],
   "pad": <zero bytes>
 }
 ```

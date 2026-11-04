@@ -1,8 +1,9 @@
 //! FigLock core: crypto, items, op log, merge and search. Pure logic, no I/O.
 //!
 //! This crate currently holds the crypto module (`docs/spec/crypto.md`, the container and invite parts of
-//! `sync.md` and `pairing-recovery.md`). Every rule is checked against the test vectors in
-//! `docs/spec/vectors/` by `tests/vectors.rs`.
+//! `sync.md` and `pairing-recovery.md`) and the sync logic of `sync.md` (hybrid logical clock, field-level
+//! merge, op batch and snapshot payloads, reader decisions). Every rule is checked against the test vectors in
+//! `docs/spec/vectors/` by `tests/vectors.rs` and `tests/sync.rs`.
 //!
 //! Conventions, from the spec:
 //! - one generic [`Error`] for every verification or decryption failure;
@@ -12,10 +13,14 @@
 mod aead;
 mod error;
 mod file;
+mod hlc;
 mod items;
 mod kdf;
 mod keys;
+mod merge;
 mod pairing;
+mod payload;
+mod reader;
 mod secret;
 mod secret_key;
 mod signing;
@@ -24,15 +29,21 @@ mod wire;
 pub use aead::{VERSION, open, seal};
 pub use error::{Error, Result};
 pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
+pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};
 pub use items::{open_field, seal_field, unwrap_item_key, wrap_item_key};
 pub use kdf::{KdfParams, derive_pw_key};
 pub use keys::{
     VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, open_quick_unlock,
     seal_quick_unlock, unwrap_vk, wrap_vk,
 };
+pub use merge::{DeviceId, Register, State, Write};
 pub use pairing::{
     InviteKeys, invite_code_format, invite_code_parse, invite_keys, open_seal_to, seal_to,
     x25519_public,
+};
+pub use payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem, padded_size};
+pub use reader::{
+    LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
 pub use secret::Key;
 pub use secret_key::SecretKey;
