@@ -1,11 +1,18 @@
 version: 2
 updates:
+  # One PR per ecosystem per week instead of one per dependency.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: cargo
     directory: /
     schedule:
       interval: weekly
-# Add an npm entry when the pnpm workspace lands.
+    groups:
+      cargo:
+        patterns: ["*"]
+# Add an npm entry (grouped the same way) when the pnpm workspace lands.
