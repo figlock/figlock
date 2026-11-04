@@ -90,6 +90,8 @@ For a task that will change code, do every step, in order:
 3. Comment the GitHub issue link on the Paperclip task.
 4. Branch `FIG-<n>-<short-slug>` off `main`.
 5. Open a PR whose title starts with `FIG-<n>` and whose body says `Closes #<github-issue>`.
+   For functional changes (code, build, CI, or config that changes behaviour), run the `no-mistakes`
+   gate and get it green before merging. Docs-only and wording changes skip it.
 6. When the PR merges, link the PR on the Paperclip task and move it to **In Review** for the human.
 
 A task with no code change only needs step 1, its artifacts attached in Paperclip, and **In Review** at
