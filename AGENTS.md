@@ -29,21 +29,56 @@ the user approves with Touch ID, ideally without ever seeing it.
 
 ## How we track work (Paperclip + GitHub)
 
-- **Paperclip is the plan.** It runs locally at `http://localhost:3100` and holds the goal, one project per
-  phase, milestones, tasks, blockers ("blocks" links), the assets register and these docs. If something is
-  not in Paperclip, it is not planned.
-- **GitHub is the public record.** Repo `seemantshekhar43/figlock` (public) for now; it moves to a
-  `figlock` org later and GitHub redirects the old URLs. A task gets a GitHub issue the moment work starts
-  on it, not before. Never hard-code the github.com path in user-facing places: use figlock.com URLs
-  (`figlock.com/install.sh`, docs links) so the move is invisible to users.
-- **Start-a-task routine** (do every step, in order):
-  1. Move the Paperclip task to **In Progress**.
-  2. `gh issue create --repo seemantshekhar43/figlock --title "FIG-<n>: <task title>" --label <area>` with the
-     task's goal and exit criteria as the body. No secrets, no local paths.
-  3. Comment the GitHub issue link on the Paperclip task.
-  4. Branch `FIG-<n>-<short-slug>` off `main`.
-  5. Open a PR whose title starts with `FIG-<n>` and whose body says `Closes #<github-issue>`.
-  6. When the PR merges, move the Paperclip task to **Done** and link the PR in a comment.
+- **Paperclip is the plan.** It runs locally at `http://127.0.0.1:3100` and holds the goal, one project per
+  phase, tasks, blockers ("blocked by" links), the assets register and the project handbook (FIG-61). If
+  something is not in Paperclip, it is not planned.
+- **GitHub is the public record of code.** Repo `seemantshekhar43/figlock` (public) for now; it moves to a
+  `figlock` org later and GitHub redirects the old URLs. Never hard-code the github.com path in user-facing
+  places: use figlock.com URLs (`figlock.com/install.sh`, docs links) so the move is invisible to users.
+
+### Where things go
+
+| What | Where |
+| --- | --- |
+| Tasks, status, blockers, discussion | Paperclip task and its comments |
+| Local working artifacts: inkloop plans, comparisons, research notes, screenshots, OpenDesign exports under review | Paperclip, on the task they belong to. Markdown as a task **document** (versioned, `PUT /api/issues/{id}/documents/{key}`), any other file as an **attachment** (`POST /api/companies/{companyId}/issues/{id}/attachments`, multipart field `file`). Not committed, not on GitHub. |
+| Things the code or users depend on: PRD, decisions, ADRs, specs, test vectors, `design/DESIGN.md` | The repo. Refresh the copy on FIG-61 when they change. |
+| Work that lands as a commit or PR | A GitHub issue too (routine below) |
+
+Research, planning, account and DNS chores, and other tasks with no code change stay in Paperclip only.
+Paperclip data lives in `~/.paperclip`, outside git, so back it up with `paperclipai db:backup` before
+anything risky.
+
+### Using Paperclip from a new session
+
+- Start it if it isn't running: `curl -s http://127.0.0.1:3100/api/health`, otherwise `paperclipai run`.
+- It runs in `local_trusted` mode, so the API on loopback needs no token. Company prefix `FIG`; look up the
+  company id with `GET /api/companies`.
+- Don't guess the API. Paperclip describes itself:
+  - `GET /api/openapi.json`: every route.
+  - `GET /api/skills/paperclip`: Paperclip's own agent guide (documents, attachments, work products,
+    blockers, approvals). It is written for agents that Paperclip wakes on a heartbeat, so skip the
+    heartbeat, checkout and run-token parts when working interactively.
+  - `paperclipai --help`, `paperclipai issue --help`: the CLI covers issues, comments, documents and work
+    products.
+- After an upgrade (`paperclipai update`), re-read those instead of trusting this file's route names.
+
+### Start-a-task routine
+
+For a task that will change code, do every step, in order:
+
+1. Move the Paperclip task to **In Progress**.
+2. `gh issue create --repo seemantshekhar43/figlock --title "FIG-<n>: <task title>" --label <area>` with the
+   task's goal and exit criteria as the body. No secrets, no local paths.
+3. Comment the GitHub issue link on the Paperclip task.
+4. Branch `FIG-<n>-<short-slug>` off `main`.
+5. Open a PR whose title starts with `FIG-<n>` and whose body says `Closes #<github-issue>`.
+6. When the PR merges, link the PR on the Paperclip task and move it to **In Review** for the human.
+
+A task with no code change only needs step 1, its artifacts attached in Paperclip, and **In Review** at
+the end.
+
+### Rules
 - **Blocked?** Move the task to **Blocked**, add a "blocked by" link to the blocking task (create one if it
   doesn't exist), and say in a comment what would unblock it.
 - **Nothing moves to Done without review.** Agents stop at **In Review**; the human approves.
@@ -58,7 +93,7 @@ the user approves with Touch ID, ideally without ever seeing it.
 - Be picky about UI: if something looks off, even outside the current task, fix it or file a task.
 - Lint errors, test failures and flaky tests are always worth fixing, even when you didn't cause them.
 - Plans, comparisons and reports for human review go through `inkloop` (`npx -y inkloop <file.html>`),
-  kept under `.inkloop/`.
+  kept under `.inkloop/` (gitignored). Once a review round ends, attach the HTML to its Paperclip task.
 - Use `gh-axi` for GitHub operations when available.
 - Ask before using any harness feature that spawns a large swarm of subagents.
 - Writing: never use the em dash character; use a plain dash `-`.
