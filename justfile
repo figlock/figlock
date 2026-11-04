@@ -24,3 +24,7 @@ test:
 
 # Everything CI runs: lint plus tests.
 check: lint test
+
+# Supply-chain checks: advisories, licenses, bans, sources.
+deny:
+    if [ -f Cargo.toml ]; then cargo deny check; fi

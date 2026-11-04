@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'deny.toml'
+              - 'mise.toml'
+              - 'justfile'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'apps/**'
+              - 'packages/**'
+              - 'site/**'
+              - 'relay/**'
+              - 'package.json'
+              - 'pnpm-*.yaml'
+              - 'mise.toml'
+              - 'justfile'
+              - '.github/workflows/ci.yml'
+
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - uses: Swatinem/rust-cache@v2
+      - name: Format and clippy
+        run: just lint
+      - name: Test
+        run: just test
+      - name: Supply chain (cargo-deny)
+        run: just deny
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Install, lint and test
+        run: |
+          if [ -f pnpm-workspace.yaml ]; then
+            pnpm install --frozen-lockfile
+            pnpm -r --if-present run lint
+            pnpm -r --if-present run test
+          else
+            echo "No JS workspace yet"
+          fi
+
+  # Single stable check for the main ruleset: skipped path-filtered jobs count as passing.
+  ci:
+    if: always()
+    needs: [changes, rust, web]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        run: |
+          echo '${{ toJSON(needs) }}'
+          if [ "${{ contains(needs.*.result, 'failure') }}" = "true" ] || [ "${{ contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            exit 1
+          fi

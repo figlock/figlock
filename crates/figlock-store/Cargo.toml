@@ -1,0 +1,11 @@
+[package]
+name = "figlock-store"
+description = "BlobStore adapters: local folder, Google Drive, later Git and S3"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

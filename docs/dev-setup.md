@@ -36,7 +36,8 @@ git config core.hooksPath .githooks   # pre-commit hook: format check and lint
 | `just fmt` | Format Rust and JS/TS code |
 | `just lint` | Format check plus clippy with warnings as errors, and JS lint |
 | `just test` | Run all tests |
-| `just check` | `lint` then `test` (what CI runs) |
+| `just deny` | cargo-deny: advisories, licenses, bans, sources |
+| `just check` | `lint` then `test` (CI also runs `deny`) |
 
 Recipes skip a language until its workspace exists (`Cargo.toml`, `pnpm-workspace.yaml`).
 
