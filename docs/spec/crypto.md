@@ -58,6 +58,9 @@ No other primitive may be used without an ADR and new test vectors.
 - `seal(key, plaintext, aad)` and `open(key, envelope, aad)` denote the above. `open` MUST fail on any
   mismatch and MUST NOT return partial plaintext.
 - **Signed JSON** files (`vault.json`, `devices/*.json`) are canonicalised with JCS (RFC 8785) before signing.
+  Binary values inside JSON (ids, public keys, salts, signatures) are lower case hex strings; the signature
+  covers the JCS form of the object without its `signature` member, under the context string
+  `figlock/v1/<device-record|vault-json>` followed by a zero byte (section 7.4).
   Op and snapshot payloads inside ciphertext are deterministic CBOR (RFC 8949 section 4.2).
 - **Text.** Master passwords are normalised to Unicode NFKD, encoded as UTF-8, with no trimming. The same
   rule applies on every platform.
@@ -258,7 +261,9 @@ A revoked device still knows the old `VK`, so revocation MUST rotate it:
 2. Rewrap every `IK` under `WK'` and rewrite device records and `vault.json` with the new authority key,
    leaving the revoked device out and recording it in a signed `revoked` list.
 3. Write a new snapshot (sync spec) sealed under `LK'`. Old op files stay readable by devices that hold the
-   previous epoch key, which is kept in `vault.json` as `epoch_keys`: `seal(VK', VK_old, aad("epoch-key", ...))`.
+   previous epoch key, which is kept in `vault.json` as `epoch_keys`:
+   `epoch_key = seal(VK', VK_old, aad("epoch-key", vault_id, u32(old_epoch), u32(new_epoch)))`. Chains of
+   epochs are opened newest first.
 4. Rewrap `VK'` under `AUK`, and for `rk_pub` if a Recovery Key is enabled (this needs only the public key).
 
 Rotation cannot recall data a revoked device already copied; it only protects what is written afterwards.

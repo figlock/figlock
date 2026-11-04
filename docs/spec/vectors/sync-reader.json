@@ -1,0 +1,179 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Reader state machine outcomes",
+  "cases": [
+    {
+      "name": "gap-blocks-later-files",
+      "spec": "sync.md 8",
+      "inputs": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "present_files": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": [
+            5,
+            6
+          ]
+        }
+      },
+      "expected": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "waiting_for": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 4
+        }
+      }
+    },
+    {
+      "name": "files-covered-by-snapshot-are-not-a-gap",
+      "spec": "sync.md 7, 8",
+      "inputs": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "snapshot_hw": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 5
+        },
+        "present_files": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": [
+            6
+          ]
+        }
+      },
+      "expected": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 6
+        }
+      }
+    },
+    {
+      "name": "fork-same-seq-two-files",
+      "spec": "sync.md 8",
+      "inputs": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "files": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": {
+            "4": [
+              "file-x",
+              "file-y"
+            ]
+          }
+        }
+      },
+      "expected": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "device_stopped": "f4a178f4ea1922f1a69bee4ab47e8407",
+        "warning": "fork"
+      }
+    },
+    {
+      "name": "prev-hash-mismatch",
+      "spec": "sync.md 8",
+      "inputs": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "file_4_prev_matches": false
+      },
+      "expected": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 3
+        },
+        "device_stopped": "f4a178f4ea1922f1a69bee4ab47e8407",
+        "warning": "fork"
+      }
+    },
+    {
+      "name": "rollback-shorter-listing",
+      "spec": "sync.md 8",
+      "inputs": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 7
+        },
+        "listing": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": [
+            1,
+            2,
+            3
+          ]
+        }
+      },
+      "expected": {
+        "applied": {
+          "f4a178f4ea1922f1a69bee4ab47e8407": 7
+        },
+        "warning": "rollback",
+        "never_lower_local_state": true
+      }
+    },
+    {
+      "name": "vault-json-lower-revision-ignored",
+      "spec": "sync.md 3, 8",
+      "inputs": {
+        "accepted_revision": 5,
+        "seen_revision": 4
+      },
+      "expected": {
+        "accepted_revision": 5,
+        "warning": "rollback"
+      }
+    },
+    {
+      "name": "revoked-device-before-revoked-at-accepted",
+      "spec": "sync.md 9",
+      "inputs": {
+        "revoked_at": [
+          1000,
+          0
+        ],
+        "op_stamp": [
+          999,
+          9
+        ],
+        "file_epoch": 1,
+        "rotation_epoch": 2
+      },
+      "expected": "accept"
+    },
+    {
+      "name": "revoked-device-after-revoked-at-ignored",
+      "spec": "sync.md 9",
+      "inputs": {
+        "revoked_at": [
+          1000,
+          0
+        ],
+        "op_stamp": [
+          1000,
+          1
+        ],
+        "file_epoch": 1,
+        "rotation_epoch": 2
+      },
+      "expected": "ignore"
+    },
+    {
+      "name": "revoked-device-new-epoch-ignored",
+      "spec": "sync.md 9",
+      "inputs": {
+        "revoked_at": [
+          1000,
+          0
+        ],
+        "op_stamp": [
+          900,
+          0
+        ],
+        "file_epoch": 2,
+        "rotation_epoch": 2
+      },
+      "expected": "ignore"
+    }
+  ]
+}

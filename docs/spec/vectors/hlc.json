@@ -1,0 +1,228 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Hybrid logical clock",
+  "cases": [
+    {
+      "name": "local-time-advances",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          0,
+          0
+        ],
+        "steps": [
+          [
+            "local",
+            100
+          ],
+          [
+            "local",
+            105
+          ]
+        ]
+      },
+      "expected": [
+        [
+          100,
+          0
+        ],
+        [
+          105,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "local-same-millisecond-increments-counter",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          0,
+          0
+        ],
+        "steps": [
+          [
+            "local",
+            100
+          ],
+          [
+            "local",
+            100
+          ],
+          [
+            "local",
+            100
+          ]
+        ]
+      },
+      "expected": [
+        [
+          100,
+          0
+        ],
+        [
+          100,
+          1
+        ],
+        [
+          100,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "local-clock-went-backwards",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          200,
+          5
+        ],
+        "steps": [
+          [
+            "local",
+            150
+          ]
+        ]
+      },
+      "expected": [
+        [
+          200,
+          6
+        ]
+      ]
+    },
+    {
+      "name": "receive-remote-ahead",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          100,
+          0
+        ],
+        "steps": [
+          [
+            "recv",
+            500,
+            7,
+            120
+          ]
+        ]
+      },
+      "expected": [
+        [
+          500,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "receive-same-wall-both",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          500,
+          3
+        ],
+        "steps": [
+          [
+            "recv",
+            500,
+            7,
+            400
+          ]
+        ]
+      },
+      "expected": [
+        [
+          500,
+          8
+        ]
+      ]
+    },
+    {
+      "name": "receive-local-ahead",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          500,
+          3
+        ],
+        "steps": [
+          [
+            "recv",
+            400,
+            9,
+            450
+          ]
+        ]
+      },
+      "expected": [
+        [
+          500,
+          4
+        ]
+      ]
+    },
+    {
+      "name": "receive-now-ahead-of-both",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          100,
+          4
+        ],
+        "steps": [
+          [
+            "recv",
+            90,
+            2,
+            700
+          ]
+        ]
+      },
+      "expected": [
+        [
+          700,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "counter-overflow",
+      "spec": "sync.md 5",
+      "inputs": {
+        "start": [
+          100,
+          65535
+        ],
+        "steps": [
+          [
+            "local",
+            100
+          ]
+        ]
+      },
+      "expected": "reject",
+      "why": "counter would exceed 0xFFFF: wait one millisecond and retry"
+    },
+    {
+      "name": "drift-hold",
+      "spec": "sync.md 5",
+      "inputs": {
+        "now": 1700000000000,
+        "op_wall_ms": [
+          1700086400000,
+          1700086400001
+        ]
+      },
+      "expected": {
+        "held": [
+          false,
+          true
+        ]
+      }
+    }
+  ]
+}

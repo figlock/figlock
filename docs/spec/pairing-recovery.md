@@ -67,6 +67,7 @@ T (unlocked)                         storage                         N (new)
 
 ```
 s          = 100 random bits, shown as 5 groups of 4 Crockford base32 characters: XXXX-XXXX-XXXX-XXXX-XXXX
+             (as bytes: the 100-bit big-endian integer in 13 bytes, top 4 bits zero; this is what HKDF uses)
 invite_id  = HKDF(s, salt = vault_id, info = "figlock/v1/invite-id", L = 16)    # hex in the file name
 ```
 

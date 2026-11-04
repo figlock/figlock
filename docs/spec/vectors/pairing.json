@@ -1,0 +1,116 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Invite pairing",
+  "cases": [
+    {
+      "name": "invite-code-format",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "s": "0bb184564b35f46151fb1a1953"
+      },
+      "expected": {
+        "code": "QCC4-AS5K-BX31-A7XH-M6AK"
+      }
+    },
+    {
+      "name": "invite-code-parse",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "code": "qcc4 as5k bx31 a7xh m6ak"
+      },
+      "expected": {
+        "s": "0bb184564b35f46151fb1a1953"
+      }
+    },
+    {
+      "name": "invite-keys",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "s": "0bb184564b35f46151fb1a1953",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "en_priv": "f7c53dd6043d14de4cac210dc2876951d9e671b63f1e7ca9037b4b4aa6d47556",
+        "et_priv": "71c98702900c0d17ed75c03c77f02230593db563528d5deb65ac4df8085908a4",
+        "et_pub": "e873a1eecc964841cf3cb4736e4b9da74df43ed5601a846e52b295ddedc40744",
+        "en_pub": "fbfe51ed36217f61a33d3da4fa362ebab3de23892f68fd8f250e25aeaeed284d"
+      },
+      "expected": {
+        "invite_id": "ee13454475a4dd292fb58cdce589e66f",
+        "k_req": "eeeb5e498d42111bb88466db41deaf95c51791bbaa6d7eccdf6db20333bf1c40",
+        "k_resp": "2efdd467abda07362010273f4e2baa1bf02a830f3b4f973c30401a56857a4053"
+      },
+      "note": "both sides derive the same keys"
+    },
+    {
+      "name": "invite-req",
+      "spec": "pairing-recovery.md 3.3 step 3",
+      "inputs": {
+        "en_pub": "fbfe51ed36217f61a33d3da4fa362ebab3de23892f68fd8f250e25aeaeed284d",
+        "k_req": "eeeb5e498d42111bb88466db41deaf95c51791bbaa6d7eccdf6db20333bf1c40",
+        "plaintext_cbor": "a3687369676e5f707562582001010101010101010101010101010101010101010101010101010101010101016961677265655f707562582002020202020202020202020202020202020202020202020202020202020202026b6465766963655f6e616d656c576f726b204d6163426f6f6b",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "invite_id": "ee13454475a4dd292fb58cdce589e66f",
+        "nonce": "0b077f23bf5b2929750dc8290f839762738837c9a1298f08"
+      },
+      "expected": {
+        "req_file": "fbfe51ed36217f61a33d3da4fa362ebab3de23892f68fd8f250e25aeaeed284d010b077f23bf5b2929750dc8290f839762738837c9a1298f08c712448add9bbf84b9c3e8dc2d93b42aa1a28c55b3245fc8581eae94f9698ce55499bfb5c480cdd644645bd2d57beb3cfc57aef99450b3a03317d3449caef9350a2c857f5c0c7fdde5073f5ded89cede570c4ce4c8c3a3285266d8e3fbd7953076eb4a0ebf5253341f3ac2c3decca979a93c019c59620a1560235df12aed810971"
+      }
+    },
+    {
+      "name": "invite-resp",
+      "spec": "pairing-recovery.md 3.3 step 5",
+      "inputs": {
+        "k_resp": "2efdd467abda07362010273f4e2baa1bf02a830f3b4f973c30401a56857a4053",
+        "plaintext_cbor": "a2696465766963655f696450bb8b7895c05bf9f375d4217069c7ff4a6a7365637265745f6b657950a617b9ac2acf81b8d3679c520216482b",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "invite_id": "ee13454475a4dd292fb58cdce589e66f",
+        "nonce": "3de84e15cb8e6a2fae647fc29a40b89faa2c961089eee2a5"
+      },
+      "expected": {
+        "resp_file": "013de84e15cb8e6a2fae647fc29a40b89faa2c961089eee2a5c3863a3027c21e2d87e382bda24d567ea57226a94777a218b5ccc5015cc48171b85714a3fbb138d85a9d5850714e976a4c4a580f1431166cd1c68fff91be218323b955be397dd415"
+      }
+    },
+    {
+      "name": "invite-resp-wrong-code",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "k_resp": "c382ea8821921678ffa1ddb72b033b2fbccc2a5d006c52da915d882830779724",
+        "resp_file": "013de84e15cb8e6a2fae647fc29a40b89faa2c961089eee2a5c3863a3027c21e2d87e382bda24d567ea57226a94777a218b5ccc5015cc48171b85714a3fbb138d85a9d5850714e976a4c4a580f1431166cd1c68fff91be218323b955be397dd415",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "invite_id": "ee13454475a4dd292fb58cdce589e66f"
+      },
+      "expected": "reject",
+      "why": "without s the keys differ: storage attacker cannot read"
+    },
+    {
+      "name": "invite-resp-swapped-et-pub",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "k_resp": "b137fec70884c3b9aa7c352f79d526fa1a14d8171a1e6cbc16d0b64dd3411190",
+        "resp_file": "013de84e15cb8e6a2fae647fc29a40b89faa2c961089eee2a5c3863a3027c21e2d87e382bda24d567ea57226a94777a218b5ccc5015cc48171b85714a3fbb138d85a9d5850714e976a4c4a580f1431166cd1c68fff91be218323b955be397dd415",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "invite_id": "ee13454475a4dd292fb58cdce589e66f"
+      },
+      "expected": "reject",
+      "why": "a swapped Et_pub yields different keys"
+    },
+    {
+      "name": "invite-code-too-short",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "code": "QCC4-AS5K-BX31-A7XH"
+      },
+      "expected": "reject",
+      "why": "invalid code"
+    },
+    {
+      "name": "invite-code-bad-char",
+      "spec": "pairing-recovery.md 3.3",
+      "inputs": {
+        "code": "QCC4-AS5K-BX31-A7XH-M6AU"
+      },
+      "expected": "reject",
+      "why": "invalid code"
+    }
+  ]
+}

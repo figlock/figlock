@@ -1,0 +1,42 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "SLIP-0039 shares of the Recovery Key (generated once; verify only)",
+  "note": "Official SLIP-0039 vectors are run by the Rust implementation in addition to these.",
+  "cases": [
+    {
+      "name": "2-of-3",
+      "spec": "pairing-recovery.md 7.2",
+      "inputs": {
+        "master_secret": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0",
+        "threshold": 2,
+        "share_count": 3,
+        "passphrase": ""
+      },
+      "shares": [
+        "expect graduate academic acid airport involve wits exclude clinic false tolerate fatal burning increase superior salt device impulse mixed dance hearing ceramic sack paper crisis screw epidemic grief detect guard artist manager velvet",
+        "expect graduate academic agency acrobat campus wireless fiber miracle revenue location military garden divorce beam garlic tactics space purchase library depart weapon python domestic injury mouse aviation veteran arcade juice mobile angry costume",
+        "expect graduate academic always arcade tidy vanish lawsuit evidence should clock romantic excuse ceiling firm likely elbow race soul brother similar extend column minister devote pancake scramble endless firefly omit crucial raisin wolf"
+      ],
+      "expected": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0"
+    },
+    {
+      "name": "3-of-5",
+      "spec": "pairing-recovery.md 7.2",
+      "inputs": {
+        "master_secret": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0",
+        "threshold": 3,
+        "share_count": 5,
+        "passphrase": ""
+      },
+      "shares": [
+        "papa result academic acne aluminum negative window lizard ceiling leader flip require acid similar payroll twice cylinder quantity greatest cylinder rescue ecology plan easel amuse trust slush mortgage iris crunch dish artwork bike",
+        "papa result academic agree auction moment temple plains safari inherit marathon spirit woman mother railroad ancient news geology walnut award axle process corner racism hanger submit chemical taxi quick earth employer credit member",
+        "papa result academic amazing advance privacy obesity mason island jacket spit scholar crowd avoid random likely husband index switch floral busy nail realize bedroom hazard level purple gather teammate salon hybrid herald envy",
+        "papa result academic arcade aircraft party learn parcel mouse math activity prayer stadium facility patent geology season payment ecology jacket receiver item dining oasis antenna quarter fumes biology climate sniff artist estimate spew",
+        "papa result academic axle actress listen intend argue inside change paper remove findings payment hunting cradle mixed veteran frequent lawsuit ruin square member museum learn evil wits grill photo soldier decorate national credit"
+      ],
+      "expected": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0"
+    }
+  ]
+}

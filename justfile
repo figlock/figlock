@@ -22,12 +22,20 @@ test:
     if [ -f Cargo.toml ]; then cargo test --workspace; fi
     if [ -f pnpm-workspace.yaml ]; then pnpm -r --if-present run test; fi
 
+# Regenerate the test vectors in docs/spec/vectors (only when a spec rule changes).
+vectors:
+    cd docs/spec/vectors && python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt && .venv/bin/python generate.py
+
+# Check committed test vectors for drift and re-verify every case.
+vectors-check:
+    cd docs/spec/vectors && python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt && .venv/bin/python generate.py --check
+
 # WCAG contrast check of the design tokens.
 design-check:
     python3 -I design/check-contrast.py
 
 # Everything CI runs: lint, tests and the design token check.
-check: lint test design-check
+check: lint test design-check vectors-check
 
 # Supply-chain checks: advisories, licenses, bans, sources.
 deny:

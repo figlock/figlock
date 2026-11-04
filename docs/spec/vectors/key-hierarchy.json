@@ -1,0 +1,135 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Key hierarchy",
+  "cases": [
+    {
+      "name": "sk-key-and-auk",
+      "spec": "crypto.md 5",
+      "inputs": {
+        "password": "correct horse battery staple",
+        "sk": "a617b9ac2acf81b8d3679c520216482b",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "salt": "6d9a3622a368bef8cbdd1967b3d71d0f",
+        "m_kib": 65536,
+        "t": 3,
+        "p": 4
+      },
+      "expected": {
+        "pw_key": "5f7d3739add6c5ca8d7b08eb6b9c90a697f13bac673a0f530b5d06f552a55708",
+        "sk_key": "7abd0c50545d14c7a988b60035975564c71e8b3af2d416955a3edafee74c3a24",
+        "auk": "a503df680f99e54fd48d4fcf83bd2a622d491f38cf2e2489da1830eaf557d3a7"
+      }
+    },
+    {
+      "name": "different-secret-key-different-auk",
+      "spec": "crypto.md 5",
+      "inputs": {
+        "password": "correct horse battery staple",
+        "sk": "93aab6ca10372213983d0952c5b8ed45",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "salt": "6d9a3622a368bef8cbdd1967b3d71d0f",
+        "m_kib": 65536,
+        "t": 3,
+        "p": 4
+      },
+      "expected": {
+        "auk": "1304c53c0222dc2239b8241d515ee634f525fc038d32bd0a826700777dbbf6b5"
+      }
+    },
+    {
+      "name": "derive-from-vk",
+      "spec": "crypto.md 6",
+      "inputs": {
+        "vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d"
+      },
+      "expected": {
+        "lk": "e2f609fac37a40957d387cd4f4196e68fb6e7dea7019c9fe3590871f0fc98f19",
+        "wk": "7cf3026876185bfb455c5134c6261c6a25b52115056d821071f52adddaea53fd",
+        "authority_seed": "a15b8684865d1ca8d5ab682f371f06ea1802e9d98b0928ef8ef2c3d5e15feedc",
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a"
+      }
+    },
+    {
+      "name": "vk-wrap",
+      "spec": "crypto.md 6.1",
+      "inputs": {
+        "auk": "a503df680f99e54fd48d4fcf83bd2a622d491f38cf2e2489da1830eaf557d3a7",
+        "vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1,
+        "kdf_params_bytes": "000100000000000300000004000000106d9a3622a368bef8cbdd1967b3d71d0f",
+        "nonce": "b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0"
+      },
+      "expected": {
+        "wrapped_vk": "01b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0a23d601ae40177d2cae98b8f80c311d248b05814181d4607cb4288f5751c1780d5193587292fa13c8362c7fe64869c79"
+      }
+    },
+    {
+      "name": "vk-unwrap",
+      "spec": "crypto.md 6.1",
+      "inputs": {
+        "auk": "a503df680f99e54fd48d4fcf83bd2a622d491f38cf2e2489da1830eaf557d3a7",
+        "wrapped_vk": "01b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0a23d601ae40177d2cae98b8f80c311d248b05814181d4607cb4288f5751c1780d5193587292fa13c8362c7fe64869c79",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1,
+        "kdf_params_bytes": "000100000000000300000004000000106d9a3622a368bef8cbdd1967b3d71d0f"
+      },
+      "expected": {
+        "vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d"
+      }
+    },
+    {
+      "name": "vk-unwrap-wrong-auk",
+      "spec": "crypto.md 6.1",
+      "inputs": {
+        "auk": "7cce54e203698b93004f21f1c3a323c48a269f365b71723b88ccc1853d432d1c",
+        "wrapped_vk": "01b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0a23d601ae40177d2cae98b8f80c311d248b05814181d4607cb4288f5751c1780d5193587292fa13c8362c7fe64869c79",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1,
+        "kdf_params_bytes": "000100000000000300000004000000106d9a3622a368bef8cbdd1967b3d71d0f"
+      },
+      "expected": "reject",
+      "why": "wrong password or Secret Key"
+    },
+    {
+      "name": "vk-unwrap-altered-kdf-params",
+      "spec": "crypto.md 5.1, 6.1",
+      "inputs": {
+        "auk": "a503df680f99e54fd48d4fcf83bd2a622d491f38cf2e2489da1830eaf557d3a7",
+        "wrapped_vk": "01b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0a23d601ae40177d2cae98b8f80c311d248b05814181d4607cb4288f5751c1780d5193587292fa13c8362c7fe64869c79",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1,
+        "kdf_params_bytes": "000100000000000300000004000000106d9a3622a368bef8cbdd1967b3d71d0e"
+      },
+      "expected": "reject",
+      "why": "parameters are in the AAD"
+    },
+    {
+      "name": "vk-unwrap-wrong-epoch",
+      "spec": "crypto.md 6.1",
+      "inputs": {
+        "auk": "a503df680f99e54fd48d4fcf83bd2a622d491f38cf2e2489da1830eaf557d3a7",
+        "wrapped_vk": "01b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0a23d601ae40177d2cae98b8f80c311d248b05814181d4607cb4288f5751c1780d5193587292fa13c8362c7fe64869c79",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 2,
+        "kdf_params_bytes": "000100000000000300000004000000106d9a3622a368bef8cbdd1967b3d71d0f"
+      },
+      "expected": "reject",
+      "why": "epoch is in the AAD"
+    },
+    {
+      "name": "vk-unwrap-tampered-tag",
+      "spec": "crypto.md 3",
+      "inputs": {
+        "auk": "a503df680f99e54fd48d4fcf83bd2a622d491f38cf2e2489da1830eaf557d3a7",
+        "wrapped_vk": "01b34d7cde4062bed6ddf5050d32b8375aa47a7b38ce8360f0a23d601ae40177d2cae98b8f80c311d248b05814181d4607cb4288f5751c1780d5193587292fa13c8362c7fe64869c78",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1,
+        "kdf_params_bytes": "000100000000000300000004000000106d9a3622a368bef8cbdd1967b3d71d0f"
+      },
+      "expected": "reject",
+      "why": "authentication tag"
+    }
+  ]
+}

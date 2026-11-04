@@ -1,0 +1,136 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Per-item keys and field encryption",
+  "cases": [
+    {
+      "name": "item-key-wrap",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "wk": "7cf3026876185bfb455c5134c6261c6a25b52115056d821071f52adddaea53fd",
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "key_epoch": 1,
+        "nonce": "dd91c344ea028e3eb713cec8a5bb21299bd4c2681e180f09"
+      },
+      "expected": {
+        "wrapped_ik": "01dd91c344ea028e3eb713cec8a5bb21299bd4c2681e180f090e490724c4e10b8dfedbe84216a2bb2b4bd56807a13aad61a32f91894dca643ccdec067363a8a373f01d6757f2af13ef"
+      }
+    },
+    {
+      "name": "item-key-unwrap-wrong-item",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "wk": "7cf3026876185bfb455c5134c6261c6a25b52115056d821071f52adddaea53fd",
+        "wrapped_ik": "01dd91c344ea028e3eb713cec8a5bb21299bd4c2681e180f090e490724c4e10b8dfedbe84216a2bb2b4bd56807a13aad61a32f91894dca643ccdec067363a8a373f01d6757f2af13ef",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "4b05fe9f255b05406f7dbe5c238b3d3b",
+        "key_epoch": 1
+      },
+      "expected": "reject",
+      "why": "item id is in the AAD"
+    },
+    {
+      "name": "field-seal",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "value_cbor": "6a436c6f7564666c617265",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "field_id": "title",
+        "hlc": "018bcfe568000003",
+        "nonce": "fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f"
+      },
+      "expected": {
+        "field_blob": "01fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194588"
+      }
+    },
+    {
+      "name": "field-open",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "field_blob": "01fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194588",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "field_id": "title",
+        "hlc": "018bcfe568000003"
+      },
+      "expected": {
+        "value_cbor": "6a436c6f7564666c617265"
+      }
+    },
+    {
+      "name": "field-open-wrong-field",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "field_blob": "01fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194588",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "field_id": "username",
+        "hlc": "018bcfe568000003"
+      },
+      "expected": "reject",
+      "why": "field id is in the AAD"
+    },
+    {
+      "name": "field-open-wrong-hlc",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "field_blob": "01fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194588",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "field_id": "title",
+        "hlc": "018bcfe568000004"
+      },
+      "expected": "reject",
+      "why": "stamp is in the AAD: no replay under another stamp"
+    },
+    {
+      "name": "field-open-wrong-item",
+      "spec": "crypto.md 7.1",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "field_blob": "01fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194588",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "4b05fe9f255b05406f7dbe5c238b3d3b",
+        "field_id": "title",
+        "hlc": "018bcfe568000003"
+      },
+      "expected": "reject",
+      "why": "item id is in the AAD"
+    },
+    {
+      "name": "field-open-tampered",
+      "spec": "crypto.md 3",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "field_blob": "01fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194589",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "field_id": "title",
+        "hlc": "018bcfe568000003"
+      },
+      "expected": "reject",
+      "why": "tag"
+    },
+    {
+      "name": "field-open-unknown-version",
+      "spec": "crypto.md 12",
+      "inputs": {
+        "ik": "bf7fcfc242b435eac20048de402a92db3bef12c58a9e03988a5d868d345f0cab",
+        "field_blob": "02fec04d8b841a8b4daa08a99343ef57c64b119d4964cfa78f8d390b25e0b1da223d0e335b9c84ae4bf5e14f05b1901940194588",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "item_id": "a1c7f815a933c404dbc3841c39b3f1a1",
+        "field_id": "title",
+        "hlc": "018bcfe568000003"
+      },
+      "expected": "reject",
+      "why": "unsupported envelope version"
+    }
+  ]
+}

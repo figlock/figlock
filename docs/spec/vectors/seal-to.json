@@ -1,0 +1,86 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Recovery Key: seal_to and rewrap",
+  "cases": [
+    {
+      "name": "seal-to",
+      "spec": "pairing-recovery.md 7.1",
+      "inputs": {
+        "rk_pub": "1f801a2cc4fec05121b1caad88290c24d3852b102f181801470043f2331cfd62",
+        "plaintext": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1,
+        "eph_priv": "feceabb1691539611e446aafdaea93404ce52fc4a5a01d79218350b808894377",
+        "nonce": "94414a858db82fbe30ae49a6de861a96c80b57205422a4a2"
+      },
+      "expected": {
+        "wrapped_vk_rk": "7d20131c94ed6d6523b4f83ed569d45eb021259e76cdb70037e5524bfc99137c0194414a858db82fbe30ae49a6de861a96c80b57205422a4a21291a14c4b288d9987a42bef5556ef633c14c23efb2dc136eb0b09f6ef9908d0f603228348f6adf9fdd6ed9fd051895f"
+      }
+    },
+    {
+      "name": "open-seal-to",
+      "spec": "pairing-recovery.md 7.3",
+      "inputs": {
+        "rk_priv": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0",
+        "blob": "7d20131c94ed6d6523b4f83ed569d45eb021259e76cdb70037e5524bfc99137c0194414a858db82fbe30ae49a6de861a96c80b57205422a4a21291a14c4b288d9987a42bef5556ef633c14c23efb2dc136eb0b09f6ef9908d0f603228348f6adf9fdd6ed9fd051895f",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1
+      },
+      "expected": {
+        "vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d"
+      }
+    },
+    {
+      "name": "rewrap-after-rotation-needs-only-rk-pub",
+      "spec": "pairing-recovery.md 7.1, crypto.md 9.1",
+      "inputs": {
+        "rk_pub": "1f801a2cc4fec05121b1caad88290c24d3852b102f181801470043f2331cfd62",
+        "new_vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 2,
+        "eph_priv": "5bd28369b145e2f70d7703687c41dd961e519afa93b0f05ba25447b2d2a6dbd3",
+        "nonce": "6b1c0b3630a5a31e913b1c0a9ac1681efc6f67613275c709"
+      },
+      "expected": {
+        "wrapped_vk_rk": "1a2b224590432e1bf5955b2ee2783143dfa8bbaddc0b7f62c2136703975b3c1f016b1c0b3630a5a31e913b1c0a9ac1681efc6f67613275c709000ad0329a1047b742945abe696bbd2a1031bc91037d3d549c38a1a7deceab29997bb03f4e06c71a256ce8ac0b842127"
+      }
+    },
+    {
+      "name": "open-seal-to-wrong-rk",
+      "spec": "pairing-recovery.md 7.3",
+      "inputs": {
+        "rk_priv": "62267169f6b05056d5532b9fab4bdc8aae0ba33dc508f591e46b735d9eb86d3a",
+        "blob": "7d20131c94ed6d6523b4f83ed569d45eb021259e76cdb70037e5524bfc99137c0194414a858db82fbe30ae49a6de861a96c80b57205422a4a21291a14c4b288d9987a42bef5556ef633c14c23efb2dc136eb0b09f6ef9908d0f603228348f6adf9fdd6ed9fd051895f",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1
+      },
+      "expected": "reject",
+      "why": "wrong Recovery Key"
+    },
+    {
+      "name": "open-seal-to-wrong-epoch",
+      "spec": "pairing-recovery.md 7.1",
+      "inputs": {
+        "rk_priv": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0",
+        "blob": "7d20131c94ed6d6523b4f83ed569d45eb021259e76cdb70037e5524bfc99137c0194414a858db82fbe30ae49a6de861a96c80b57205422a4a21291a14c4b288d9987a42bef5556ef633c14c23efb2dc136eb0b09f6ef9908d0f603228348f6adf9fdd6ed9fd051895f",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 2
+      },
+      "expected": "reject",
+      "why": "epoch is in the AAD"
+    },
+    {
+      "name": "open-seal-to-tampered",
+      "spec": "pairing-recovery.md 7.1",
+      "inputs": {
+        "rk_priv": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0",
+        "blob": "7d20131c94ed6d6523b4f83ed569d45eb021259e76cdb70037e5524bfc99137c0194414a858db82fbe30ae49a6de861a96c80b57205422a4a21291a14c4b288d9987a42bef5556ef633c14c23efb2dc136eb0b09f6ef9908d0f603228348f6adf9fdd6ed9fd051895e",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "key_epoch": 1
+      },
+      "expected": "reject",
+      "why": "tag"
+    }
+  ]
+}

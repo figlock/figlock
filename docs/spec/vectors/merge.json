@@ -1,0 +1,501 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Field-level merge",
+  "cases": [
+    {
+      "name": "same-field-later-wins",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "old"
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 200,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "new"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            200,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "new"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "same-field-counter-breaks-tie",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 1,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "a"
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 2,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "b"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            100,
+            2,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "b"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "same-stamp-device-id-breaks-tie",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "a"
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "b"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            100,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "a"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "different-fields-both-kept",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "t"
+          },
+          {
+            "item": "item-1",
+            "field": "username",
+            "wall": 100,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "u"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            100,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "t"
+          ],
+          "username": [
+            100,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "u"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "delete-beats-concurrent-edit",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 300,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": false
+          },
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 400,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": true
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 500,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "edited after delete"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "_deleted": [
+            400,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            true
+          ],
+          "title": [
+            500,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "edited after delete"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "restore-after-delete",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 400,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": true
+          },
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 500,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": false
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "_deleted": [
+            500,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            false
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "delete-vs-restore-same-wall-device-breaks-tie",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 400,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": true
+          },
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 400,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": false
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "_deleted": [
+            400,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            true
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "two-items-independent",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "one"
+          },
+          {
+            "item": "item-2",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "two"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            100,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "one"
+          ]
+        },
+        "item-2": {
+          "title": [
+            100,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "two"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "duplicate-op-idempotent",
+      "spec": "sync.md 6.2-6.3",
+      "inputs": {
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "t"
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "t"
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            100,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "t"
+          ]
+        }
+      },
+      "note": "every ordering and duplication of these ops gives the same state"
+    },
+    {
+      "name": "snapshot-plus-remaining-equals-replay",
+      "spec": "sync.md 7",
+      "inputs": {
+        "snapshot_from_first_ops": 3,
+        "ops": [
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "a"
+          },
+          {
+            "item": "item-1",
+            "field": "username",
+            "wall": 110,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "u"
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 150,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "b"
+          },
+          {
+            "item": "item-2",
+            "field": "title",
+            "wall": 120,
+            "counter": 0,
+            "device": "bb8b7895c05bf9f375d4217069c7ff4a",
+            "value": "x"
+          },
+          {
+            "item": "item-1",
+            "field": "_deleted",
+            "wall": 160,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": true
+          }
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            150,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "b"
+          ],
+          "username": [
+            110,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "u"
+          ],
+          "_deleted": [
+            160,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            true
+          ]
+        },
+        "item-2": {
+          "title": [
+            120,
+            0,
+            "bb8b7895c05bf9f375d4217069c7ff4a",
+            "x"
+          ]
+        }
+      }
+    },
+    {
+      "name": "purge-horizon-drops-ghost-op",
+      "spec": "sync.md 6.4",
+      "inputs": {
+        "ops": [
+          {
+            "item": "purged-item",
+            "field": "title",
+            "wall": 50,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "ghost"
+          },
+          {
+            "item": "item-1",
+            "field": "title",
+            "wall": 100,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "kept"
+          }
+        ],
+        "purge_horizon": [
+          80,
+          0
+        ],
+        "known_items": [
+          "item-1"
+        ]
+      },
+      "expected": {
+        "item-1": {
+          "title": [
+            100,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "kept"
+          ]
+        }
+      }
+    },
+    {
+      "name": "op-newer-than-purge-horizon-kept",
+      "spec": "sync.md 6.4",
+      "inputs": {
+        "ops": [
+          {
+            "item": "new-item",
+            "field": "title",
+            "wall": 90,
+            "counter": 0,
+            "device": "f4a178f4ea1922f1a69bee4ab47e8407",
+            "value": "newer than horizon"
+          }
+        ],
+        "purge_horizon": [
+          80,
+          0
+        ],
+        "known_items": []
+      },
+      "expected": {
+        "new-item": {
+          "title": [
+            90,
+            0,
+            "f4a178f4ea1922f1a69bee4ab47e8407",
+            "newer than horizon"
+          ]
+        }
+      }
+    }
+  ]
+}

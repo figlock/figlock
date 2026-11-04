@@ -22,6 +22,7 @@ jobs:
     outputs:
       rust: ${{ steps.filter.outputs.rust }}
       web: ${{ steps.filter.outputs.web }}
+      vectors: ${{ steps.filter.outputs.vectors }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -34,6 +35,10 @@ jobs:
               - 'Cargo.lock'
               - 'deny.toml'
               - 'mise.toml'
+              - 'justfile'
+              - '.github/workflows/ci.yml'
+            vectors:
+              - 'docs/spec/**'
               - 'justfile'
               - '.github/workflows/ci.yml'
             web:
@@ -82,10 +87,20 @@ jobs:
             echo "No JS workspace yet"
           fi
 
+  vectors:
+    needs: changes
+    if: needs.changes.outputs.vectors == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - name: Test vectors have not drifted and all cases verify
+        run: just vectors-check
+
   # Single stable check for the main ruleset: skipped path-filtered jobs count as passing.
   ci:
     if: always()
-    needs: [changes, rust, web]
+    needs: [changes, rust, web, vectors]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled
