@@ -2,7 +2,7 @@
 """Check WCAG contrast of the semantic color pairs in design/tokens.css (FIG-22).
 
 Reads the light block (:root) and the explicit dark block (:root[data-theme="dark"]) and fails if any
-pair is below its threshold. Usage: python3 design/check-contrast.py
+pair is below its threshold or if the @media (prefers-color-scheme: dark) copy of the dark palette differs. Usage: python3 design/check-contrast.py
 """
 import pathlib
 import re
@@ -41,6 +41,17 @@ def ratio(a: str, b: str) -> float:
 
 
 failed = False
+media = re.search(
+    r'@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{(.*?)\n  \}\n\}', CSS, re.S
+)
+if not media:
+    sys.exit("dark block inside @media (prefers-color-scheme: dark) not found")
+media_colors = dict(re.findall(r"--color-([a-z-]+):\s*(#[0-9a-fA-F]{6})", media.group(1)))
+explicit_dark = block(':root[data-theme="dark"]')
+if media_colors != explicit_dark:
+    differing = sorted(k for k in media_colors.keys() | explicit_dark.keys() if media_colors.get(k) != explicit_dark.get(k))
+    print(f"FAIL dark palette differs between @media block and :root[data-theme=\"dark\"]: {', '.join(differing)}")
+    failed = True
 for theme, selector in (("light", ':root[data-theme="light"]'), ("dark", ':root[data-theme="dark"]')):
     colors = block(selector) if theme == "dark" else block(":root,\n" + selector)
     for fg, bg, minimum in PAIRS:
