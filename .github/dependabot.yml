@@ -4,4 +4,8 @@ updates:
     directory: /
     schedule:
       interval: weekly
-# Add cargo and npm entries when FIG-7 and the app packages add their manifests.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+# Add an npm entry when the pnpm workspace lands.
