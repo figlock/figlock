@@ -1,0 +1,3 @@
+#!/bin/sh
+# Enabled by `just setup`. Blocks commits that fail format or lint checks.
+exec mise exec -- just lint

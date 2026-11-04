@@ -1,0 +1,9 @@
+[tools]
+rust = { version = "1.99", components = "rustfmt,clippy" }
+node = "24"
+pnpm = "12"
+just = "1"
+"aqua:EmbarkStudios/cargo-deny" = "latest"
+
+[settings]
+experimental = true
