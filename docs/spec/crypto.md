@@ -160,16 +160,19 @@ wrapped_vk = seal(AUK, VK,
 
 ### 7.1 Items
 
-An item is a CBOR map (title, type, URLs, username, secret fields, tags, notes, custom fields). Its own key
-`IK` is 32 random bytes.
+An item is a set of named fields (title, type, URLs, username, secret fields, tags, notes, custom fields).
+Its own key `IK` is 32 random bytes. Each field value is sealed on its own so that devices can merge edits
+field by field (`sync.md`) without ever decrypting more than they need:
 
 ```
-wrapped_ik = seal(WK, IK, aad("item-key", vault_id, item_id, u32(key_epoch)))
-item_blob  = seal(IK, cbor(item_fields), aad("item", vault_id, item_id, u64(item_version)))
+wrapped_ik  = seal(WK, IK, aad("item-key", vault_id, item_id, u32(key_epoch)))
+field_blob  = seal(IK, cbor(value), aad("field", vault_id, item_id, field_id, hlc_bytes))
 ```
 
-Titles, URLs and usernames are inside `item_fields`, so they are encrypted like everything else. Per-item
-keys let one item be re-keyed, exported or (later) shared without exposing the vault.
+`hlc_bytes` is the 8-byte hybrid logical clock stamp of the write (`sync.md` section 5), so a field value
+cannot be replayed under another stamp, field or item. Titles, URLs and usernames are fields, so they are
+encrypted like everything else. Per-item keys let one item be re-keyed, exported or (later) shared without
+exposing the vault.
 
 ### 7.2 Op batches, snapshots and the audit log
 
@@ -181,7 +184,7 @@ envelope = seal(LK, cbor(payload),
 ```
 
 `seq` is the file's sequence number in that device's folder. Because the AAD includes `device_id` and `seq`,
-a file moved to another name or device fails to open. Item data inside the payload is already sealed under
+a file moved to another name or device fails to open. Snapshots use `aad("snap", ...)` with the same parameters. Item data inside the payload is already sealed under
 `IK` (7.1), so a leaked `LK` alone does not reveal item contents.
 
 ### 7.3 Signing
@@ -191,8 +194,11 @@ a signature is checked before any decryption.
 
 ```
 signature = Ed25519.sign(device_signing_key,
-              "figlock/v1/file-sig" || 0x00 || vault_id || device_id || u64(seq) || SHA-256(envelope))
+              "figlock/v1/file-sig" || 0x00 || vault_id || device_id || u64(seq) || SHA-256(header || envelope))
 ```
+
+`header` is the plaintext file header defined in `sync.md` section 4 (magic, version, kind, `key_epoch`), so
+the epoch that selects the decryption key is covered by the signature as well as by the AAD.
 
 A reader MUST verify, in order: (1) `device_id` has a valid, non-revoked device record, (2) the signature,
 (3) then decrypt. A file failing any step is ignored and reported, never partially applied.
