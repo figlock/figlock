@@ -3,7 +3,7 @@ rust = { version = "1.99", components = "rustfmt,clippy" }
 node = "24"
 pnpm = "12"
 just = "1"
-"aqua:EmbarkStudios/cargo-deny" = "latest"
+"aqua:EmbarkStudios/cargo-deny" = "0.20.2"
 
 [settings]
 experimental = true
