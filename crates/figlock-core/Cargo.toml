@@ -7,5 +7,30 @@ license.workspace = true
 repository.workspace = true
 publish.workspace = true
 
+[features]
+# Deterministic entry points (explicit nonces and ephemeral keys) used only by the test vectors.
+# Never enable in a shipped binary: nonce reuse breaks the cipher.
+vector-hooks = []
+
+[dependencies]
+argon2.workspace = true
+chacha20poly1305.workspace = true
+ed25519-dalek.workspace = true
+x25519-dalek.workspace = true
+hkdf.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+unicode-normalization.workspace = true
+zeroize.workspace = true
+getrandom.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+hex.workspace = true
+
+[[test]]
+name = "vectors"
+required-features = ["vector-hooks"]
+
 [lints]
 workspace = true

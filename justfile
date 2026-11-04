@@ -14,12 +14,12 @@ fmt:
 
 # Lint all code. Warnings are errors.
 lint:
-    if [ -f Cargo.toml ]; then cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings; fi
+    if [ -f Cargo.toml ]; then cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --all-features -- -D warnings; fi
     if [ -f pnpm-workspace.yaml ]; then pnpm -r --if-present run lint; fi
 
 # Run all tests.
 test:
-    if [ -f Cargo.toml ]; then cargo test --workspace; fi
+    if [ -f Cargo.toml ]; then cargo test --workspace --all-features; fi
     if [ -f pnpm-workspace.yaml ]; then pnpm -r --if-present run test; fi
 
 # Regenerate the test vectors in docs/spec/vectors (only when a spec rule changes).
