@@ -1,0 +1,63 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Vault Key rotation",
+  "cases": [
+    {
+      "name": "epoch-key-wrap",
+      "spec": "crypto.md 9.1",
+      "inputs": {
+        "new_vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "old_vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "old_epoch": 1,
+        "new_epoch": 2,
+        "nonce": "bb9b6ac1f328cf61a839b50a59dfadea30627c703a2a73f8"
+      },
+      "expected": {
+        "epoch_key": "01bb9b6ac1f328cf61a839b50a59dfadea30627c703a2a73f8ebc1c39b75e202b91437d4bc713304d5145c1aedb8405840d437b26cd861829534aa806f896fb6547fe1dc256ccf8a3a"
+      }
+    },
+    {
+      "name": "epoch-chain-opens-old-vk",
+      "spec": "crypto.md 9.1, sync.md 9",
+      "inputs": {
+        "new_vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "epoch_key": "01bb9b6ac1f328cf61a839b50a59dfadea30627c703a2a73f8ebc1c39b75e202b91437d4bc713304d5145c1aedb8405840d437b26cd861829534aa806f896fb6547fe1dc256ccf8a3a",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "old_epoch": 1,
+        "new_epoch": 2
+      },
+      "expected": {
+        "old_vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d"
+      }
+    },
+    {
+      "name": "epoch-chain-wrong-epochs",
+      "spec": "crypto.md 9.1",
+      "inputs": {
+        "new_vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "epoch_key": "01bb9b6ac1f328cf61a839b50a59dfadea30627c703a2a73f8ebc1c39b75e202b91437d4bc713304d5145c1aedb8405840d437b26cd861829534aa806f896fb6547fe1dc256ccf8a3a",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "old_epoch": 1,
+        "new_epoch": 3
+      },
+      "expected": "reject",
+      "why": "epochs are in the AAD"
+    },
+    {
+      "name": "rotation-changes-derived-keys",
+      "spec": "crypto.md 9.1",
+      "inputs": {
+        "old_vk": "715682f0da1ba4f7ae2ff6918d443591930e20c0a0328a6244cac3f57acc8d1d",
+        "new_vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08"
+      },
+      "expected": {
+        "old_lk": "e2f609fac37a40957d387cd4f4196e68fb6e7dea7019c9fe3590871f0fc98f19",
+        "new_lk": "b4223a4a4f863db368d79af26a63be0416f9dfa6643415f20e5d2aab7d025e54",
+        "old_authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "new_authority_pub": "e109d340c6b90f7b741770641cbc10e29cf90239c8459b65e52151981f6ea3f8"
+      }
+    }
+  ]
+}

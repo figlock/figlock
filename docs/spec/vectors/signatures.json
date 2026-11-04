@@ -1,0 +1,199 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Device records and vault.json signatures",
+  "cases": [
+    {
+      "name": "device-record-sign",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_seed": "a15b8684865d1ca8d5ab682f371f06ea1802e9d98b0928ef8ef2c3d5e15feedc",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1
+        },
+        "jcs": "{\"added_at\":1700000000000,\"agree_pub\":\"65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c\",\"device_id\":\"f4a178f4ea1922f1a69bee4ab47e8407\",\"epoch_added\":1,\"name\":\"Work MacBook\",\"sign_pub\":\"f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81\"}"
+      },
+      "expected": {
+        "signature": "a892acf8cbb4ded4eaae2b71f9dbddd244f65c8ef19cd97e2c96f6112d2333f8d2a77ccb3a74dd291a86e82974e66a073b605742c9695528e1177c0cde16c208",
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a"
+      }
+    },
+    {
+      "name": "device-record-verify",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1
+        },
+        "signature": "a892acf8cbb4ded4eaae2b71f9dbddd244f65c8ef19cd97e2c96f6112d2333f8d2a77ccb3a74dd291a86e82974e66a073b605742c9695528e1177c0cde16c208"
+      },
+      "expected": "valid"
+    },
+    {
+      "name": "device-record-altered-name",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Evil",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1
+        },
+        "signature": "a892acf8cbb4ded4eaae2b71f9dbddd244f65c8ef19cd97e2c96f6112d2333f8d2a77ccb3a74dd291a86e82974e66a073b605742c9695528e1177c0cde16c208"
+      },
+      "expected": "reject",
+      "why": "record is signed in canonical form"
+    },
+    {
+      "name": "device-record-bad-signature",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1
+        },
+        "signature": "a892acf8cbb4ded4eaae2b71f9dbddd244f65c8ef19cd97e2c96f6112d2333f8d2a77ccb3a74dd291a86e82974e66a073b605742c9695528e1177c0cde16c209"
+      },
+      "expected": "reject",
+      "why": "signature"
+    },
+    {
+      "name": "vault-json-sign",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_seed": "a15b8684865d1ca8d5ab682f371f06ea1802e9d98b0928ef8ef2c3d5e15feedc",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 1,
+          "key_epoch": 1,
+          "min_format_version": 1,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 65536,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          }
+        },
+        "jcs": "{\"kdf\":{\"m_kib\":65536,\"p\":4,\"salt\":\"6d9a3622a368bef8cbdd1967b3d71d0f\",\"t\":3},\"key_epoch\":1,\"min_format_version\":1,\"revision\":1,\"suite\":\"fl1\",\"vault_id\":\"cc632b71c60671f8fbe6eeed081b626c\"}"
+      },
+      "expected": {
+        "signature": "3eeca6c1db35668027e62397ed3de7536d80c9656a9ef37c78821f5675e53b57ce736a60d6dd00ff08a71a67c3f6e92fae859edc3e4a12072827b79626611c06"
+      }
+    },
+    {
+      "name": "vault-json-verify",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 1,
+          "key_epoch": 1,
+          "min_format_version": 1,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 65536,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          }
+        },
+        "signature": "3eeca6c1db35668027e62397ed3de7536d80c9656a9ef37c78821f5675e53b57ce736a60d6dd00ff08a71a67c3f6e92fae859edc3e4a12072827b79626611c06",
+        "context": "vault-json"
+      },
+      "expected": "valid"
+    },
+    {
+      "name": "vault-json-kdf-params-altered",
+      "spec": "crypto.md 5.1, 7.4",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 1,
+          "key_epoch": 1,
+          "min_format_version": 1,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 32768,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          }
+        },
+        "signature": "3eeca6c1db35668027e62397ed3de7536d80c9656a9ef37c78821f5675e53b57ce736a60d6dd00ff08a71a67c3f6e92fae859edc3e4a12072827b79626611c06",
+        "context": "vault-json"
+      },
+      "expected": "reject",
+      "why": "downgrade of KDF parameters is detected after unlock"
+    },
+    {
+      "name": "vault-json-min-format-version-lowered",
+      "spec": "crypto.md 12",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 1,
+          "key_epoch": 1,
+          "min_format_version": 0,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 65536,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          }
+        },
+        "signature": "3eeca6c1db35668027e62397ed3de7536d80c9656a9ef37c78821f5675e53b57ce736a60d6dd00ff08a71a67c3f6e92fae859edc3e4a12072827b79626611c06",
+        "context": "vault-json"
+      },
+      "expected": "reject",
+      "why": "lowering min_format_version is detected"
+    },
+    {
+      "name": "vault-json-wrong-context",
+      "spec": "crypto.md 7.4",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 1,
+          "key_epoch": 1,
+          "min_format_version": 1,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 65536,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          }
+        },
+        "signature": "3eeca6c1db35668027e62397ed3de7536d80c9656a9ef37c78821f5675e53b57ce736a60d6dd00ff08a71a67c3f6e92fae859edc3e4a12072827b79626611c06",
+        "context": "device-record"
+      },
+      "expected": "reject",
+      "why": "context string separates signature domains"
+    }
+  ]
+}

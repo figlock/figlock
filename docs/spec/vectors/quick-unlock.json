@@ -1,0 +1,52 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Quick unlock blob (software-key variant)",
+  "cases": [
+    {
+      "name": "quick-unlock-seal",
+      "spec": "crypto.md 8",
+      "inputs": {
+        "qk": "e5c64925f6fb4f6651beb0eeca236b038362308a6d5f116801ede74b04b1962a",
+        "auk": "069a63502702a52901b3b1451bc7ca2db8285e5cbd17816feaa365f9c1047a7e",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+        "nonce": "040210a428faf24c9986b430239497775b86807532998240"
+      },
+      "expected": {
+        "blob": "01040210a428faf24c9986b430239497775b86807532998240b442ef948899ee06648b6c85c9487e19fb7179d9253ac4c8532f7211ce6390fbd6d973ca401eecae156cdf9403074564"
+      },
+      "kdf": {
+        "m_kib": 32768,
+        "t": 2,
+        "p": 1,
+        "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+      }
+    },
+    {
+      "name": "quick-unlock-open",
+      "spec": "crypto.md 8",
+      "inputs": {
+        "qk": "e5c64925f6fb4f6651beb0eeca236b038362308a6d5f116801ede74b04b1962a",
+        "blob": "01040210a428faf24c9986b430239497775b86807532998240b442ef948899ee06648b6c85c9487e19fb7179d9253ac4c8532f7211ce6390fbd6d973ca401eecae156cdf9403074564",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": {
+        "auk": "069a63502702a52901b3b1451bc7ca2db8285e5cbd17816feaa365f9c1047a7e"
+      }
+    },
+    {
+      "name": "quick-unlock-other-device",
+      "spec": "crypto.md 8",
+      "inputs": {
+        "qk": "e5c64925f6fb4f6651beb0eeca236b038362308a6d5f116801ede74b04b1962a",
+        "blob": "01040210a428faf24c9986b430239497775b86807532998240b442ef948899ee06648b6c85c9487e19fb7179d9253ac4c8532f7211ce6390fbd6d973ca401eecae156cdf9403074564",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "bb8b7895c05bf9f375d4217069c7ff4a"
+      },
+      "expected": "reject",
+      "why": "device id is in the AAD"
+    }
+  ]
+}

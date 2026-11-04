@@ -1,9 +1,11 @@
+__pycache__/
 .DS_Store
-.inkloop/
-.no-mistakes/
-target/
-node_modules/
-dist/
-*.log
 .env
 .env.*
+.inkloop/
+.no-mistakes/
+.venv/
+*.log
+dist/
+node_modules/
+target/

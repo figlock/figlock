@@ -1,0 +1,107 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Argon2id parameters and password key",
+  "cases": [
+    {
+      "name": "argon2id-default",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "password": "correct horse battery staple",
+        "salt": "6d9a3622a368bef8cbdd1967b3d71d0f",
+        "m_kib": 65536,
+        "t": 3,
+        "p": 4
+      },
+      "expected": {
+        "pw_key": "5f7d3739add6c5ca8d7b08eb6b9c90a697f13bac673a0f530b5d06f552a55708"
+      }
+    },
+    {
+      "name": "argon2id-floor",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "password": "correct horse battery staple",
+        "salt": "6d9a3622a368bef8cbdd1967b3d71d0f",
+        "m_kib": 32768,
+        "t": 2,
+        "p": 1
+      },
+      "expected": {
+        "pw_key": "9123d0327025a25c21d11fa8f48f0dcbd8acad1a54087b8e826c630f70f98daa"
+      }
+    },
+    {
+      "name": "nfkd-normalisation",
+      "spec": "crypto.md 3",
+      "inputs": {
+        "passwords_equal_after_nfkd": [
+          "passe\u0301",
+          "pass\u00e9"
+        ],
+        "salt": "6d9a3622a368bef8cbdd1967b3d71d0f",
+        "m_kib": 32768,
+        "t": 2,
+        "p": 1
+      },
+      "expected": {
+        "pw_key": "8d6260f618f9927ae3020522a76693462977b6180a6b8a32b68c12e67a7826e4"
+      }
+    },
+    {
+      "name": "m-below-floor",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "m_kib": 32767,
+        "t": 2,
+        "p": 1
+      },
+      "expected": "reject",
+      "why": "outside floor or ceiling: client refuses to create or accept"
+    },
+    {
+      "name": "t-below-floor",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "m_kib": 32768,
+        "t": 1,
+        "p": 1
+      },
+      "expected": "reject",
+      "why": "outside floor or ceiling: client refuses to create or accept"
+    },
+    {
+      "name": "m-above-ceiling",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "m_kib": 1048577,
+        "t": 3,
+        "p": 4
+      },
+      "expected": "reject",
+      "why": "outside floor or ceiling: client refuses to create or accept"
+    },
+    {
+      "name": "t-above-ceiling",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "m_kib": 65536,
+        "t": 11,
+        "p": 4
+      },
+      "expected": "reject",
+      "why": "outside floor or ceiling: client refuses to create or accept"
+    },
+    {
+      "name": "p-above-ceiling",
+      "spec": "crypto.md 5.1",
+      "inputs": {
+        "m_kib": 65536,
+        "t": 3,
+        "p": 17
+      },
+      "expected": "reject",
+      "why": "outside floor or ceiling: client refuses to create or accept"
+    }
+  ]
+}
