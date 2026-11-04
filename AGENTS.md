@@ -27,6 +27,21 @@ the user approves with Touch ID, ideally without ever seeing it.
 - **Agents use secrets, they don't hold them.** Default to broker HTTP with host allow-lists, then env
   injection with output scrubbing. Reveal is opt-in per item and needs its own approval every time.
 
+## Starting and ending a session
+
+Chat history does not carry over; Paperclip does. At the start of every session, before anything else:
+
+1. Make sure Paperclip is up (`curl -s http://127.0.0.1:3100/api/health`, otherwise `paperclipai run`).
+2. **In Progress** tasks: read their latest comments and linked PR, and offer to resume them.
+3. **In Review** tasks: list them as waiting on the human.
+4. Suggest the next 2-3 **Todo** tasks with no open blockers, highest priority first. Start one only
+   when the human picks it (short prompts like "what's next?", "do FIG-9" or "continue" mean exactly
+   this).
+
+Before a session ends with a task unfinished, leave a handoff comment on that Paperclip task: what is
+done, what is left, the branch or PR, and anything the next session must not redo. The next session
+starts from that comment.
+
 ## How we track work (Paperclip + GitHub)
 
 - **Paperclip is the plan.** It runs locally at `http://127.0.0.1:3100` and holds the goal, one project per
