@@ -31,7 +31,9 @@ the user approves with Touch ID, ideally without ever seeing it.
 
 Chat history does not carry over; Paperclip does. At the start of every session, before anything else:
 
-1. Make sure Paperclip is up (`curl -s http://127.0.0.1:3100/api/health`, otherwise `paperclipai run`).
+1. Make sure Paperclip is up: `curl -s http://127.0.0.1:3100/api/health`. If it is not running, start it
+   yourself with `paperclipai run` as a background process (it stays in the foreground otherwise) and
+   wait until the health check answers. Don't ask the human to start it.
 2. **In Progress** tasks: read their latest comments and linked PR, and offer to resume them.
 3. **In Review** tasks: list them as waiting on the human.
 4. Suggest the next 2-3 **Todo** tasks with no open blockers, highest priority first. Start one only
