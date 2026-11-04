@@ -1,0 +1,238 @@
+/*
+ * FigLock design tokens (FIG-22). Source of truth for web, desktop and extension (packages/ui).
+ * iOS and Android map the same names to SwiftUI and Compose; see design/DESIGN.md.
+ * Contrast ratios of every text/background pair are listed in DESIGN.md and meet WCAG 2.2 AA.
+ * Never reference the raw palette (--fig-*, --neutral-*) from components; use the semantic tokens.
+ */
+
+:root {
+  /* ---- Raw palette: fig (brand) ---- */
+  --fig-50: #f7f2f8;
+  --fig-100: #ede2ef;
+  --fig-200: #dac3df;
+  --fig-300: #d3aedd;
+  --fig-400: #a06fad;
+  --fig-500: #7f4e8e;
+  --fig-600: #663c74;
+  --fig-700: #502e5c;
+  --fig-800: #3a2143;
+  --fig-900: #261530;
+
+  /* ---- Raw palette: warm neutral ---- */
+  --neutral-0: #ffffff;
+  --neutral-50: #faf9f9;
+  --neutral-100: #f2f0f1;
+  --neutral-200: #e5e2e4;
+  --neutral-300: #cfcacd;
+  --neutral-400: #a29ca0;
+  --neutral-500: #78727a;
+  --neutral-600: #5a555c;
+  --neutral-700: #3f3b41;
+  --neutral-800: #2a272c;
+  --neutral-900: #1b191d;
+  --neutral-950: #121114;
+
+  /* ---- Typography ---- */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-base: 0.875rem; /* 14, dense desktop UI default */
+  --text-md: 1rem; /* 16, mobile and web body */
+  --text-lg: 1.125rem; /* 18 */
+  --text-xl: 1.25rem; /* 20 */
+  --text-2xl: 1.5rem; /* 24 */
+  --text-3xl: 1.875rem; /* 30 */
+  --text-4xl: 2.25rem; /* 36 */
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em; /* small caps labels */
+
+  /* ---- Spacing: 4 px grid ---- */
+  --space-0: 0;
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem; /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem; /* 16 */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem; /* 24 */
+  --space-8: 2rem; /* 32 */
+  --space-10: 2.5rem; /* 40 */
+  --space-12: 3rem; /* 48 */
+  --space-16: 4rem; /* 64 */
+
+  /* ---- Radius ---- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* ---- Sizing ---- */
+  --control-height-sm: 28px;
+  --control-height-md: 36px;
+  --control-height-lg: 44px; /* minimum touch target on iOS; Android uses 48 (--touch-target-android) */
+  --touch-target-android: 48px;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* ---- Motion ---- */
+  --duration-instant: 80ms;
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 1, 1);
+
+  /* ---- Layering ---- */
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+}
+
+/* ---- Semantic colors: light (default) ---- */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: #faf9f9;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f2f0f1;
+  --color-surface-raised: #ffffff;
+
+  --color-text: #1b191d;
+  --color-text-secondary: #5a555c;
+  --color-text-tertiary: #6b656d;
+  --color-text-on-primary: #ffffff;
+  --color-text-link: #663c74;
+
+  --color-border: #e5e2e4;
+  --color-border-strong: #8d878f; /* inputs and controls: 3:1 against bg */
+
+  --color-primary: #663c74;
+  --color-primary-hover: #502e5c;
+  --color-primary-subtle: #f7f2f8;
+
+  --color-agent: #0f6e7a; /* everything about an AI agent asking for access */
+  --color-agent-subtle: #e6f3f5;
+
+  --color-success: #1e7a4d;
+  --color-success-subtle: #e8f5ee;
+  --color-warning: #8a5a00;
+  --color-warning-subtle: #fbf1dc;
+  --color-danger: #b3261e;
+  --color-danger-subtle: #fdecea;
+
+  --color-focus: #663c74;
+  --color-overlay: rgb(27 25 29 / 0.5);
+
+  --shadow-sm: 0 1px 2px rgb(27 25 29 / 0.08);
+  --shadow-md: 0 4px 12px rgb(27 25 29 / 0.1);
+  --shadow-lg: 0 12px 32px rgb(27 25 29 / 0.16);
+}
+
+/* ---- Semantic colors: dark ---- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-bg: #121114;
+    --color-surface: #1b191d;
+    --color-surface-sunken: #0d0c0e;
+    --color-surface-raised: #242127;
+
+    --color-text: #f2f0f1;
+    --color-text-secondary: #c4bfc3;
+    --color-text-tertiary: #a29ca0;
+    --color-text-on-primary: #121114;
+    --color-text-link: #d3aedd;
+
+    --color-border: #2a272c;
+    --color-border-strong: #6f6972;
+
+    --color-primary: #d3aedd;
+    --color-primary-hover: #dac3df;
+    --color-primary-subtle: #261530;
+
+    --color-agent: #5cc8d6;
+    --color-agent-subtle: #0f2b30;
+
+    --color-success: #5cd08f;
+    --color-success-subtle: #0f2a1b;
+    --color-warning: #e8b04a;
+    --color-warning-subtle: #2e2208;
+    --color-danger: #ff8a80;
+    --color-danger-subtle: #3a1512;
+
+    --color-focus: #d3aedd;
+    --color-overlay: rgb(0 0 0 / 0.6);
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #121114;
+  --color-surface: #1b191d;
+  --color-surface-sunken: #0d0c0e;
+  --color-surface-raised: #242127;
+
+  --color-text: #f2f0f1;
+  --color-text-secondary: #c4bfc3;
+  --color-text-tertiary: #a29ca0;
+  --color-text-on-primary: #121114;
+  --color-text-link: #d3aedd;
+
+  --color-border: #2a272c;
+  --color-border-strong: #6f6972;
+
+  --color-primary: #d3aedd;
+  --color-primary-hover: #dac3df;
+  --color-primary-subtle: #261530;
+
+  --color-agent: #5cc8d6;
+  --color-agent-subtle: #0f2b30;
+
+  --color-success: #5cd08f;
+  --color-success-subtle: #0f2a1b;
+  --color-warning: #e8b04a;
+  --color-warning-subtle: #2e2208;
+  --color-danger: #ff8a80;
+  --color-danger-subtle: #3a1512;
+
+  --color-focus: #d3aedd;
+  --color-overlay: rgb(0 0 0 / 0.6);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 0.6);
+}
+
+/* ---- Reduced motion: keep state changes, drop movement ---- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-instant: 0ms;
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}
