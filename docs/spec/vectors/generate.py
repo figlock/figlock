@@ -216,7 +216,7 @@ def files():
     cases.append(reject("op-file-as-snapshot", "sync.md 4", {**{k: v for k, v in base.items() if k != "kind"},
                                                               "kind": "snapshot", "file": x(f)},
                         "kind must match what the reader expects"))
-    snap = cbor2.dumps({"v": 1, "device": DEVICE_A, "seq": 1, "hw": {DEVICE_A.hex(): 1}, "purge_horizon": b"\x00" * 8,
+    snap = cbor2.dumps({"v": 1, "device": DEVICE_A, "seq": 1, "hw": {DEVICE_A: 1}, "purge_horizon": b"\x00" * 8,
                         "items": [], "pad": b""}, canonical=True)
     sf = r.build_file(r.KIND_SNAP, d["lk"], sign_seed, VAULT_ID, DEVICE_A, 1, 1, snap, fill("nonce-snap", 24))
     cases.append(case("snapshot-file-build", "sync.md 7",

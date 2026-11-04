@@ -24,9 +24,11 @@ unicode-normalization.workspace = true
 zeroize.workspace = true
 getrandom.workspace = true
 serde_json.workspace = true
+ciborium.workspace = true
 
 [dev-dependencies]
 hex.workspace = true
+proptest.workspace = true
 
 [[test]]
 name = "vectors"
