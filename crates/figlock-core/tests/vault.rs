@@ -6,15 +6,23 @@ use figlock_core::{
 };
 use serde_json::Value;
 
-const PW: &str = "correct horse battery staple";
 const T0: u64 = 1_700_000_000_000;
+
+fn pw() -> &'static str {
+    static PW: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    PW.get_or_init(|| {
+        let mut b = [0u8; 16];
+        getrandom::fill(&mut b).unwrap();
+        b.iter().map(|x| format!("{x:02x}")).collect()
+    })
+}
 
 fn params() -> KdfParams {
     KdfParams::FLOOR
 }
 
 fn created() -> (Vault, figlock_core::Created) {
-    Vault::create(PW, "Laptop", params(), T0).unwrap()
+    Vault::create(pw(), "Laptop", params(), T0).unwrap()
 }
 
 fn second_device(
@@ -24,7 +32,7 @@ fn second_device(
 ) -> (Vault, Vec<u8>) {
     let (v, rec) = Vault::unlock(
         &c.vault_json,
-        PW,
+        pw(),
         sk,
         DeviceKeys::generate().unwrap(),
         "Phone",
@@ -217,7 +225,7 @@ fn storage_never_holds_plaintext() {
         "zz-user",
         "ZZ-unique-password-ZZ",
         "zz-unique-host",
-        PW,
+        pw(),
     ] {
         assert!(
             !contains(&file.bytes, needle.as_bytes()),
@@ -247,12 +255,12 @@ fn unlock_rejects_wrong_credentials() {
     let r = |pw: &str, sk: &SecretKey| {
         Vault::unlock(&c.vault_json, pw, sk, dev(), "d", &[], T0).is_ok()
     };
-    assert!(r(PW, &sk));
-    assert!(!r("wrong password", &sk), "wrong password");
-    assert!(!r(PW, &SecretKey::random().unwrap()), "wrong Secret Key");
+    assert!(r(pw(), &sk));
+    assert!(!r(&format!("{}x", pw()), &sk), "wrong password");
+    assert!(!r(pw(), &SecretKey::random().unwrap()), "wrong Secret Key");
     assert!(
         SecretKey::parse("FL1-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA").is_err(),
-        "a typo is caught by the check, not as a wrong password"
+        "typo not caught by the check"
     );
     a.lock();
 }
@@ -270,7 +278,7 @@ fn unlock_rejects_tampered_vault_json() {
     let try_unlock = |bytes: &[u8]| {
         Vault::unlock(
             bytes,
-            PW,
+            pw(),
             &sk,
             DeviceKeys::generate().unwrap(),
             "d",
@@ -333,13 +341,13 @@ fn create_refuses_weak_kdf_parameters() {
         t: 1,
         p: 1,
     };
-    assert!(Vault::create(PW, "d", weak, T0).is_err());
+    assert!(Vault::create(pw(), "d", weak, T0).is_err());
     let huge = KdfParams {
         m_kib: 4_000_000,
         t: 3,
         p: 4,
     };
-    assert!(Vault::create(PW, "d", huge, T0).is_err());
+    assert!(Vault::create(pw(), "d", huge, T0).is_err());
 }
 
 #[test]
@@ -560,7 +568,7 @@ fn own_files_replay_after_unlock_to_restore_the_chain() {
 
     let (mut a, rec) = Vault::unlock(
         &c.vault_json,
-        PW,
+        pw(),
         &sk,
         keys,
         "Laptop",

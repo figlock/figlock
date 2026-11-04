@@ -113,11 +113,11 @@ fn unhex<const N: usize>(v: &Json) -> Result<[u8; N]> {
     if s.len() != N * 2 || !s.is_ascii() {
         return Err(Error);
     }
-    let mut out = [0u8; N];
-    for (i, b) in out.iter_mut().enumerate() {
-        *b = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|_| Error)?;
-    }
-    Ok(out)
+    (0..N)
+        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).map_err(|_| Error))
+        .collect::<Result<Vec<u8>>>()?
+        .try_into()
+        .map_err(|_| Error)
 }
 
 fn unhex_vec(v: &Json) -> Result<Vec<u8>> {
@@ -724,15 +724,23 @@ impl Vault {
 mod tests {
     use super::*;
 
-    const PW: &str = "correct horse battery staple";
     const T0: u64 = 1_700_000_000_000;
 
+    fn pw() -> &'static str {
+        static PW: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+        PW.get_or_init(|| {
+            let mut b = [0u8; 16];
+            getrandom::fill(&mut b).unwrap();
+            b.iter().map(|x| format!("{x:02x}")).collect()
+        })
+    }
+
     fn pair() -> (Vault, Vault) {
-        let (a, c) = Vault::create(PW, "A", KdfParams::FLOOR, T0).unwrap();
+        let (a, c) = Vault::create(pw(), "A", KdfParams::FLOOR, T0).unwrap();
         let sk = SecretKey::parse(&c.secret_key.format()).unwrap();
         let (b, _) = Vault::unlock(
             &c.vault_json,
-            PW,
+            pw(),
             &sk,
             DeviceKeys::generate().unwrap(),
             "B",
