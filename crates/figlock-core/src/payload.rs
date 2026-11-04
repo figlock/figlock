@@ -210,12 +210,8 @@ impl OpBatch {
     }
 
     pub fn decode(data: &[u8]) -> Result<Self> {
-        let v: Value = ciborium::from_reader(data).map_err(|_| Error)?;
-        let canon = encode_value(&canonical(v.clone()));
-        if canon != data {
-            return Err(Error);
-        }
-        let m = as_map(v)?;
+        let m = decode_canonical(data)?;
+        check_keys(&m, &["v", "device", "seq", "prev", "ops", "pad"])?;
         check_version_and_pad(&m)?;
         let ops = get(&m, "ops")?
             .clone()
@@ -231,6 +227,37 @@ impl OpBatch {
             ops,
         })
     }
+}
+
+/// Decode, requiring the exact canonical encoding and a total length that is a padding bucket.
+fn decode_canonical(data: &[u8]) -> Result<Vec<(Value, Value)>> {
+    if padded_size(data.len()) != data.len() {
+        return Err(Error);
+    }
+    let v: Value = ciborium::from_reader(data).map_err(|_| Error)?;
+    if encode_value(&canonical(v.clone())) != data {
+        return Err(Error);
+    }
+    as_map(v)
+}
+
+/// Canonical maps are sorted, so equal keys are adjacent.
+fn distinct_keys(m: &[(Value, Value)]) -> Result<()> {
+    if m.windows(2).any(|w| w[0].0 == w[1].0) {
+        return Err(Error);
+    }
+    Ok(())
+}
+
+/// Only the listed text keys, each at most once.
+fn check_keys(m: &[(Value, Value)], allowed: &[&str]) -> Result<()> {
+    distinct_keys(m)?;
+    if m.iter()
+        .any(|(k, _)| !k.as_text().is_some_and(|k| allowed.contains(&k)))
+    {
+        return Err(Error);
+    }
+    Ok(())
 }
 
 fn as_map(v: Value) -> Result<Vec<(Value, Value)>> {
@@ -283,6 +310,15 @@ fn stamp(v: &Value) -> Result<Stamp> {
 fn op_from_value(v: &Value) -> Result<Op> {
     let m = v.as_map().ok_or(Error)?;
     let kind = get(m, "op")?.as_text().ok_or(Error)?;
+    let extra: &[&str] = match kind {
+        "item.create" => &["wrapped_ik"],
+        "field.set" => &["field", "blob"],
+        "item.delete" | "item.restore" => &[],
+        _ => return Err(Error),
+    };
+    let mut allowed = vec!["op", "item", "hlc"];
+    allowed.extend_from_slice(extra);
+    check_keys(m, &allowed)?;
     let item = arr(get(m, "item")?)?;
     let hlc = stamp(get(m, "hlc")?)?;
     Ok(match kind {
@@ -347,14 +383,16 @@ impl Snapshot {
     }
 
     pub fn decode(data: &[u8]) -> Result<Self> {
-        let v: Value = ciborium::from_reader(data).map_err(|_| Error)?;
-        if encode_value(&canonical(v.clone())) != data {
-            return Err(Error);
-        }
-        let m = as_map(v)?;
+        let m = decode_canonical(data)?;
+        check_keys(
+            &m,
+            &["v", "device", "seq", "hw", "purge_horizon", "items", "pad"],
+        )?;
         check_version_and_pad(&m)?;
         let mut hw = BTreeMap::new();
-        for (k, s) in get(&m, "hw")?.as_map().ok_or(Error)? {
+        let hw_entries = get(&m, "hw")?.as_map().ok_or(Error)?;
+        distinct_keys(hw_entries)?;
+        for (k, s) in hw_entries {
             hw.insert(
                 arr::<16>(k)?,
                 u64::try_from(s.as_integer().ok_or(Error)?).map_err(|_| Error)?,
@@ -363,6 +401,7 @@ impl Snapshot {
         let mut items = Vec::new();
         for it in get(&m, "items")?.as_array().ok_or(Error)? {
             let im = it.as_map().ok_or(Error)?;
+            check_keys(im, &["item", "wrapped_ik", "deleted", "fields"])?;
             let deleted = match get(im, "deleted")? {
                 Value::Null => None,
                 Value::Array(a) if a.len() == 3 => {
@@ -371,7 +410,9 @@ impl Snapshot {
                 _ => return Err(Error),
             };
             let mut fields = BTreeMap::new();
-            for (k, f) in get(im, "fields")?.as_map().ok_or(Error)? {
+            let field_entries = get(im, "fields")?.as_map().ok_or(Error)?;
+            distinct_keys(field_entries)?;
+            for (k, f) in field_entries {
                 let a = f.as_array().filter(|a| a.len() == 3).ok_or(Error)?;
                 fields.insert(
                     k.as_text().ok_or(Error)?.to_owned(),

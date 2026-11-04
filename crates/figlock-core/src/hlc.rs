@@ -14,13 +14,23 @@ pub struct Stamp {
 }
 
 impl Stamp {
+    /// Largest wall time the 48-bit wire form can carry.
+    pub const MAX_WALL: u64 = (1 << 48) - 1;
+
     pub const ZERO: Stamp = Stamp {
         wall: 0,
         counter: 0,
     };
 
     /// The 8-byte form used in AADs and payloads: `u48(wall_ms) || u16(counter)`.
+    ///
+    /// Panics if `wall` exceeds [`Stamp::MAX_WALL`]; [`Hlc`] never produces such a stamp and decoded
+    /// stamps always fit.
     pub fn to_bytes(self) -> [u8; 8] {
+        assert!(
+            self.wall <= Self::MAX_WALL,
+            "stamp wall time exceeds 48 bits"
+        );
         crate::wire::hlc_bytes(self.wall, self.counter)
     }
 
@@ -63,6 +73,9 @@ impl Hlc {
                 counter: self.last.counter.checked_add(1).ok_or(Error)?,
             }
         };
+        if next.wall > Stamp::MAX_WALL {
+            return Err(Error);
+        }
         self.last = next;
         Ok(next)
     }
@@ -83,6 +96,9 @@ impl Hlc {
             Some(c) => c.checked_add(1).ok_or(Error)?,
             None => 0,
         };
+        if wall > Stamp::MAX_WALL {
+            return Err(Error);
+        }
         self.last = Stamp { wall, counter };
         Ok(self.last)
     }

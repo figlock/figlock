@@ -357,6 +357,160 @@ fn decode_rejects_noncanonical_and_tampered() {
     assert!(OpBatch::decode(&snap.encode()).is_err());
 }
 
+fn cbor(v: &ciborium::Value) -> Vec<u8> {
+    let mut out = Vec::new();
+    ciborium::into_writer(v, &mut out).unwrap();
+    out
+}
+
+fn text(s: &str) -> ciborium::Value {
+    ciborium::Value::Text(s.into())
+}
+
+fn raw_map(mut entries: Vec<(ciborium::Value, ciborium::Value)>) -> ciborium::Value {
+    entries.sort_by_key(|(k, _)| cbor(k));
+    ciborium::Value::Map(entries)
+}
+
+/// A canonical op batch payload with a zero `pad` member sized to exactly 1024 bytes, built independently
+/// of the codec so entries the codec would never write (extra or duplicate keys) can be injected.
+fn raw_batch(extra: Vec<(ciborium::Value, ciborium::Value)>, total: usize) -> Vec<u8> {
+    use ciborium::Value::{Array, Bytes, Integer};
+    for pad in 0..=total {
+        let mut e = vec![
+            (text("v"), Integer(1.into())),
+            (text("device"), Bytes(vec![1; 16])),
+            (text("seq"), Integer(1.into())),
+            (text("prev"), Bytes(vec![0; 32])),
+            (text("ops"), Array(vec![])),
+            (text("pad"), Bytes(vec![0; pad])),
+        ];
+        e.extend(extra.clone());
+        let enc = cbor(&raw_map(e));
+        if enc.len() == total {
+            return enc;
+        }
+    }
+    panic!("no pad fits");
+}
+
+#[test]
+fn decode_requires_one_exact_encoding() {
+    use ciborium::Value::Integer;
+    let ok = raw_batch(vec![], 1024);
+    assert!(
+        OpBatch::decode(&ok).is_ok(),
+        "the helper builds a valid payload"
+    );
+    let extra = raw_batch(vec![(text("extra"), Integer(1.into()))], 1024);
+    assert!(OpBatch::decode(&extra).is_err(), "unknown top-level key");
+    let dup = raw_batch(vec![(text("seq"), Integer(2.into()))], 1024);
+    assert!(OpBatch::decode(&dup).is_err(), "duplicate top-level key");
+    assert!(
+        OpBatch::decode(&raw_batch(vec![], 1000)).is_err(),
+        "not a padding bucket"
+    );
+    assert!(
+        OpBatch::decode(&raw_batch(vec![], 100)).is_err(),
+        "unpadded"
+    );
+}
+
+#[test]
+fn decode_rejects_duplicate_and_unknown_nested_keys() {
+    use ciborium::Value::{Array, Bytes, Integer};
+    let op = |extra: Vec<(ciborium::Value, ciborium::Value)>| {
+        let mut e = vec![
+            (text("op"), text("item.delete")),
+            (text("item"), Bytes(vec![7; 16])),
+            (text("hlc"), Bytes(vec![0; 8])),
+        ];
+        e.extend(extra);
+        raw_map(e)
+    };
+    let batch = |op: ciborium::Value| {
+        let mut ops = raw_batch(vec![], 1024);
+        // rebuild with the op inside
+        for pad in 0..=1024 {
+            let e = vec![
+                (text("v"), Integer(1.into())),
+                (text("device"), Bytes(vec![1; 16])),
+                (text("seq"), Integer(1.into())),
+                (text("prev"), Bytes(vec![0; 32])),
+                (text("ops"), Array(vec![op.clone()])),
+                (text("pad"), Bytes(vec![0; pad])),
+            ];
+            let enc = cbor(&raw_map(e));
+            if enc.len() == 1024 {
+                ops = enc;
+                break;
+            }
+        }
+        ops
+    };
+    assert!(OpBatch::decode(&batch(op(vec![]))).is_ok());
+    assert!(OpBatch::decode(&batch(op(vec![(text("x"), Integer(1.into()))]))).is_err());
+    assert!(OpBatch::decode(&batch(op(vec![(text("item"), Bytes(vec![8; 16]))]))).is_err());
+}
+
+#[test]
+fn snapshot_rejects_duplicate_hw_device() {
+    use ciborium::Value::{Array, Bytes, Integer};
+    for pad in 0..=1024 {
+        let hw = ciborium::Value::Map(vec![
+            (Bytes(vec![1; 16]), Integer(1.into())),
+            (Bytes(vec![1; 16]), Integer(2.into())),
+        ]);
+        let e = vec![
+            (text("v"), Integer(1.into())),
+            (text("device"), Bytes(vec![1; 16])),
+            (text("seq"), Integer(1.into())),
+            (text("hw"), hw),
+            (text("purge_horizon"), Bytes(vec![0; 8])),
+            (text("items"), Array(vec![])),
+            (text("pad"), Bytes(vec![0; pad])),
+        ];
+        let enc = cbor(&raw_map(e));
+        if enc.len() == 1024 {
+            assert!(Snapshot::decode(&enc).is_err());
+            return;
+        }
+    }
+    panic!("no pad fits");
+}
+
+#[test]
+fn stamp_wall_is_bounded_to_48_bits() {
+    let max = Stamp {
+        wall: Stamp::MAX_WALL,
+        counter: 0,
+    };
+    assert_eq!(Stamp::from_bytes(&max.to_bytes()), max);
+    let mut h = Hlc::new(Stamp::ZERO);
+    assert!(h.local(Stamp::MAX_WALL + 1).is_err());
+    assert_eq!(
+        h.last(),
+        Stamp::ZERO,
+        "a failed stamp leaves the clock untouched"
+    );
+    let far = Stamp {
+        wall: Stamp::MAX_WALL + 1,
+        counter: 0,
+    };
+    assert!(h.receive(far, 1000).is_err());
+    assert_eq!(h.last(), Stamp::ZERO);
+    assert!(h.local(Stamp::MAX_WALL).is_ok());
+}
+
+#[test]
+fn plan_log_survives_max_high_water_mark() {
+    let p = fc::plan_log(0, u64::MAX, &[], &[], None);
+    assert!(p.stopped);
+    assert_eq!(p.applied, u64::MAX);
+    let p = fc::plan_log(u64::MAX, 0, &[1], &[], None);
+    assert!(p.stopped);
+}
+
 #[test]
 fn vector_payloads_decode() {
     for c in load("files.json") {

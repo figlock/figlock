@@ -40,7 +40,14 @@ pub fn plan_log(
     let mut next = applied.max(snapshot_hw);
     let have = |s: u64| present.contains(&s);
     loop {
-        let s = next + 1;
+        let Some(s) = next.checked_add(1) else {
+            return LogPlan {
+                applied: next,
+                waiting_for: None,
+                stopped: true,
+                warning: Some(Warning::Fork),
+            };
+        };
         if forked.contains(&s) || prev_mismatch == Some(s) {
             return LogPlan {
                 applied: next,

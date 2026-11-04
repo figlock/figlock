@@ -175,9 +175,18 @@ def items():
     return {"title": "Per-item keys and field encryption", "cases": cases}
 
 
+def padded_payload(doc: dict, bucket: int = 1024) -> bytes:
+    """Canonical CBOR with a zero `pad` member sized so the total is exactly `bucket` bytes (sync.md 11)."""
+    base = len(cbor2.dumps({**doc, "pad": b""}, canonical=True))
+    for n in range(bucket - base + 1):
+        out = cbor2.dumps({**doc, "pad": b"\x00" * n}, canonical=True)
+        if len(out) == bucket:
+            return out
+    raise AssertionError("no pad length fits the bucket")
+
+
 def payload_op(seq: int, prev: bytes, ops: list) -> bytes:
-    return cbor2.dumps({"v": 1, "device": DEVICE_A, "seq": seq, "prev": prev, "ops": ops, "pad": b""},
-                       canonical=True)
+    return padded_payload({"v": 1, "device": DEVICE_A, "seq": seq, "prev": prev, "ops": ops})
 
 
 def files():
@@ -216,8 +225,8 @@ def files():
     cases.append(reject("op-file-as-snapshot", "sync.md 4", {**{k: v for k, v in base.items() if k != "kind"},
                                                               "kind": "snapshot", "file": x(f)},
                         "kind must match what the reader expects"))
-    snap = cbor2.dumps({"v": 1, "device": DEVICE_A, "seq": 1, "hw": {DEVICE_A: 1}, "purge_horizon": b"\x00" * 8,
-                        "items": [], "pad": b""}, canonical=True)
+    snap = padded_payload({"v": 1, "device": DEVICE_A, "seq": 1, "hw": {DEVICE_A: 1},
+                           "purge_horizon": b"\x00" * 8, "items": []})
     sf = r.build_file(r.KIND_SNAP, d["lk"], sign_seed, VAULT_ID, DEVICE_A, 1, 1, snap, fill("nonce-snap", 24))
     cases.append(case("snapshot-file-build", "sync.md 7",
                       {**{k: v for k, v in base.items() if k != "kind"}, "kind": "snapshot",
