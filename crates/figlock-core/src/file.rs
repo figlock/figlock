@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn oversized_length_field_is_rejected() {
-        let key = Key::from_bytes([7u8; 32]);
+        let key = Key::random().unwrap();
         let id = FileId {
             vault_id: &[1; 16],
             device_id: &[2; 16],
