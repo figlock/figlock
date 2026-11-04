@@ -53,6 +53,8 @@ No other primitive may be used without an ADR and new test vectors.
 - **Envelope.** Every AEAD ciphertext is stored as `0x01 || nonce(24) || ciphertext || tag(16)`. The first byte
   is the format version (section 12). Nonces are 24 fresh random bytes per encryption, never reused or
   derived. With XChaCha20 random nonces are safe for any realistic number of messages per key.
+- `seal_to(pub, plaintext, aad)` encrypts to an X25519 public key with an ephemeral key pair, as defined in
+  `pairing-recovery.md` 7.1; it is the only public-key encryption construction in FigLock.
 - `seal(key, plaintext, aad)` and `open(key, envelope, aad)` denote the above. `open` MUST fail on any
   mismatch and MUST NOT return partial plaintext.
 - **Signed JSON** files (`vault.json`, `devices/*.json`) are canonicalised with JCS (RFC 8785) before signing.
@@ -72,7 +74,7 @@ No other primitive may be used without an ADR and new test vectors.
 | Item key `IK` | 256 bit | per item, random | inside the vault, wrapped by `VK` |
 | Device signing key | Ed25519 | per device | device keystore only; never leaves the device |
 | Device agreement key | X25519 | per device | device keystore only |
-| Recovery Key `RK` (optional) | 256 bit | on request | printed / split by Shamir (see FIG-18) |
+| Recovery Key `RK` (optional) | X25519 pair | on request | `rk_pub` in `vault.json`; `rk_priv` printed or split with SLIP-0039, never stored (`pairing-recovery.md` 7) |
 
 ### 4.1 Secret Key format
 
@@ -129,7 +131,7 @@ the wrong values make `open` of the wrapped `VK` fail, and they are also in its 
                                           │          └─► authority seed ► authority key (Ed25519)
                                           └──wraps──► IK per item (via WK)
 
- RK (optional) ──unwraps──► VK        (separate wrap, see FIG-18)
+ RK (optional): rk_priv ──opens seal_to(rk_pub)──► VK   (separate wrap, pairing-recovery.md 7)
  device keys: Ed25519 signing key + X25519 agreement key, one pair per device
 ```
 
@@ -257,7 +259,7 @@ A revoked device still knows the old `VK`, so revocation MUST rotate it:
    leaving the revoked device out and recording it in a signed `revoked` list.
 3. Write a new snapshot (sync spec) sealed under `LK'`. Old op files stay readable by devices that hold the
    previous epoch key, which is kept in `vault.json` as `epoch_keys`: `seal(VK', VK_old, aad("epoch-key", ...))`.
-4. Rewrap `VK'` under `AUK` (and `RK` if enabled).
+4. Rewrap `VK'` under `AUK`, and for `rk_pub` if a Recovery Key is enabled (this needs only the public key).
 
 Rotation cannot recall data a revoked device already copied; it only protects what is written afterwards.
 This limit MUST be stated in the UI and the threat model (FIG-19).
@@ -319,5 +321,4 @@ merge. Each rule gets a positive and a negative case.
 
 - Argon2 default `p = 4`: WASM runs lanes sequentially without threads, so unlock may be slower in the PWA.
   Benchmark in FIG-24; the floor and default can move by ADR before the first release.
-- Whether `RK` wraps `VK` directly or `AUK` (FIG-18 decides with the Shamir design).
 - Whether the audit log (agent accesses) gets its own key so the broker can append without `VK` (phase 2).
