@@ -18,7 +18,10 @@ use super::proto::{Code, Mode};
 use super::*;
 
 const T: u64 = 1_700_000_000_000;
-const UID: u32 = 501;
+/// The real user id: a test that goes over a real socket is only served when it matches.
+fn uid() -> u32 {
+    peer::my_uid()
+}
 
 fn random_hex(n: usize) -> String {
     let mut b = vec![0u8; n];
@@ -111,7 +114,7 @@ struct Fx {
 
 fn peer(pid: u32) -> PeerId {
     PeerId {
-        uid: UID,
+        uid: uid(),
         pid: Some(pid),
         exe: Some("/usr/bin/example-agent".into()),
         parents: Vec::new(),
@@ -195,7 +198,7 @@ fn fixture() -> Fx {
             writer,
             Box::new(Shared(approver.clone())),
             env.clone(),
-            UID,
+            uid(),
         )
         .unwrap()
         .with_wait(Duration::from_secs(1)),
@@ -384,7 +387,7 @@ fn nobody_to_ask_means_no() {
         writer,
         Box::new(approve::DenyAll),
         Arc::new(TestEnv::new()),
-        UID,
+        uid(),
     )
     .unwrap();
     let r = broker.handle_line(
@@ -483,7 +486,7 @@ fn time_limits_are_enforced_by_the_broker() {
 fn a_session_grant_needs_a_known_process() {
     let fx = fixture();
     let nameless = PeerId {
-        uid: UID,
+        uid: uid(),
         pid: None,
         exe: None,
         parents: Vec::new(),
@@ -540,7 +543,7 @@ fn tag_and_vault_scopes_cover_what_they_say() {
 fn another_user_is_turned_away_and_recorded() {
     let fx = fixture();
     let stranger = PeerId {
-        uid: UID + 1,
+        uid: uid() + 1,
         pid: Some(1),
         exe: None,
         parents: Vec::new(),
@@ -552,7 +555,7 @@ fn another_user_is_turned_away_and_recorded() {
         .iter()
         .find(|(e, _)| e == "conn.refused")
         .expect("recorded");
-    assert_eq!(refused.1["peer"]["uid"], UID + 1);
+    assert_eq!(refused.1["peer"]["uid"], uid() + 1);
 }
 
 #[test]
