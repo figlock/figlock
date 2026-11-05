@@ -9,7 +9,7 @@ Source: review rounds on the product plan and development plan, 2026-11-03 and 2
 | D2  | 2026-11-03 | Default storage              | The user picks at setup. Suggest iCloud Drive for iPhone + Mac only, Google Drive for anything mixed | [0002](adr/0002-user-picks-storage.md) |
 | D3  | 2026-11-03 | Agents seeing raw values     | Reveal is opt-in per item and needs its own approval every time          | [0003](adr/0003-agents-use-not-hold-secrets.md) |
 | D4  | 2026-11-03 | Mobile approach              | Native: SwiftUI on iOS, Jetpack Compose on Android, shared Rust core via UniFFI | [0004](adr/0004-native-mobile-shared-rust-core.md) |
-| D5  | 2026-11-03 | Hosted web app               | Yes, an installable PWA at app.figlock.com                               | [0005](adr/0005-pwa.md) |
+| D5  | 2026-11-03 | Hosted web app               | Superseded by D20 (was: an installable PWA at app.figlock.com)           | [0005](adr/0005-pwa.md) |
 | D6  | 2026-11-03 | Relay for phone approvals    | Yes, optional and stateless (Cloudflare Worker); everything works without it | [0006](adr/0006-optional-stateless-relay.md) |
 | D7  | 2026-11-03 | License                      | Free, dual MIT OR Apache-2.0                                             | [0007](adr/0007-license.md) |
 | D8  | 2026-11-03 | Agent interface              | Claude skill + `figlock` CLI first; MCP adapter is optional, in phase 6  | [0008](adr/0008-skill-and-cli-first.md) |
@@ -24,3 +24,4 @@ Source: review rounds on the product plan and development plan, 2026-11-03 and 2
 | D17 | 2026-11-04 | UI design tool               | OpenDesign (nexu-io/open-design, Apache-2.0), run locally. `design/DESIGN.md` + tokens in the repo are the brand contract for every app | [0017](adr/0017-opendesign.md) |
 | D18 | 2026-11-05 | Pairing and revocation wire details | Request carries `device_id`; `revoked` and `epoch_keys` members in `vault.json`; rotation re-signs device records | [0018](adr/0018-pairing-and-revocation-wire-details.md) |
 | D19 | 2026-11-05 | Broker protocol, grants and audit log | Unix socket with peer uid check, JSON lines, grants (who, what, mode, ttl) approved behind a trait, `reveal` always once; audit log in the file container (kind 0x03) under `AK` derived from `VK`, signed and hash-chained (proposed) | [0019](adr/0019-broker-protocol-grants-and-audit-log.md) |
+| D20 | 2026-11-05 | App surfaces and UI stack    | No hosted web app (supersedes D5); desktop Tauri 2 + Svelte 5; extension WXT + WASM; shared `packages/ui` for desktop and extension only; native UI on iOS and Android; no Flutter (proposed) | [0020](adr/0020-app-surfaces-and-ui-stack.md) |
