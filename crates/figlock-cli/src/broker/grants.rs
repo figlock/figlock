@@ -186,7 +186,8 @@ impl GrantTable {
     }
 
     /// The check every use of a grant goes through, in the order of `broker.md` 3.3 after `locked`.
-    /// A `once` grant is consumed here, in the same step as the check.
+    /// `usable` is false when the item or the requested field is missing: that is `not_allowed`, and it
+    /// leaves the grant alone. A `once` grant is consumed here, in the same step as the check.
     pub fn authorize(
         &mut self,
         env: &dyn Env,
@@ -194,6 +195,7 @@ impl GrantTable {
         item: &ItemInfo,
         mode: Mode,
         host: Option<&str>,
+        usable: bool,
     ) -> Result<Authorized, Refused> {
         let well_formed = token.len() == 64
             && token
@@ -231,7 +233,7 @@ impl GrantTable {
             Mode::Http => host.is_some_and(|h| host_allowed(&item.hosts, h)),
             Mode::Run | Mode::Reveal => true,
         };
-        if g.mode != mode || !in_scope || !host_ok {
+        if g.mode != mode || !in_scope || !host_ok || !usable {
             return Err(refused(Code::NotAllowed));
         }
         if g.ttl == Ttl::Once {
@@ -393,7 +395,7 @@ mod tests {
         let i = item(1, &[], &["api.example.com"]);
         let token = issue(&mut t, &env, Scope::Vault, Mode::Http, Ttl::UntilLock);
         let ok = |t: &mut GrantTable, tok: &str| {
-            t.authorize(&env, tok, &i, Mode::Http, Some("api.example.com"))
+            t.authorize(&env, tok, &i, Mode::Http, Some("api.example.com"), true)
         };
         assert!(ok(&mut t, &token).is_ok());
         for bad in [
@@ -418,15 +420,15 @@ mod tests {
         let token = issue(&mut t, &env, Scope::Item([1; 16]), Mode::Http, Ttl::Once);
         // A refused use (wrong host) leaves it available.
         assert_eq!(
-            code(t.authorize(&env, &token, &i, Mode::Http, Some("evil.example"))),
+            code(t.authorize(&env, &token, &i, Mode::Http, Some("evil.example"), true)),
             Code::NotAllowed
         );
         assert!(
-            t.authorize(&env, &token, &i, Mode::Http, Some("api.example.com"))
+            t.authorize(&env, &token, &i, Mode::Http, Some("api.example.com"), true)
                 .is_ok()
         );
         assert_eq!(
-            code(t.authorize(&env, &token, &i, Mode::Http, Some("api.example.com"))),
+            code(t.authorize(&env, &token, &i, Mode::Http, Some("api.example.com"), true)),
             Code::NoGrant
         );
         assert_eq!(t.len(), 0);
@@ -452,7 +454,7 @@ mod tests {
                     table
                         .lock()
                         .unwrap()
-                        .authorize(env.as_ref(), &token, &i, Mode::Run, None)
+                        .authorize(env.as_ref(), &token, &i, Mode::Run, None, true)
                         .is_ok()
                 })
             })
@@ -468,7 +470,8 @@ mod tests {
         let env = TestEnv::new();
         let mut t = GrantTable::default();
         let i = item(1, &[], &[]);
-        let use_it = |t: &mut GrantTable, tok: &str| t.authorize(&env, tok, &i, Mode::Run, None);
+        let use_it =
+            |t: &mut GrantTable, tok: &str| t.authorize(&env, tok, &i, Mode::Run, None, true);
         let once = issue(&mut t, &env, Scope::Vault, Mode::Run, Ttl::Once);
         let m15 = issue(&mut t, &env, Scope::Vault, Mode::Run, Ttl::Min15);
         let day = issue(&mut t, &env, Scope::Vault, Mode::Run, Ttl::Day);
@@ -503,7 +506,7 @@ mod tests {
         assert_eq!(swept.len(), 1);
         let i = item(1, &[], &[]);
         assert_eq!(
-            code(t.authorize(&env, &tok, &i, Mode::Run, None)),
+            code(t.authorize(&env, &tok, &i, Mode::Run, None, true)),
             Code::Expired
         );
     }
@@ -516,10 +519,10 @@ mod tests {
         let i = item(1, &[], &[]);
         let tok = issue(&mut t, &env, Scope::Vault, Mode::Run, Ttl::Session);
         env.advance(Duration::from_secs(3600));
-        assert!(t.authorize(&env, &tok, &i, Mode::Run, None).is_ok());
+        assert!(t.authorize(&env, &tok, &i, Mode::Run, None, true).is_ok());
         env.alive.lock().unwrap().clear();
         assert_eq!(
-            code(t.authorize(&env, &tok, &i, Mode::Run, None)),
+            code(t.authorize(&env, &tok, &i, Mode::Run, None, true)),
             Code::Expired
         );
 
@@ -527,7 +530,7 @@ mod tests {
         let tok2 = issue(&mut t, &env, Scope::Vault, Mode::Run, Ttl::Session);
         env.advance(SESSION_CAP + Duration::from_secs(1));
         assert_eq!(
-            code(t.authorize(&env, &tok2, &i, Mode::Run, None)),
+            code(t.authorize(&env, &tok2, &i, Mode::Run, None, true)),
             Code::Expired
         );
 
@@ -568,42 +571,58 @@ mod tests {
         let run = issue(&mut t, &env, Scope::Vault, Mode::Run, Ttl::UntilLock);
         let h = Some("api.example.com");
 
-        assert!(t.authorize(&env, &by_item, &tagged, Mode::Http, h).is_ok());
-        assert_eq!(
-            code(t.authorize(&env, &by_item, &other, Mode::Http, h)),
-            Code::NotAllowed
-        );
-        assert!(t.authorize(&env, &by_tag, &tagged, Mode::Http, h).is_ok());
-        assert_eq!(
-            code(t.authorize(&env, &by_tag, &other, Mode::Http, h)),
-            Code::NotAllowed
+        assert!(
+            t.authorize(&env, &by_item, &tagged, Mode::Http, h, true)
+                .is_ok()
         );
         assert_eq!(
-            code(t.authorize(&env, &by_item, &tagged, Mode::Http, Some("evil.example"))),
+            code(t.authorize(&env, &by_item, &other, Mode::Http, h, true)),
+            Code::NotAllowed
+        );
+        assert!(
+            t.authorize(&env, &by_tag, &tagged, Mode::Http, h, true)
+                .is_ok()
+        );
+        assert_eq!(
+            code(t.authorize(&env, &by_tag, &other, Mode::Http, h, true)),
+            Code::NotAllowed
+        );
+        assert_eq!(
+            code(t.authorize(
+                &env,
+                &by_item,
+                &tagged,
+                Mode::Http,
+                Some("evil.example"),
+                true
+            )),
             Code::NotAllowed,
             "host not on the allow-list"
         );
         assert_eq!(
-            code(t.authorize(&env, &by_item, &tagged, Mode::Http, None)),
+            code(t.authorize(&env, &by_item, &tagged, Mode::Http, None, true)),
             Code::NotAllowed,
             "no host"
         );
         assert_eq!(
-            code(t.authorize(&env, &by_item, &no_hosts, Mode::Http, h)),
+            code(t.authorize(&env, &by_item, &no_hosts, Mode::Http, h, true)),
             Code::NotAllowed,
             "empty list"
         );
         assert_eq!(
-            code(t.authorize(&env, &by_item, &tagged, Mode::Run, None)),
+            code(t.authorize(&env, &by_item, &tagged, Mode::Run, None, true)),
             Code::NotAllowed,
             "wrong mode"
         );
         assert_eq!(
-            code(t.authorize(&env, &run, &tagged, Mode::Http, h)),
+            code(t.authorize(&env, &run, &tagged, Mode::Http, h, true)),
             Code::NotAllowed,
             "run grant for http"
         );
-        assert!(t.authorize(&env, &run, &other, Mode::Run, None).is_ok());
+        assert!(
+            t.authorize(&env, &run, &other, Mode::Run, None, true)
+                .is_ok()
+        );
     }
 
     #[test]

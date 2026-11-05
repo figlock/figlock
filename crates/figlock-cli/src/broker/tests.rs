@@ -885,3 +885,63 @@ fn over_a_real_socket_approval_use_and_lock_work_end_to_end() {
     serving.join().unwrap().unwrap();
     assert!(broker.is_locked());
 }
+
+#[test]
+fn a_refused_field_or_missing_item_does_not_burn_a_once_grant() {
+    let fx = fixture();
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.github), "reveal", "once");
+    for field in ["tokne", ""] {
+        assert_eq!(
+            fx.broker
+                .authorize_field(&token, &fx.github, Mode::Reveal, None, field)
+                .err(),
+            Some(Code::NotAllowed)
+        );
+    }
+    let v = fx
+        .broker
+        .authorize_field(&token, &fx.github, Mode::Reveal, None, "token")
+        .unwrap();
+    assert_eq!(v.as_str(), fx.github_secret);
+    assert_eq!(
+        fx.broker
+            .authorize_field(&token, &fx.github, Mode::Reveal, None, "token")
+            .err(),
+        Some(Code::NoGrant),
+        "the successful use consumed it"
+    );
+
+    let gone: ItemId = [7; 16];
+    let any = fx.grant(&p, json!({"vault":true}), "run", "once");
+    assert_eq!(
+        fx.broker.authorize(&any, &gone, Mode::Run, None).err(),
+        Some(Code::NotAllowed)
+    );
+    assert!(
+        fx.broker
+            .authorize(&any, &fx.github, Mode::Run, None)
+            .is_ok()
+    );
+    assert_eq!(
+        fx.broker.authorize(&any, &fx.github, Mode::Run, None).err(),
+        Some(Code::NoGrant)
+    );
+
+    let codes: Vec<_> = fx
+        .events()
+        .into_iter()
+        .filter(|(e, _)| e == "use.refused")
+        .map(|(_, d)| d["code"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(
+        codes,
+        [
+            "not_allowed",
+            "not_allowed",
+            "no_grant",
+            "not_allowed",
+            "no_grant"
+        ]
+    );
+}

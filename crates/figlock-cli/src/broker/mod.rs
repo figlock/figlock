@@ -525,34 +525,20 @@ impl Broker {
             },
             item_info,
         );
+        let value = match (&view, field) {
+            (Some(v), Some(f)) => v
+                .fields
+                .get(f)
+                .map(|val| Zeroizing::new(val.as_str().to_owned())),
+            _ => None,
+        };
+        let usable = view.is_some() && (field.is_none() || value.is_some());
         let authorized = st
             .grants
-            .authorize(self.env.as_ref(), token, &info, mode, host);
+            .authorize(self.env.as_ref(), token, &info, mode, host, usable);
         let auth = match authorized {
             Ok(a) => a,
             Err(r) => return Err(refuse(&mut st, r.code, r.grant_id, detail)),
-        };
-        let value = match (&view, field) {
-            (Some(v), Some(f)) => match v.fields.get(f) {
-                Some(val) => Some(Zeroizing::new(val.as_str().to_owned())),
-                None => {
-                    return Err(refuse(
-                        &mut st,
-                        Code::NotAllowed,
-                        Some(auth.grant_id),
-                        detail,
-                    ));
-                }
-            },
-            (None, _) => {
-                return Err(refuse(
-                    &mut st,
-                    Code::NotAllowed,
-                    Some(auth.grant_id),
-                    detail,
-                ));
-            }
-            (Some(_), None) => None,
         };
         if let Some(o) = detail.as_object_mut() {
             o.insert("grant".into(), json!(auth.grant_id));
