@@ -20,8 +20,10 @@ MUST, SHOULD and MAY are used as in RFC 2119.
 ```
 
 - The broker is a per-user foreground process, started with `figlock broker start`. It unlocks the vault
-  once (password and Secret Key, as for any command), keeps it in memory, and forgets it on `lock`, on
-  `SIGTERM` or when it exits. It never writes the Vault Key, the password or any item value to disk.
+  once (password and Secret Key, as for any command), keeps it in memory, and forgets it on `lock` or
+  when it exits (a signal ends the process; the operating system frees its memory, and this version does not
+  scrub it first). It reads the vault once at start: changes made later on other devices appear after a
+  restart. It never writes the Vault Key, the password or any item value to disk.
 - An agent never receives the vault key. It receives a **grant token**: an opaque handle that lets the broker
   act for it within limits. A token is not a secret value; revealing a value is a separate mode (3.2).
 - There is one broker per user and vault. A second `broker start` fails if a live broker answers on the
@@ -32,13 +34,16 @@ MUST, SHOULD and MAY are used as in RFC 2119.
 Unix only in this version (macOS, Linux). On Windows the broker does not start and says so; a named-pipe
 transport with the same protocol is an open question (section 9).
 
-- **Location.** `$XDG_RUNTIME_DIR/figlock/broker.sock`, else `<FIGLOCK_HOME>/run/broker.sock`. The directory
-  MUST be owned by the user and mode `0700`; the broker creates it so, tightens it if it exists, and refuses
-  to start if it is not owned by the user or cannot be made `0700`. The socket file MUST be mode `0600`
-  (created under a `umask` that cannot leave it wider, then checked). A stale socket is removed only after a
-  connect attempt fails with "connection refused".
+- **Location.** `<FIGLOCK_HOME>/run/broker.sock` when `FIGLOCK_HOME` is set, else
+  `$XDG_RUNTIME_DIR/figlock/broker.sock`, else `<config dir>/run/broker.sock`. The path MUST be under 100
+  bytes (the limit of `sun_path`); a longer one is refused with a hint. The directory MUST be owned by the
+  user and mode `0700`; the broker creates it so, tightens it if it exists, and refuses to start if it is not
+  owned by the user or cannot be made `0700`. The socket file MUST be mode `0600` (created under a `umask`
+  that cannot leave it wider, then checked). A stale socket is removed only after a connect attempt fails
+  with "connection refused"; anything else at that path (a file, a live broker) is never touched.
 - **Peer credentials.** For every accepted connection the broker reads the peer's user id (and process id
-  where the OS gives it: `SO_PEERCRED` on Linux, `getpeereid` and `LOCAL_PEERPID` on macOS). A peer whose uid
+  where the OS gives it: `SO_PEERCRED` on Linux, `LOCAL_PEERCRED` and `LOCAL_PEERPID` on macOS). If the system
+  cannot say who the peer is, the connection is dropped. A peer whose uid
   differs from the broker's is closed at once, with no response, and recorded (`conn.refused`). This is in
   addition to the directory and file modes, not instead of them.
 - **Identity.** The identity of an agent is `{uid, pid, exe}`, where `exe` is the program path the OS reports
@@ -88,10 +93,11 @@ long** (`ttl`).
 - `mode` is `http` (the broker makes the call and adds the secret itself), `run` (the broker injects values
   into a subprocess and scrubs its output) or `reveal` (the value is returned to the caller).
 - `ttl` is one of `once`, `15m`, `session`, `1d`, `until-lock`.
-  - `once`: the first successful use ends it.
+  - `once`: the first successful use ends it; if never used it ends after 15 minutes.
   - `15m`, `1d`: 900 s and 86400 s, measured on a monotonic clock, so changing the system clock does not
     extend a grant.
-  - `session`: until the requesting process (`pid`) exits, or 12 hours, whichever comes first.
+  - `session`: until the requesting process (`pid`) exits, or 12 hours, whichever comes first. It needs a
+    known `pid`; without one the request is `bad_request`.
   - `until-lock`: until the broker locks or exits.
 - `reveal` requires `scope` to be one `item` and `ttl` to be `once`; anything else is `bad_request`. A reveal
   therefore needs its own approval every time (G6).
@@ -150,6 +156,7 @@ Every call to `authorize` writes `use.allowed` or `use.refused` before it return
 - It never returns a vault value except in `reveal` mode, and never writes one to the audit log, to its own
   logs, to an error message or to a prompt.
 - It never accepts a request from another user, and never creates a grant without a fresh approval.
+- Once locked it forgets the audit key, so later requests get `locked` and are not logged.
 - It never extends a grant. A new request, and a new approval, is the only way to more access.
 
 ## 5. Audit log
@@ -196,7 +203,9 @@ record cannot be written, a grant is not created and a use is refused with `audi
 
 `figlock broker start` (foreground), `figlock broker status`, `figlock broker grants`,
 `figlock broker revoke <grant id>`, `figlock broker lock`, and `figlock audit [--tail N]` (unlocks the vault,
-verifies and prints the log with the same redaction as the log itself).
+verifies and prints the log with the same redaction as the log itself). All accept `--json`.
+`broker start` has a hidden `--deny-all` that never asks anyone and denies every request; it exists for tests
+and scripts, can only reduce access, and is also the behaviour when no terminal is available.
 
 ## 8. Required tests
 
@@ -222,6 +231,7 @@ Unit and end-to-end, all with generated values (`AGENTS.md`):
 
 - Windows transport (named pipe with a security descriptor) and the process chain on Windows (threat model 8).
 - Whether the prompt should show the parent process chain, not only `exe` (FIG-35).
-- Disabling core dumps and locking pages for the broker process.
+- Disabling core dumps and locking pages for the broker process, and scrubbing memory on a signal.
+- Reloading the vault while the broker runs.
 - A signed anchor for the audit log head (for example in the vault) so tail truncation can be detected.
 - Whether `session` should use a terminal session or process group instead of one pid.
