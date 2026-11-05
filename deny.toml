@@ -3,6 +3,10 @@ all-features = true
 
 [advisories]
 version = 2
+# basic-toml is unmaintained (RUSTSEC-2026-0374). It is only a proc-macro dependency of uniffi_bindgen's
+# askama_derive, built under figlock-ffi's `bindgen` feature (build-time generator, not shipped in apps).
+# Revisit when uniffi drops it.
+ignore = ["RUSTSEC-2026-0374"]
 
 [licenses]
 version = 2
