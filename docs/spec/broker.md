@@ -94,7 +94,8 @@ long** (`ttl`).
   `{"vault":true}`. A `name` is an item's title (at most 80 characters, no control characters). The broker
   resolves it, ignoring ASCII case, to the one live item with that title and the grant holds that item's id
   (the response shows it). No match and several matches both answer `not_allowed`, without asking anyone, so
-  a title is not a way to list the vault. The person approving is shown the title the broker found.
+  a title is not a way to list the vault. The title is resolved only after the `busy` checks below, so in
+  those states every title gets `busy`. The person approving is shown the title the broker found.
 - `mode` is `http` (the broker makes the call and adds the secret itself), `run` (the broker injects values
   into a subprocess and scrubs its output) or `reveal` (the value is returned to the caller).
 - `ttl` is one of `once`, `15m`, `session`, `1d`, `until-lock`.
