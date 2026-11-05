@@ -359,7 +359,24 @@ impl Broker {
         }
     }
 
+    fn busy_locked(&self, st: &State, peer: &PeerId) -> bool {
+        let now = self.env.now();
+        peer.pid
+            .and_then(|p| st.denied_until.get(&p))
+            .is_some_and(|until| now < *until)
+            || st.grants.len() >= MAX_GRANTS
+    }
+
+    fn is_busy(&self, peer: &PeerId) -> bool {
+        let mut st = self.lock_state();
+        self.sweep(&mut st);
+        self.busy_locked(&st, peer)
+    }
+
     fn grant_request(&self, peer: &PeerId, g: GrantRequest) -> Result<Value, Code> {
+        if self.is_busy(peer) {
+            return Err(Code::Busy);
+        }
         let g = GrantRequest {
             scope: self.resolve_scope(g.scope)?,
             ..g
@@ -377,13 +394,7 @@ impl Broker {
         let request = {
             let mut st = self.lock_state();
             self.sweep(&mut st);
-            let now = self.env.now();
-            if peer
-                .pid
-                .and_then(|p| st.denied_until.get(&p))
-                .is_some_and(|until| now < *until)
-                || st.grants.len() >= MAX_GRANTS
-            {
+            if self.busy_locked(&st, peer) {
                 return Err(Code::Busy);
             }
             let vault = st.vault.as_mut().ok_or(Code::Locked)?;

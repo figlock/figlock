@@ -1080,6 +1080,20 @@ fn an_item_can_be_asked_for_by_title_and_the_grant_holds_its_id() {
 }
 
 #[test]
+fn titles_get_the_same_busy_answer_during_a_cooldown() {
+    let fx = fixture();
+    let p = peer(4242);
+    let r = fx.request(&p, json!({"name": "github"}), "run", "15m");
+    assert_eq!(Fx::code(&r), "denied");
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    for name in ["github", "no such item"] {
+        let r = fx.request(&p, json!({"name": name}), "run", "15m");
+        assert_eq!(Fx::code(&r), "busy", "{name}");
+    }
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), calls);
+}
+
+#[test]
 fn run_env_values_never_reach_the_log_or_a_prompt() {
     let fx = fixture();
     let p = peer(4242);
