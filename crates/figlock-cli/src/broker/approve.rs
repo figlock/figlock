@@ -299,7 +299,9 @@ mod tests {
         let mut r = req("a", "b");
         r.mode = Mode::Reveal;
         r.loud = vec!["THIS COVERS EVERY ITEM IN YOUR VAULT"];
-        let titles: Vec<String> = (0..5).map(|i| format!("\"{i}{}\"", "t".repeat(79))).collect();
+        let titles: Vec<String> = (0..5)
+            .map(|i| format!("\"{i}{}\"", "t".repeat(79)))
+            .collect();
         r.scope_words = format!("every item tagged x: {}", titles.join(", "));
         let line = prompt_line(&r);
         assert!(line.contains("THIS COVERS EVERY ITEM IN YOUR VAULT"));
