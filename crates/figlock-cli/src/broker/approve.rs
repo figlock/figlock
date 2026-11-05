@@ -133,25 +133,24 @@ pub fn prompt_line(req: &ApprovalRequest) -> String {
         .peer
         .pid
         .map_or(String::new(), |p| format!(" (pid {p})"));
-    let mut s = String::new();
-    for warning in &req.loud {
-        s.push_str(&format!("{warning}. "));
-    }
-    let by = if req.peer.parents.is_empty() {
-        String::new()
-    } else {
-        format!(", started by {},", chain(&req.peer.parents, 120))
-    };
-    s.push_str(&format!(
-        "Let {}{pid}{by} use {} for {}",
-        audit_clean_text(name, 40),
+    // The system puts "<app> is trying to" in front and a full stop after, so this completes that sentence.
+    // What is asked comes first and the warnings next, so a long program chain can only cut the end.
+    let mut s = format!(
+        "use {} for {}",
         audit_clean_text(&req.scope_words, 120),
         duration(req.ttl)
-    ));
+    );
     if req.mode == Mode::Reveal {
-        s.push_str(" - it will SEE the secret");
+        s.push_str(". It will SEE the secret");
     }
-    audit_clean_text(&s, 400)
+    for warning in &req.loud {
+        s.push_str(&format!(". {warning}"));
+    }
+    s.push_str(&format!(". Asked by {}{pid}", audit_clean_text(name, 40)));
+    if !req.peer.parents.is_empty() {
+        s.push_str(&format!(", started by {}", chain(&req.peer.parents, 120)));
+    }
+    audit_clean_text(&s, 600)
 }
 
 /// Asks with the system's biometric prompt. `confirm` is the prompt itself, injected so tests need no screen.
@@ -312,7 +311,8 @@ mod tests {
         r.peer.exe = Some("/usr/local/bin/figlock".into());
         r.peer.parents = vec!["/opt/claude/claude".into(), "/bin/zsh".into()];
         let line = prompt_line(&r);
-        assert!(line.contains("figlock (pid 4242), started by claude < zsh, use"));
+        assert!(line.starts_with("use "));
+        assert!(line.ends_with("Asked by figlock (pid 4242), started by claude < zsh"));
         let text = describe(&r);
         assert!(text.contains("started by claude < zsh  [checked by the system]"));
     }
