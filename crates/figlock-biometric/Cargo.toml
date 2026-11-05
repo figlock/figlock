@@ -1,0 +1,22 @@
+[package]
+name = "figlock-biometric"
+description = "Touch ID and device-owner confirmation for the broker approval prompt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSError", "NSObject"] }
+objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "block2", "LAContext", "LAError"] }
+block2 = "0.6"
+
+# This crate is the one place that calls into the operating system's UI frameworks, which needs `unsafe`.
+# The rest of the workspace keeps `unsafe_code = "forbid"`.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }

@@ -120,7 +120,7 @@ default mode is `http`, why TTLs are short and why every use is logged (G1, G2, 
 
 ### 3.2 Approval
 
-Before a grant exists the broker asks an **approver** (a trait; the biometric prompt is FIG-35). The approver
+Before a grant exists the broker asks an **approver** (a trait; Touch ID on macOS). The approver
 receives the verified identity, the claimed label and reason (shown as untrusted text, control characters
 removed), the scope in plain words (item titles are looked up by the broker, so the agent cannot choose the
 wording of an item), the mode and the duration. `reveal` and `vault` scopes are marked loud. The approver
@@ -128,8 +128,12 @@ returns allow or deny, or nothing within 60 s, which is deny.
 
 - Prompts are shown one at a time. After a deny, the same pid gets `busy` for 5 s (approval fatigue, G8).
 - A grant is created only after the audit record `grant.approved` was written (section 5, fail closed).
-- Until FIG-35 lands, the daemon's approver is a plain yes/no question on the terminal that started the
-  broker, with a visible note that it is not biometric. A broker started without a terminal denies everything.
+- On macOS the daemon asks with Touch ID (the system prompt, which accepts the device password on a Mac
+  without biometrics). The prompt is one line, built by the broker from what the operating system verified:
+  the program name and pid, the scope in plain words and the duration, plus the loud wording for `reveal`
+  and `vault`. The caller's `label` and `reason` are never in it. Cancel, failure, no answer in 60 s and a
+  machine that cannot show the prompt are all deny. Without a biometric prompt the daemon asks yes/no on the
+  terminal that started it, and a broker with neither denies everything.
 
 ### 3.3 Authorising a use
 

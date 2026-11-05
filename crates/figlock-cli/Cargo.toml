@@ -14,6 +14,7 @@ path = "src/main.rs"
 [dependencies]
 figlock-core = { version = "0.0.0", path = "../figlock-core" }
 figlock-store = { version = "0.0.0", path = "../figlock-store" }
+figlock-biometric = { version = "0.0.0", path = "../figlock-biometric" }
 clap.workspace = true
 rpassword.workspace = true
 getrandom.workspace = true
