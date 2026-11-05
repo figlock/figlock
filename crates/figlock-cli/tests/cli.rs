@@ -401,6 +401,50 @@ fn init_is_not_repeatable() {
 }
 
 #[test]
+fn failed_init_removes_only_what_it_wrote() {
+    let blocked = Env {
+        home: TempDir::new().unwrap(),
+        store: TempDir::new().unwrap(),
+        secret_key: String::new(),
+        extra: Vec::new(),
+    };
+    fs::write(blocked.store.path().join("devices"), b"in the way").unwrap();
+    let store = blocked.store.path().to_str().unwrap();
+    let out = blocked.run_with(
+        &["init", "--store", store, "--kdf", "floor"],
+        None,
+        PW,
+        None,
+    );
+    assert!(!out.status.success());
+    assert!(
+        !blocked.store.path().join("vault.json").exists(),
+        "the vault.json this run wrote is rolled back"
+    );
+    assert!(!blocked.run(&["find"]).status.success());
+
+    let raced = Env {
+        home: TempDir::new().unwrap(),
+        store: TempDir::new().unwrap(),
+        secret_key: String::new(),
+        extra: Vec::new(),
+    };
+    let placeholder = raced.store.path().join(".vault.json.icloud");
+    fs::write(&placeholder, b"other device's vault").unwrap();
+    let store = raced.store.path().to_str().unwrap();
+    let out = raced.run_with(
+        &["init", "--store", store, "--kdf", "floor"],
+        None,
+        PW,
+        None,
+    );
+    assert!(!out.status.success());
+    assert_eq!(fs::read(&placeholder).unwrap(), b"other device's vault");
+    assert!(!raced.store.path().join("devices").exists());
+    assert!(!raced.run(&["find"]).status.success());
+}
+
+#[test]
 fn before_init_commands_explain_what_to_do() {
     let home = TempDir::new().unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_figlock"))
