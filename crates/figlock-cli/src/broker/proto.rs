@@ -308,6 +308,7 @@ fn http_request(o: &Map<String, Value>) -> Result<HttpRequest, ()> {
             auth_scheme = sc.to_owned();
         }
         if !header_token(&auth_header)
+            || OWN_HEADERS.contains(&auth_header.to_ascii_lowercase().as_str())
             || auth_scheme.len() > 32
             || !auth_scheme.bytes().all(|b| b.is_ascii_alphanumeric())
         {
@@ -669,6 +670,12 @@ mod tests {
             r#","headers":{"X":"a\nb"}"#,
             r#","headers":["X"]"#,
             r#","auth":{"header":"X Y"}"#,
+            r#","auth":{"header":"Host"}"#,
+            r#","auth":{"header":"Transfer-Encoding"}"#,
+            r#","auth":{"header":"Content-Length"}"#,
+            r#","auth":{"header":"connection"}"#,
+            r#","auth":{"header":"Expect"}"#,
+            r#","auth":{"header":"Proxy-Authorization"}"#,
             r#","auth":{"scheme":"Bear er"}"#,
             r#","auth":{"header":"X","extra":1}"#,
             r#","field":"to ken""#,
