@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FigLock - one vault for you and your agents</title>
+  <meta name="description" content="FigLock is a free, open-source password and secrets manager. Your vault is encrypted and lives in storage you already own, and AI agents can use a secret after you approve it, without seeing it.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#faf9f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121114" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://figlock.com/">
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28">FigLock</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/privacy/">Privacy</a>
+        <a href="/terms/">Terms</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="badge">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            In development - nothing to install yet
+          </p>
+          <h1 id="hero-title">One vault for you and your agents</h1>
+          <p class="lede">FigLock keeps your passwords, API tokens and notes in one encrypted vault that lives in storage you already own. When an AI agent needs a token, you approve it with Touch ID and the agent uses it without seeing it.</p>
+          <div class="actions">
+            <a class="button button--primary" href="/privacy/">How your data is handled</a>
+            <a class="button" href="#how-it-works">How it works</a>
+          </div>
+        </div>
+
+        <figure class="sheet">
+          <div class="sheet-card" aria-hidden="true">
+            <div class="sheet-head">
+              <svg class="icon" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+              Agent request
+            </div>
+            <h3>Approve Claude Code to use GitHub token for 15 minutes</h3>
+            <dl>
+              <dt>Who</dt><dd>Claude Code, started from Terminal</dd>
+              <dt>What</dt><dd>GitHub token</dd>
+              <dt>How</dt><dd>Added to HTTP requests for you</dd>
+              <dt>Where</dt><dd class="mono">api.github.com</dd>
+              <dt>For</dt><dd>15 minutes</dd>
+            </dl>
+            <div class="sheet-actions">
+              <span class="button button--primary">Approve with Touch ID</span>
+              <span class="button">Deny</span>
+            </div>
+          </div>
+          <figcaption>A mock-up with made-up data. FigLock draws this prompt itself, never the agent.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="principles-title">
+      <div class="wrap">
+        <h2 id="principles-title">Built around three promises</h2>
+        <ul class="cards cards--3">
+          <li class="card">
+            <h3>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+              Your storage, not ours
+            </h3>
+            <p>The vault is ciphertext in Google Drive, iCloud Drive or a folder you choose. We don't run a server or a database that holds your data.</p>
+          </li>
+          <li class="card card--agent">
+            <h3>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+              Agents use, they don't hold
+            </h3>
+            <p>By default FigLock adds the token to the agent's web request itself. It can also inject the token into a command and scrub it from the output. Showing a raw value is opt-in per item and needs its own approval every time.</p>
+          </li>
+          <li class="card">
+            <h3>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+              Open and standard
+            </h3>
+            <p>Free, and licensed MIT or Apache-2.0. Only standard cryptography, written down with test vectors, and an outside audit before we invite other people to rely on it.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works" aria-labelledby="how-title">
+      <div class="wrap">
+        <h2 id="how-title">How it works</h2>
+        <ol class="steps">
+          <li>
+            <h3>Create a vault with two secrets</h3>
+            <p>Your master password plus a Secret Key that stays on your devices. You save the Secret Key in an Emergency Kit, and we ask you to check you saved it.</p>
+          </li>
+          <li>
+            <h3>Pick where it lives</h3>
+            <p>Choose Google Drive, iCloud Drive or another synced folder. Titles, URLs and usernames are encrypted too, so the provider sees only file counts, sizes and times.</p>
+          </li>
+          <li>
+            <h3>Find things fast, on any device</h3>
+            <p>Search is local and forgives typos, so "clodflare" still finds Cloudflare. Every device keeps its own encrypted copy and works offline.</p>
+          </li>
+          <li>
+            <h3>Let an agent work without handing over the key</h3>
+            <p>The agent asks, you approve for a limited time and scope, and every use goes into an encrypted audit log you can read.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="platforms-title">
+      <div class="wrap">
+        <h2 id="platforms-title">Where it will run</h2>
+        <ul class="cards cards--2">
+          <li class="card">
+            <h3>Command line and desktop</h3>
+            <p>A <code>figlock</code> command for macOS, Linux and Windows comes first, then a desktop app for macOS.</p>
+          </li>
+          <li class="card">
+            <h3>Browser, web and phones</h3>
+            <p>A browser extension with autofill, an installable web app, then native iPhone and Android apps.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="status-title">
+      <div class="wrap">
+        <h2 id="status-title">Where we are</h2>
+        <div class="notice" role="note">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          <p>FigLock is in planning and early development. Nothing is released and it has had no security audit. Please don't store real secrets in anything built from it until the audit is done and published.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>FigLock is free software, dual licensed MIT or Apache-2.0.</p>
+      <ul>
+        <li><a href="/privacy/">Privacy</a></li>
+        <li><a href="/terms/">Terms</a></li>
+        <li><a href="mailto:security@figlock.com">Report a security issue</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
