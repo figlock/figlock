@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy - FigLock</title>
+  <meta name="description" content="What FigLock stores, where it lives and who can see it. We run no server that holds your vault, and this website uses no cookies or analytics.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#faf9f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121114" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="canonical" href="https://figlock.com/privacy/">
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/site.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28">FigLock</a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/privacy/" aria-current="page">Privacy</a>
+        <a href="/terms/">Terms</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      <article class="prose">
+        <h1>Privacy</h1>
+        <p class="meta">Last updated 5 November 2026. FigLock is not released yet, so this describes how it is designed to work. We will review it again before the first release.</p>
+
+        <section class="summary" aria-labelledby="summary-title">
+          <h2 id="summary-title">The short version</h2>
+          <ul>
+            <li>We run no server or database that stores your vault. There are no FigLock accounts.</li>
+            <li>Your vault is encrypted on your device before it goes anywhere. Item titles, URLs and usernames are encrypted too.</li>
+            <li>Your storage provider sees ciphertext, plus file counts, sizes and times. Nothing else.</li>
+            <li>The phone-approval relay is optional. It passes encrypted messages along and stores nothing.</li>
+            <li>FigLock has no telemetry by default, and this website uses no cookies, analytics or third-party scripts.</li>
+          </ul>
+        </section>
+
+        <h2>Where your data lives</h2>
+        <p>Your vault is a set of encrypted files. A full copy sits on each of your devices, and the same files are kept in the storage you choose when you set up: Google Drive, iCloud Drive, or a folder you sync yourself. Git and S3 may follow later.</p>
+        <p>Everything is encrypted with keys derived from your master password and your Secret Key. Both stay with you. We never receive them, so we can't read your vault, and we can't reset your password. If you lose both your master password and your Secret Key, the data can't be recovered. The Emergency Kit exists for that reason.</p>
+
+        <h2>Who can see what</h2>
+        <dl class="who">
+          <div>
+            <dt>You and your approved devices</dt>
+            <dd>Your items, once you unlock the vault.</dd>
+          </div>
+          <div>
+            <dt>Your storage provider</dt>
+            <dd>Encrypted files, how many there are, how big they are and when they changed. Not titles, URLs, usernames or values.</dd>
+          </div>
+          <div>
+            <dt>The optional relay</dt>
+            <dd>Encrypted approval messages in transit, with their sizes and timing. It can't read them or create an approval, and it keeps nothing.</dd>
+          </div>
+          <div>
+            <dt>FigLock project maintainers</dt>
+            <dd>Nothing about your vault. We don't have it.</dd>
+          </div>
+        </dl>
+
+        <h2>Google Drive</h2>
+        <p>If you pick Google Drive, FigLock asks for one narrow permission, <code>drive.appdata</code>. It gives FigLock a hidden app folder and no access to the rest of your files. The folder counts against your Drive storage, and you can remove it from your Google account settings. Removing it deletes the copy in Drive, so each device keeps its own full local copy.</p>
+
+        <h2>Agents and the audit log</h2>
+        <p>When an agent asks to use a secret, the decision and the use are recorded in an encrypted audit log inside your vault. It is yours to read and export. FigLock does not send it anywhere.</p>
+        <p>Approving an agent only limits what the agent is handed. A secret can still reach an agent's transcript if you choose to reveal it, which needs its own approval each time. We try to say plainly what is and isn't protected.</p>
+
+        <h2>The optional relay</h2>
+        <p>If you want to approve an agent request from your phone, an optional relay at <code>relay.figlock.com</code> forwards encrypted approvals between your devices, including through Apple's push notification service. It holds no vault data and no keys, and everything works without it.</p>
+
+        <h2>This website</h2>
+        <p>These pages are plain static files. They set no cookies, run no analytics and load nothing from other sites, including fonts. Like any web host, the service that delivers these pages may keep standard request logs, such as the address a request came from and the time. FigLock adds nothing on top of that.</p>
+
+        <h2>Your choices</h2>
+        <ul>
+          <li>Export everything, encrypted or plain, at any time.</li>
+          <li>Delete the vault files from your storage and your devices, and your data is gone.</li>
+          <li>Revoke a device to cut it off from future changes.</li>
+        </ul>
+
+        <h2>Changes and contact</h2>
+        <p>If this page changes in a way that matters, the date at the top will change with it. To report a security problem, write to <a href="mailto:security@figlock.com">security@figlock.com</a>. Please don't include real vault data, tokens or recovery codes in a report.</p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>FigLock is free software, dual licensed MIT or Apache-2.0.</p>
+      <ul>
+        <li><a href="/privacy/">Privacy</a></li>
+        <li><a href="/terms/">Terms</a></li>
+        <li><a href="mailto:security@figlock.com">Report a security issue</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>

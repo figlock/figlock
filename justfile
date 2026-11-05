@@ -30,9 +30,10 @@ vectors:
 vectors-check:
     cd docs/spec/vectors && python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt && .venv/bin/python generate.py --check
 
-# WCAG contrast check of the design tokens.
+# WCAG contrast check of the design tokens, and the site copy of them has not drifted.
 design-check:
     python3 -I design/check-contrast.py
+    cmp design/tokens.css site/tokens.css
 
 # Everything CI runs: lint, tests, the design token check and the vector drift check.
 check: lint test design-check vectors-check
