@@ -10,8 +10,9 @@ use serde_json::{Value, json};
 use super::server::{Line, read_line};
 use crate::error::{Fail, Res};
 
-/// Responses are small; this only bounds a broken or hostile peer.
-const MAX_RESPONSE: usize = 256 * 1024;
+/// Most responses are small; the largest is an `http.request` answer (a 4 MiB body in base64, plus headers).
+/// This only bounds a broken or hostile peer.
+const MAX_RESPONSE: usize = 8 * 1024 * 1024;
 /// A request can wait for the user's answer (60 s) plus slack.
 const WAIT: Duration = Duration::from_secs(120);
 

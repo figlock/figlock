@@ -20,29 +20,6 @@ pub struct Scrubber {
     pending: Vec<u8>,
 }
 
-fn base64(bytes: &[u8], url_safe: bool) -> Vec<u8> {
-    let table: &[u8; 64] = if url_safe {
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-    } else {
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-    };
-    let mut out = Vec::with_capacity(bytes.len().div_ceil(3) * 4);
-    for c in bytes.chunks(3) {
-        let n = (u32::from(c[0]) << 16)
-            | (u32::from(*c.get(1).unwrap_or(&0)) << 8)
-            | u32::from(*c.get(2).unwrap_or(&0));
-        out.push(table[(n >> 18) as usize & 63]);
-        out.push(table[(n >> 12) as usize & 63]);
-        if c.len() > 1 {
-            out.push(table[(n >> 6) as usize & 63]);
-        }
-        if c.len() > 2 {
-            out.push(table[n as usize & 63]);
-        }
-    }
-    out
-}
-
 fn percent(bytes: &[u8]) -> Vec<u8> {
     let mut out = Vec::new();
     for &b in bytes {
@@ -68,8 +45,8 @@ impl Scrubber {
             let mark = format!("[REDACTED:{name}]").into_bytes();
             for form in [
                 raw.to_vec(),
-                base64(raw, false),
-                base64(raw, true),
+                crate::b64::encode_with(raw, false, false),
+                crate::b64::encode_with(raw, true, false),
                 percent(raw),
             ] {
                 if !patterns.iter().any(|p| *p.needle == form) {
@@ -180,8 +157,10 @@ mod tests {
     fn base64_and_percent_encoded_forms_are_caught() {
         let value = "p@ss/w0rd+Z?9";
         let mut s = Scrubber::new(&[secret("PW", value)]);
-        let std = String::from_utf8(base64(value.as_bytes(), false)).unwrap();
-        let url = String::from_utf8(base64(value.as_bytes(), true)).unwrap();
+        let std =
+            String::from_utf8(crate::b64::encode_with(value.as_bytes(), false, false)).unwrap();
+        let url =
+            String::from_utf8(crate::b64::encode_with(value.as_bytes(), true, false)).unwrap();
         let pct = "p%40ss%2Fw0rd%2BZ%3F9";
         let text = format!("a={std} b={url} c={pct} d={value}");
         let out = String::from_utf8(run(&mut s, &[text.as_bytes()])).unwrap();
@@ -190,15 +169,6 @@ mod tests {
             "a=[REDACTED:PW] b=[REDACTED:PW] c=[REDACTED:PW] d=[REDACTED:PW]"
         );
         assert!(!out.contains("w0rd"));
-    }
-
-    #[test]
-    fn known_base64_vector() {
-        assert_eq!(base64(b"Man", false), b"TWFu");
-        assert_eq!(base64(b"Ma", false), b"TWE");
-        assert_eq!(base64(b"M", false), b"TQ");
-        assert_eq!(base64(&[0xfb, 0xff], false), b"+/8");
-        assert_eq!(base64(&[0xfb, 0xff], true), b"-_8");
     }
 
     #[test]
