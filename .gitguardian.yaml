@@ -1,0 +1,5 @@
+version: 2
+secret:
+  ignored_paths:
+    # SLIP-0039 shares generated once for the spec. Public test data, protects nothing.
+    - docs/spec/vectors/**

@@ -2,7 +2,7 @@ name: CodeQL
 
 on:
   pull_request:
-    paths: ['crates/**', 'apps/**', 'packages/**', 'relay/**', 'site/**', '.github/workflows/codeql.yml']
+    paths: ['crates/**', 'apps/**', 'packages/**', 'relay/**', 'site/**', '.github/workflows/codeql.yml', '.github/codeql/**']
   push:
     branches: [main]
   schedule:
@@ -25,4 +25,5 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: none
+          config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/analyze@v3

@@ -1,0 +1,4 @@
+name: figlock
+paths-ignore:
+  # Tests use fixed passwords and keys on purpose (published vectors, generated values).
+  - crates/*/tests
