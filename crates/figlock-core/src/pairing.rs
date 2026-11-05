@@ -9,7 +9,7 @@ use crate::kdf::hkdf_key;
 use crate::secret_key::{b32_char, b32_value, normalise};
 use crate::{Error, Key, Result};
 
-const INVITE_BYTES: usize = 13;
+pub(crate) const INVITE_BYTES: usize = 13;
 
 /// `X25519` public key for a private key.
 pub fn x25519_public(private: &Key) -> [u8; 32] {
@@ -32,20 +32,26 @@ pub struct InviteKeys {
     pub k_resp: Key,
 }
 
-/// `invite_id = HKDF(s, salt = vault_id, "figlock/v1/invite-id", 16)`; `K_req` and `K_resp` from
-/// `X25519(my_priv, their_pub) || s` with `salt = invite_id`.
+/// `invite_id = HKDF(s, salt = vault_id, "figlock/v1/invite-id", 16)`: the file name of an invite.
+pub fn invite_id(s: &[u8; INVITE_BYTES], vault_id: &[u8; 16]) -> Result<[u8; 16]> {
+    use hkdf::Hkdf;
+    use sha2::Sha256;
+    let mut id = [0u8; 16];
+    Hkdf::<Sha256>::new(Some(vault_id), s)
+        .expand(b"figlock/v1/invite-id", &mut id)
+        .map_err(|_| Error)?;
+    Ok(id)
+}
+
+/// `invite_id` as above; `K_req` and `K_resp` from `X25519(my_priv, their_pub) || s` with
+/// `salt = invite_id`.
 pub fn invite_keys(
     s: &[u8; INVITE_BYTES],
     vault_id: &[u8; 16],
     my_priv: &Key,
     their_pub: &[u8; 32],
 ) -> Result<InviteKeys> {
-    use hkdf::Hkdf;
-    use sha2::Sha256;
-    let mut invite_id = [0u8; 16];
-    Hkdf::<Sha256>::new(Some(vault_id), s)
-        .expand(b"figlock/v1/invite-id", &mut invite_id)
-        .map_err(|_| Error)?;
+    let invite_id = invite_id(s, vault_id)?;
     let shared = dh(my_priv, their_pub)?;
     let mut ikm = Zeroizing::new([0u8; 32 + INVITE_BYTES]);
     ikm[..32].copy_from_slice(shared.as_ref());

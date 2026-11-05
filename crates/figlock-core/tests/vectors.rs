@@ -428,6 +428,11 @@ fn pairing() {
                     "{n}: both sides agree"
                 );
             }
+            "device-fingerprint" => assert_eq!(
+                fc::device_fingerprint(&arr(&i["sign_pub"])),
+                e["fingerprint"].as_str().unwrap(),
+                "{n}"
+            ),
             "invite-req" => {
                 let a = fc::aad(
                     "invite-req",

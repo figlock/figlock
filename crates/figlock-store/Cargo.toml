@@ -10,5 +10,9 @@ publish.workspace = true
 [dependencies]
 tempfile.workspace = true
 
+[dev-dependencies]
+figlock-core = { path = "../figlock-core" }
+getrandom.workspace = true
+
 [lints]
 workspace = true
