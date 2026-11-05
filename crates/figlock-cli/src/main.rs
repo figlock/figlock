@@ -22,6 +22,7 @@ mod run;
 #[cfg(unix)]
 mod scrub;
 mod session;
+mod skill;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -74,6 +75,29 @@ enum Command {
     Run(RunArgs),
     /// Make an HTTP request through the broker, which adds the secret itself. You never see the secret.
     Http(HttpArgs),
+    /// The Claude skill that teaches agents to use secrets through the broker.
+    Skill {
+        #[command(subcommand)]
+        action: SkillCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum SkillCmd {
+    /// Install the skill where Claude Code finds it (`~/.claude/skills/figlock`).
+    Install(SkillInstallArgs),
+    /// Print the skill text.
+    Show,
+}
+
+#[derive(Args)]
+pub struct SkillInstallArgs {
+    /// Install into this project's `.claude/skills` instead of your user folder.
+    #[arg(long)]
+    pub project: bool,
+    /// Replace a different copy that is already installed.
+    #[arg(long)]
+    pub force: bool,
 }
 
 #[derive(Args)]
@@ -452,6 +476,13 @@ fn main() -> ExitCode {
         // These end with the exit code of the program or the request, not just success or failure.
         Command::Run(a) => run_command(a),
         Command::Http(a) => http_command(a),
+        Command::Skill { action } => ok(match action {
+            SkillCmd::Install(a) => skill::install(&a, json),
+            SkillCmd::Show => {
+                skill::show();
+                Ok(())
+            }
+        }),
     };
     match result {
         Ok(code) => ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1)),
