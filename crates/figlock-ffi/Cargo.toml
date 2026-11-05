@@ -1,11 +1,36 @@
 [package]
 name = "figlock-ffi"
-description = "UniFFI and wasm-bindgen exports"
+description = "UniFFI exports for Swift and Kotlin (wasm-bindgen exports land with the web app)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 publish.workspace = true
+
+[lib]
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[features]
+# The binding generator (`cargo run -p figlock-ffi --features bindgen --bin uniffi-bindgen`). Off for app
+# builds so the shipped library does not pull in the generator's dependencies.
+bindgen = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "src/bin/uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[[test]]
+name = "bindings"
+required-features = ["bindgen"]
+
+[dependencies]
+figlock-core = { path = "../figlock-core" }
+uniffi.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true
