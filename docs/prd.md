@@ -129,7 +129,7 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 | --------------------------------------------------------------------------- | -------- |
 | CLI: macOS, Linux, Windows                                                   | must     |
 | Desktop app (Tauri 2), macOS first                                           | should   |
-| Web PWA at app.figlock.com                                                   | should   |
+| Web PWA at app.figlock.com (deferred, ADR-0020)                              | later    |
 | Browser extension with autofill (Chrome, Firefox, Safari, Edge)              | should   |
 | iOS app with AutoFill credential provider                                    | should   |
 | Android app with AutofillService                                             | should   |
@@ -155,7 +155,7 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 | 1     | Core + CLI + local folder storage       | Notes imported and found by fuzzy search on two Macs via iCloud Drive      |
 | 2     | Broker + skill                          | Claude Code deploys and calls GitHub with no token in the transcript       |
 | 3     | Desktop app + Google Drive              | Mac and Windows/Linux sync through Google Drive; pairing under a minute    |
-| 4     | PWA + browser extension                 | Log in to 20 everyday sites from the extension                            |
+| 4     | WASM core + browser extension           | Log in to 20 everyday sites from the extension                            |
 | 5     | iOS, then Android                       | iOS autofill works; agent grant approved from iPhone; Android at parity    |
 | 6     | Public release                          | Audit fixed and published; new user set up in under 3 minutes             |
 
