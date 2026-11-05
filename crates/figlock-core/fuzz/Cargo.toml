@@ -1,0 +1,23 @@
+[package]
+name = "figlock-core-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+figlock-core = { path = ".." }
+
+# Not part of the main workspace: fuzzing needs a nightly toolchain and its own lockfile.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "import"
+path = "fuzz_targets/import.rs"
+test = false
+doc = false
+bench = false

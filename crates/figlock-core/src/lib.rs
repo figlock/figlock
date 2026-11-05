@@ -3,7 +3,7 @@
 //! This crate currently holds the crypto module (`docs/spec/crypto.md`, the container and invite parts of
 //! `sync.md` and `pairing-recovery.md`) and the sync logic of `sync.md` (hybrid logical clock, field-level
 //! merge, op batch and snapshot payloads, reader decisions), plus local search over non-secret fields
-//! (`search`) and the Emergency Kit PDF with its verification step (`kit`). Every rule is checked against the test vectors in
+//! (`search`) the Emergency Kit PDF with its verification step (`kit`) and import of other managers' exports (`import`). Every rule is checked against the test vectors in
 //! `docs/spec/vectors/` by `tests/vectors.rs` and `tests/sync.rs`.
 //!
 //! Conventions, from the spec:
@@ -15,6 +15,7 @@ mod aead;
 mod error;
 mod file;
 mod hlc;
+mod import;
 mod invite;
 mod items;
 mod kdf;
@@ -36,6 +37,10 @@ pub use aead::{VERSION, open, seal};
 pub use error::{Error, Result};
 pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
 pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};
+pub use import::{
+    Detected, Draft, ImportError, MAX_INPUT_BYTES, MAX_RECORDS, Report, SkipReason, Skipped,
+    Source, detect_tokens, parse as parse_import,
+};
 pub use invite::{
     INBOX_MAX_BYTES, INBOX_STALE_MS, INVITE_TTL_MS, InboxKind, Invite, InviteOffer, JoinAttempt,
     JoinRequest, JoinRequestFile, Joined, device_fingerprint, inbox_is_stale, invite_path,
