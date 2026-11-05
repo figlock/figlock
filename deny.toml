@@ -3,10 +3,25 @@ all-features = true
 
 [advisories]
 version = 2
+# basic-toml is unmaintained (RUSTSEC-2026-0374). It is only a proc-macro dependency of uniffi_bindgen's
+# askama_derive, built under figlock-ffi's `bindgen` feature (build-time generator, not shipped in apps).
+# Revisit when uniffi drops it.
+ignore = ["RUSTSEC-2026-0374"]
 
 [licenses]
 version = 2
 allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib"]
+# MPL-2.0 is file-level copyleft. Only the UniFFI crates (ADR-0004) use it; we link them unmodified.
+exceptions = [
+    { allow = ["MPL-2.0"], crate = "uniffi" },
+    { allow = ["MPL-2.0"], crate = "uniffi_bindgen" },
+    { allow = ["MPL-2.0"], crate = "uniffi_core" },
+    { allow = ["MPL-2.0"], crate = "uniffi_internal_macros" },
+    { allow = ["MPL-2.0"], crate = "uniffi_macros" },
+    { allow = ["MPL-2.0"], crate = "uniffi_meta" },
+    { allow = ["MPL-2.0"], crate = "uniffi_pipeline" },
+    { allow = ["MPL-2.0"], crate = "uniffi_udl" },
+]
 
 [bans]
 multiple-versions = "warn"

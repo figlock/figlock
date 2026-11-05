@@ -29,6 +29,7 @@ ciborium = { version = "0.2", default-features = false }
 clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 rpassword = "7"
 nix = { version = "0.30", default-features = false, features = ["socket", "user", "signal", "fs"] }
+uniffi = "0.31"
 proptest = { version = "1", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
