@@ -124,6 +124,79 @@
       "expected": "valid"
     },
     {
+      "name": "vault-json-sign-with-revocation",
+      "spec": "crypto.md 9.2",
+      "inputs": {
+        "authority_seed": "a15b8684865d1ca8d5ab682f371f06ea1802e9d98b0928ef8ef2c3d5e15feedc",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 2,
+          "key_epoch": 2,
+          "min_format_version": 1,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 65536,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          },
+          "revoked": [
+            {
+              "device_id": "bb8b7895c05bf9f375d4217069c7ff4a",
+              "sign_pub": "0101010101010101010101010101010101010101010101010101010101010101",
+              "revoked_at": [
+                1700000100000,
+                0
+              ],
+              "epoch": 2
+            }
+          ],
+          "epoch_keys": [
+            {
+              "from": 1,
+              "to": 2,
+              "sealed": "0000000000000000"
+            }
+          ]
+        },
+        "jcs": "{\"epoch_keys\":[{\"from\":1,\"sealed\":\"0000000000000000\",\"to\":2}],\"kdf\":{\"m_kib\":65536,\"p\":4,\"salt\":\"6d9a3622a368bef8cbdd1967b3d71d0f\",\"t\":3},\"key_epoch\":2,\"min_format_version\":1,\"revision\":2,\"revoked\":[{\"device_id\":\"bb8b7895c05bf9f375d4217069c7ff4a\",\"epoch\":2,\"revoked_at\":[1700000100000,0],\"sign_pub\":\"0101010101010101010101010101010101010101010101010101010101010101\"}],\"suite\":\"fl1\",\"vault_id\":\"cc632b71c60671f8fbe6eeed081b626c\"}"
+      },
+      "expected": {
+        "signature": "c1f2a5441b1a58fdb5cf52693812134fb09364a9b83e390c24759acb4f5761b46e657b56e80825eef312c3a378f12fe8a40210e555c1d3b5576e30b52f676206"
+      }
+    },
+    {
+      "name": "vault-json-revoked-list-removed",
+      "spec": "crypto.md 9.2",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "vault_json": {
+          "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+          "revision": 2,
+          "key_epoch": 2,
+          "min_format_version": 1,
+          "suite": "fl1",
+          "kdf": {
+            "m_kib": 65536,
+            "t": 3,
+            "p": 4,
+            "salt": "6d9a3622a368bef8cbdd1967b3d71d0f"
+          },
+          "epoch_keys": [
+            {
+              "from": 1,
+              "to": 2,
+              "sealed": "0000000000000000"
+            }
+          ]
+        },
+        "signature": "c1f2a5441b1a58fdb5cf52693812134fb09364a9b83e390c24759acb4f5761b46e657b56e80825eef312c3a378f12fe8a40210e555c1d3b5576e30b52f676206",
+        "context": "vault-json"
+      },
+      "expected": "reject",
+      "why": "dropping the revoked list from a signed vault.json is detected"
+    },
+    {
       "name": "vault-json-kdf-params-altered",
       "spec": "crypto.md 5.1, 7.4",
       "inputs": {

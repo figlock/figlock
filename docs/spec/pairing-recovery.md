@@ -71,7 +71,8 @@ s          = 100 random bits, shown as 5 groups of 4 Crockford base32 characters
 invite_id  = HKDF(s, salt = vault_id, info = "figlock/v1/invite-id", L = 16)    # hex in the file name
 ```
 
-1. `T` writes `inbox/<invite_id>.inv` (plaintext, public): `{ v, vault_id, invite_id, Et_pub, expires_at }`.
+1. `T` writes `inbox/<invite_id>.inv` (plaintext, public): a JSON object with exactly the members
+   `{"v": 1, "vault_id": hex, "invite_id": hex, "et_pub": hex, "expires_at": unix ms}`.
 2. `N` derives `invite_id` from `s`, reads the `.inv`, generates its device keys and an ephemeral `En`, and
    computes
    ```
@@ -79,16 +80,21 @@ invite_id  = HKDF(s, salt = vault_id, info = "figlock/v1/invite-id", L = 16)    
    K_req  = HKDF(ikm = shared || s, salt = invite_id, info = "figlock/v1/invite-req", L = 32)
    K_resp = HKDF(ikm = shared || s, salt = invite_id, info = "figlock/v1/invite-resp", L = 32)
    ```
-3. `N` writes `inbox/<invite_id>.req` = `En_pub || seal(K_req, cbor({device_name, sign_pub, agree_pub}),
-   aad("invite-req", vault_id, invite_id))`.
+3. `N` writes `inbox/<invite_id>.req` = `En_pub || seal(K_req, cbor({device_id, device_name, sign_pub,
+   agree_pub}), aad("invite-req", vault_id, invite_id))`. `device_id` is the 16 random bytes `N` chose for
+   itself, so that `T` can write `devices/<device_id>.json` and `N` can check the response against it.
 4. `T` reads it, derives the same keys from `En_pub`, `Et_priv` and `s`, opens the request and shows the
-   device name and a short fingerprint of `sign_pub` to the user.
+   device name and the fingerprint of `sign_pub` to the user. The fingerprint is
+   `Crockford(SHA-256("figlock/v1/device-fingerprint" || 0x00 || sign_pub)[0..10])`: 16 characters shown as
+   four groups of four, and `N` shows the same string on its own screen so the user can compare them.
 5. On approval `T` writes the signed device record (`crypto.md` 7.4) and
    `inbox/<invite_id>.resp = seal(K_resp, cbor({secret_key, device_id}), aad("invite-resp", vault_id,
    invite_id))`.
 
 Properties:
 
+- The request and response plaintexts are CBOR maps with exactly the members named above, nothing else;
+  anything else is rejected. `secret_key` in the response is the 16 raw Secret Key bytes.
 - A storage attacker sees `Et_pub`, `En_pub` and sealed blobs but not `s`, so cannot derive `K_req` or
   `K_resp` and cannot read the device name or the Secret Key. An attacker who swaps `Et_pub` learns nothing
   for the same reason, and `N` simply fails to open the response.
@@ -100,7 +106,10 @@ Properties:
 ### 3.4 Rules
 
 - An invite lives 10 minutes (`expires_at`), is single use, and `T` deletes the `.inv` as soon as a valid
-  `.req` arrives or the invite expires. Only one invite can be open at a time per device.
+  `.req` arrives or the invite expires. A valid request consumes the invite even if the user then declines,
+  so a second request for the same invite is refused. Only one invite can be open at a time per device.
+  `N` refuses an `.inv` whose `invite_id` does not match the one it derives from `s` and `vault_id`, or
+  whose `expires_at` has passed.
 - `T` MUST require a biometric or master password confirmation before approving, and show the requesting
   device's name, platform and key fingerprint. Approval never happens automatically.
 - Anyone can write files to `inbox/` (the storage allows it), so every file there is untrusted until it
@@ -132,7 +141,10 @@ in the device list on the next sync, from where it can be revoked.
 2. It confirms by name and warns that the removed device keeps a copy of everything it already synced
    (`crypto.md` 9.1, threat model D8).
 3. The device rotates `VK` (new `key_epoch`), re-signs `vault.json` with the device in the `revoked` list and
-   the `revoked_at` stamp, rewraps the keys and writes a snapshot (`sync.md` 9).
+   the `revoked_at` stamp, rewraps the keys and writes a snapshot (`sync.md` 9). The member formats are in
+   `crypto.md` 9.2. The device re-signs the records of the remaining devices with the new authority key
+   (`devices/<id>.json` is replaced, see `sync.md` 3), so it MUST have loaded all current records first.
+   Revoking the device itself is refused.
 4. Every other device is asked for a full unlock on its next sync, because its quick-unlock `AUK` wrap is
    still valid but it needs the new wrapped `VK`; the master password is not changed unless the user chose
    so. It is recommended after losing a device.

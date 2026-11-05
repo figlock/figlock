@@ -88,6 +88,12 @@ def b32_encode(data: bytes) -> str:
     return "".join(CROCKFORD[int(bits[i:i + 5], 2)] for i in range(0, len(bits), 5))
 
 
+def device_fingerprint(sign_pub: bytes) -> str:
+    """pairing-recovery.md 3.3 step 4: 80 bits of SHA-256, Crockford, four groups of four."""
+    t = b32_encode(sha256(b"figlock/v1/device-fingerprint", b"\x00", sign_pub)[:10])
+    return "-".join(t[i:i + 4] for i in range(0, 16, 4))
+
+
 def b32_decode(text: str) -> bytes:
     bits = "".join(f"{CROCKFORD.index(c):05b}" for c in text)
     assert len(bits) % 8 == 0
