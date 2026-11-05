@@ -499,7 +499,7 @@ fn schema_rejects_bad_fields() {
         "env/API_KEY",
         "custom/ab12/value",
     ] {
-        assert!(is_secret_field(secret), "{secret}");
+        assert!(is_secret_field(secret), "field not classified as secret");
     }
     for plain in [
         "title",
@@ -511,7 +511,10 @@ fn schema_rejects_bad_fields() {
         "env_var",
         "custom/ab12/name",
     ] {
-        assert!(!is_secret_field(plain), "{plain}");
+        assert!(
+            !is_secret_field(plain),
+            "field wrongly classified as secret"
+        );
     }
 }
 
