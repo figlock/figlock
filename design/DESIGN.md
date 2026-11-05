@@ -189,6 +189,8 @@ Rules for native shells:
 - `rem` values are converted at 1 rem = 16 pt or 16 dp, and text additionally scales with the user setting.
 - A generator that emits Swift and Kotlin constants from `tokens.css` is a later task; until then the
   tables above are updated by hand in the same PR as any token change.
+- `site/tokens.css` is a byte-identical copy of `design/tokens.css` for the static site. Copy it after any token
+  change; `just design-check` fails on drift.
 
 ## 11. Using this with OpenDesign
 
