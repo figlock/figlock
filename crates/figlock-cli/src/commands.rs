@@ -18,7 +18,7 @@ use crate::{
     clipboard, generate, prompt,
 };
 
-const VAULT_NAME: &str = "personal";
+pub(crate) const VAULT_NAME: &str = "personal";
 
 fn print_json(v: &Value) -> Res<()> {
     println!(
