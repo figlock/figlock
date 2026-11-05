@@ -2,7 +2,8 @@
 //!
 //! This crate currently holds the crypto module (`docs/spec/crypto.md`, the container and invite parts of
 //! `sync.md` and `pairing-recovery.md`) and the sync logic of `sync.md` (hybrid logical clock, field-level
-//! merge, op batch and snapshot payloads, reader decisions). Every rule is checked against the test vectors in
+//! merge, op batch and snapshot payloads, reader decisions), plus local search over non-secret fields
+//! (`search`). Every rule is checked against the test vectors in
 //! `docs/spec/vectors/` by `tests/vectors.rs` and `tests/sync.rs`.
 //!
 //! Conventions, from the spec:
@@ -22,6 +23,7 @@ mod pairing;
 mod payload;
 mod reader;
 mod schema;
+mod search;
 mod secret;
 mod secret_key;
 mod signing;
@@ -48,6 +50,7 @@ pub use reader::{
     LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
 pub use schema::{ItemType, MAX_VALUE_BYTES, is_secret_field, validate_field};
+pub use search::{Hit, Index};
 pub use secret::Key;
 pub use secret_key::SecretKey;
 pub use signing::{sign_json, verify_json};
