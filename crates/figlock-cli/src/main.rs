@@ -8,6 +8,7 @@ mod commands;
 mod config;
 mod error;
 mod generate;
+mod import;
 mod prompt;
 mod render;
 mod session;
@@ -16,7 +17,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use figlock_core::ItemType;
+use figlock_core::{ItemType, Source};
 
 #[derive(Parser)]
 #[command(
@@ -50,6 +51,8 @@ enum Command {
     Generate(GenerateArgs),
     /// Print every item as JSON. Secret values need --include-secrets.
     Export(ExportArgs),
+    /// Import another manager's export or a notes dump.
+    Import(ImportArgs),
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -166,6 +169,40 @@ pub struct ExportArgs {
     pub include_deleted: bool,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+pub enum ImportSource {
+    Chrome,
+    Apple,
+    Bitwarden,
+    #[value(name = "1password")]
+    OnePassword,
+    /// A plain text dump of notes; notes are split at lines of `---` or `===`.
+    Notes,
+}
+
+impl ImportSource {
+    pub fn source(self) -> Source {
+        match self {
+            ImportSource::Chrome => Source::Chrome,
+            ImportSource::Apple => Source::Apple,
+            ImportSource::Bitwarden => Source::Bitwarden,
+            ImportSource::OnePassword => Source::OnePassword,
+            ImportSource::Notes => Source::Notes,
+        }
+    }
+}
+
+#[derive(Args)]
+pub struct ImportArgs {
+    /// The export file (CSV) or notes dump (text).
+    pub file: PathBuf,
+    #[arg(long, value_enum)]
+    pub from: ImportSource,
+    /// Show what would be imported without asking for the password or writing anything.
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
@@ -178,6 +215,7 @@ fn main() -> ExitCode {
         Command::Copy(a) => commands::copy(a, json),
         Command::Generate(a) => commands::generate(a, json),
         Command::Export(a) => commands::export(a),
+        Command::Import(a) => import::import(a, json),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
