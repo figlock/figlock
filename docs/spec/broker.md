@@ -140,7 +140,8 @@ or one error:
 2. `no_grant` if the token is not live (never issued, revoked, or already consumed by `once`).
 3. `expired` if the grant's time or session ended. An expired grant is removed.
 4. `not_allowed` if the mode differs, the item is outside the scope (`tag` is matched against the item's
-   tags at the time of use), or, for `http`, `host` is not on the item's host allow-list.
+   tags at the time of use), for `http`, `host` is not on the item's host allow-list, or the item no longer
+   exists or lacks the requested field. A `not_allowed` refusal never consumes a `once` grant.
 5. On success a `once` grant is consumed in the same step, so two racing uses cannot both succeed.
 
 Host allow-list matching: the item's `allowed_hosts/*` fields hold host names. A host matches an entry if,
