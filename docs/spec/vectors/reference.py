@@ -159,6 +159,7 @@ def derive_from_vk(vk: bytes) -> dict:
         "wk": hkdf(vk, "figlock/v1/item-key-wrap"),
         "authority_seed": seed,
         "authority_pub": bytes(sig.verify_key),
+        "ak": hkdf(vk, "figlock/v1/audit-key"),
     }
 
 
@@ -193,7 +194,7 @@ def open_field(ik: bytes, blob: bytes, vault_id: bytes, item_id: bytes, field_id
 
 
 # ---- files: container, signature (crypto.md 7.2-7.3, sync.md 4) ----
-KIND_OP, KIND_SNAP = 1, 2
+KIND_OP, KIND_SNAP, KIND_AUDIT = 1, 2, 3
 
 
 def file_header(kind: int, epoch: int) -> bytes:
@@ -201,7 +202,8 @@ def file_header(kind: int, epoch: int) -> bytes:
 
 
 def file_aad(kind: int, vault_id: bytes, device_id: bytes, seq: int, epoch: int) -> bytes:
-    return aad("log" if kind == KIND_OP else "snap", vault_id, device_id, u64(seq), u32(epoch))
+    ctx = {KIND_OP: "log", KIND_SNAP: "snap", KIND_AUDIT: "audit"}[kind]
+    return aad(ctx, vault_id, device_id, u64(seq), u32(epoch))
 
 
 def file_sig_input(vault_id: bytes, device_id: bytes, seq: int, header: bytes, envelope: bytes) -> bytes:
@@ -234,6 +236,29 @@ def read_file(data: bytes, lk: bytes, sign_pub: bytes | None, vault_id: bytes, d
     except BadSignatureError as e:
         raise Reject() from e
     return open_(lk, envelope, file_aad(expect_kind, vault_id, device_id, seq, epoch))
+
+
+# ---- audit records (crypto.md 7.5, broker.md 5) ----
+AUDIT_ZERO = b"\x00" * 32
+
+
+def audit_payload(prev: bytes, t: int, ev: str, d: dict) -> bytes:
+    return jcs({"v": 1, "prev": prev.hex(), "t": t, "ev": ev, "d": d})
+
+
+def read_audit_chain(files: list, ak: bytes, sign_pub: bytes, vault_id: bytes, device_id: bytes) -> list:
+    """Verify every record (signature, then decryption), seq 1..n, canonical JSON and the prev chain."""
+    out, prev = [], AUDIT_ZERO
+    for n, data in enumerate(files, start=1):
+        plain = read_file(data, ak, sign_pub, vault_id, device_id, n, KIND_AUDIT)
+        doc = json.loads(plain)
+        if jcs(doc) != plain or set(doc) != {"v", "prev", "t", "ev", "d"} or doc["v"] != 1:
+            raise Reject()
+        if doc["prev"] != prev.hex():
+            raise Reject()
+        out.append(doc)
+        prev = sha256(data)
+    return out
 
 
 # ---- device records and vault.json (crypto.md 7.4) ----

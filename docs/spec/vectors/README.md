@@ -31,6 +31,7 @@ Vectors for every rule in `crypto.md`, `sync.md` and `pairing-recovery.md` (FIG-
 | `slip39.json` | 2-of-3 and 3-of-5 SLIP-0039 shares of a Recovery Key (generated once) |
 | `hlc.json` | hybrid logical clock rules, overflow, drift hold |
 | `merge.json` | field merge, delete versus restore, snapshot equivalence, purge horizon |
+| `audit.json` | audit key `AK`, audit record container and hash chain (broker log) |
 | `sync-reader.json` | expected outcomes of the reader state machine (gap, fork, rollback, revoked); checked by the Rust implementation, not recomputable here |
 
 ## How they are made and checked

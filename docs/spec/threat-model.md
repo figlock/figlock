@@ -91,8 +91,9 @@ Status column: **M** mitigated by design, **P** partly mitigated, **A** accepted
 | G7 | Agent spoofs another agent's identity | Identity comes from the process chain and socket peer credentials, not from a claimed name; shown in the prompt | P | spoofed name does not change the prompt |
 | G8 | Approval fatigue: the user clicks yes without reading | Few prompts, specific wording, grants scoped to a session, loud wording on reveal; a daily summary of grants from the audit log | P | UI review (FIG-23) |
 | G9 | Forged approval over the relay | Approvals are signed by the approving device key and bound to a request id and nonce; the relay cannot mint them | M | replayed and forged approval refused |
-| G10 | Audit log tampering by an agent | Log entries are appended by the broker, encrypted and signed; the agent has no access to the file | M | agent cannot read or write the log |
+| G10 | Audit log tampering by an agent | Records are encrypted under `AK`, signed by the device key and hash-chained (`broker.md` 5); without `VK` an agent reads nothing and cannot change, insert, reorder or remove a middle record unnoticed. Deleting the file or its tail is not prevented, because the agent runs as the user | P | tampered, dropped, reordered and wrong-key records detected; no plaintext in the file |
 | G11 | Skill files or `--json` output teach agents to leak secrets | The shipped skill instructs agents to use `http` and `run`; the CLI never prints secrets without `reveal` | P | CLI output scan in the end-to-end test (FIG-39) |
+| G12 | Another process of the user steals a grant token | A token is a handle, not a secret value; it expires (`once`, 15 min, session, 1 day, until lock), `http` mode keeps values from the holder, hosts are allow-listed, and every use is logged. Tokens are bound to the user, not a process, which is the same trust as the agent holding it | P | expired, consumed and revoked tokens refused |
 
 ### 4.4 Web, extension and supply chain
 

@@ -235,6 +235,93 @@ def files():
     return {"title": "Op file and snapshot container", "cases": cases}
 
 
+def audit():
+    cases = []
+    d = r.derive_from_vk(VK)
+    ak = d["ak"]
+    sign_seed = fill("device-a-sign", 32)
+    sign_pub = bytes(r.SigningKey(sign_seed).verify_key)
+    item_hex = x(ITEM_ID)
+    t0 = 1_700_000_100_000
+    entries = [
+        ("grant.requested", t0, {"peer": {"uid": 501, "pid": 4242, "exe": "/usr/bin/example-agent"},
+                                 "label": "example agent", "reason": "deploy the site",
+                                 "scope": f"item:{item_hex}", "mode": "http", "ttl": "15m"}),
+        ("grant.approved", t0 + 4_000, {"peer": {"uid": 501, "pid": 4242, "exe": "/usr/bin/example-agent"},
+                                        "grant": x(fill("grant-id", 8)), "scope": f"item:{item_hex}",
+                                        "mode": "http", "ttl": "15m"}),
+        ("use.refused", t0 + 9_000, {"grant": x(fill("grant-id", 8)), "item": item_hex, "mode": "http",
+                                     "host": "evil.example", "code": "not_allowed"}),
+    ]
+    base = {"ak": x(ak), "device_sign_pub": x(sign_pub), "vault_id": x(VAULT_ID), "device_id": x(DEVICE_A)}
+
+    cases.append(case("audit-key", "crypto.md 6", {"vk": x(VK)}, {"ak": x(ak)}))
+
+    files_, prev, payloads = [], r.AUDIT_ZERO, []
+    for n, (ev, t, det) in enumerate(entries, start=1):
+        payload = r.audit_payload(prev, t, ev, det)
+        nonce = fill(f"nonce-audit-{n}", 24)
+        f = r.build_file(r.KIND_AUDIT, ak, sign_seed, VAULT_ID, DEVICE_A, n, 1, payload, nonce)
+        cases.append(case(f"audit-payload-{n}", "broker.md 5",
+                          {"prev": x(prev), "t": t, "ev": ev, "d": det}, {"payload_jcs": payload.decode()}))
+        cases.append(case(f"audit-record-{n}-build", "crypto.md 7.5",
+                          {**base, "device_sign_seed": x(sign_seed), "seq": n, "key_epoch": 1,
+                           "payload_jcs": payload.decode(), "nonce": x(nonce)}, {"file": x(f)}))
+        cases.append(case(f"audit-record-{n}-read", "crypto.md 7.5",
+                          {**base, "kind": "audit", "seq": n, "file": x(f)}, {"payload_jcs": payload.decode()}))
+        files_.append(f)
+        payloads.append(payload)
+        prev = r.sha256(f)
+    chain = {**base, "files": [x(f) for f in files_]}
+    cases.append(case("audit-chain-three-records", "broker.md 5", chain,
+                      {"entries": 3, "head": x(r.sha256(files_[-1]))}))
+    cases.append(case("audit-chain-empty", "broker.md 5", {**base, "files": []},
+                      {"entries": 0, "head": x(r.AUDIT_ZERO)}))
+
+    f1 = files_[0]
+    one = {**base, "kind": "audit", "seq": 1, "file": x(f1)}
+    cases.append(reject("audit-record-read-with-log-key", "crypto.md 7.5",
+                        {**one, "ak": x(d["lk"])}, "the op log key cannot open audit records"))
+    cases.append(reject("audit-record-flipped-bit", "crypto.md 7.3", {**one, "file": x(flip(f1, 20))},
+                        "signature fails before decryption"))
+    cases.append(reject("audit-record-wrong-seq", "crypto.md 7.5", {**one, "seq": 2},
+                        "seq is in the signature input and the AAD"))
+    cases.append(reject("audit-record-no-device-record", "crypto.md 7.3", {**one, "device_sign_pub": None},
+                        "device has no valid record"))
+    cases.append(reject("audit-record-read-as-op", "sync.md 4", {**one, "kind": "op"},
+                        "kind must match what the reader expects"))
+    op_as_audit = r.build_file(r.KIND_OP, ak, sign_seed, VAULT_ID, DEVICE_A, 1, 1, payloads[0],
+                               fill("nonce-audit-1", 24))
+    cases.append(reject("op-file-read-as-audit", "sync.md 4", {**one, "file": x(op_as_audit)},
+                        "kind must match what the reader expects"))
+
+    cases.append(reject("audit-chain-dropped-middle", "broker.md 5",
+                        {**chain, "files": [x(files_[0]), x(files_[2])]}, "seq and chain must be continuous"))
+    cases.append(reject("audit-chain-reordered", "broker.md 5",
+                        {**chain, "files": [x(files_[1]), x(files_[0])]}, "seq is part of every record"))
+    cases.append(reject("audit-chain-duplicated", "broker.md 5",
+                        {**chain, "files": [x(files_[0]), x(files_[0])]}, "seq is part of every record"))
+    bad_prev = r.build_file(r.KIND_AUDIT, ak, sign_seed, VAULT_ID, DEVICE_A, 2, 1,
+                            r.audit_payload(r.AUDIT_ZERO, entries[1][1], entries[1][0], entries[1][2]), fill("nonce-x", 24))
+    cases.append(reject("audit-chain-wrong-prev", "broker.md 5",
+                        {**chain, "files": [x(files_[0]), x(bad_prev)]},
+                        "a validly signed record whose prev does not match the one before it"))
+    first_prev = r.build_file(r.KIND_AUDIT, ak, sign_seed, VAULT_ID, DEVICE_A, 1, 1,
+                              r.audit_payload(r.sha256(b"x"), t0, entries[0][0], entries[0][2]), fill("nonce-y", 24))
+    cases.append(reject("audit-chain-first-prev-not-zero", "broker.md 5",
+                        {**chain, "files": [x(first_prev)]}, "the first record chains to 32 zero bytes"))
+    spaced = json.dumps({"v": 1, "prev": x(r.AUDIT_ZERO), "t": t0, "ev": entries[0][0], "d": entries[0][2]},
+                        sort_keys=True).encode()
+    non_canonical = r.build_file(r.KIND_AUDIT, ak, sign_seed, VAULT_ID, DEVICE_A, 1, 1, spaced, fill("nonce-z", 24))
+    cases.append(reject("audit-chain-non-canonical-payload", "broker.md 5",
+                        {**chain, "files": [x(non_canonical)]}, "payload must be exactly its RFC 8785 form"))
+    extra = r.jcs({"v": 1, "prev": x(r.AUDIT_ZERO), "t": t0, "ev": "grant.requested", "d": {}, "x": 1})
+    extra_f = r.build_file(r.KIND_AUDIT, ak, sign_seed, VAULT_ID, DEVICE_A, 1, 1, extra, fill("nonce-w", 24))
+    cases.append(reject("audit-chain-unknown-member", "broker.md 5",
+                        {**chain, "files": [x(extra_f)]}, "only v, prev, t, ev and d"))
+    return {"title": "Audit key, audit records and their hash chain", "cases": cases}
+
+
 def signatures():
     cases = []
     d = r.derive_from_vk(VK)
@@ -530,7 +617,7 @@ FILES = {
     "secret-key.json": secret_key, "kdf.json": kdf, "key-hierarchy.json": key_hierarchy, "items.json": items,
     "files.json": files, "signatures.json": signatures, "rotation.json": rotation, "quick-unlock.json": quick_unlock,
     "pairing.json": pairing, "seal-to.json": seal_to, "hlc.json": hlc, "merge.json": merge_cases,
-    "sync-reader.json": sync_edge_cases,
+    "sync-reader.json": sync_edge_cases, "audit.json": audit,
 }
 
 
@@ -619,6 +706,33 @@ def verify_case(fname: str, c: dict) -> None:
         else:
             assert r.read_file(b(i["file"]), b(i["lk"]), b(i["device_sign_pub"]), b(i["vault_id"]),
                                b(i["device_id"]), i["seq"], kind) == b(e["payload_cbor"])
+    elif fname == "audit.json":
+        kinds = {"audit": r.KIND_AUDIT, "op": r.KIND_OP}
+        if "vk" in i:
+            assert r.derive_from_vk(b(i["vk"]))["ak"] == b(e["ak"])
+        elif "ev" in i:
+            assert r.audit_payload(b(i["prev"]), i["t"], i["ev"], i["d"]).decode() == e["payload_jcs"]
+        elif "nonce" in i:
+            assert r.build_file(r.KIND_AUDIT, b(i["ak"]), b(i["device_sign_seed"]), b(i["vault_id"]),
+                                b(i["device_id"]), i["seq"], i["key_epoch"], i["payload_jcs"].encode(),
+                                b(i["nonce"])) == b(e["file"])
+        elif "files" in i:
+            args = ([b(f) for f in i["files"]], b(i["ak"]), b(i["device_sign_pub"]), b(i["vault_id"]),
+                    b(i["device_id"]))
+            if e == "reject":
+                expect_reject(lambda: r.read_audit_chain(*args))
+            else:
+                out = r.read_audit_chain(*args)
+                assert len(out) == e["entries"]
+                files_ = [b(f) for f in i["files"]]
+                assert (r.sha256(files_[-1]) if files_ else r.AUDIT_ZERO) == b(e["head"])
+        else:
+            args = (b(i["file"]), b(i["ak"]), b(i["device_sign_pub"]), b(i["vault_id"]), b(i["device_id"]),
+                    i["seq"], kinds[i["kind"]])
+            if e == "reject":
+                expect_reject(lambda: r.read_file(*args))
+            else:
+                assert r.read_file(*args).decode() == e["payload_jcs"]
     elif fname == "signatures.json":
         if "authority_seed" in i:
             obj = i.get("record", i.get("vault_json"))
