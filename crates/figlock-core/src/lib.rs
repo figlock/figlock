@@ -12,6 +12,7 @@
 //! - randomness comes only from the OS; failure to get it is an error, never a fallback.
 
 mod aead;
+mod audit;
 mod error;
 mod file;
 mod hlc;
@@ -34,6 +35,10 @@ mod vault;
 mod wire;
 
 pub use aead::{VERSION, open, seal};
+pub use audit::{
+    AUDIT_EVENTS, AuditChain, AuditRecord, ZERO_PREV, audit_frame, audit_payload, audit_split,
+    clean_text as audit_clean_text, read_audit_chain,
+};
 pub use error::{Error, Result};
 pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
 pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};

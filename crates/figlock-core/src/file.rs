@@ -28,6 +28,8 @@ pub struct FileId<'a> {
 pub enum Kind {
     Op = 1,
     Snapshot = 2,
+    /// Broker audit record: local to one device, sealed under the audit key (`crypto.md` 7.5).
+    Audit = 3,
 }
 
 fn header(kind: Kind, epoch: u32) -> [u8; FILE_HEADER_LEN] {
@@ -36,7 +38,11 @@ fn header(kind: Kind, epoch: u32) -> [u8; FILE_HEADER_LEN] {
 }
 
 fn file_aad(kind: Kind, id: &FileId, epoch: u32) -> Vec<u8> {
-    let ctx = if kind == Kind::Op { "log" } else { "snap" };
+    let ctx = match kind {
+        Kind::Op => "log",
+        Kind::Snapshot => "snap",
+        Kind::Audit => "audit",
+    };
     aad(
         ctx,
         &[id.vault_id, id.device_id, &u64be(id.seq), &u32be(epoch)],

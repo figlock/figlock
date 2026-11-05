@@ -36,6 +36,8 @@ pub struct VaultKeys {
     pub wk: Key,
     /// Ed25519 seed of the authority key, the vault's trust anchor.
     pub authority_seed: Key,
+    /// Broker audit record key (`crypto.md` 7.5).
+    pub ak: Key,
 }
 
 impl VaultKeys {
@@ -51,6 +53,7 @@ pub fn derive_vault_keys(vk: &Key) -> Result<VaultKeys> {
         lk: hkdf_key(vk.expose(), None, "figlock/v1/log-key")?,
         wk: hkdf_key(vk.expose(), None, "figlock/v1/item-key-wrap")?,
         authority_seed: hkdf_key(vk.expose(), None, "figlock/v1/authority-seed")?,
+        ak: hkdf_key(vk.expose(), None, "figlock/v1/audit-key")?,
     })
 }
 

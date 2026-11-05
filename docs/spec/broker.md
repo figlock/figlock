@@ -176,7 +176,10 @@ record cannot be written, a grant is not created and a use is refused with `audi
   *name*), `host`, `code` (error code). Unknown members are rejected when writing.
 - **Reading.** A reader MUST verify, record by record and before decrypting: the container and its signature
   against the device key, `seq` continuity, and the `prev` chain. It reports the first record that fails and
-  stops there; it never skips a bad record to show later ones.
+  stops there; it never skips a bad record to show later ones. Bytes after the last whole record (a write cut
+  short by a crash, or tampering) are reported. On start the broker drops such an incomplete tail, writes
+  `broker.start` after the last good record, and refuses to start if any whole record fails verification
+  (the user moves the file aside; the broker never overwrites a log it cannot verify).
 - **What this gives.** Anyone without the Vault Key (including an agent running as the user) can read nothing
   from the file, and cannot change, insert, reorder or remove a record in the middle without detection. It
   *cannot* prevent deletion of the file or truncation of its tail, because the agent runs as the same user
