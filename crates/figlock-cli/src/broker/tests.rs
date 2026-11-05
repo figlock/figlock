@@ -18,7 +18,10 @@ use super::proto::{Code, Mode};
 use super::*;
 
 const T: u64 = 1_700_000_000_000;
-const UID: u32 = 501;
+/// The real user id: a test that goes over a real socket is only served when it matches.
+fn uid() -> u32 {
+    peer::my_uid()
+}
 
 fn random_hex(n: usize) -> String {
     let mut b = vec![0u8; n];
@@ -93,7 +96,7 @@ impl Sink for Mem {
 }
 
 struct Fx {
-    broker: Broker,
+    broker: Arc<Broker>,
     approver: Arc<Scripted>,
     env: Arc<TestEnv>,
     log: Mem,
@@ -104,13 +107,17 @@ struct Fx {
     login: ItemId,
     login_secret: String,
     no_hosts: ItemId,
+    bundle: ItemId,
+    bundle_a: String,
+    bundle_b: String,
 }
 
 fn peer(pid: u32) -> PeerId {
     PeerId {
-        uid: UID,
+        uid: uid(),
         pid: Some(pid),
         exe: Some("/usr/bin/example-agent".into()),
+        parents: Vec::new(),
     }
 }
 
@@ -127,6 +134,7 @@ fn fixture() -> Fx {
             &[
                 ("title", "GitHub"),
                 ("token", github_secret.as_str()),
+                ("env_var", "GH_TOKEN"),
                 ("allowed_hosts/ab12", "api.github.com"),
                 ("allowed_hosts/cd34", "*.githubusercontent.com"),
                 ("tags/work", "1"),
@@ -154,6 +162,19 @@ fn fixture() -> Fx {
             T,
         )
         .unwrap();
+    let (bundle_a, bundle_b) = (random_hex(12), random_hex(12));
+    let bundle = vault
+        .add_item(
+            ItemType::EnvBundle,
+            "personal",
+            &[
+                ("title", "Deploy env"),
+                ("env/DB_URL", bundle_a.as_str()),
+                ("env/STRIPE_KEY", bundle_b.as_str()),
+            ],
+            T,
+        )
+        .unwrap();
     // A second handle on the same vault for reading the log: unlock with the same credentials and device.
     let (reader, _) = figlock_core::Vault::unlock(
         &created.vault_json,
@@ -171,15 +192,17 @@ fn fixture() -> Fx {
     env.alive.lock().unwrap().extend([4242, 4243]);
     let log = Mem::default();
     let writer = AuditWriter::with_sink(Box::new(log.clone()), 0, 0, ZERO_PREV);
-    let broker = Broker::start(
-        vault,
-        writer,
-        Box::new(Shared(approver.clone())),
-        env.clone(),
-        UID,
-    )
-    .unwrap()
-    .with_wait(Duration::from_secs(1));
+    let broker = Arc::new(
+        Broker::start(
+            vault,
+            writer,
+            Box::new(Shared(approver.clone())),
+            env.clone(),
+            uid(),
+        )
+        .unwrap()
+        .with_wait(Duration::from_secs(1)),
+    );
     Fx {
         broker,
         approver,
@@ -191,6 +214,9 @@ fn fixture() -> Fx {
         login,
         login_secret,
         no_hosts,
+        bundle,
+        bundle_a,
+        bundle_b,
     }
 }
 
@@ -361,7 +387,7 @@ fn nobody_to_ask_means_no() {
         writer,
         Box::new(approve::DenyAll),
         Arc::new(TestEnv::new()),
-        UID,
+        uid(),
     )
     .unwrap();
     let r = broker.handle_line(
@@ -460,9 +486,10 @@ fn time_limits_are_enforced_by_the_broker() {
 fn a_session_grant_needs_a_known_process() {
     let fx = fixture();
     let nameless = PeerId {
-        uid: UID,
+        uid: uid(),
         pid: None,
         exe: None,
+        parents: Vec::new(),
     };
     let r = fx.request(&nameless, item_scope(&fx.github), "run", "session");
     assert_eq!(Fx::code(&r), "bad_request");
@@ -516,9 +543,10 @@ fn tag_and_vault_scopes_cover_what_they_say() {
 fn another_user_is_turned_away_and_recorded() {
     let fx = fixture();
     let stranger = PeerId {
-        uid: UID + 1,
+        uid: uid() + 1,
         pid: Some(1),
         exe: None,
+        parents: Vec::new(),
     };
     assert!(!fx.broker.admit(&stranger));
     assert!(fx.broker.admit(&peer(4242)));
@@ -527,7 +555,7 @@ fn another_user_is_turned_away_and_recorded() {
         .iter()
         .find(|(e, _)| e == "conn.refused")
         .expect("recorded");
-    assert_eq!(refused.1["peer"]["uid"], UID + 1);
+    assert_eq!(refused.1["peer"]["uid"], uid() + 1);
 }
 
 #[test]
@@ -944,4 +972,315 @@ fn a_refused_field_or_missing_item_does_not_burn_a_once_grant() {
             "no_grant"
         ]
     );
+}
+
+fn run_env(fx: &Fx, p: &PeerId, token: &str, item: &ItemId, vars: Value) -> Value {
+    let mut req = json!({"v":1,"id":"e","op":"run.env","token":token,"item":hex::encode(item)});
+    if !vars.is_null() {
+        req["vars"] = vars;
+    }
+    fx.send(p, req)
+}
+
+#[test]
+fn a_run_grant_hands_a_token_item_its_own_variable() {
+    let fx = fixture();
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.github), "run", "15m");
+    let r = run_env(&fx, &p, &token, &fx.github, Value::Null);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["env"], json!({"GH_TOKEN": fx.github_secret}));
+}
+
+#[test]
+fn a_bundle_gives_every_variable_and_a_once_grant_covers_all_of_them() {
+    let fx = fixture();
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.bundle), "run", "once");
+    let r = run_env(&fx, &p, &token, &fx.bundle, Value::Null);
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(
+        r["env"],
+        json!({"DB_URL": fx.bundle_a, "STRIPE_KEY": fx.bundle_b})
+    );
+    // Consumed by that one use.
+    let again = run_env(&fx, &p, &token, &fx.bundle, Value::Null);
+    assert_eq!(Fx::code(&again), "no_grant");
+    // One record per field read (the log lower-cases names), none holding a value.
+    let used: Vec<String> = fx
+        .events()
+        .into_iter()
+        .filter(|(e, _)| e == "use.allowed")
+        .map(|(_, d)| d["field"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(used, ["env/db_url", "env/stripe_key"]);
+}
+
+#[test]
+fn explicit_variables_map_a_name_to_a_field() {
+    let fx = fixture();
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.github), "run", "15m");
+    let r = run_env(
+        &fx,
+        &p,
+        &token,
+        &fx.github,
+        json!({"TOKEN_FOR_TOOL": "token"}),
+    );
+    assert_eq!(r["env"], json!({"TOKEN_FOR_TOOL": fx.github_secret}));
+}
+
+#[test]
+fn run_env_is_refused_without_the_right_grant() {
+    let fx = fixture();
+    let p = peer(4242);
+    // No grant, a made-up token, the wrong mode, the wrong item, a missing field, nothing to give.
+    let nothing = run_env(&fx, &p, &"0".repeat(64), &fx.github, Value::Null);
+    assert_eq!(Fx::code(&nothing), "no_grant");
+    let http = fx.grant(&p, item_scope(&fx.github), "http", "15m");
+    let wrong_mode = run_env(&fx, &p, &http, &fx.github, Value::Null);
+    assert_eq!(Fx::code(&wrong_mode), "not_allowed");
+    let run = fx.grant(&p, item_scope(&fx.github), "run", "15m");
+    let wrong_item = run_env(&fx, &p, &run, &fx.bundle, Value::Null);
+    assert_eq!(Fx::code(&wrong_item), "not_allowed");
+    let missing = run_env(&fx, &p, &run, &fx.github, json!({"X": "no_such_field"}));
+    assert_eq!(Fx::code(&missing), "not_allowed");
+    // A login has no defaults: nothing to give is a refusal, not an empty success.
+    let login = fx.grant(&p, item_scope(&fx.login), "run", "15m");
+    let empty = run_env(&fx, &p, &login, &fx.login, Value::Null);
+    assert_eq!(Fx::code(&empty), "not_allowed");
+    // None of those refusals burned the good grant.
+    let ok = run_env(&fx, &p, &run, &fx.github, Value::Null);
+    assert_eq!(ok["ok"], true);
+}
+
+#[test]
+fn an_ended_run_grant_is_refused() {
+    let fx = fixture();
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.github), "run", "15m");
+    fx.env.advance(Duration::from_secs(901));
+    let r = run_env(&fx, &p, &token, &fx.github, Value::Null);
+    assert_eq!(Fx::code(&r), "expired");
+}
+
+#[test]
+fn an_item_can_be_asked_for_by_title_and_the_grant_holds_its_id() {
+    let fx = fixture();
+    let p = peer(4242);
+    fx.approver.will(&[Decision::Allow]);
+    let r = fx.request(&p, json!({"name": "github"}), "run", "15m");
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(r["grant"]["scope"], item_scope(&fx.github));
+    // The user is shown the title the broker found, not what the caller typed.
+    assert!(fx.approver.shown.lock().unwrap()[0].contains("\"GitHub\""));
+    // An unknown title is refused without asking anyone.
+    let before = fx.approver.calls.load(Ordering::SeqCst);
+    let none = fx.request(&p, json!({"name": "no such item"}), "run", "15m");
+    assert_eq!(Fx::code(&none), "not_allowed");
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), before);
+}
+
+#[test]
+fn titles_get_the_same_busy_answer_during_a_cooldown() {
+    let fx = fixture();
+    let p = peer(4242);
+    let r = fx.request(&p, json!({"name": "github"}), "run", "15m");
+    assert_eq!(Fx::code(&r), "denied");
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    for name in ["github", "no such item"] {
+        let r = fx.request(&p, json!({"name": name}), "run", "15m");
+        assert_eq!(Fx::code(&r), "busy", "{name}");
+    }
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), calls);
+}
+
+#[test]
+fn run_env_values_never_reach_the_log_or_a_prompt() {
+    let fx = fixture();
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.bundle), "run", "15m");
+    let _ = run_env(&fx, &p, &token, &fx.bundle, Value::Null);
+    let log = format!("{:?}", fx.events());
+    let shown = fx.approver.shown.lock().unwrap().join("\n");
+    for secret in [&fx.bundle_a, &fx.bundle_b] {
+        assert!(!log.contains(secret.as_str()) && !shown.contains(secret.as_str()));
+    }
+}
+
+/// `figlock run` end to end: a real broker on a real socket, real child processes.
+mod run_command {
+    use std::io::Write;
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::run::{RunSpec, execute};
+
+    #[derive(Clone, Default)]
+    struct Buf(Arc<Mutex<Vec<u8>>>);
+
+    impl Write for Buf {
+        fn write(&mut self, b: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl Buf {
+        fn text(&self) -> String {
+            String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+        }
+    }
+
+    struct Served {
+        fx: Fx,
+        socket: PathBuf,
+        _dir: tempfile::TempDir,
+    }
+
+    fn serve() -> Served {
+        let fx = fixture();
+        let dir = tempfile::Builder::new()
+            .prefix("fl")
+            .tempdir_in("/tmp")
+            .unwrap();
+        let socket = dir.path().join("run").join("b.sock");
+        let listener = server::bind(&socket).unwrap();
+        let broker = fx.broker.clone();
+        std::thread::spawn(move || server::serve(&listener, &broker));
+        Served {
+            fx,
+            socket,
+            _dir: dir,
+        }
+    }
+
+    fn spec(item: &str, vars: &[(&str, &str)], script: &str) -> RunSpec {
+        RunSpec {
+            item: item.to_owned(),
+            vars: vars
+                .iter()
+                .map(|(n, f)| ((*n).to_owned(), (*f).to_owned()))
+                .collect(),
+            ttl: "15m".to_owned(),
+            reason: Some("test".to_owned()),
+            command: vec!["/bin/sh".into(), "-c".into(), script.to_owned()],
+        }
+    }
+
+    fn go(s: &Served, spec: &RunSpec) -> (Result<i32, String>, String, String) {
+        let (out, err) = (Buf::default(), Buf::default());
+        let r = execute(&s.socket, spec, out.clone(), err.clone()).map_err(|e| e.0);
+        (r, out.text(), err.text())
+    }
+
+    #[test]
+    fn the_program_gets_the_secret_and_its_output_does_not() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let secret = &s.fx.github_secret;
+        let script = "echo \"token=$GH_TOKEN\"; echo \"oops $GH_TOKEN\" >&2; \
+                      printf %s \"$GH_TOKEN\" | base64; [ -n \"$GH_TOKEN\" ] && echo has-it; exit 3";
+        let (code, out, err) = go(&s, &spec("GitHub", &[], script));
+        assert_eq!(code, Ok(3), "the program's own exit code is kept");
+        assert!(out.starts_with("token=[REDACTED:GH_TOKEN]\n"), "{out}");
+        assert!(out.contains("has-it"), "the program really had the value");
+        assert_eq!(err, "oops [REDACTED:GH_TOKEN]\n");
+        assert!(!out.contains(secret.as_str()) && !err.contains(secret.as_str()));
+        // Its base64 form is scrubbed too.
+        assert_eq!(out.matches("[REDACTED:GH_TOKEN]").count(), 2, "{out}");
+        // The approval named the item and the asking program.
+        let shown = s.fx.approver.shown.lock().unwrap()[0].clone();
+        assert!(
+            shown.contains("\"GitHub\"") && shown.contains("run:"),
+            "{shown}"
+        );
+    }
+
+    #[test]
+    fn a_bundle_sets_every_variable_and_all_of_them_are_scrubbed() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let script = "echo \"$DB_URL|$STRIPE_KEY\"";
+        let (code, out, _) = go(&s, &spec("Deploy env", &[], script));
+        assert_eq!(code, Ok(0));
+        assert_eq!(out, "[REDACTED:DB_URL]|[REDACTED:STRIPE_KEY]\n");
+    }
+
+    #[test]
+    fn an_explicit_variable_maps_to_a_field() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let (code, out, _) = go(
+            &s,
+            &spec("GitHub", &[("MY_TOOL_KEY", "token")], "echo $MY_TOOL_KEY"),
+        );
+        assert_eq!(code, Ok(0));
+        assert_eq!(out, "[REDACTED:MY_TOOL_KEY]\n");
+    }
+
+    #[test]
+    fn a_denied_request_never_starts_the_program() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Deny]);
+        let marker = s._dir.path().join("ran");
+        let script = format!("touch {}", marker.display());
+        let (code, out, err) = go(&s, &spec("GitHub", &[], &script));
+        assert!(code.unwrap_err().contains("denied"));
+        assert!(!marker.exists());
+        assert!(out.is_empty() && err.is_empty());
+    }
+
+    #[test]
+    fn an_unknown_item_or_one_with_nothing_to_give_is_refused_without_running() {
+        let s = serve();
+        let marker = s._dir.path().join("ran");
+        let script = format!("touch {}", marker.display());
+        let before = s.fx.approver.calls.load(Ordering::SeqCst);
+        let (code, _, _) = go(&s, &spec("No such item", &[], &script));
+        assert!(code.unwrap_err().contains("not_allowed"));
+        assert_eq!(
+            s.fx.approver.calls.load(Ordering::SeqCst),
+            before,
+            "nobody was asked"
+        );
+        // Approved, but a login item defines no variables.
+        s.fx.approver.will(&[Decision::Allow]);
+        let (code, _, _) = go(&s, &spec("Example", &[], &script));
+        assert!(code.unwrap_err().contains("not_allowed"));
+        assert!(!marker.exists());
+        // A field that does not exist.
+        s.fx.approver.will(&[Decision::Allow]);
+        let (code, _, _) = go(&s, &spec("GitHub", &[("X", "nope")], &script));
+        assert!(code.unwrap_err().contains("not_allowed"));
+        assert!(!marker.exists());
+    }
+
+    #[test]
+    fn no_broker_is_a_clear_error() {
+        let s = serve();
+        let gone = s._dir.path().join("nothing.sock");
+        let (out, err) = (Buf::default(), Buf::default());
+        let e = execute(&gone, &spec("GitHub", &[], "true"), out, err).unwrap_err();
+        assert!(e.0.contains("no broker is running"), "{e}");
+    }
+
+    #[test]
+    fn a_program_that_cannot_start_is_reported_without_its_arguments() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let mut sp = spec("GitHub", &[], "");
+        sp.command = vec![
+            "/no/such/program".into(),
+            "--password=hunter2hunter2".into(),
+        ];
+        let (code, _, _) = go(&s, &sp);
+        let e = code.unwrap_err();
+        assert!(e.contains("could not start program"), "{e}");
+        assert!(!e.contains("hunter2"));
+    }
 }

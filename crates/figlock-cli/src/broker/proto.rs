@@ -70,6 +70,9 @@ pub enum Scope {
     Item(ItemId),
     Tag(String),
     Vault,
+    /// An item named by its title. Only in a request: the broker resolves it to `Item` before anything
+    /// else, so a grant never holds one.
+    Title(String),
 }
 
 impl Scope {
@@ -79,6 +82,7 @@ impl Scope {
             Scope::Item(id) => format!("item:{}", hex::encode(id)),
             Scope::Tag(t) => format!("tag:{t}"),
             Scope::Vault => "vault".to_owned(),
+            Scope::Title(_) => "title".to_owned(),
         }
     }
 
@@ -88,6 +92,7 @@ impl Scope {
             Scope::Item(id) => json!({"item": hex::encode(id)}),
             Scope::Tag(t) => json!({"tag": t}),
             Scope::Vault => json!({"vault": true}),
+            Scope::Title(t) => json!({"name": t}),
         }
     }
 }
@@ -106,9 +111,21 @@ pub enum Op {
     Status,
     GrantRequest(GrantRequest),
     GrantList,
-    GrantRevoke { grant: String },
+    GrantRevoke {
+        grant: String,
+    },
+    /// Environment variables for a program the caller starts (`run` mode). With no `vars` the item's own
+    /// defaults apply: a token item gives its `env_var`, an env bundle gives every `env/NAME`.
+    RunEnv {
+        token: String,
+        item: ItemId,
+        vars: Vec<(String, String)>,
+    },
     Lock,
 }
+
+/// At most this many variables in one `run.env` request.
+pub const MAX_VARS: usize = 32;
 
 pub struct Request {
     pub id: String,
@@ -195,6 +212,25 @@ fn tag_ok(t: &str) -> bool {
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
+/// A variable name the program will see.
+pub fn env_name(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes()
+            .next()
+            .is_some_and(|b| b.is_ascii_uppercase() || b == b'_')
+        && s.bytes()
+            .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+}
+
+/// An item field name (`items.rs` field ids: lower case words, `/`, upper case for `env/NAME`).
+fn field_name(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'/' | b'.' | b'-'))
+}
+
 fn scope(v: &Value) -> Result<Scope, ()> {
     let o = v.as_object().ok_or(())?;
     if o.len() != 1 {
@@ -204,6 +240,14 @@ fn scope(v: &Value) -> Result<Scope, ()> {
         Some((k, Value::String(s))) if k == "item" => Ok(Scope::Item(lower_hex(s).ok_or(())?)),
         Some((k, Value::String(s))) if k == "tag" && tag_ok(s) => Ok(Scope::Tag(s.clone())),
         Some((k, Value::Bool(true))) if k == "vault" => Ok(Scope::Vault),
+        Some((k, Value::String(s)))
+            if k == "name"
+                && !s.is_empty()
+                && s.len() <= 80
+                && !s.chars().any(char::is_control) =>
+        {
+            Ok(Scope::Title(s.clone()))
+        }
         _ => Err(()),
     }
 }
@@ -230,6 +274,33 @@ fn parse_op(op: &str, o: &Map<String, Value>) -> Result<Op, ()> {
             lower_hex::<8>(g).ok_or(())?;
             Ok(Op::GrantRevoke {
                 grant: g.to_owned(),
+            })
+        }
+        "run.env" => {
+            with(&["token", "item", "vars"])?;
+            let token = text(o, "token")?.ok_or(())?;
+            if token.len() > 64 {
+                return Err(());
+            }
+            let item = lower_hex(text(o, "item")?.ok_or(())?).ok_or(())?;
+            let mut vars = Vec::new();
+            if let Some(v) = o.get("vars") {
+                let m = v.as_object().ok_or(())?;
+                if m.len() > MAX_VARS {
+                    return Err(());
+                }
+                for (name, field) in m {
+                    let field = field.as_str().ok_or(())?;
+                    if !env_name(name) || !field_name(field) {
+                        return Err(());
+                    }
+                    vars.push((name.clone(), field.to_owned()));
+                }
+            }
+            Ok(Op::RunEnv {
+                token: token.to_owned(),
+                item,
+                vars,
             })
         }
         "grant.request" => {
@@ -375,6 +446,15 @@ mod tests {
             r#"{"v":1,"id":"a","op":"grant.request","scope":{"vault":true,"tag":"x"},"mode":"http","ttl":"once"}"#,
             r#"{"v":1,"id":"a","op":"grant.request","scope":{"vault":true},"mode":"http","ttl":"once","label":5}"#,
             r#"{"v":1,"id":"a","op":"grant.request","scope":{"vault":true},"mode":"http","ttl":"once","token":"x"}"#,
+            r#"{"v":1,"id":"a","op":"grant.request","scope":{"name":""},"mode":"run","ttl":"once"}"#,
+            r#"{"v":1,"id":"a","op":"grant.request","scope":{"name":"a\nb"},"mode":"run","ttl":"once"}"#,
+            r#"{"v":1,"id":"a","op":"run.env","item":"00112233445566778899aabbccddeeff"}"#,
+            r#"{"v":1,"id":"a","op":"run.env","token":"t","item":"ZZ"}"#,
+            r#"{"v":1,"id":"a","op":"run.env","token":"t","item":"00112233445566778899aabbccddeeff","vars":[]}"#,
+            r#"{"v":1,"id":"a","op":"run.env","token":"t","item":"00112233445566778899aabbccddeeff","vars":{"lower":"token"}}"#,
+            r#"{"v":1,"id":"a","op":"run.env","token":"t","item":"00112233445566778899aabbccddeeff","vars":{"A":"to ken"}}"#,
+            r#"{"v":1,"id":"a","op":"run.env","token":"t","item":"00112233445566778899aabbccddeeff","vars":{"A":5}}"#,
+            r#"{"v":1,"id":"a","op":"run.env","token":"t","item":"00112233445566778899aabbccddeeff","extra":1}"#,
         ];
         for line in bad {
             assert!(p(line).is_err(), "{line}");
@@ -387,6 +467,29 @@ mod tests {
         );
         assert!(p(&huge).is_err());
         let _ = item;
+    }
+
+    #[test]
+    fn run_env_and_a_title_scope_parse() {
+        let item = "00112233445566778899aabbccddeeff";
+        let line = format!(
+            r#"{{"v":1,"id":"a","op":"run.env","token":"t","item":"{item}","vars":{{"GH_TOKEN":"token","B":"env/B"}}}}"#
+        );
+        let Op::RunEnv { token, vars, .. } = p(&line).unwrap().op else {
+            panic!()
+        };
+        assert_eq!(token, "t");
+        assert_eq!(vars.len(), 2);
+        let line = format!(r#"{{"v":1,"id":"a","op":"run.env","token":"t","item":"{item}"}}"#);
+        let Op::RunEnv { vars, .. } = p(&line).unwrap().op else {
+            panic!()
+        };
+        assert!(vars.is_empty());
+        let line = r#"{"v":1,"id":"a","op":"grant.request","scope":{"name":"GitHub"},"mode":"run","ttl":"15m"}"#;
+        let Op::GrantRequest(g) = p(line).unwrap().op else {
+            panic!()
+        };
+        assert_eq!(g.scope, Scope::Title("GitHub".into()));
     }
 
     #[test]

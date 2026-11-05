@@ -228,6 +228,8 @@ impl GrantTable {
             Scope::Item(i) => *i == item.id,
             Scope::Tag(t) => item.tags.contains(t),
             Scope::Vault => true,
+            // Resolved to an item before a grant is made; never stored.
+            Scope::Title(_) => false,
         };
         let host_ok = match mode {
             Mode::Http => host.is_some_and(|h| host_allowed(&item.hosts, h)),
@@ -324,6 +326,7 @@ mod tests {
             uid: 501,
             pid,
             exe: None,
+            parents: Vec::new(),
         }
     }
 

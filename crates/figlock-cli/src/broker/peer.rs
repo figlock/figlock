@@ -13,6 +13,9 @@ pub struct PeerId {
     pub uid: u32,
     pub pid: Option<u32>,
     pub exe: Option<String>,
+    /// Programs that started this one, nearest first (best effort, display only). Through the `figlock`
+    /// command the peer is always `figlock`; this is what names the agent behind it.
+    pub parents: Vec<String>,
 }
 
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -63,6 +66,34 @@ fn exe_of(pid: u32) -> Option<String> {
     (!path.is_empty()).then_some(path)
 }
 
+/// The parent of `pid`, if the OS says. Display only.
+fn parent_of(pid: u32) -> Option<u32> {
+    let out = std::process::Command::new("/bin/ps")
+        .args(["-p", &pid.to_string(), "-o", "ppid="])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let ppid: u32 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
+    (ppid > 1).then_some(ppid)
+}
+
+/// At most this many ancestors are looked up for the prompt.
+const MAX_PARENTS: usize = 3;
+
+fn parents_of(pid: u32) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut at = pid;
+    while found.len() < MAX_PARENTS {
+        let Some(parent) = parent_of(at) else { break };
+        let Some(exe) = exe_of(parent) else { break };
+        found.push(exe);
+        at = parent;
+    }
+    found
+}
+
 /// Read the peer's identity. Fails closed: if the OS cannot say who it is, the connection is refused.
 pub fn identify(stream: &UnixStream) -> io::Result<PeerId> {
     let (uid, pid) = credentials(stream)?;
@@ -70,6 +101,7 @@ pub fn identify(stream: &UnixStream) -> io::Result<PeerId> {
         uid,
         pid,
         exe: pid.and_then(exe_of),
+        parents: pid.map(parents_of).unwrap_or_default(),
     })
 }
 
