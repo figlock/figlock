@@ -679,7 +679,7 @@ mod tests {
 
     #[test]
     fn only_allow_listed_fields_are_indexed() {
-        for secret in [
+        for field in [
             "password",
             "totp",
             "token",
@@ -691,7 +691,7 @@ mod tests {
             "_ik",
             "future_secret",
         ] {
-            assert!(classify(secret).is_none(), "{secret}");
+            assert!(classify(field).is_none(), "{field}");
         }
         assert!(classify("custom/ab12/name").is_some());
         assert!(classify("tags/work").is_some());
