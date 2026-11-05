@@ -79,9 +79,10 @@ Ops:
 | `grant.request` | `scope`, `mode`, `ttl`, optional `label`, `reason` | `grant` (3.1) |
 | `grant.list` | none | `grants`: list of grant summaries (no tokens) |
 | `grant.revoke` | `grant` (id) | none |
+| `run.env` | `token`, `item`, optional `vars` (3.4) | `env`: object of variable name to value |
 | `lock` | none | none; the broker then exits |
 
-Use of a grant (`http.request`, `run.*`, `reveal`) is added by FIG-36, FIG-37 and the reveal task. They
+Use of a grant is `run.env` (3.4) and, added by FIG-37 and the reveal task, `http.request` and `reveal`. They
 authorise through the same check (3.3), so they inherit every rule here.
 
 ### 3.1 Grants
@@ -89,7 +90,11 @@ authorise through the same check (3.3), so they inherit every rule here.
 A grant says **who** (the verified identity at request time), **what** (`scope`), **how** (`mode`) and **how
 long** (`ttl`).
 
-- `scope` is exactly one of `{"item":"<32 hex>"}`, `{"tag":"<tag>"}` or `{"vault":true}`.
+- `scope` is exactly one of `{"item":"<32 hex>"}`, `{"name":"<title>"}`, `{"tag":"<tag>"}` or
+  `{"vault":true}`. A `name` is an item's title (at most 80 characters, no control characters). The broker
+  resolves it, ignoring ASCII case, to the one live item with that title and the grant holds that item's id
+  (the response shows it). No match and several matches both answer `not_allowed`, without asking anyone, so
+  a title is not a way to list the vault. The person approving is shown the title the broker found.
 - `mode` is `http` (the broker makes the call and adds the secret itself), `run` (the broker injects values
   into a subprocess and scrubs its output) or `reveal` (the value is returned to the caller).
 - `ttl` is one of `once`, `15m`, `session`, `1d`, `until-lock`.
@@ -156,6 +161,27 @@ again (G3). Internationalised names must be given in their `xn--` form.
 
 Every call to `authorize` writes `use.allowed` or `use.refused` before it returns.
 
+### 3.4 `run.env`
+
+`run.env` is the use of a `run` grant. The caller names the grant `token` and the `item` (the id from the
+grant response); the broker answers with the environment variables for a program the caller starts.
+
+- `vars` is an optional object of variable name (`[A-Z_][A-Z0-9_]*`, at most 64 characters) to item field
+  name, at most 32 entries. Without it the item's own variables apply: a `token` item gives its `env_var`
+  field as the name and its `token` field as the value, an `env_bundle` item gives `env/NAME` as `NAME`.
+  Any other item type without `vars`, or an item with nothing to give, is `not_allowed`.
+- One `authorize` covers the whole set: every named field must exist or the request is `not_allowed` and
+  nothing is consumed, and a `once` grant is spent by the one successful call. The log gets one `use.allowed`
+  record for each field read (the `field` member), all written before the response is sent.
+- `env` is a JSON object of name to value. It is the only place a value leaves the broker in `run` mode, and
+  it goes only to the process that holds a live token.
+
+The `figlock run` command (7) uses this, then starts the program with those variables and removes the values
+from its output: each value is replaced by `[REDACTED:NAME]` in the program's stdout and stderr, also when
+it is split across two reads, in standard and URL-safe base64, and percent-encoded. Values under 6 bytes are
+not scrubbed (the command says so). Scrubbing stops accidents, such as a debug line or an error that echoes a
+header; a program that decides to re-encode or send the value elsewhere is not stopped (ADR-0003, G5).
+
 ## 4. What the broker never does
 
 - It never returns a vault value except in `reveal` mode, and never writes one to the audit log, to its own
@@ -206,6 +232,11 @@ record cannot be written, a grant is not created and a use is refused with `audi
 
 ## 7. Commands
 
+`figlock run (--item <title> [--env NAME=field ...] | --bundle <title>) [--ttl once|15m|1d|until-lock]
+[--reason <text>] -- <program> [args...]` asks the broker for a `run` grant on that item, gets the variables
+(3.4), starts the program with them, scrubs its output and exits with its exit code. It needs a running
+broker and starts nothing if the request is denied or refused.
+
 `figlock broker start` (foreground), `figlock broker status`, `figlock broker grants`,
 `figlock broker revoke <grant id>`, `figlock broker lock`, and `figlock audit [--tail N]` (unlocks the vault,
 verifies and prints the log with the same redaction as the log itself). All accept `--json`.
@@ -235,7 +266,8 @@ Unit and end-to-end, all with generated values (`AGENTS.md`):
 ## 9. Open questions
 
 - Windows transport (named pipe with a security descriptor) and the process chain on Windows (threat model 8).
-- Whether the prompt should show the parent process chain, not only `exe` (FIG-35).
+- How far up the process chain the prompt should look. It shows up to three parents (`started by claude <
+  zsh`), because through the `figlock` command the verified peer is always `figlock` itself.
 - Disabling core dumps and locking pages for the broker process, and scrubbing memory on a signal.
 - Reloading the vault while the broker runs.
 - A signed anchor for the audit log head (for example in the vault) so tail truncation can be detected.

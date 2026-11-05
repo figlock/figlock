@@ -13,6 +13,10 @@ mod generate;
 mod import;
 mod prompt;
 mod render;
+#[cfg(unix)]
+mod run;
+#[cfg(unix)]
+mod scrub;
 mod session;
 
 use std::path::PathBuf;
@@ -62,6 +66,62 @@ enum Command {
     },
     /// Verify and print the broker's audit log.
     Audit(AuditArgs),
+    /// Run a program with secrets in its environment, after the broker's approval. Its output is scrubbed.
+    Run(RunArgs),
+}
+
+#[derive(Args)]
+#[command(group(clap::ArgGroup::new("what").required(true).args(["item", "bundle"])))]
+pub struct RunArgs {
+    /// The item to take secrets from, by title. A token item sets its own variable (`env_var`).
+    #[arg(long)]
+    pub item: Option<String>,
+    /// An env bundle item, by title: every `env/NAME` field becomes the variable NAME.
+    #[arg(long)]
+    pub bundle: Option<String>,
+    /// Map a variable to an item field, `NAME=field` (with --item). Repeatable.
+    #[arg(long = "env", value_name = "NAME=FIELD", value_parser = parse_env, conflicts_with = "bundle")]
+    pub env: Vec<(String, String)>,
+    /// How long the approval lasts.
+    #[arg(long, value_enum, default_value = "15m")]
+    pub ttl: RunTtl,
+    /// Why, shown to the person approving (unchecked text).
+    #[arg(long)]
+    pub reason: Option<String>,
+    /// The program and its arguments, after `--`.
+    #[arg(last = true, required = true, value_name = "COMMAND")]
+    pub command: Vec<String>,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum RunTtl {
+    #[value(name = "once")]
+    Once,
+    #[value(name = "15m")]
+    Min15,
+    #[value(name = "1d")]
+    Day,
+    #[value(name = "until-lock")]
+    UntilLock,
+}
+
+impl RunTtl {
+    fn as_str(self) -> &'static str {
+        match self {
+            RunTtl::Once => "once",
+            RunTtl::Min15 => "15m",
+            RunTtl::Day => "1d",
+            RunTtl::UntilLock => "until-lock",
+        }
+    }
+}
+
+fn parse_env(s: &str) -> Result<(String, String), String> {
+    let (name, field) = s.split_once('=').ok_or("expected NAME=field")?;
+    if name.is_empty() || field.is_empty() {
+        return Err("expected NAME=field".into());
+    }
+    Ok((name.to_owned(), field.to_owned()))
 }
 
 #[derive(Subcommand)]
@@ -270,9 +330,36 @@ fn audit_command(_: &AuditArgs, _: bool) -> error::Res<()> {
     ))
 }
 
+#[cfg(unix)]
+fn run_command(a: RunArgs) -> error::Res<i32> {
+    run::run(&run::RunSpec {
+        item: a.item.or(a.bundle).unwrap_or_default(),
+        vars: a.env,
+        ttl: a.ttl.as_str().to_owned(),
+        reason: a.reason,
+        command: a.command,
+    })
+}
+
+#[cfg(not(unix))]
+fn run_command(_: RunArgs) -> error::Res<i32> {
+    Err(error::Fail::new(
+        "the broker is not available on this system yet",
+    ))
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
+    if let Command::Run(a) = cli.command {
+        return match run_command(a) {
+            Ok(code) => ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1)),
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     let result = match cli.command {
         Command::Init(a) => commands::init(a, json),
         Command::Add(a) => commands::add(a, json),
@@ -285,6 +372,7 @@ fn main() -> ExitCode {
         Command::Import(a) => import::import(a, json),
         Command::Broker { action } => broker_command(action, json),
         Command::Audit(a) => audit_command(&a, json),
+        Command::Run(_) => unreachable!("handled above"),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

@@ -17,7 +17,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use figlock_core::{ItemId, ItemView, Vault, audit_clean_text};
+use figlock_core::{ItemId, ItemType, ItemView, Vault, audit_clean_text};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
@@ -25,7 +25,7 @@ use approve::{APPROVAL_WAIT, ApprovalRequest, Approver, Decision};
 use audit::AuditWriter;
 use grants::{Authorized, Env, GrantTable, ItemInfo, MAX_GRANTS};
 use peer::PeerId;
-use proto::{Code, GrantRequest, Mode, Op, Scope, Ttl, err, ok, parse_request};
+use proto::{Code, GrantRequest, MAX_VARS, Mode, Op, Scope, Ttl, env_name, err, ok, parse_request};
 
 /// After a denial, the same process is told `busy` for this long (approval fatigue, G8).
 const DENY_COOLDOWN: Duration = Duration::from_secs(5);
@@ -201,6 +201,7 @@ impl Broker {
             Op::GrantList => Ok(self.grant_list()),
             Op::GrantRevoke { grant } => self.revoke(&grant).map(|()| json!({})),
             Op::GrantRequest(g) => self.grant_request(peer, g),
+            Op::RunEnv { token, item, vars } => self.run_env(&token, &item, &vars),
             Op::Lock => {
                 self.lock();
                 return Reply {
@@ -327,6 +328,8 @@ impl Broker {
                     }
                 )
             }
+            // Resolved to an item before this is called.
+            Scope::Title(_) => return Err(Code::Internal),
             Scope::Vault => {
                 let (items, _) = vault.items(false);
                 loud.push("THIS COVERS EVERY ITEM IN YOUR VAULT");
@@ -336,7 +339,31 @@ impl Broker {
         Ok((words, loud))
     }
 
+    /// Turn a title the caller gave into the item it names. No match and several matches are the same
+    /// answer, so a caller learns nothing it could not learn by asking the user.
+    fn resolve_scope(&self, scope: Scope) -> Result<Scope, Code> {
+        let Scope::Title(title) = scope else {
+            return Ok(scope);
+        };
+        let mut st = self.lock_state();
+        let vault = st.vault.as_mut().ok_or(Code::Locked)?;
+        let (items, _) = vault.items(false);
+        let mut found = items.iter().filter(|i| {
+            i.fields
+                .get("title")
+                .is_some_and(|t| t.as_str().eq_ignore_ascii_case(&title))
+        });
+        match (found.next(), found.next()) {
+            (Some(item), None) => Ok(Scope::Item(item.id)),
+            _ => Err(Code::NotAllowed),
+        }
+    }
+
     fn grant_request(&self, peer: &PeerId, g: GrantRequest) -> Result<Value, Code> {
+        let g = GrantRequest {
+            scope: self.resolve_scope(g.scope)?,
+            ..g
+        };
         if g.mode == Mode::Reveal && !(matches!(g.scope, Scope::Item(_)) && g.ttl == Ttl::Once) {
             return Err(Code::BadRequest);
         }
@@ -446,7 +473,7 @@ impl Broker {
     /// grant (and a `once` grant is consumed) covers `item` in `mode`, and for `http` also `host`.
     #[allow(
         dead_code,
-        reason = "called by `figlock http` and `figlock run` (FIG-36, FIG-37); covered by tests"
+        reason = "called by `figlock http` (FIG-37); covered by tests"
     )]
     pub fn authorize(
         &self,
@@ -455,7 +482,7 @@ impl Broker {
         mode: Mode,
         host: Option<&str>,
     ) -> Result<Authorized, Code> {
-        self.use_grant(token, item, mode, host, None)
+        self.use_grant(token, item, mode, host, &[], false)
             .map(|(a, _)| a)
     }
 
@@ -463,7 +490,7 @@ impl Broker {
     /// value: only inside the broker's process, and only after the check and the record.
     #[allow(
         dead_code,
-        reason = "called by `figlock http` and `figlock run` (FIG-36, FIG-37); covered by tests"
+        reason = "called by `figlock http` (FIG-37); covered by tests"
     )]
     pub fn authorize_field(
         &self,
@@ -473,18 +500,76 @@ impl Broker {
         host: Option<&str>,
         field: &str,
     ) -> Result<Zeroizing<String>, Code> {
-        self.use_grant(token, item, mode, host, Some(field))
-            .and_then(|(_, v)| v.ok_or(Code::Internal))
+        self.use_grant(token, item, mode, host, &[field], false)
+            .and_then(|(_, mut v)| v.pop().ok_or(Code::Internal))
     }
 
+    /// `run.env`: the variables a program started by the caller gets, after the one check for all of them
+    /// (so a `once` grant covers the whole set, not its first variable).
+    fn run_env(
+        &self,
+        token: &str,
+        item: &ItemId,
+        vars: &[(String, String)],
+    ) -> Result<Value, Code> {
+        let pairs = if vars.is_empty() {
+            self.default_vars(item)
+        } else {
+            vars.to_vec()
+        };
+        let fields: Vec<&str> = pairs.iter().map(|(_, f)| f.as_str()).collect();
+        // With nothing to give, the use is refused (and recorded) like any other that finds no field.
+        let (_, values) =
+            self.use_grant(token, item, Mode::Run, None, &fields, pairs.is_empty())?;
+        let mut env = serde_json::Map::new();
+        for ((name, _), value) in pairs.iter().zip(values) {
+            env.insert(name.clone(), json!(value.as_str()));
+        }
+        Ok(json!({ "env": env }))
+    }
+
+    /// What an item hands a program when the caller names no variables. Names only, no values.
+    fn default_vars(&self, item: &ItemId) -> Vec<(String, String)> {
+        let mut st = self.lock_state();
+        let Some(vault) = st.vault.as_mut() else {
+            return Vec::new();
+        };
+        let Ok(view) = vault.item(item) else {
+            return Vec::new();
+        };
+        if view.deleted {
+            return Vec::new();
+        }
+        match view.item_type {
+            ItemType::EnvBundle => view
+                .fields
+                .keys()
+                .filter_map(|k| Some((k.strip_prefix("env/")?.to_owned(), k.clone())))
+                .filter(|(name, _)| env_name(name))
+                .take(MAX_VARS)
+                .collect(),
+            ItemType::Token => view
+                .fields
+                .get("env_var")
+                .map(|v| v.as_str().to_owned())
+                .filter(|n| env_name(n))
+                .map(|n| vec![(n, "token".to_owned())])
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        }
+    }
+
+    /// One check and one record per field read. `fields` are read only if the item has all of them;
+    /// `unusable` forces a refusal (nothing to give).
     fn use_grant(
         &self,
         token: &str,
         item: &ItemId,
         mode: Mode,
         host: Option<&str>,
-        field: Option<&str>,
-    ) -> Result<(Authorized, Option<Zeroizing<String>>), Code> {
+        fields: &[&str],
+        unusable: bool,
+    ) -> Result<(Authorized, Vec<Zeroizing<String>>), Code> {
         let mut st = self.lock_state();
         self.sweep(&mut st);
         let t = self.env.unix_ms();
@@ -495,17 +580,17 @@ impl Broker {
         ) {
             o.insert("host".into(), json!(h));
         }
-        if let (Some(o), Some(f)) = (
-            detail.as_object_mut(),
-            field.and_then(|f| plain_name(f, 64, b"_/.-")),
-        ) {
-            o.insert("field".into(), json!(f));
-        }
+        let field_name = |f: &str| plain_name(f, 64, b"_/.-");
         let refuse = |st: &mut State, code: Code, grant: Option<String>, mut d: Value| {
             if let Some(o) = d.as_object_mut() {
                 o.insert("code".into(), json!(code.as_str()));
                 if let Some(g) = grant {
                     o.insert("grant".into(), json!(g));
+                }
+                if let [only] = fields
+                    && let Some(f) = field_name(only)
+                {
+                    o.insert("field".into(), json!(f));
                 }
             }
             // Refusing is always safe, so a record that cannot be written does not change the answer.
@@ -525,14 +610,17 @@ impl Broker {
             },
             item_info,
         );
-        let value = match (&view, field) {
-            (Some(v), Some(f)) => v
-                .fields
-                .get(f)
-                .map(|val| Zeroizing::new(val.as_str().to_owned())),
-            _ => None,
-        };
-        let usable = view.is_some() && (field.is_none() || value.is_some());
+        let values: Option<Vec<Zeroizing<String>>> = view.as_ref().and_then(|v| {
+            fields
+                .iter()
+                .map(|f| {
+                    v.fields
+                        .get(*f)
+                        .map(|val| Zeroizing::new(val.as_str().to_owned()))
+                })
+                .collect()
+        });
+        let usable = view.is_some() && values.is_some() && !unusable;
         let authorized = st
             .grants
             .authorize(self.env.as_ref(), token, &info, mode, host, usable);
@@ -543,9 +631,18 @@ impl Broker {
         if let Some(o) = detail.as_object_mut() {
             o.insert("grant".into(), json!(auth.grant_id));
         }
-        // Written before the value leaves this function.
-        st.log(t, "use.allowed", detail)?;
-        Ok((auth, value))
+        // Written before any value leaves this function: one record for each field read.
+        if fields.is_empty() {
+            st.log(t, "use.allowed", detail.clone())?;
+        }
+        for f in fields {
+            let mut d = detail.clone();
+            if let (Some(o), Some(name)) = (d.as_object_mut(), field_name(f)) {
+                o.insert("field".into(), json!(name));
+            }
+            st.log(t, "use.allowed", d)?;
+        }
+        Ok((auth, values.unwrap_or_default()))
     }
 }
 

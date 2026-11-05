@@ -70,6 +70,18 @@ fn duration(ttl: Ttl) -> &'static str {
     }
 }
 
+/// Program names, nearest first, as `claude < zsh`.
+fn chain(parents: &[String], max: usize) -> String {
+    let names: Vec<String> = parents
+        .iter()
+        .map(|p| {
+            let name = p.rsplit('/').next().filter(|n| !n.is_empty()).unwrap_or(p);
+            audit_clean_text(name, 40)
+        })
+        .collect();
+    audit_clean_text(&names.join(" < "), max)
+}
+
 /// The text of the prompt. What the OS verified comes first and is marked; what the caller claimed is
 /// quoted and marked unverified.
 pub fn describe(req: &ApprovalRequest) -> String {
@@ -81,6 +93,12 @@ pub fn describe(req: &ApprovalRequest) -> String {
         audit_clean_text(exe, 300),
         req.peer.uid
     ));
+    if !req.peer.parents.is_empty() {
+        s.push_str(&format!(
+            "  started by {}  [checked by the system]\n",
+            chain(&req.peer.parents, 300)
+        ));
+    }
     if let Some(l) = &req.label {
         s.push_str(&format!(
             "  it says   \"{}\"  [not checked]\n",
@@ -119,8 +137,13 @@ pub fn prompt_line(req: &ApprovalRequest) -> String {
     for warning in &req.loud {
         s.push_str(&format!("{warning}. "));
     }
+    let by = if req.peer.parents.is_empty() {
+        String::new()
+    } else {
+        format!(", started by {},", chain(&req.peer.parents, 120))
+    };
     s.push_str(&format!(
-        "Let {}{pid} use {} for {}",
+        "Let {}{pid}{by} use {} for {}",
         audit_clean_text(name, 40),
         audit_clean_text(&req.scope_words, 120),
         duration(req.ttl)
@@ -227,6 +250,7 @@ mod tests {
                 uid: 501,
                 pid: Some(4242),
                 exe: Some("/usr/bin/real-agent".into()),
+                parents: vec![],
             },
             label: Some(label.into()),
             reason: Some(reason.into()),
@@ -280,6 +304,17 @@ mod tests {
         assert!(line.contains("15 minutes"));
         assert!(!line.contains("Anthropic"));
         assert!(!line.contains("/usr/bin/"));
+    }
+
+    #[test]
+    fn the_prompt_names_who_started_the_asking_program() {
+        let mut r = req("a", "b");
+        r.peer.exe = Some("/usr/local/bin/figlock".into());
+        r.peer.parents = vec!["/opt/claude/claude".into(), "/bin/zsh".into()];
+        let line = prompt_line(&r);
+        assert!(line.contains("figlock (pid 4242), started by claude < zsh, use"));
+        let text = describe(&r);
+        assert!(text.contains("started by claude < zsh  [checked by the system]"));
     }
 
     #[test]
