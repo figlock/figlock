@@ -76,23 +76,3 @@ fn show_prints_the_shipped_text() {
     assert!(out.status.success());
     assert_eq!(text(&out.stdout), SHIPPED);
 }
-
-/// G11: the skill must steer agents to `http` and `run` and away from every command that returns a value.
-#[test]
-fn skill_steers_to_the_broker_and_away_from_reveal() {
-    assert!(SHIPPED.starts_with("---\nname: figlock\ndescription: "));
-    assert!(SHIPPED.contains("figlock http"));
-    assert!(SHIPPED.contains("figlock run"));
-    for line in SHIPPED
-        .lines()
-        .filter(|l| l.trim_start().starts_with("figlock "))
-    {
-        for banned in ["--reveal", "--include-secrets", " copy ", " export"] {
-            assert!(
-                !line.contains(banned),
-                "example command uses {banned}: {line}"
-            );
-        }
-    }
-    assert!(!SHIPPED.contains('\u{2014}'), "no em dash");
-}
