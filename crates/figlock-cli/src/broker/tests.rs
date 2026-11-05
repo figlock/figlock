@@ -110,6 +110,9 @@ struct Fx {
     bundle: ItemId,
     bundle_a: String,
     bundle_b: String,
+    /// A token that may be sent to 127.0.0.1 only, for tests against a local server.
+    local: ItemId,
+    local_secret: String,
 }
 
 fn peer(pid: u32) -> PeerId {
@@ -175,6 +178,19 @@ fn fixture() -> Fx {
             T,
         )
         .unwrap();
+    let local_secret = random_hex(16);
+    let local = vault
+        .add_item(
+            ItemType::Token,
+            "personal",
+            &[
+                ("title", "Local API"),
+                ("token", local_secret.as_str()),
+                ("allowed_hosts/ef56", "127.0.0.1"),
+            ],
+            T,
+        )
+        .unwrap();
     // A second handle on the same vault for reading the log: unlock with the same credentials and device.
     let (reader, _) = figlock_core::Vault::unlock(
         &created.vault_json,
@@ -217,6 +233,8 @@ fn fixture() -> Fx {
         bundle,
         bundle_a,
         bundle_b,
+        local,
+        local_secret,
     }
 }
 
@@ -1110,7 +1128,7 @@ fn run_env_values_never_reach_the_log_or_a_prompt() {
 }
 
 /// `figlock run` end to end: a real broker on a real socket, real child processes.
-mod run_command {
+pub(super) mod run_command {
     use std::io::Write;
     use std::path::PathBuf;
 
@@ -1136,13 +1154,13 @@ mod run_command {
         }
     }
 
-    struct Served {
-        fx: Fx,
-        socket: PathBuf,
-        _dir: tempfile::TempDir,
+    pub(super) struct Served {
+        pub(super) fx: Fx,
+        pub(super) socket: PathBuf,
+        pub(super) _dir: tempfile::TempDir,
     }
 
-    fn serve() -> Served {
+    pub(super) fn serve() -> Served {
         let fx = fixture();
         let dir = tempfile::Builder::new()
             .prefix("fl")
@@ -1282,5 +1300,367 @@ mod run_command {
         let e = code.unwrap_err();
         assert!(e.contains("could not start program"), "{e}");
         assert!(!e.contains("hunter2"));
+    }
+}
+
+/// `figlock http` end to end: a real broker, a real socket and a real HTTP server on this machine.
+mod http_command {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+
+    use super::run_command::{Served, serve};
+    use super::*;
+    use crate::http::{HttpSpec, Reply, execute};
+
+    #[derive(Clone, Debug)]
+    struct Seen {
+        line: String,
+        headers: Vec<(String, String)>,
+        body: String,
+    }
+
+    impl Seen {
+        fn header(&self, name: &str) -> Option<&str> {
+            self.headers
+                .iter()
+                .find(|(n, _)| n.eq_ignore_ascii_case(name))
+                .map(|(_, v)| v.as_str())
+        }
+    }
+
+    struct Web {
+        port: u16,
+        seen: Arc<Mutex<Vec<Seen>>>,
+    }
+
+    fn read_request(s: &mut TcpStream) -> Option<Seen> {
+        let mut buf = Vec::new();
+        let mut byte = [0u8; 1];
+        while !buf.ends_with(b"\r\n\r\n") {
+            if s.read(&mut byte).ok()? == 0 {
+                return None;
+            }
+            buf.push(byte[0]);
+        }
+        let head = String::from_utf8_lossy(&buf).into_owned();
+        let mut lines = head.split("\r\n");
+        let line = lines.next()?.to_owned();
+        let headers: Vec<(String, String)> = lines
+            .filter_map(|l| l.split_once(':'))
+            .map(|(n, v)| (n.trim().to_owned(), v.trim().to_owned()))
+            .collect();
+        let len = headers
+            .iter()
+            .find(|(n, _)| n.eq_ignore_ascii_case("content-length"))
+            .and_then(|(_, v)| v.parse().ok())
+            .unwrap_or(0);
+        let mut body = vec![0u8; len];
+        s.read_exact(&mut body).ok()?;
+        Some(Seen {
+            line,
+            headers,
+            body: String::from_utf8_lossy(&body).into_owned(),
+        })
+    }
+
+    /// A server whose `reply` decides each answer (`status line and headers`, body).
+    fn web(reply: impl Fn(&Seen, u16) -> (String, Vec<u8>) + Send + 'static) -> Web {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let log = seen.clone();
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(mut s) = stream else { break };
+                let Some(req) = read_request(&mut s) else {
+                    continue;
+                };
+                let (head, body) = reply(&req, port);
+                log.lock().unwrap().push(req);
+                let _ = write!(
+                    s,
+                    "{head}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = s.write_all(&body);
+            }
+        });
+        Web { port, seen }
+    }
+
+    fn ok(body: &str) -> (String, Vec<u8>) {
+        ("HTTP/1.1 200 OK".to_owned(), body.as_bytes().to_vec())
+    }
+
+    fn redirect(status: u16, to: &str) -> (String, Vec<u8>) {
+        (
+            format!("HTTP/1.1 {status} Redirect\r\nLocation: {to}"),
+            vec![],
+        )
+    }
+
+    fn spec(item: &str, url: &str) -> HttpSpec {
+        HttpSpec {
+            item: item.to_owned(),
+            method: "GET".to_owned(),
+            url: url.to_owned(),
+            headers: vec![],
+            body: None,
+            ttl: "15m".to_owned(),
+            reason: Some("test".to_owned()),
+            auth_header: None,
+            auth_scheme: None,
+            field: None,
+        }
+    }
+
+    fn go(s: &Served, sp: &HttpSpec) -> Result<Reply, String> {
+        execute(&s.socket, sp).map_err(|e| e.0)
+    }
+
+    fn text(r: &Reply) -> String {
+        String::from_utf8_lossy(&r.body).into_owned()
+    }
+
+    fn audit(s: &Served, ev: &str) -> Vec<Map> {
+        s.fx.events()
+            .into_iter()
+            .filter(|(e, _)| e == ev)
+            .map(|(_, d)| d)
+            .collect()
+    }
+
+    #[test]
+    fn the_secret_is_added_for_an_allowed_host_and_never_comes_back() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        // A server that echoes what it was sent, as a debug endpoint would.
+        let w = web(|req, _| ok(&format!("you sent: {:?}", req.headers)));
+        let mut sp = spec(
+            "Local API",
+            &format!("http://127.0.0.1:{}/v1/things", w.port),
+        );
+        sp.method = "POST".into();
+        sp.body = Some("{\"a\":1}".into());
+        sp.headers = vec![("X-Trace".into(), "abc".into())];
+        let r = go(&s, &sp).unwrap();
+        assert_eq!(r.status, 200);
+        let seen = w.seen.lock().unwrap()[0].clone();
+        assert_eq!(seen.line, "POST /v1/things HTTP/1.1");
+        assert_eq!(
+            seen.header("authorization"),
+            Some(format!("Bearer {}", s.fx.local_secret).as_str())
+        );
+        assert_eq!(seen.header("x-trace"), Some("abc"));
+        assert_eq!(seen.body, "{\"a\":1}");
+        // The server echoed the secret; the caller got it scrubbed.
+        assert!(text(&r).contains("[REDACTED:token]"), "{}", text(&r));
+        assert!(!text(&r).contains(&s.fx.local_secret));
+        // The prompt says where the secret may go.
+        let shown = s.fx.approver.shown.lock().unwrap()[0].clone();
+        assert!(shown.contains("(only for 127.0.0.1)"), "{shown}");
+    }
+
+    #[test]
+    fn another_scheme_header_and_field_can_be_chosen() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let w = web(|_, _| ok("fine"));
+        let mut sp = spec("Local API", &format!("http://127.0.0.1:{}/", w.port));
+        sp.auth_header = Some("X-Api-Key".into());
+        sp.auth_scheme = Some(String::new());
+        let r = go(&s, &sp).unwrap();
+        assert_eq!(text(&r), "fine");
+        let seen = w.seen.lock().unwrap()[0].clone();
+        assert_eq!(seen.header("x-api-key"), Some(s.fx.local_secret.as_str()));
+        assert!(seen.header("authorization").is_none());
+    }
+
+    #[test]
+    fn a_host_not_on_the_allow_list_is_refused_before_anything_is_sent() {
+        let s = serve();
+        let w = web(|_, _| ok("x"));
+        s.fx.approver.will(&[Decision::Allow]);
+        // "localhost" is the same machine but not the name on the list.
+        let e = go(
+            &s,
+            &spec("Local API", &format!("http://localhost:{}/", w.port)),
+        )
+        .unwrap_err();
+        assert!(e.contains("not_allowed"), "{e}");
+        assert!(w.seen.lock().unwrap().is_empty());
+        let refused = audit(&s, "use.refused");
+        assert_eq!(refused.last().unwrap()["host"], "localhost");
+    }
+
+    #[test]
+    fn plain_http_to_another_machine_and_urls_with_credentials_are_refused() {
+        let s = serve();
+        for url in [
+            "http://api.github.com/user",
+            "ftp://api.github.com/user",
+            "https://user:pass@api.github.com/user",
+            "not a url",
+        ] {
+            s.fx.approver.will(&[Decision::Allow]);
+            let e = go(&s, &spec("GitHub", url)).unwrap_err();
+            assert!(e.contains("bad_request"), "{url}: {e}");
+            // The cooldown after a deny is not involved; each was approved and then refused on its own.
+        }
+    }
+
+    #[test]
+    fn the_secrets_own_header_and_the_host_header_cannot_be_set_by_the_caller() {
+        let s = serve();
+        let w = web(|_, _| ok("x"));
+        for header in ["Authorization", "authorization", "Host", "Content-Length"] {
+            s.fx.approver.will(&[Decision::Allow]);
+            let mut sp = spec("Local API", &format!("http://127.0.0.1:{}/", w.port));
+            sp.headers = vec![(header.into(), "evil".into())];
+            let e = go(&s, &sp).unwrap_err();
+            assert!(e.contains("bad_request"), "{header}: {e}");
+        }
+        assert!(w.seen.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_redirect_to_a_host_off_the_list_is_not_followed_and_gets_no_secret() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let thief = web(|_, _| ok("stolen"));
+        let to = format!("http://localhost:{}/steal", thief.port);
+        let w = web(move |_, _| redirect(302, &to));
+        let r = go(
+            &s,
+            &spec("Local API", &format!("http://127.0.0.1:{}/", w.port)),
+        )
+        .unwrap();
+        assert_eq!(r.status, 302, "the redirect is handed back, not followed");
+        assert!(
+            thief.seen.lock().unwrap().is_empty(),
+            "nothing reached the other host"
+        );
+        let refused = audit(&s, "use.refused");
+        assert_eq!(refused.last().unwrap()["host"], "localhost");
+        assert_eq!(refused.last().unwrap()["code"], "not_allowed");
+    }
+
+    #[test]
+    fn a_redirect_within_the_list_is_followed_with_the_secret_and_each_hop_is_recorded() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let end = web(|_, _| ok("arrived"));
+        let to = format!("http://127.0.0.1:{}/final", end.port);
+        let w = web(move |_, _| redirect(307, &to));
+        let mut sp = spec("Local API", &format!("http://127.0.0.1:{}/", w.port));
+        sp.method = "POST".into();
+        sp.body = Some("payload".into());
+        let r = go(&s, &sp).unwrap();
+        assert_eq!((r.status, text(&r).as_str()), (200, "arrived"));
+        let seen = end.seen.lock().unwrap()[0].clone();
+        assert_eq!(
+            seen.line, "POST /final HTTP/1.1",
+            "a 307 keeps method and body"
+        );
+        assert_eq!(seen.body, "payload");
+        assert_eq!(
+            seen.header("authorization"),
+            Some(format!("Bearer {}", s.fx.local_secret).as_str())
+        );
+        assert_eq!(
+            audit(&s, "use.allowed").len(),
+            2,
+            "the first request and the hop"
+        );
+    }
+
+    #[test]
+    fn a_303_after_post_becomes_a_get_without_a_body() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let end = web(|_, _| ok("done"));
+        let to = format!("http://127.0.0.1:{}/result", end.port);
+        let w = web(move |_, _| redirect(303, &to));
+        let mut sp = spec("Local API", &format!("http://127.0.0.1:{}/", w.port));
+        sp.method = "POST".into();
+        sp.body = Some("payload".into());
+        go(&s, &sp).unwrap();
+        let seen = end.seen.lock().unwrap()[0].clone();
+        assert_eq!(seen.line, "GET /result HTTP/1.1");
+        assert_eq!(seen.body, "");
+    }
+
+    #[test]
+    fn a_redirect_loop_stops_and_a_once_grant_covers_the_request_and_its_hops() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow, Decision::Deny]);
+        let w = web(|_, port| redirect(302, &format!("http://127.0.0.1:{port}/again")));
+        let mut sp = spec("Local API", &format!("http://127.0.0.1:{}/", w.port));
+        sp.ttl = "once".into();
+        let r = go(&s, &sp).unwrap();
+        assert_eq!(r.status, 302);
+        assert_eq!(
+            w.seen.lock().unwrap().len(),
+            crate::broker::http::MAX_REDIRECTS + 1,
+            "the original request plus the limit, and no more"
+        );
+        // The once grant is spent; another request needs another approval, which is refused here.
+        let e = go(&s, &sp).unwrap_err();
+        assert!(e.contains("denied"), "{e}");
+    }
+
+    #[test]
+    fn a_server_that_cannot_be_reached_is_an_upstream_error_without_the_secret() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        // Nothing listens on port 1.
+        let e = go(&s, &spec("Local API", "http://127.0.0.1:1/")).unwrap_err();
+        assert!(e.contains("upstream"), "{e}");
+        assert!(!e.contains(&s.fx.local_secret));
+    }
+
+    #[test]
+    fn a_long_response_is_cut_and_says_so() {
+        let s = serve();
+        s.fx.approver.will(&[Decision::Allow]);
+        let big = vec![b'a'; crate::broker::http::MAX_RESPONSE + 1000];
+        let w = web(move |_, _| ("HTTP/1.1 200 OK".to_owned(), big.clone()));
+        let r = go(
+            &s,
+            &spec("Local API", &format!("http://127.0.0.1:{}/", w.port)),
+        )
+        .unwrap();
+        assert!(r.truncated);
+        assert_eq!(r.body.len(), crate::broker::http::MAX_RESPONSE);
+    }
+
+    #[test]
+    fn the_wrong_mode_or_item_gets_nothing_and_no_secret_reaches_the_log() {
+        let s = serve();
+        let w = web(|_, _| ok("x"));
+        // A run grant cannot be used for http.
+        s.fx.approver.will(&[Decision::Allow]);
+        let p = peer(4242);
+        let run = s.fx.grant(&p, item_scope(&s.fx.local), "run", "15m");
+        let r = s.fx.send(
+            &p,
+            json!({"v":1,"id":"h","op":"http.request","token":run,"item":hex::encode(s.fx.local),
+                   "method":"GET","url":format!("http://127.0.0.1:{}/", w.port)}),
+        );
+        assert_eq!(Fx::code(&r), "not_allowed");
+        // An http grant for one item cannot be used for another.
+        let http = s.fx.grant(&p, item_scope(&s.fx.local), "http", "15m");
+        let r = s.fx.send(
+            &p,
+            json!({"v":1,"id":"h","op":"http.request","token":http,"item":hex::encode(s.fx.github),
+                   "method":"GET","url":"https://api.github.com/"}),
+        );
+        assert_eq!(Fx::code(&r), "not_allowed");
+        assert!(w.seen.lock().unwrap().is_empty());
+        let log = format!("{:?}", s.fx.events());
+        let shown = s.fx.approver.shown.lock().unwrap().join("\n");
+        for secret in [&s.fx.local_secret, &s.fx.github_secret] {
+            assert!(!log.contains(secret.as_str()) && !shown.contains(secret.as_str()));
+        }
     }
 }

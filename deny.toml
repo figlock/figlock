@@ -21,6 +21,10 @@ exceptions = [
     { allow = ["MPL-2.0"], crate = "uniffi_meta" },
     { allow = ["MPL-2.0"], crate = "uniffi_pipeline" },
     { allow = ["MPL-2.0"], crate = "uniffi_udl" },
+    # CDLA-Permissive-2.0 is a permissive data licence, used by the crates that ship the Mozilla CA bundle
+    # for the broker's outbound HTTPS (`figlock http`).
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-roots" },
+    { allow = ["CDLA-Permissive-2.0"], crate = "webpki-root-certs" },
 ]
 
 [bans]

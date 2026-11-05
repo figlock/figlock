@@ -23,6 +23,8 @@ hex.workspace = true
 zeroize.workspace = true
 sha2.workspace = true
 subtle.workspace = true
+ureq.workspace = true
+url.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true

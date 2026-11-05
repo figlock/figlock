@@ -4,12 +4,16 @@
 //! hidden prompt (or stdin for field values). `get` and `export` hide secret values unless asked.
 
 #[cfg(unix)]
+mod b64;
+#[cfg(unix)]
 mod broker;
 mod clipboard;
 mod commands;
 mod config;
 mod error;
 mod generate;
+#[cfg(unix)]
+mod http;
 mod import;
 mod prompt;
 mod render;
@@ -68,6 +72,55 @@ enum Command {
     Audit(AuditArgs),
     /// Run a program with secrets in its environment, after the broker's approval. Its output is scrubbed.
     Run(RunArgs),
+    /// Make an HTTP request through the broker, which adds the secret itself. You never see the secret.
+    Http(HttpArgs),
+}
+
+#[derive(Args)]
+pub struct HttpArgs {
+    /// The token item to use, by title. The request goes only to hosts on its allow-list.
+    #[arg(long)]
+    pub item: String,
+    /// HTTP method (default GET, or POST when there is a body).
+    #[arg(short = 'X', long = "request")]
+    pub method: Option<String>,
+    /// Add a header, `Name: value`. Repeatable. The secret's own header cannot be set.
+    #[arg(short = 'H', long = "header", value_name = "NAME: VALUE", value_parser = parse_header)]
+    pub headers: Vec<(String, String)>,
+    /// Request body; `@-` reads it from standard input.
+    #[arg(short = 'd', long = "data")]
+    pub data: Option<String>,
+    /// Header that carries the secret.
+    #[arg(long, default_value = "Authorization")]
+    pub auth_header: String,
+    /// Word before the secret in that header; empty sends the bare value.
+    #[arg(long, default_value = "Bearer")]
+    pub auth_scheme: String,
+    /// The item field that holds the secret.
+    #[arg(long, default_value = "token")]
+    pub field: String,
+    /// How long the approval lasts.
+    #[arg(long, value_enum, default_value = "15m")]
+    pub ttl: GrantTtl,
+    /// Why, shown to the person approving (unchecked text).
+    #[arg(long)]
+    pub reason: Option<String>,
+    /// Print the status line and response headers before the body.
+    #[arg(short = 'i', long)]
+    pub include: bool,
+    /// Exit with 22 when the server answers 400 or above.
+    #[arg(long)]
+    pub fail: bool,
+    /// The address. https only (plain http only to this machine).
+    pub url: String,
+}
+
+fn parse_header(s: &str) -> Result<(String, String), String> {
+    let (name, value) = s.split_once(':').ok_or("expected 'Name: value'")?;
+    if name.trim().is_empty() {
+        return Err("expected 'Name: value'".into());
+    }
+    Ok((name.trim().to_owned(), value.trim().to_owned()))
 }
 
 #[derive(Args)]
@@ -84,7 +137,7 @@ pub struct RunArgs {
     pub env: Vec<(String, String)>,
     /// How long the approval lasts.
     #[arg(long, value_enum, default_value = "15m")]
-    pub ttl: RunTtl,
+    pub ttl: GrantTtl,
     /// Why, shown to the person approving (unchecked text).
     #[arg(long)]
     pub reason: Option<String>,
@@ -94,7 +147,7 @@ pub struct RunArgs {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
-pub enum RunTtl {
+pub enum GrantTtl {
     #[value(name = "once")]
     Once,
     #[value(name = "15m")]
@@ -105,13 +158,13 @@ pub enum RunTtl {
     UntilLock,
 }
 
-impl RunTtl {
+impl GrantTtl {
     fn as_str(self) -> &'static str {
         match self {
-            RunTtl::Once => "once",
-            RunTtl::Min15 => "15m",
-            RunTtl::Day => "1d",
-            RunTtl::UntilLock => "until-lock",
+            GrantTtl::Once => "once",
+            GrantTtl::Min15 => "15m",
+            GrantTtl::Day => "1d",
+            GrantTtl::UntilLock => "until-lock",
         }
     }
 }
@@ -341,6 +394,38 @@ fn run_command(a: RunArgs) -> error::Res<i32> {
     })
 }
 
+#[cfg(unix)]
+fn http_command(a: HttpArgs) -> error::Res<i32> {
+    let body = a.data.as_deref().map(http::read_body).transpose()?;
+    let method = a
+        .method
+        .unwrap_or_else(|| if body.is_some() { "POST" } else { "GET" }.to_owned())
+        .to_ascii_uppercase();
+    http::run(
+        &http::HttpSpec {
+            item: a.item,
+            method,
+            url: a.url,
+            headers: a.headers,
+            body,
+            ttl: a.ttl.as_str().to_owned(),
+            reason: a.reason,
+            auth_header: Some(a.auth_header),
+            auth_scheme: Some(a.auth_scheme),
+            field: Some(a.field),
+        },
+        a.include,
+        a.fail,
+    )
+}
+
+#[cfg(not(unix))]
+fn http_command(_: HttpArgs) -> error::Res<i32> {
+    Err(error::Fail::new(
+        "the broker is not available on this system yet",
+    ))
+}
+
 #[cfg(not(unix))]
 fn run_command(_: RunArgs) -> error::Res<i32> {
     Err(error::Fail::new(
@@ -351,31 +436,25 @@ fn run_command(_: RunArgs) -> error::Res<i32> {
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
-    if let Command::Run(a) = cli.command {
-        return match run_command(a) {
-            Ok(code) => ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1)),
-            Err(e) => {
-                eprintln!("error: {e}");
-                ExitCode::FAILURE
-            }
-        };
-    }
+    let ok = |r: error::Res<()>| r.map(|()| 0);
     let result = match cli.command {
-        Command::Init(a) => commands::init(a, json),
-        Command::Add(a) => commands::add(a, json),
-        Command::Edit(a) => commands::edit(a, json),
-        Command::Find(a) => commands::find(a, json),
-        Command::Get(a) => commands::get(a, json),
-        Command::Copy(a) => commands::copy(a, json),
-        Command::Generate(a) => commands::generate(a, json),
-        Command::Export(a) => commands::export(a),
-        Command::Import(a) => import::import(a, json),
-        Command::Broker { action } => broker_command(action, json),
-        Command::Audit(a) => audit_command(&a, json),
-        Command::Run(_) => unreachable!("handled above"),
+        Command::Init(a) => ok(commands::init(a, json)),
+        Command::Add(a) => ok(commands::add(a, json)),
+        Command::Edit(a) => ok(commands::edit(a, json)),
+        Command::Find(a) => ok(commands::find(a, json)),
+        Command::Get(a) => ok(commands::get(a, json)),
+        Command::Copy(a) => ok(commands::copy(a, json)),
+        Command::Generate(a) => ok(commands::generate(a, json)),
+        Command::Export(a) => ok(commands::export(a)),
+        Command::Import(a) => ok(import::import(a, json)),
+        Command::Broker { action } => ok(broker_command(action, json)),
+        Command::Audit(a) => ok(audit_command(&a, json)),
+        // These end with the exit code of the program or the request, not just success or failure.
+        Command::Run(a) => run_command(a),
+        Command::Http(a) => http_command(a),
     };
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1)),
         Err(e) => {
             eprintln!("error: {e}");
             ExitCode::FAILURE

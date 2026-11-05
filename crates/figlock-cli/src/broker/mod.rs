@@ -9,6 +9,7 @@ pub mod audit;
 pub mod cli;
 pub mod client;
 pub mod grants;
+pub mod http;
 pub mod peer;
 pub mod proto;
 pub mod server;
@@ -19,13 +20,18 @@ use std::time::Duration;
 
 use figlock_core::{ItemId, ItemType, ItemView, Vault, audit_clean_text};
 use serde_json::{Value, json};
+use url::Url;
 use zeroize::Zeroizing;
 
+use crate::scrub::Scrubber;
 use approve::{APPROVAL_WAIT, ApprovalRequest, Approver, Decision};
 use audit::AuditWriter;
 use grants::{Authorized, Env, GrantTable, ItemInfo, MAX_GRANTS};
 use peer::PeerId;
-use proto::{Code, GrantRequest, MAX_VARS, Mode, Op, Scope, Ttl, env_name, err, ok, parse_request};
+use proto::{
+    Code, GrantRequest, HttpRequest, MAX_VARS, Mode, Op, Scope, Ttl, env_name, err, ok,
+    parse_request,
+};
 
 /// After a denial, the same process is told `busy` for this long (approval fatigue, G8).
 const DENY_COOLDOWN: Duration = Duration::from_secs(5);
@@ -202,6 +208,7 @@ impl Broker {
             Op::GrantRevoke { grant } => self.revoke(&grant).map(|()| json!({})),
             Op::GrantRequest(g) => self.grant_request(peer, g),
             Op::RunEnv { token, item, vars } => self.run_env(&token, &item, &vars),
+            Op::HttpRequest(r) => self.http_request(&r),
             Op::Lock => {
                 self.lock();
                 return Reply {
@@ -301,7 +308,18 @@ impl Broker {
                     // Nothing could ever be sent anywhere; do not bother the user.
                     return Err(Code::NotAllowed);
                 }
-                format!("the {} \"{}\"", view.item_type.as_str(), title_of(&view))
+                let mut words = format!("the {} \"{}\"", view.item_type.as_str(), title_of(&view));
+                if mode == Mode::Http {
+                    // Where the secret may go, from the item and not from the caller.
+                    let hosts: Vec<String> = item_info(&view)
+                        .hosts
+                        .iter()
+                        .take(5)
+                        .map(|h| audit_clean_text(h, 60))
+                        .collect();
+                    words.push_str(&format!(" (only for {})", hosts.join(", ")));
+                }
+                words
             }
             Scope::Tag(tag) => {
                 let key = format!("tags/{tag}");
@@ -537,6 +555,88 @@ impl Broker {
             env.insert(name.clone(), json!(value.as_str()));
         }
         Ok(json!({ "env": env }))
+    }
+
+    /// `http.request` (`broker.md` 3.5): make the request for the caller with the secret added, never
+    /// returning the secret.
+    fn http_request(&self, r: &HttpRequest) -> Result<Value, Code> {
+        let url = Url::parse(&r.url).map_err(|_| Code::BadRequest)?;
+        if !http::scheme_ok(&url) || !url.username().is_empty() || url.password().is_some() {
+            return Err(Code::BadRequest);
+        }
+        let host = url.host_str().ok_or(Code::BadRequest)?.to_owned();
+        let (auth, mut values) = self.use_grant(
+            &r.token,
+            &r.item,
+            Mode::Http,
+            Some(&host),
+            &[r.field.as_str()],
+            false,
+        )?;
+        let secret = values.pop().ok_or(Code::Internal)?;
+        let value = Zeroizing::new(if r.auth_scheme.is_empty() {
+            secret.as_str().to_owned()
+        } else {
+            format!("{} {}", r.auth_scheme, secret.as_str())
+        });
+        let out = http::Outgoing {
+            method: r.method.clone(),
+            url,
+            headers: r.headers.clone(),
+            body: r.body.as_ref().map(|b| b.clone().into_bytes()),
+            auth_header: r.auth_header.clone(),
+        };
+        let mut allow = |h: &str| self.allow_hop(&r.item, &auth.grant_id, h);
+        let got = http::fetch(&out, &value, &mut allow).map_err(|()| Code::Upstream)?;
+        // A server may echo the secret (a debug endpoint, an error page): it does not get to hand it back.
+        let name = plain_name(&r.field, 64, b"_/.-").unwrap_or_else(|| "secret".to_owned());
+        let secrets = [(name, secret)];
+        let clean = |bytes: &[u8]| {
+            let mut s = Scrubber::new(&secrets);
+            let mut o = s.feed(bytes);
+            o.extend(s.finish());
+            o
+        };
+        let headers: serde_json::Map<String, Value> = got
+            .headers
+            .iter()
+            .map(|(n, v)| {
+                let v = String::from_utf8_lossy(&clean(v.as_bytes())).into_owned();
+                (n.clone(), json!(v))
+            })
+            .collect();
+        Ok(json!({
+            "status": got.status,
+            "headers": headers,
+            "body_b64": crate::b64::encode(&clean(&got.body)),
+            "truncated": got.truncated,
+        }))
+    }
+
+    /// May the secret go to `host` on a redirect? The item's allow-list decides, and the answer is recorded
+    /// first; a record that cannot be written is a no.
+    fn allow_hop(&self, item: &ItemId, grant: &str, host: &str) -> bool {
+        let mut st = self.lock_state();
+        let t = self.env.unix_ms();
+        let allowed = st
+            .vault
+            .as_mut()
+            .and_then(|v| v.item(item).ok())
+            .filter(|v| !v.deleted)
+            .is_some_and(|v| grants::host_allowed(&item_info(&v).hosts, host));
+        let mut d = json!({"item": hex::encode(item), "mode": "http", "grant": grant});
+        if let (Some(o), Some(h)) = (d.as_object_mut(), plain_name(host, 253, b".-*_")) {
+            o.insert("host".into(), json!(h));
+        }
+        if allowed {
+            st.log(t, "use.allowed", d).is_ok()
+        } else {
+            if let Some(o) = d.as_object_mut() {
+                o.insert("code".into(), json!(Code::NotAllowed.as_str()));
+            }
+            let _ = st.log(t, "use.refused", d);
+            false
+        }
     }
 
     /// What an item hands a program when the caller names no variables. Names only, no values.

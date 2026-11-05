@@ -3,8 +3,13 @@
 use figlock_core::ItemId;
 use serde_json::{Map, Value, json};
 
-/// One request line is at most this many bytes, newline excluded.
-pub const MAX_LINE: usize = 16 * 1024;
+/// One request line is at most this many bytes, newline excluded. Room for an HTTP body (`MAX_BODY`) with
+/// JSON escaping; everything else in a request is tiny.
+pub const MAX_LINE: usize = 512 * 1024;
+/// The body of an `http.request`, in bytes.
+pub const MAX_BODY: usize = 128 * 1024;
+const MAX_URL: usize = 4096;
+const MAX_HEADERS: usize = 32;
 const MAX_ID: usize = 64;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,7 +126,24 @@ pub enum Op {
         item: ItemId,
         vars: Vec<(String, String)>,
     },
+    HttpRequest(HttpRequest),
     Lock,
+}
+
+/// What the caller wants sent. The broker adds the secret; nothing here is trusted beyond its shape.
+#[derive(Debug, PartialEq, Eq)]
+pub struct HttpRequest {
+    pub token: String,
+    pub item: ItemId,
+    pub method: String,
+    pub url: String,
+    pub headers: Vec<(String, String)>,
+    pub body: Option<String>,
+    /// Header that carries the secret, and the word before it (`Bearer`); empty scheme sends the bare value.
+    pub auth_header: String,
+    pub auth_scheme: String,
+    /// The item field that holds the secret.
+    pub field: String,
 }
 
 /// At most this many variables in one `run.env` request.
@@ -143,6 +165,8 @@ pub enum Code {
     Locked,
     Busy,
     AuditFailed,
+    /// The request was allowed but could not be completed (network, TLS, size). Not written to the audit log.
+    Upstream,
     Internal,
 }
 
@@ -157,6 +181,7 @@ impl Code {
             Code::Locked => "locked",
             Code::Busy => "busy",
             Code::AuditFailed => "audit_failed",
+            Code::Upstream => "upstream",
             Code::Internal => "internal",
         }
     }
@@ -171,6 +196,7 @@ impl Code {
             Code::Locked => "the broker is locked",
             Code::Busy => "try again later",
             Code::AuditFailed => "the audit log could not be written",
+            Code::Upstream => "the request could not be completed",
             Code::Internal => "internal error",
         }
     }
@@ -221,6 +247,111 @@ pub fn env_name(s: &str) -> bool {
             .is_some_and(|b| b.is_ascii_uppercase() || b == b'_')
         && s.bytes()
             .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit() || b == b'_')
+}
+
+const METHODS: [&str; 6] = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
+
+/// RFC 9110 `token`: what a header name may contain.
+fn header_token(s: &str) -> bool {
+    !s.is_empty()
+        && s.len() <= 64
+        && s.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-.^_`|~".contains(&b))
+}
+
+/// Headers the broker (or the HTTP library) owns; a caller cannot set them.
+const OWN_HEADERS: [&str; 10] = [
+    "host",
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "keep-alive",
+    "te",
+    "upgrade",
+    "expect",
+    "proxy-authorization",
+    "proxy-connection",
+];
+
+fn header_value(s: &str) -> bool {
+    s.len() <= 8192 && !s.chars().any(|c| c.is_control() && c != '\t')
+}
+
+fn http_request(o: &Map<String, Value>) -> Result<HttpRequest, ()> {
+    only(
+        o,
+        &[
+            "v", "id", "op", "token", "item", "method", "url", "headers", "body", "auth", "field",
+        ],
+    )?;
+    let token = text(o, "token")?.ok_or(())?;
+    if token.len() > 64 {
+        return Err(());
+    }
+    let item = lower_hex(text(o, "item")?.ok_or(())?).ok_or(())?;
+    let method = text(o, "method")?.ok_or(())?;
+    if !METHODS.contains(&method) {
+        return Err(());
+    }
+    let url = text(o, "url")?.ok_or(())?;
+    if url.is_empty() || url.len() > MAX_URL || url.chars().any(char::is_control) {
+        return Err(());
+    }
+    let (mut auth_header, mut auth_scheme) = ("Authorization".to_owned(), "Bearer".to_owned());
+    if let Some(a) = o.get("auth") {
+        let a = a.as_object().ok_or(())?;
+        only(a, &["header", "scheme"])?;
+        if let Some(h) = text(a, "header")? {
+            auth_header = h.to_owned();
+        }
+        if let Some(sc) = text(a, "scheme")? {
+            auth_scheme = sc.to_owned();
+        }
+        if !header_token(&auth_header)
+            || auth_scheme.len() > 32
+            || !auth_scheme.bytes().all(|b| b.is_ascii_alphanumeric())
+        {
+            return Err(());
+        }
+    }
+    let mut headers = Vec::new();
+    if let Some(h) = o.get("headers") {
+        let h = h.as_object().ok_or(())?;
+        if h.len() > MAX_HEADERS {
+            return Err(());
+        }
+        for (name, value) in h {
+            let value = value.as_str().ok_or(())?;
+            let lower = name.to_ascii_lowercase();
+            if !header_token(name)
+                || !header_value(value)
+                || OWN_HEADERS.contains(&lower.as_str())
+                || lower == auth_header.to_ascii_lowercase()
+            {
+                return Err(());
+            }
+            headers.push((name.clone(), value.to_owned()));
+        }
+    }
+    let body = text(o, "body")?.map(str::to_owned);
+    if body.as_ref().is_some_and(|b| b.len() > MAX_BODY) {
+        return Err(());
+    }
+    let field = text(o, "field")?.unwrap_or("token");
+    if !field_name(field) {
+        return Err(());
+    }
+    Ok(HttpRequest {
+        token: token.to_owned(),
+        item,
+        method: method.to_owned(),
+        url: url.to_owned(),
+        headers,
+        body,
+        auth_header,
+        auth_scheme,
+        field: field.to_owned(),
+    })
 }
 
 /// An item field name (`items.rs` field ids: lower case words, `/`, upper case for `env/NAME`).
@@ -276,6 +407,7 @@ fn parse_op(op: &str, o: &Map<String, Value>) -> Result<Op, ()> {
                 grant: g.to_owned(),
             })
         }
+        "http.request" => Ok(Op::HttpRequest(http_request(o)?)),
         "run.env" => {
             with(&["token", "item", "vars"])?;
             let token = text(o, "token")?.ok_or(())?;
@@ -490,6 +622,78 @@ mod tests {
             panic!()
         };
         assert_eq!(g.scope, Scope::Title("GitHub".into()));
+    }
+
+    #[test]
+    fn http_request_parses_strictly() {
+        let item = "00112233445566778899aabbccddeeff";
+        let line = |extra: &str| {
+            format!(
+                r#"{{"v":1,"id":"a","op":"http.request","token":"t","item":"{item}","method":"POST","url":"https://api.example.com/x"{extra}}}"#
+            )
+        };
+        let Op::HttpRequest(r) = p(&line(
+            r#","headers":{"X-Trace":"1"},"body":"{}","auth":{"header":"X-Api-Key","scheme":""},"field":"token""#,
+        ))
+        .unwrap()
+        .op
+        else {
+            panic!()
+        };
+        assert_eq!(
+            (
+                r.method.as_str(),
+                r.auth_header.as_str(),
+                r.auth_scheme.as_str()
+            ),
+            ("POST", "X-Api-Key", "")
+        );
+        assert_eq!(r.headers, [("X-Trace".to_owned(), "1".to_owned())]);
+        let Op::HttpRequest(r) = p(&line("")).unwrap().op else {
+            panic!()
+        };
+        assert_eq!(
+            (
+                r.auth_header.as_str(),
+                r.auth_scheme.as_str(),
+                r.field.as_str()
+            ),
+            ("Authorization", "Bearer", "token")
+        );
+        for bad in [
+            r#","headers":{"Authorization":"x"}"#,
+            r#","headers":{"authorization":"x"}"#,
+            r#","headers":{"Host":"evil"}"#,
+            r#","headers":{"Content-Length":"1"}"#,
+            r#","headers":{"Bad Name":"x"}"#,
+            r#","headers":{"X":"a\nb"}"#,
+            r#","headers":["X"]"#,
+            r#","auth":{"header":"X Y"}"#,
+            r#","auth":{"scheme":"Bear er"}"#,
+            r#","auth":{"header":"X","extra":1}"#,
+            r#","field":"to ken""#,
+            r#","body":5"#,
+            r#","extra":1"#,
+        ] {
+            assert!(p(&line(bad)).is_err(), "{bad}");
+        }
+        let custom = line(r#","auth":{"header":"X-Key"},"headers":{"Authorization":"other"}"#);
+        assert!(
+            p(&custom).is_ok(),
+            "a different header may be set when the secret uses another"
+        );
+        let big = line(&format!(r#","body":"{}""#, "x".repeat(MAX_BODY + 1)));
+        assert!(p(&big).is_err());
+        for url in ["", "http://a/\\u0001"] {
+            let l = format!(
+                r#"{{"v":1,"id":"a","op":"http.request","token":"t","item":"{item}","method":"GET","url":"{url}"}}"#
+            );
+            assert!(p(&l).is_err(), "{url}");
+        }
+        let get = format!(
+            r#"{{"v":1,"id":"a","op":"http.request","token":"t","item":"{item}","method":"TRACE","url":"https://a/"}}"#
+        );
+        assert!(p(&get).is_err());
     }
 
     #[test]

@@ -50,7 +50,7 @@ transport with the same protocol is an open question (section 9).
   for `pid` (absent if it cannot be read). The optional `label` in a request is what the agent *claims*; it
   is shown after the verified identity and in quotes, and never replaces it (G7). A spoofed label changes
   nothing about the identity, and the audit log records both.
-- **Limits.** One request line is at most 16 KiB. A connection is closed after 30 s with no complete line.
+- **Limits.** One request line is at most 512 KiB (room for an HTTP body of 128 KiB). A connection is closed after 30 s with no complete line.
   At most 8 connections are served at once; more are closed with `busy`. Input is parsed strictly: an
   unknown member, a wrong type or a second JSON value on a line is `bad_request`.
 
@@ -67,7 +67,8 @@ failure   {"v":1, "id":"<same>", "ok":false, "error":{"code":"<code>", "message"
 
 Error codes: `bad_request`, `denied` (the user said no, or nobody answered in 60 s), `no_grant` (unknown,
 revoked or malformed token), `expired`, `not_allowed` (outside the grant's scope, mode or host allow-list),
-`locked`, `busy`, `audit_failed`, `internal`. Messages are fixed strings. They never contain a vault value,
+`locked`, `busy`, `audit_failed`, `upstream` (allowed, but the outgoing request could not be completed; not
+written to the audit log), `internal`. Messages are fixed strings. They never contain a vault value,
 an item title or any text the caller sent.
 
 Ops:
@@ -80,9 +81,10 @@ Ops:
 | `grant.list` | none | `grants`: list of grant summaries (no tokens) |
 | `grant.revoke` | `grant` (id) | none |
 | `run.env` | `token`, `item`, optional `vars` (3.4) | `env`: object of variable name to value |
+| `http.request` | `token`, `item`, `method`, `url`, optional `headers`, `body`, `auth`, `field` (3.5) | `status`, `headers`, `body_b64`, `truncated` |
 | `lock` | none | none; the broker then exits |
 
-Use of a grant is `run.env` (3.4) and, added by FIG-37 and the reveal task, `http.request` and `reveal`. They
+Use of a grant is `run.env` (3.4), `http.request` (3.5) and, added by the reveal task, `reveal`. They
 authorise through the same check (3.3), so they inherit every rule here.
 
 ### 3.1 Grants
@@ -183,6 +185,36 @@ it is split across two reads, in standard and URL-safe base64, and percent-encod
 not scrubbed (the command says so). Scrubbing stops accidents, such as a debug line or an error that echoes a
 header; a program that decides to re-encode or send the value elsewhere is not stopped (ADR-0003, G5).
 
+### 3.5 `http.request`
+
+`http.request` is the use of an `http` grant, and the default way for an agent to use a token (ADR-0003): the
+broker makes the request and adds the secret itself, so the caller never receives it.
+
+- Members: `token`, `item` (id), `method` (`GET`, `HEAD`, `POST`, `PUT`, `PATCH`, `DELETE`), `url` (at most
+  4096 bytes), optional `headers` (object, at most 32), `body` (text, at most 128 KiB), `auth`
+  (`{"header":"Authorization","scheme":"Bearer"}`, both optional; an empty `scheme` sends the bare value) and
+  `field` (default `token`). The secret is sent as `<scheme> <value>` in the `auth` header.
+- The caller cannot set `Host`, `Content-Length`, `Transfer-Encoding`, `Connection`, `Keep-Alive`, `TE`,
+  `Upgrade`, `Expect`, `Proxy-Authorization`, `Proxy-Connection` or the `auth` header (`bad_request`).
+- The URL must be `https`, or `http` to this machine only (`localhost`, `127.0.0.0/8`, `::1`), and must not
+  carry a user name or password. Anything else is `bad_request`. The request is then authorised with the
+  host of the URL (3.3), so a host off the item's allow-list is `not_allowed` and nothing is sent.
+- Redirects are never followed by the HTTP library. The broker follows at most 5, one at a time, and sends
+  the secret to a new host only if that host is on the item's allow-list and the scheme rule holds; each
+  such decision is a `use.allowed` or `use.refused` record with the `host`. A redirect that fails the check is
+  not followed, and its response (status and `Location`) is returned to the caller as it is. `301` and `302`
+  after `POST`, and `303`, become a `GET` without a body; `307` and `308` keep method and body. A `once` grant
+  covers the request and its checked redirects.
+- Proxies from the environment are not used. Certificates are verified against the system trust store.
+  The request times out after 30 s in total.
+- The response is returned with `body_b64` cut at 4 MiB (`truncated` says so). Before it leaves the broker,
+  the secret is replaced by `[REDACTED:<field>]` in the body and in header values, in the forms listed in
+  3.4, because a server may echo what it received.
+- A network, TLS, timeout or size failure is `upstream`. Its message says nothing about the cause.
+- Limits of this mode: the broker trusts DNS and the allow-listed host with the secret, and it is the
+  caller's own request body and URL that reach that host (an allowed host can still be asked to reflect the
+  secret, which is why the response is scrubbed). Another host is never given the secret.
+
 ## 4. What the broker never does
 
 - It never returns a vault value except in `reveal` mode, and never writes one to the audit log, to its own
@@ -238,6 +270,11 @@ record cannot be written, a grant is not created and a use is refused with `audi
 (3.4), starts the program with them, scrubs its output and exits with its exit code. It needs a running
 broker and starts nothing if the request is denied or refused.
 
+`figlock http --item <title> [-X method] [-H 'Name: value' ...] [-d body|@-] [--auth-header name]
+[--auth-scheme word] [--field name] [--ttl ...] [--reason text] [-i] [--fail] <url>` asks the broker for an
+`http` grant on that item, sends the request through it (3.5) and prints the body (with `-i`, the status and
+headers first). It exits 22 on a status of 400 or more with `--fail`.
+
 `figlock broker start` (foreground), `figlock broker status`, `figlock broker grants`,
 `figlock broker revoke <grant id>`, `figlock broker lock`, and `figlock audit [--tail N]` (unlocks the vault,
 verifies and prints the log with the same redaction as the log itself). All accept `--json`.
@@ -255,7 +292,7 @@ Unit and end-to-end, all with generated values (`AGENTS.md`):
 - No grant, malformed token, revoked grant: refused. `once` consumed by the first use, including under a race.
   `15m`, `1d`, `session` and `until-lock` end as specified (monotonic clock injected in tests).
 - Host not on the allow-list, wildcard rules and an item without entries: refused. Redirect to another host:
-  refused.
+  not followed and no secret sent (tested against a real local server).
 - `reveal` with any ttl but `once`, or a non-item scope: `bad_request`. Reveal twice needs two approvals.
 - Denied, timed out and prompt-spam cases; a spoofed `label` does not change the identity shown.
 - Strict parser: oversize line, unknown member, wrong type, two values on a line.

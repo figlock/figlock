@@ -30,6 +30,8 @@ clap = { version = "4", default-features = false, features = ["std", "derive", "
 rpassword = "7"
 nix = { version = "0.30", default-features = false, features = ["socket", "user", "signal", "fs"] }
 uniffi = "0.31"
+ureq = { version = "3", default-features = false, features = ["rustls", "platform-verifier"] }
+url = "2"
 proptest = { version = "1", default-features = false, features = ["std"] }
 
 [workspace.lints.rust]
