@@ -115,19 +115,20 @@ pub fn prompt_line(req: &ApprovalRequest) -> String {
         .peer
         .pid
         .map_or(String::new(), |p| format!(" (pid {p})"));
-    let mut s = format!(
-        "let {}{pid} use {} for {}",
+    let mut s = String::new();
+    for warning in &req.loud {
+        s.push_str(&format!("{warning}. "));
+    }
+    s.push_str(&format!(
+        "Let {}{pid} use {} for {}",
         audit_clean_text(name, 40),
-        req.scope_words,
+        audit_clean_text(&req.scope_words, 120),
         duration(req.ttl)
-    );
+    ));
     if req.mode == Mode::Reveal {
         s.push_str(" - it will SEE the secret");
     }
-    for warning in &req.loud {
-        s.push_str(&format!(". {warning}"));
-    }
-    audit_clean_text(&s, 240)
+    audit_clean_text(&s, 400)
 }
 
 /// Asks with the system's biometric prompt. `confirm` is the prompt itself, injected so tests need no screen.
@@ -290,7 +291,21 @@ mod tests {
         let line = prompt_line(&r);
         assert!(!line.chars().any(char::is_control));
         assert!(line.contains("SEE the secret") && line.contains("THE WHOLE VAULT"));
-        assert!(line.len() <= 240);
+        assert!(line.len() <= 400);
+    }
+
+    #[test]
+    fn a_long_tag_scope_cannot_push_the_warnings_out() {
+        let mut r = req("a", "b");
+        r.mode = Mode::Reveal;
+        r.loud = vec!["THIS COVERS EVERY ITEM IN YOUR VAULT"];
+        let titles: Vec<String> = (0..5).map(|i| format!("\"{i}{}\"", "t".repeat(79))).collect();
+        r.scope_words = format!("every item tagged x: {}", titles.join(", "));
+        let line = prompt_line(&r);
+        assert!(line.contains("THIS COVERS EVERY ITEM IN YOUR VAULT"));
+        assert!(line.contains("SEE the secret"));
+        assert!(line.contains("15 minutes"));
+        assert!(line.contains("real-agent"));
     }
 
     #[test]
