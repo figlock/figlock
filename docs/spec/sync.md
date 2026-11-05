@@ -67,7 +67,7 @@ Op files and snapshots share one container. All integers are big-endian.
 offset  size   field
 0       2      magic "FL"
 2       1      container version 0x01
-3       1      kind: 0x01 op file, 0x02 snapshot
+3       1      kind: 0x01 op file, 0x02 snapshot, 0x03 audit record (local only, `broker.md` 5)
 4       4      key_epoch
 8       4      length N of the envelope
 12      N      envelope        (crypto.md section 3: 0x01 || nonce || ciphertext || tag)
@@ -76,7 +76,9 @@ offset  size   field
 
 `header` in `crypto.md` 7.3 is bytes 0 to 7 (magic, version, kind, `key_epoch`). The AAD for the envelope is
 `aad("log", vault_id, device_id, u64(seq), u32(key_epoch))` for op files and
-`aad("snap", vault_id, device_id, u64(seq), u32(key_epoch))` for snapshots.
+`aad("snap", vault_id, device_id, u64(seq), u32(key_epoch))` for snapshots. Audit records (kind `0x03`) use
+`aad("audit", ...)` with the same parameters and are never stored in the vault folder; a reader of `log/` or
+`snap/` rejects any file whose kind is not the one its path implies.
 
 A reader MUST reject, without applying anything: wrong magic or unknown version, a `device_id`/`seq` that
 does not match the path, a device that has no valid record or is revoked for that epoch (section 9), a bad

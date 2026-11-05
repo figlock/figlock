@@ -52,7 +52,7 @@ pub fn is_initialised() -> Res<bool> {
 }
 
 #[cfg(unix)]
-fn private_dir(path: &Path) -> Res<()> {
+pub(crate) fn private_dir(path: &Path) -> Res<()> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     fs::DirBuilder::new()
         .recursive(true)
@@ -64,7 +64,7 @@ fn private_dir(path: &Path) -> Res<()> {
 }
 
 #[cfg(not(unix))]
-fn private_dir(path: &Path) -> Res<()> {
+pub(crate) fn private_dir(path: &Path) -> Res<()> {
     fs::create_dir_all(path)?;
     Ok(())
 }

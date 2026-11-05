@@ -144,6 +144,7 @@ Derivations from `VK` (HKDF-SHA-256, empty salt):
 LK             = HKDF(VK, info = "figlock/v1/log-key",         L = 32)
 WK             = HKDF(VK, info = "figlock/v1/item-key-wrap",   L = 32)
 authority_seed = HKDF(VK, info = "figlock/v1/authority-seed",  L = 32)   # Ed25519 private seed
+AK             = HKDF(VK, info = "figlock/v1/audit-key",       L = 32)   # broker audit records (7.5)
 ```
 
 The **authority key** is the Ed25519 key pair generated from `authority_seed`. It is the vault's trust
@@ -220,6 +221,25 @@ sig = Ed25519.sign(authority_key, "figlock/v1/device-record" || 0x00 || JCS(reco
 A record without a valid authority signature is not a device. `vault.json` is signed the same way with
 context `figlock/v1/vault-json`, so that after unlock any tampering with `salt`, parameters, epoch or
 `min_format_version` is detected.
+
+### 7.5 Audit records
+
+The broker's audit log (`broker.md` 5) reuses the file container of `sync.md` 4 with `kind = 0x03`. It is
+local to one device and never written to the vault folder. Each record is one container, built exactly like
+an op file (7.2 and 7.3) with three differences:
+
+- the envelope is sealed under `AK` (section 6), not `LK`, so the key that opens op files cannot open the log;
+- the AAD context is `"audit"`: `aad("audit", vault_id, device_id, u64(seq), u32(key_epoch))`;
+- the plaintext is canonical JSON (RFC 8785), not CBOR, and is not padded.
+
+The signature input is unchanged (7.3), so `seq`, `device_id` and the header, which carries the kind, are
+covered. A reader refuses a container whose kind is not the one it expects, so an op file cannot be replayed
+as an audit record or the reverse. The hash chain (`prev` in the plaintext, `broker.md` 5) is checked above
+the container, after the signature and decryption of each record.
+
+Because `AK` derives from `VK`, a key rotation (9.1) changes it. Records written before a rotation stay
+readable with the `AK` of their epoch, derived from the old `VK` held in `epoch_keys` (9.2); the `key_epoch`
+in each header selects it.
 
 ## 8. Quick unlock (biometrics)
 
@@ -343,9 +363,12 @@ merge. Each rule gets a positive and a negative case.
 9. Device record and `vault.json` signatures; altered parameter detected.
 10. Vault Key rotation: epoch keys chain, old-epoch file still opens with `epoch_keys`.
 11. Quick-unlock blob format (software-key variant only; hardware wraps are tested on devices).
+12. Audit key `AK` and audit records: build, read, chain of two records; wrong key, flipped bit, wrong `seq`,
+    op file read as audit record, audit record read as op file, and a broken, dropped or reordered chain.
 
 ## 14. Open questions
 
 - Argon2 default `p = 4`: WASM runs lanes sequentially without threads, so unlock may be slower in the PWA.
   Benchmark in FIG-24; the floor and default can move by ADR before the first release.
-- Whether the audit log (agent accesses) gets its own key so the broker can append without `VK` (phase 2).
+- Decided in ADR-0019: the audit log uses `AK`, derived from `VK`. The broker holds `VK` anyway, so a
+  separate append-only key would add nothing.

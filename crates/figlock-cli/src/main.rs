@@ -3,6 +3,8 @@
 //! Secrets are never taken from arguments: master password, Secret Key and secret field values come from a
 //! hidden prompt (or stdin for field values). `get` and `export` hide secret values unless asked.
 
+#[cfg(unix)]
+mod broker;
 mod clipboard;
 mod commands;
 mod config;
@@ -53,6 +55,41 @@ enum Command {
     Export(ExportArgs),
     /// Import another manager's export or a notes dump.
     Import(ImportArgs),
+    /// Run and talk to the broker that gives agents approved, time-boxed access.
+    Broker {
+        #[command(subcommand)]
+        action: BrokerCmd,
+    },
+    /// Verify and print the broker's audit log.
+    Audit(AuditArgs),
+}
+
+#[derive(Subcommand)]
+enum BrokerCmd {
+    /// Unlock the vault and serve requests until `broker lock`. Runs in the foreground.
+    Start {
+        /// Never ask; deny every request. For tests and scripts that only need the socket.
+        #[arg(long, hide = true)]
+        deny_all: bool,
+    },
+    /// Show whether the broker is running, its grants and the audit log position.
+    Status,
+    /// List active grants (never their tokens).
+    Grants,
+    /// End a grant now.
+    Revoke {
+        /// The grant id shown by `broker grants`.
+        grant: String,
+    },
+    /// Forget the vault and every grant, and stop the broker.
+    Lock,
+}
+
+#[derive(Args)]
+pub struct AuditArgs {
+    /// Show only the last N records.
+    #[arg(long)]
+    pub tail: Option<usize>,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -203,6 +240,36 @@ pub struct ImportArgs {
     pub dry_run: bool,
 }
 
+#[cfg(unix)]
+fn broker_command(action: BrokerCmd, json: bool) -> error::Res<()> {
+    match action {
+        BrokerCmd::Start { deny_all } => broker::cli::start(deny_all),
+        BrokerCmd::Status => broker::cli::status(json),
+        BrokerCmd::Grants => broker::cli::grants(json),
+        BrokerCmd::Revoke { grant } => broker::cli::revoke(&grant, json),
+        BrokerCmd::Lock => broker::cli::lock(json),
+    }
+}
+
+#[cfg(unix)]
+fn audit_command(a: &AuditArgs, json: bool) -> error::Res<()> {
+    broker::cli::show_audit(a.tail, json)
+}
+
+#[cfg(not(unix))]
+fn broker_command(_: BrokerCmd, _: bool) -> error::Res<()> {
+    Err(error::Fail::new(
+        "the broker is not available on this system yet",
+    ))
+}
+
+#[cfg(not(unix))]
+fn audit_command(_: &AuditArgs, _: bool) -> error::Res<()> {
+    Err(error::Fail::new(
+        "the broker is not available on this system yet",
+    ))
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
@@ -216,6 +283,8 @@ fn main() -> ExitCode {
         Command::Generate(a) => commands::generate(a, json),
         Command::Export(a) => commands::export(a),
         Command::Import(a) => import::import(a, json),
+        Command::Broker { action } => broker_command(action, json),
+        Command::Audit(a) => audit_command(&a, json),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

@@ -1,7 +1,7 @@
 # Architecture decision records
 
-One file per decision that changes direction. `docs/decisions.md` is the index (D1 to D18 map to ADR 0001
-to 0018). A change to the crypto or sync spec also needs an ADR and new test vectors before code
+One file per decision that changes direction. `docs/decisions.md` is the index (D1 to D19 map to ADR 0001
+to 0019). A change to the crypto or sync spec also needs an ADR and new test vectors before code
 (`AGENTS.md`).
 
 ## Process

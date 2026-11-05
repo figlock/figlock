@@ -1216,6 +1216,53 @@ impl Vault {
         Ok(())
     }
 
+    /// Seal one audit record (`crypto.md` 7.5): the next `seq` of this device's audit log, chained to the
+    /// previous record by `prev` (its SHA-256, [`crate::ZERO_PREV`] for the first). Fails for an event or
+    /// detail member the log does not allow. The caller appends the result with [`crate::audit_frame`].
+    pub fn seal_audit(
+        &self,
+        seq: u64,
+        prev: &[u8; 32],
+        t: u64,
+        ev: &str,
+        d: &Map<String, Json>,
+    ) -> Result<Vec<u8>> {
+        let payload = crate::audit_payload(prev, t, ev, d)?;
+        let id = FileId {
+            vault_id: &self.vault_id,
+            device_id: &self.device.device_id,
+            seq,
+        };
+        build_file(
+            Kind::Audit,
+            &self.keys.ak,
+            &self.device.sign_seed,
+            &id,
+            self.epoch,
+            &payload,
+        )
+    }
+
+    /// Verify this device's audit log. Returns the chain (records up to the first failure) and whether
+    /// bytes remain after the last whole record (an incomplete write, or damage).
+    pub fn read_audit_log(&self, log: &[u8]) -> (crate::AuditChain, bool) {
+        let (files, used) = crate::audit_split(log);
+        let chain = crate::read_audit_chain(
+            &files,
+            |epoch| {
+                if epoch == self.epoch {
+                    Some(&self.keys.ak)
+                } else {
+                    self.older.get(&epoch).map(|k| &k.ak)
+                }
+            },
+            &self.device.sign_public(),
+            &self.vault_id,
+            &self.device.device_id,
+        );
+        (chain, used < log.len())
+    }
+
     /// The `key_epoch` in a file's plaintext header (covered by its signature and AAD).
     fn file_epoch(&self, bytes: &[u8]) -> Result<u32> {
         let h: [u8; 4] = bytes

@@ -68,7 +68,7 @@ fn write_jcs(v: &Value, out: &mut Vec<u8>) -> Result<()> {
     }
 }
 
-fn jcs(value: &Value) -> Result<Vec<u8>> {
+pub(crate) fn jcs(value: &Value) -> Result<Vec<u8>> {
     let mut out = Vec::new();
     write_jcs(value, &mut out)?;
     Ok(out)

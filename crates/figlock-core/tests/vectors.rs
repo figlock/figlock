@@ -219,10 +219,10 @@ fn items() {
 }
 
 fn kind(i: &Value) -> fc::Kind {
-    if i["kind"] == "op" {
-        fc::Kind::Op
-    } else {
-        fc::Kind::Snapshot
+    match i["kind"].as_str() {
+        Some("op") => fc::Kind::Op,
+        Some("audit") => fc::Kind::Audit,
+        _ => fc::Kind::Snapshot,
     }
 }
 
@@ -539,6 +539,100 @@ fn primitives_match_published_vectors() {
         "c0875924c1c7987947deafd8780acf49"
     );
     assert_eq!(fc::open(&kk, &env, &ad).unwrap().to_vec(), pt.to_vec());
+}
+
+#[test]
+fn audit() {
+    for c in load("audit.json") {
+        let (i, e) = (&c["inputs"], &c["expected"]);
+        let n = name(&c);
+        if i.get("vk").is_some() {
+            let d = fc::derive_vault_keys(&key(&i["vk"])).unwrap();
+            assert_eq!(d.ak.expose().to_vec(), bytes(&e["ak"]), "{n}");
+        } else if i.get("ev").is_some() {
+            let d = i["d"].as_object().unwrap();
+            let p = fc::audit_payload(
+                &arr(&i["prev"]),
+                i["t"].as_u64().unwrap(),
+                i["ev"].as_str().unwrap(),
+                d,
+            )
+            .unwrap();
+            assert_eq!(
+                String::from_utf8(p).unwrap(),
+                e["payload_jcs"].as_str().unwrap(),
+                "{n}"
+            );
+        } else if i.get("nonce").is_some() {
+            let (vault, device) = (arr::<16>(&i["vault_id"]), arr::<16>(&i["device_id"]));
+            let id = fc::FileId {
+                vault_id: &vault,
+                device_id: &device,
+                seq: i["seq"].as_u64().unwrap(),
+            };
+            let f = vh::build_file_with_nonce(
+                fc::Kind::Audit,
+                &key(&i["ak"]),
+                &key(&i["device_sign_seed"]),
+                &id,
+                u32f(&i["key_epoch"]),
+                i["payload_jcs"].as_str().unwrap().as_bytes(),
+                &arr(&i["nonce"]),
+            )
+            .unwrap();
+            assert_eq!(f, bytes(&e["file"]), "{n}");
+        } else if i.get("files").is_some() {
+            let files: Vec<Vec<u8>> = i["files"].as_array().unwrap().iter().map(bytes).collect();
+            let refs: Vec<&[u8]> = files.iter().map(Vec::as_slice).collect();
+            let ak = key(&i["ak"]);
+            let chain = fc::read_audit_chain(
+                &refs,
+                |_| Some(&ak),
+                &arr(&i["device_sign_pub"]),
+                &arr(&i["vault_id"]),
+                &arr(&i["device_id"]),
+            );
+            if is_reject(&c) {
+                assert!(chain.first_bad.is_some(), "{n} should be rejected");
+            } else {
+                assert_eq!(chain.first_bad, None, "{n}");
+                assert_eq!(
+                    chain.records.len() as u64,
+                    e["entries"].as_u64().unwrap(),
+                    "{n}"
+                );
+                assert_eq!(chain.head.to_vec(), bytes(&e["head"]), "{n}");
+            }
+        } else {
+            let pubkey: Option<[u8; 32]> = if i["device_sign_pub"].is_null() {
+                None
+            } else {
+                Some(arr(&i["device_sign_pub"]))
+            };
+            let (vault, device) = (arr::<16>(&i["vault_id"]), arr::<16>(&i["device_id"]));
+            let id = fc::FileId {
+                vault_id: &vault,
+                device_id: &device,
+                seq: i["seq"].as_u64().unwrap(),
+            };
+            let r = fc::read_file(
+                &bytes(&i["file"]),
+                &key(&i["ak"]),
+                pubkey.as_ref(),
+                &id,
+                kind(i),
+            );
+            if is_reject(&c) {
+                assert_rejected(r, n);
+            } else {
+                assert_eq!(
+                    String::from_utf8(r.unwrap().to_vec()).unwrap(),
+                    e["payload_jcs"].as_str().unwrap(),
+                    "{n}"
+                );
+            }
+        }
+    }
 }
 
 #[test]
