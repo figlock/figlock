@@ -8,6 +8,8 @@
 //! content stays inspectable and the only added dependency is the QR encoder. The built-in fonts cover
 //! printable ASCII; any other character in the vault name or storage label is printed as `?`.
 
+use std::fmt::Write as _;
+
 use qrcode::{Color, EcLevel, QrCode};
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
@@ -49,8 +51,8 @@ fn valid_date(s: &str) -> bool {
 }
 
 /// Printable ASCII only, with the PDF string delimiters escaped.
-fn pdf_text(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
+fn pdf_text(s: &str) -> Zeroizing<String> {
+    let mut out = Zeroizing::new(String::with_capacity(s.len()));
     for c in s.chars() {
         match c {
             '(' | ')' | '\\' => {
@@ -72,25 +74,24 @@ fn label(s: &str) -> Result<String> {
 }
 
 struct Page {
-    ops: String,
+    ops: Zeroizing<String>,
 }
 
 impl Page {
     fn text(&mut self, font: &str, size: f32, x: f32, y: f32, text: &str) {
-        self.ops.push_str(&format!(
-            "BT /{font} {size:.1} Tf {x:.2} {y:.2} Td ({}) Tj ET\n",
-            pdf_text(text)
-        ));
+        let _ = writeln!(
+            self.ops,
+            "BT /{font} {size:.1} Tf {x:.2} {y:.2} Td ({}) Tj ET",
+            *pdf_text(text)
+        );
     }
 
     fn rule(&mut self, x1: f32, x2: f32, y: f32) {
-        self.ops
-            .push_str(&format!("0.5 w {x1:.2} {y:.2} m {x2:.2} {y:.2} l S\n"));
+        let _ = writeln!(self.ops, "0.5 w {x1:.2} {y:.2} m {x2:.2} {y:.2} l S");
     }
 
     fn rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
-        self.ops
-            .push_str(&format!("{x:.2} {y:.2} {w:.2} {h:.2} re f\n"));
+        let _ = writeln!(self.ops, "{x:.2} {y:.2} {w:.2} {h:.2} re f");
     }
 }
 
@@ -125,7 +126,9 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
     let qr =
         QrCode::with_error_correction_level(formatted.as_bytes(), EcLevel::M).map_err(|_| Error)?;
 
-    let mut p = Page { ops: String::new() };
+    let mut p = Page {
+        ops: Zeroizing::new(String::with_capacity(16 * 1024)),
+    };
     let mut y = PAGE_H - MARGIN - 18.0;
 
     p.text("F2", 24.0, MARGIN, y, "FigLock Emergency Kit");
@@ -142,7 +145,7 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
     let side = width as f32 * QR_MODULE;
     let top = y - 4.0 * QR_MODULE;
     // One rectangle per horizontal run of dark modules, so no hairline seams show between neighbours.
-    let colors = qr.to_colors();
+    let mut colors = qr.to_colors();
     for (row, modules) in colors.chunks(width).enumerate() {
         let mut col = 0;
         while col < width {
@@ -162,6 +165,7 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
             );
         }
     }
+    colors.fill(Color::Light);
     y = top - side - 4.0 * QR_MODULE - 18.0;
 
     p.text("F2", 12.0, MARGIN, y, "This kit belongs to");
@@ -214,47 +218,55 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
         return Err(Error);
     }
 
-    Ok(Zeroizing::new(assemble(&p.ops)))
+    Ok(assemble(&p.ops))
 }
 
 /// Wrap a content stream in a minimal PDF 1.4 document.
-fn assemble(content: &str) -> Vec<u8> {
-    let objects = [
-        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+fn assemble(content: &str) -> Zeroizing<Vec<u8>> {
+    let fixed = |body: &str| body.to_string();
+    let head = [
+        fixed("<< /Type /Catalog /Pages 2 0 R >>"),
+        fixed("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
         format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.0} {PAGE_H:.0}] /Contents 4 0 R \
              /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 7 0 R >> >> >>"
         ),
-        format!(
-            "<< /Length {} >>\nstream\n{content}endstream",
-            content.len()
-        ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
-            .to_string(),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
-            .to_string(),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>"
-            .to_string(),
     ];
+    let fonts = [
+        fixed("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),
+        fixed(
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+        ),
+        fixed(
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
+        ),
+    ];
+    let count = head.len() + 1 + fonts.len();
 
-    let mut out = b"%PDF-1.4\n".to_vec();
-    let mut offsets = Vec::with_capacity(objects.len());
-    for (i, body) in objects.iter().enumerate() {
+    let mut out = Zeroizing::new(Vec::with_capacity(content.len() + 4096));
+    out.extend_from_slice(b"%PDF-1.4\n");
+    let mut offsets = Vec::with_capacity(count);
+    for (i, body) in head.iter().enumerate() {
         offsets.push(out.len());
         out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
     }
+    offsets.push(out.len());
+    out.extend_from_slice(format!("4 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
+    out.extend_from_slice(content.as_bytes());
+    out.extend_from_slice(b"endstream\nendobj\n");
+    for (i, body) in fonts.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 5).as_bytes());
+    }
     let xref = out.len();
-    out.extend_from_slice(
-        format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
-    );
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", count + 1).as_bytes());
     for o in offsets {
         out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
     }
     out.extend_from_slice(
         format!(
             "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
-            objects.len() + 1
+            count + 1
         )
         .as_bytes(),
     );
