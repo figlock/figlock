@@ -1,6 +1,6 @@
 # ADR-0020: App surfaces and UI stack
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-05
 - Decision: D20 in `docs/decisions.md`
 - Supersedes: ADR-0005 (hosted PWA)
@@ -15,6 +15,7 @@ ADR-0004 fixed the core (one Rust core, UniFFI on mobile, native dependency on d
 - **Desktop:** Tauri 2 with a Svelte 5 UI, core as a native Rust dependency. Linux accessibility (WebKitGTK) is checked with Orca before the first Linux release; if it fails, Linux ships as CLI plus extension until fixed.
 - **Browser extension:** WXT with the WASM core, UI from `packages/ui`.
 - **Shared UI:** `packages/ui` (Svelte 5 + Tailwind on `design/tokens.css`) serves desktop and extension only. iOS (SwiftUI) and Android (Compose) take the tokens, not components.
+- **Passkey-PRF unlock (FIG-49) is deferred.** It only replaces typing the master password, adds a second key-wrapping path and a recovery story, and browser support from extension pages is unverified. The extension unlocks with the master password and keeps the session key in `chrome.storage.session` with an auto-lock timeout. A later biometric route is native messaging to the desktop app (Touch ID), which reuses FIG-43 and needs no new crypto path. Revisit after the extension and desktop ship, if users ask.
 - **Safari on iOS** ships inside the iOS app (FIG-52), so it is sequenced after the iOS app.
 - **Accessibility baseline:** WCAG 2.2 AA on web-technology surfaces with axe checks in Playwright plus a manual screen reader pass per release (VoiceOver, NVDA, Orca); platform guidelines on iOS and Android.
 
@@ -36,7 +37,7 @@ Flutter for the desktop shell only was also rejected: it gives up the native Rus
 - One fewer deploy target and no hosted-JavaScript trust problem (threat model W1 no longer applies to a FigLock-served client; W2 still applies to the extension).
 - Two UI stacks to maintain on top of the core: Svelte (desktop, extension) and native (iOS, Android), joined only by tokens.
 - Users lose zero-install access from a borrowed machine; the CLI and extension remain.
-- Task changes: FIG-47 shrinks to the WASM core build; FIG-49 (passkey PRF unlock) was written for the PWA and needs re-scoping or deferral; FIG-43 gains the Linux accessibility check; FIG-52 carries the Safari web extension target; `apps/web/` is not created.
+- Task changes: FIG-47 shrinks to the WASM core build; FIG-49 (passkey PRF unlock) is deferred and set to low priority; FIG-43 gains the Linux accessibility check; FIG-52 carries the Safari web extension target; `apps/web/` is not created.
 - `docs/spec/crypto.md` and `docs/spec/threat-model.md` mention the PWA as optional (MAY) or as a mitigation context; those texts stay valid if a web app is added later and are not changed here.
 
 ## Alternatives considered
