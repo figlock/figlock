@@ -389,3 +389,46 @@ fn hex(b: &[u8]) -> String {
 fn contains(hay: &[u8], needle: &[u8]) -> bool {
     hay.windows(needle.len()).any(|w| w == needle)
 }
+
+fn unlock_with_records(r: &Revocation, sk: &SecretKey, extra: &[Vec<u8>]) -> Vault {
+    let mut records: Vec<Vec<u8>> = r.records.iter().map(|c| c.bytes.clone()).collect();
+    records.extend(extra.iter().cloned());
+    Vault::unlock(
+        &r.vault_json,
+        pw(),
+        sk,
+        DeviceKeys::generate().unwrap(),
+        "Tablet",
+        &records,
+        T0 + 600,
+    )
+    .unwrap()
+    .0
+}
+
+fn trusted(v: &Vault, id: &[u8; 16]) -> bool {
+    v.devices()
+        .iter()
+        .any(|d| &d.device_id == id && d.revoked_at.is_none())
+}
+
+#[test]
+fn unlock_skips_stale_records_and_never_trusts_them() {
+    let mut f = fleet();
+    let c_id = *f.c.device_id();
+    let b_id = *f.b.device_id();
+    let r = f.a.revoke_device(pw(), &f.sk, &c_id, T0 + 400).unwrap();
+
+    // The revoked device's old record and a survivor's old-signature record are still lying around.
+    let stale = vec![f.records[2].clone(), f.records[1].clone()];
+    let v = unlock_with_records(&r, &f.sk, &stale);
+    assert!(!trusted(&v, &c_id));
+    assert!(trusted(&v, &b_id));
+
+    // A record whose body was edited fails verification and is skipped.
+    let mut forged = r.records[0].bytes.clone();
+    let at = forged.iter().position(|&b| b == b'"').unwrap() + 1;
+    forged[at] ^= 0x01;
+    let v = unlock_with_records(&r, &f.sk, &[forged]);
+    assert!(trusted(&v, &b_id));
+}

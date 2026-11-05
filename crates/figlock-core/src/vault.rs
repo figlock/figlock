@@ -475,7 +475,7 @@ impl Vault {
         vault.salt = salt;
         vault.wrapped_vk = wrapped;
         for r in known_records {
-            vault.add_device_record(r)?;
+            let _ = vault.add_device_record(r);
         }
         let own = vault.device.device_id;
         let new_record = if vault.devices.contains_key(&own) {

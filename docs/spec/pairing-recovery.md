@@ -144,7 +144,8 @@ in the device list on the next sync, from where it can be revoked.
    the `revoked_at` stamp, rewraps the keys and writes a snapshot (`sync.md` 9). The member formats are in
    `crypto.md` 9.2. The device re-signs the records of the remaining devices with the new authority key
    (`devices/<id>.json` is replaced, see `sync.md` 3), so it MUST have loaded all current records first.
-   Revoking the device itself is refused.
+   Revoking the device itself is refused. On unlock a record that is revoked or does not verify against the
+   current authority key is skipped, never trusted, and does not fail the unlock.
 4. Every other device is asked for a full unlock on its next sync, because its quick-unlock `AUK` wrap is
    still valid but it needs the new wrapped `VK`; the master password is not changed unless the user chose
    so. It is recommended after losing a device.
