@@ -1,6 +1,6 @@
 # ADR-0018: Pairing and revocation wire details
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-05
 - Decision: D18 in `docs/decisions.md`
 
