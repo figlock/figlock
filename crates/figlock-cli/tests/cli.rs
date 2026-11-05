@@ -69,12 +69,11 @@ impl Env {
         });
         let mut child = c.spawn().unwrap();
         if let Some(input) = stdin {
-            child
-                .stdin
-                .take()
-                .unwrap()
-                .write_all(input.as_bytes())
-                .unwrap();
+            // The CLI may reject its arguments and exit before reading stdin, so a broken pipe is fine.
+            match child.stdin.take().unwrap().write_all(input.as_bytes()) {
+                Err(e) if e.kind() != std::io::ErrorKind::BrokenPipe => panic!("{e}"),
+                _ => {}
+            }
         }
         child.wait_with_output().unwrap()
     }
