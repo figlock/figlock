@@ -13,9 +13,13 @@ use zeroize::Zeroizing;
 
 use crate::file::{FileId, Kind, build_file, read_file};
 use crate::hlc::{Hlc, Stamp, is_held};
-use crate::keys::{VaultKeys, derive_auk, derive_vault_keys, unwrap_vk, wrap_vk};
+use crate::invite::{Invite, JoinRequest, device_fingerprint};
+use crate::keys::{
+    VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, unwrap_vk, wrap_vk,
+};
 use crate::merge::{DeviceId, State, Write};
-use crate::payload::{ItemId, Op, OpBatch};
+use crate::payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem};
+use crate::reader::accept_from_revoked;
 use crate::schema::{
     FIELD_DELETED, FIELD_IK, FIELD_TYPE, FIELD_VAULT, ItemType, MAX_VALUE_BYTES, validate_field,
 };
@@ -24,6 +28,18 @@ use crate::{
     Error, KdfParams, Key, Result, SecretKey, open_field, seal_field, unwrap_item_key,
     wrap_item_key,
 };
+
+const ALL_TYPES: [ItemType; 5] = [
+    ItemType::Login,
+    ItemType::Token,
+    ItemType::Note,
+    ItemType::EnvBundle,
+    ItemType::SshKey,
+];
+
+fn record_path(id: &DeviceId) -> String {
+    format!("devices/{}.json", hexs(id))
+}
 
 fn random<const N: usize>() -> Result<[u8; N]> {
     let mut b = [0u8; N];
@@ -59,6 +75,59 @@ pub struct Created {
     pub vault_json: Vec<u8>,
     pub device_record: Vec<u8>,
     pub secret_key: SecretKey,
+}
+
+/// What a Vault knows about a device from its record.
+#[derive(Clone)]
+struct DeviceMeta {
+    name: String,
+    agree_pub: [u8; 32],
+    added_at: u64,
+    epoch_added: u32,
+}
+
+/// An entry of the signed `revoked` list (`crypto.md` 9.2).
+#[derive(Clone)]
+struct Revoked {
+    sign_pub: [u8; 32],
+    revoked_at: Stamp,
+    epoch: u32,
+}
+
+/// An entry of `epoch_keys`: the key of epoch `from`, sealed under the key of epoch `to`.
+#[derive(Clone)]
+struct EpochKeyEntry {
+    from: u32,
+    to: u32,
+    sealed: Vec<u8>,
+}
+
+/// One row of the device list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DeviceInfo {
+    pub device_id: DeviceId,
+    /// Unknown for a revoked device: its record is not re-signed.
+    pub name: Option<String>,
+    pub fingerprint: String,
+    pub revoked_at: Option<Stamp>,
+}
+
+/// Files to store after approving a join request. Write the record first, then the response, so the new
+/// device finds its record as soon as it can open the answer.
+pub struct Approval {
+    pub record: Committed,
+    pub response: Committed,
+}
+
+/// Files to store after revoking a device (`pairing-recovery.md` 4): write the snapshot (`put_new`),
+/// replace the device records, delete the revoked device's record, and replace `vault.json`. Do `vault.json`
+/// last so a device that sees the new epoch finds what it needs.
+pub struct Revocation {
+    pub vault_json: Vec<u8>,
+    pub records: Vec<Committed>,
+    /// Paths to delete: the revoked device's record, which no longer verifies.
+    pub remove: Vec<String>,
+    pub snapshot: Committed,
 }
 
 /// A committed op file ready to be written with `put_new`.
@@ -101,14 +170,21 @@ pub struct Vault {
     own_prev: [u8; 32],
     applied: BTreeMap<DeviceId, (u64, [u8; 32])>,
     devices: BTreeMap<DeviceId, [u8; 32]>,
+    device_meta: BTreeMap<DeviceId, DeviceMeta>,
+    revoked: BTreeMap<DeviceId, Revoked>,
+    epoch_keys: Vec<EpochKeyEntry>,
+    /// Keys of earlier epochs, opened from `epoch_keys` at unlock.
+    older: BTreeMap<u32, VaultKeys>,
+    salt: [u8; 16],
+    wrapped_vk: Vec<u8>,
 }
 
 // ---- JSON files ----
-fn hexs(b: &[u8]) -> String {
+pub(crate) fn hexs(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-fn unhex<const N: usize>(v: &Json) -> Result<[u8; N]> {
+pub(crate) fn unhex<const N: usize>(v: &Json) -> Result<[u8; N]> {
     let s = v.as_str().ok_or(Error)?;
     if s.len() != N * 2 || !s.is_ascii() {
         return Err(Error);
@@ -150,12 +226,111 @@ fn split_signature(bytes: &[u8]) -> Result<(Json, [u8; 64])> {
 }
 
 fn vault_json_body(v: &Vault, salt: &[u8; 16], wrapped_vk: &[u8]) -> Json {
-    json!({
-        "v": 1, "suite": "fl1", "vault_id": hexs(&v.vault_id), "revision": v.revision, "key_epoch": v.epoch,
+    vault_json_body_with(
+        v,
+        salt,
+        wrapped_vk,
+        (v.epoch, v.revision, &v.keys.authority_public()),
+        (&v.revoked, &v.epoch_keys),
+    )
+}
+
+/// The signed body for explicit rotation state, so a rotation can build it before changing the vault.
+fn vault_json_body_with(
+    v: &Vault,
+    salt: &[u8; 16],
+    wrapped_vk: &[u8],
+    (epoch, revision, authority_pub): (u32, u64, &[u8; 32]),
+    (revoked, epoch_keys): (&BTreeMap<DeviceId, Revoked>, &[EpochKeyEntry]),
+) -> Json {
+    let mut body = json!({
+        "v": 1, "suite": "fl1", "vault_id": hexs(&v.vault_id), "revision": revision, "key_epoch": epoch,
         "min_format_version": 1,
         "kdf": { "m_kib": v.params.m_kib, "t": v.params.t, "p": v.params.p, "salt": hexs(salt) },
-        "wrapped_vk": hexs(wrapped_vk), "authority_pub": hexs(&v.keys.authority_public()),
-    })
+        "wrapped_vk": hexs(wrapped_vk), "authority_pub": hexs(authority_pub),
+    });
+    // Both members are omitted while empty, so a vault that was never rotated keeps its epoch 1 shape.
+    if let Some(o) = body.as_object_mut() {
+        if !revoked.is_empty() {
+            let list: Vec<Json> = revoked
+                .iter()
+                .map(|(id, r)| {
+                    json!({
+                        "device_id": hexs(id), "sign_pub": hexs(&r.sign_pub),
+                        "revoked_at": [r.revoked_at.wall, r.revoked_at.counter], "epoch": r.epoch,
+                    })
+                })
+                .collect();
+            o.insert("revoked".into(), Json::Array(list));
+        }
+        if !epoch_keys.is_empty() {
+            let list: Vec<Json> = epoch_keys
+                .iter()
+                .map(|e| json!({ "from": e.from, "to": e.to, "sealed": hexs(&e.sealed) }))
+                .collect();
+            o.insert("epoch_keys".into(), Json::Array(list));
+        }
+    }
+    body
+}
+
+fn parse_revoked(o: &Map<String, Json>, epoch: u32) -> Result<BTreeMap<DeviceId, Revoked>> {
+    let mut out = BTreeMap::new();
+    let Some(list) = o.get("revoked") else {
+        return Ok(out);
+    };
+    for e in list.as_array().ok_or(Error)? {
+        let e = e.as_object().ok_or(Error)?;
+        let at = e.get("revoked_at").and_then(Json::as_array).ok_or(Error)?;
+        let (wall, counter) = match at.as_slice() {
+            [w, c] => (w.as_u64().ok_or(Error)?, c.as_u64().ok_or(Error)?),
+            _ => return Err(Error),
+        };
+        let rev_epoch = u32::try_from(e.get("epoch").and_then(Json::as_u64).ok_or(Error)?)
+            .map_err(|_| Error)?;
+        if e.len() != 4 || wall > Stamp::MAX_WALL || !(2..=epoch).contains(&rev_epoch) {
+            return Err(Error);
+        }
+        let id: DeviceId = unhex(e.get("device_id").ok_or(Error)?)?;
+        let entry = Revoked {
+            sign_pub: unhex(e.get("sign_pub").ok_or(Error)?)?,
+            revoked_at: Stamp {
+                wall,
+                counter: u16::try_from(counter).map_err(|_| Error)?,
+            },
+            epoch: rev_epoch,
+        };
+        if out.insert(id, entry).is_some() {
+            return Err(Error);
+        }
+    }
+    Ok(out)
+}
+
+/// The chain must hold one entry per rotation, `1 -> 2`, `2 -> 3`, ... up to the current epoch.
+fn parse_epoch_keys(o: &Map<String, Json>, epoch: u32) -> Result<Vec<EpochKeyEntry>> {
+    let mut out = Vec::new();
+    if let Some(list) = o.get("epoch_keys") {
+        for (i, e) in list.as_array().ok_or(Error)?.iter().enumerate() {
+            let e = e.as_object().ok_or(Error)?;
+            let num = |k: &str| -> Result<u32> {
+                u32::try_from(e.get(k).and_then(Json::as_u64).ok_or(Error)?).map_err(|_| Error)
+            };
+            let (from, to) = (num("from")?, num("to")?);
+            if e.len() != 3 || usize::try_from(from).ok() != Some(i + 1) || to != from + 1 {
+                return Err(Error);
+            }
+            out.push(EpochKeyEntry {
+                from,
+                to,
+                sealed: unhex_vec(e.get("sealed").ok_or(Error)?)?,
+            });
+        }
+    }
+    if out.len() as u64 + 1 != u64::from(epoch) {
+        return Err(Error);
+    }
+    Ok(out)
 }
 
 fn device_record_body(
@@ -210,6 +385,8 @@ impl Vault {
             counter: 0,
         });
 
+        vault.salt = salt;
+        vault.wrapped_vk = wrapped_vk.clone();
         let body = vault_json_body(&vault, &salt, &wrapped_vk);
         let vault_json = with_signature(
             body.clone(),
@@ -275,14 +452,30 @@ impl Vault {
             return Err(Error);
         }
 
+        let revoked = parse_revoked(o, epoch)?;
+        let epoch_keys = parse_epoch_keys(o, epoch)?;
+        // Open the chain newest first: each entry holds the previous epoch's VK under the next one.
+        let mut older = BTreeMap::new();
+        let mut newer = vk;
+        for e in epoch_keys.iter().rev() {
+            let old = open_epoch_key(&newer, &e.sealed, &vault_id, e.from, e.to)?;
+            older.insert(e.from, derive_vault_keys(&old)?);
+            newer = old;
+        }
+
         let mut vault =
             Vault::assemble(vault_id, epoch, revision, params, keys, device, Stamp::ZERO);
         vault.hlc = Hlc::new(Stamp {
             wall: now_ms,
             counter: 0,
         });
+        vault.revoked = revoked;
+        vault.epoch_keys = epoch_keys;
+        vault.older = older;
+        vault.salt = salt;
+        vault.wrapped_vk = wrapped;
         for r in known_records {
-            vault.add_device_record(r)?;
+            let _ = vault.add_device_record(r);
         }
         let own = vault.device.device_id;
         let new_record = if vault.devices.contains_key(&own) {
@@ -318,6 +511,12 @@ impl Vault {
             own_prev: [0; 32],
             applied: BTreeMap::new(),
             devices: BTreeMap::new(),
+            device_meta: BTreeMap::new(),
+            revoked: BTreeMap::new(),
+            epoch_keys: Vec::new(),
+            older: BTreeMap::new(),
+            salt: [0; 16],
+            wrapped_vk: Vec::new(),
         }
     }
 
@@ -333,6 +532,15 @@ impl Vault {
         )?;
         self.devices
             .insert(self.device.device_id, self.device.sign_public());
+        self.device_meta.insert(
+            self.device.device_id,
+            DeviceMeta {
+                name: name.to_owned(),
+                agree_pub,
+                added_at: now_ms,
+                epoch_added: self.epoch,
+            },
+        );
         Ok(rec)
     }
 
@@ -341,10 +549,363 @@ impl Vault {
         let (body, sig) = split_signature(bytes)?;
         verify_json(&self.keys.authority_public(), "device-record", &body, &sig)?;
         let o = body.as_object().ok_or(Error)?;
-        self.devices.insert(
-            unhex(o.get("device_id").ok_or(Error)?)?,
-            unhex(o.get("sign_pub").ok_or(Error)?)?,
+        let id: DeviceId = unhex(o.get("device_id").ok_or(Error)?)?;
+        // A revoked device is not a device again, whatever the record says.
+        if self.revoked.contains_key(&id) {
+            return Err(Error);
+        }
+        let meta = DeviceMeta {
+            name: o
+                .get("name")
+                .and_then(Json::as_str)
+                .ok_or(Error)?
+                .to_owned(),
+            agree_pub: unhex(o.get("agree_pub").ok_or(Error)?)?,
+            added_at: o.get("added_at").and_then(Json::as_u64).ok_or(Error)?,
+            epoch_added: u32::try_from(o.get("epoch_added").and_then(Json::as_u64).ok_or(Error)?)
+                .map_err(|_| Error)?,
+        };
+        self.devices
+            .insert(id, unhex(o.get("sign_pub").ok_or(Error)?)?);
+        self.device_meta.insert(id, meta);
+        Ok(())
+    }
+
+    /// The current `key_epoch`.
+    pub fn epoch(&self) -> u32 {
+        self.epoch
+    }
+
+    /// Every device this vault knows: those with a valid record, then the revoked ones.
+    pub fn devices(&self) -> Vec<DeviceInfo> {
+        let live = self.devices.iter().map(|(id, sign_pub)| DeviceInfo {
+            device_id: *id,
+            name: self.device_meta.get(id).map(|m| m.name.clone()),
+            fingerprint: device_fingerprint(sign_pub),
+            revoked_at: None,
+        });
+        let gone = self.revoked.iter().map(|(id, r)| DeviceInfo {
+            device_id: *id,
+            name: None,
+            fingerprint: device_fingerprint(&r.sign_pub),
+            revoked_at: Some(r.revoked_at),
+        });
+        live.chain(gone).collect()
+    }
+
+    /// Approve a join request that opened under `invite` (`pairing-recovery.md` 3.2 step 3). The caller has
+    /// already asked the user, with the device name and fingerprint, and checked a biometric. Signs the new
+    /// device's record and seals the Secret Key for it. Refuses a device id that is already in use.
+    pub fn approve_join(
+        &mut self,
+        invite: &Invite,
+        req: &JoinRequest,
+        secret_key: &SecretKey,
+        now_ms: u64,
+    ) -> Result<Approval> {
+        if invite.is_expired(now_ms)
+            || self.devices.contains_key(&req.device_id)
+            || self.revoked.contains_key(&req.device_id)
+        {
+            return Err(Error);
+        }
+        let response = Committed {
+            path: invite.resp_path(),
+            bytes: invite.seal_response(req, secret_key)?,
+        };
+        let meta = DeviceMeta {
+            name: req.device_name.clone(),
+            agree_pub: req.agree_pub,
+            added_at: now_ms,
+            epoch_added: self.epoch,
+        };
+        let record = Committed {
+            path: record_path(&req.device_id),
+            bytes: self.sign_record(&req.device_id, &req.sign_pub, &meta)?,
+        };
+        self.devices.insert(req.device_id, req.sign_pub);
+        self.device_meta.insert(req.device_id, meta);
+        Ok(Approval { record, response })
+    }
+
+    fn sign_record(&self, id: &DeviceId, sign_pub: &[u8; 32], m: &DeviceMeta) -> Result<Vec<u8>> {
+        let body = json!({
+            "device_id": hexs(id), "name": m.name, "sign_pub": hexs(sign_pub),
+            "agree_pub": hexs(&m.agree_pub), "added_at": m.added_at, "epoch_added": m.epoch_added,
+        });
+        with_signature(
+            body.clone(),
+            sign_json(&self.keys.authority_seed, "device-record", &body)?,
+        )
+    }
+
+    /// Revoke `target` (`pairing-recovery.md` 4, `crypto.md` 9.1). Rotates `VK` to the next epoch, lists the
+    /// device as revoked, re-signs the remaining device records, rewraps every item key and builds a
+    /// snapshot under the new epoch. Needs the master password and Secret Key to rewrap `VK`; they are
+    /// checked against the current wrapped `VK` first. This vault moves to the new epoch only if every step
+    /// succeeds. Commit pending changes first, and load all current device records first: a device without
+    /// a record here would lose its record in the rotation.
+    pub fn revoke_device(
+        &mut self,
+        password: &str,
+        secret_key: &SecretKey,
+        target: &DeviceId,
+        now_ms: u64,
+    ) -> Result<Revocation> {
+        if *target == self.device.device_id
+            || !self.devices.contains_key(target)
+            || !self.pending.is_empty()
+        {
+            return Err(Error);
+        }
+        let params_bytes = self.params.bytes_with_salt(&self.salt);
+        let auk = derive_auk(
+            password,
+            secret_key,
+            &self.vault_id,
+            &self.salt,
+            &self.params,
+        )?;
+        let old_vk = unwrap_vk(
+            &auk,
+            &self.wrapped_vk,
+            &self.vault_id,
+            self.epoch,
+            &params_bytes,
+        )?;
+
+        let new_epoch = self.epoch.checked_add(1).ok_or(Error)?;
+        let new_vk = Key::random()?;
+        let new_keys = derive_vault_keys(&new_vk)?;
+        let wrapped_vk = wrap_vk(&auk, &new_vk, &self.vault_id, new_epoch, &params_bytes)?;
+        let mut epoch_keys = self.epoch_keys.clone();
+        epoch_keys.push(EpochKeyEntry {
+            from: self.epoch,
+            to: new_epoch,
+            sealed: epoch_key(&new_vk, &old_vk, &self.vault_id, self.epoch, new_epoch)?,
+        });
+        let mut hlc = self.hlc;
+        let revoked_at = hlc.local(now_ms)?;
+        let mut revoked = self.revoked.clone();
+        revoked.insert(
+            *target,
+            Revoked {
+                sign_pub: self.devices[target],
+                revoked_at,
+                epoch: new_epoch,
+            },
         );
+
+        let revision = self.revision + 1;
+        let body = vault_json_body_with(
+            self,
+            &self.salt,
+            &wrapped_vk,
+            (new_epoch, revision, &new_keys.authority_public()),
+            (&revoked, &epoch_keys),
+        );
+        let vault_json = with_signature(
+            body.clone(),
+            sign_json(&new_keys.authority_seed, "vault-json", &body)?,
+        )?;
+
+        // Records of the devices that stay, signed by the new authority key.
+        let mut records = Vec::new();
+        for (id, sign_pub) in self.devices.iter().filter(|(id, _)| *id != target) {
+            let meta = self.device_meta.get(id).ok_or(Error)?;
+            let body = json!({
+                "device_id": hexs(id), "name": meta.name, "sign_pub": hexs(sign_pub),
+                "agree_pub": hexs(&meta.agree_pub), "added_at": meta.added_at,
+                "epoch_added": meta.epoch_added,
+            });
+            records.push(Committed {
+                path: record_path(id),
+                bytes: with_signature(
+                    body.clone(),
+                    sign_json(&new_keys.authority_seed, "device-record", &body)?,
+                )?,
+            });
+        }
+
+        let snapshot = self.build_snapshot(&new_keys, new_epoch)?;
+
+        // Nothing below can fail.
+        self.hlc = hlc;
+        self.devices.remove(target);
+        self.device_meta.remove(target);
+        self.revoked = revoked;
+        self.epoch_keys = epoch_keys;
+        self.older
+            .insert(self.epoch, std::mem::replace(&mut self.keys, new_keys));
+        self.epoch = new_epoch;
+        self.revision = revision;
+        self.wrapped_vk = wrapped_vk;
+        Ok(Revocation {
+            vault_json,
+            records,
+            remove: vec![record_path(target)],
+            snapshot,
+        })
+    }
+
+    /// A snapshot of the whole state sealed under `keys` for `epoch`, item keys rewrapped under its `WK`.
+    /// An item whose key cannot be opened (corrupt or hostile) is left out rather than blocking the rotation.
+    fn build_snapshot(&mut self, keys: &VaultKeys, epoch: u32) -> Result<Committed> {
+        let ids: Vec<ItemId> = self.state.items().keys().copied().collect();
+        let mut items = Vec::new();
+        for id in ids {
+            let Ok(ik) = self.item_key(&id).map(|k| Key::from_bytes(*k.expose())) else {
+                continue;
+            };
+            let wrapped_ik = wrap_item_key(&keys.wk, &ik, &self.vault_id, &id, epoch)?;
+            let mut deleted = None;
+            let mut fields = BTreeMap::new();
+            for (name, reg) in &self.state.items()[&id] {
+                match (&reg.value, name.as_str()) {
+                    (_, FIELD_IK) => {}
+                    (FieldValue::Flag(f), FIELD_DELETED) => {
+                        deleted = Some((reg.stamp, reg.device, *f));
+                    }
+                    (FieldValue::Blob(b), _) => {
+                        fields.insert(
+                            name.clone(),
+                            SnapshotField {
+                                hlc: reg.stamp,
+                                device: reg.device,
+                                blob: Some(b.clone()),
+                            },
+                        );
+                    }
+                    (FieldValue::Removed, _) => {
+                        fields.insert(
+                            name.clone(),
+                            SnapshotField {
+                                hlc: reg.stamp,
+                                device: reg.device,
+                                blob: None,
+                            },
+                        );
+                    }
+                    (FieldValue::Flag(_), _) => return Err(Error),
+                }
+            }
+            items.push(SnapshotItem {
+                item: id,
+                wrapped_ik,
+                deleted,
+                fields,
+            });
+        }
+        let mut hw: BTreeMap<DeviceId, u64> = self
+            .applied
+            .iter()
+            .map(|(d, (seq, _))| (*d, *seq))
+            .collect();
+        hw.insert(self.device.device_id, self.own_seq);
+        let snap = Snapshot {
+            device: self.device.device_id,
+            seq: self.own_seq,
+            hw,
+            purge_horizon: Stamp::ZERO,
+            items,
+        };
+        let id = FileId {
+            vault_id: &self.vault_id,
+            device_id: &self.device.device_id,
+            seq: self.own_seq,
+        };
+        Ok(Committed {
+            path: format!(
+                "snap/{}-{:08}.snap",
+                hexs(&self.device.device_id),
+                self.own_seq
+            ),
+            bytes: build_file(
+                Kind::Snapshot,
+                &keys.lk,
+                &self.device.sign_seed,
+                &id,
+                epoch,
+                &snap.encode(),
+            )?,
+        })
+    }
+
+    /// Verify, decrypt and merge a snapshot file. It only adds state (the merge is idempotent); the op
+    /// files still apply in order afterwards. Snapshots from revoked or unknown devices are refused.
+    pub fn apply_snapshot(
+        &mut self,
+        bytes: &[u8],
+        device: &DeviceId,
+        seq: u64,
+        now_ms: u64,
+    ) -> Result<()> {
+        let sign_pub = self.devices.get(device).copied();
+        let id = FileId {
+            vault_id: &self.vault_id,
+            device_id: device,
+            seq,
+        };
+        let epoch = self.file_epoch(bytes)?;
+        let payload = read_file(
+            bytes,
+            self.log_key(epoch)?,
+            sign_pub.as_ref(),
+            &id,
+            Kind::Snapshot,
+        )?;
+        let snap = Snapshot::decode(&payload)?;
+        if snap.device != *device || snap.seq != seq {
+            return Err(Error);
+        }
+        let mut hlc = self.hlc;
+        let mut writes = Vec::new();
+        for it in snap.items {
+            // The item key has no stamp of its own in a snapshot; at zero it never beats an op's write.
+            writes.push(Write {
+                item: it.item,
+                field: FIELD_IK.to_owned(),
+                stamp: Stamp::ZERO,
+                device: *device,
+                value: FieldValue::Blob(it.wrapped_ik),
+            });
+            if let Some((stamp, dev, flag)) = it.deleted {
+                writes.push(Write {
+                    item: it.item,
+                    field: FIELD_DELETED.to_owned(),
+                    stamp,
+                    device: dev,
+                    value: FieldValue::Flag(flag),
+                });
+                hlc.receive(stamp, now_ms)?;
+            }
+            for (field, f) in it.fields {
+                let known = [FIELD_TYPE, FIELD_VAULT].contains(&field.as_str())
+                    || ALL_TYPES.iter().any(|t| validate_field(*t, &field).is_ok());
+                if !known
+                    || f.blob
+                        .as_ref()
+                        .is_some_and(|b| b.len() > MAX_VALUE_BYTES + 64)
+                {
+                    return Err(Error);
+                }
+                if is_held(f.hlc.wall, now_ms) {
+                    return Err(Error);
+                }
+                hlc.receive(f.hlc, now_ms)?;
+                writes.push(Write {
+                    item: it.item,
+                    field,
+                    stamp: f.hlc,
+                    device: f.device,
+                    value: f.blob.map_or(FieldValue::Removed, FieldValue::Blob),
+                });
+            }
+        }
+        for w in writes {
+            self.state.apply(w);
+        }
+        self.hlc = hlc;
         Ok(())
     }
 
@@ -380,13 +941,28 @@ impl Vault {
         });
     }
 
+    /// Unwrap an item key under the current epoch, then under earlier ones: an item created before a
+    /// rotation keeps its original wrapping until a snapshot rewraps it (`crypto.md` 9.2).
+    fn unwrap_ik(&self, wrapped: &[u8], id: &ItemId) -> Result<Key> {
+        if let Ok(k) = unwrap_item_key(&self.keys.wk, wrapped, &self.vault_id, id, self.epoch) {
+            return Ok(k);
+        }
+        self.older
+            .iter()
+            .rev()
+            .find_map(|(epoch, keys)| {
+                unwrap_item_key(&keys.wk, wrapped, &self.vault_id, id, *epoch).ok()
+            })
+            .ok_or(Error)
+    }
+
     fn item_key(&mut self, id: &ItemId) -> Result<&Key> {
         if !self.item_keys.contains_key(id) {
             let reg = self.state.get(id, &FIELD_IK.to_owned()).ok_or(Error)?;
             let FieldValue::Blob(w) = &reg.value else {
                 return Err(Error);
             };
-            let ik = unwrap_item_key(&self.keys.wk, w, &self.vault_id, id, self.epoch)?;
+            let ik = self.unwrap_ik(w, id)?;
             self.item_keys.insert(*id, ik);
         }
         self.item_keys.get(id).ok_or(Error)
@@ -540,13 +1116,26 @@ impl Vault {
         now_ms: u64,
     ) -> Result<()> {
         let own = *device == self.device.device_id;
-        let sign_pub = self.devices.get(device).copied();
+        // A revoked device is known by its entry in the signed list; its files are checked below.
+        let revoked = self.revoked.get(device).cloned();
+        let sign_pub = self
+            .devices
+            .get(device)
+            .copied()
+            .or(revoked.as_ref().map(|r| r.sign_pub));
         let id = FileId {
             vault_id: &self.vault_id,
             device_id: device,
             seq,
         };
-        let payload = read_file(bytes, &self.keys.lk, sign_pub.as_ref(), &id, Kind::Op)?;
+        let epoch = self.file_epoch(bytes)?;
+        let payload = read_file(
+            bytes,
+            self.log_key(epoch)?,
+            sign_pub.as_ref(),
+            &id,
+            Kind::Op,
+        )?;
         let batch = OpBatch::decode(&payload)?;
         let (last_seq, last_hash) = if own {
             (self.own_seq, self.own_prev)
@@ -600,6 +1189,11 @@ impl Vault {
             if is_held(stamp.wall, now_ms) {
                 return Err(Error);
             }
+            if let Some(r) = &revoked
+                && !accept_from_revoked(r.revoked_at, stamp, epoch, r.epoch)
+            {
+                return Err(Error);
+            }
             hlc.receive(stamp, now_ms)?;
             writes.push(Write {
                 item,
@@ -622,6 +1216,24 @@ impl Vault {
         Ok(())
     }
 
+    /// The `key_epoch` in a file's plaintext header (covered by its signature and AAD).
+    fn file_epoch(&self, bytes: &[u8]) -> Result<u32> {
+        let h: [u8; 4] = bytes
+            .get(4..8)
+            .and_then(|b| b.try_into().ok())
+            .ok_or(Error)?;
+        Ok(u32::from_be_bytes(h))
+    }
+
+    /// The log key for a file of `epoch`: the current one, or an earlier one from the chain. A file of a
+    /// later epoch needs a full unlock first.
+    fn log_key(&self, epoch: u32) -> Result<&Key> {
+        if epoch == self.epoch {
+            return Ok(&self.keys.lk);
+        }
+        self.older.get(&epoch).map(|k| &k.lk).ok_or(Error)
+    }
+
     /// Whether a remote `FieldSet` may write `field`: the vault's own `_type` and `_vault`, or a schema
     /// field of the item's type (any type while the item's type is not yet known).
     fn field_allowed(&mut self, item: &ItemId, field: &str) -> bool {
@@ -630,15 +1242,7 @@ impl Vault {
         }
         match self.item_type(item) {
             Ok(t) => validate_field(t, field).is_ok(),
-            Err(_) => [
-                ItemType::Login,
-                ItemType::Token,
-                ItemType::Note,
-                ItemType::EnvBundle,
-                ItemType::SshKey,
-            ]
-            .into_iter()
-            .any(|t| validate_field(t, field).is_ok()),
+            Err(_) => ALL_TYPES.iter().any(|t| validate_field(*t, field).is_ok()),
         }
     }
 

@@ -15,6 +15,7 @@ mod aead;
 mod error;
 mod file;
 mod hlc;
+mod invite;
 mod items;
 mod kdf;
 mod keys;
@@ -35,6 +36,11 @@ pub use aead::{VERSION, open, seal};
 pub use error::{Error, Result};
 pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
 pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};
+pub use invite::{
+    INBOX_MAX_BYTES, INBOX_STALE_MS, INVITE_TTL_MS, InboxKind, Invite, InviteOffer, JoinAttempt,
+    JoinRequest, JoinRequestFile, Joined, device_fingerprint, inbox_is_stale, invite_path,
+    parse_inbox_path,
+};
 pub use items::{open_field, seal_field, unwrap_item_key, wrap_item_key};
 pub use kdf::{KdfParams, derive_pw_key};
 pub use keys::{
@@ -56,7 +62,9 @@ pub use search::{Hit, Index};
 pub use secret::Key;
 pub use secret_key::SecretKey;
 pub use signing::{sign_json, verify_json};
-pub use vault::{Committed, Created, DeviceKeys, FieldValue, ItemView, Vault};
+pub use vault::{
+    Approval, Committed, Created, DeviceInfo, DeviceKeys, FieldValue, ItemView, Revocation, Vault,
+};
 pub use wire::{aad, hlc_bytes, u16be, u32be, u64be};
 
 /// Deterministic entry points that take explicit nonces and ephemeral keys, for the test vectors only.

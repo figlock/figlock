@@ -259,6 +259,19 @@ def signatures():
                        "jcs": r.jcs(vault_json).decode()}, {"signature": x(vsig)}))
     vv = {"authority_pub": x(d["authority_pub"]), "vault_json": vault_json, "signature": x(vsig), "context": "vault-json"}
     cases.append(case("vault-json-verify", "crypto.md 7.4", vv, "valid"))
+    rotated = {**vault_json, "revision": 2, "key_epoch": 2,
+               "revoked": [{"device_id": x(DEVICE_B), "sign_pub": x(b"\x01" * 32), "revoked_at": [1_700_000_100_000, 0],
+                            "epoch": 2}],
+               "epoch_keys": [{"from": 1, "to": 2, "sealed": "00" * 8}]}
+    rsig = r.sign_json(d["authority_seed"], "vault-json", rotated)
+    cases.append(case("vault-json-sign-with-revocation", "crypto.md 9.2",
+                      {"authority_seed": x(d["authority_seed"]), "vault_json": rotated,
+                       "jcs": r.jcs(rotated).decode()}, {"signature": x(rsig)}))
+    cases.append(reject("vault-json-revoked-list-removed", "crypto.md 9.2",
+                        {"authority_pub": x(d["authority_pub"]), "vault_json": {k: v for k, v in rotated.items()
+                                                                               if k != "revoked"},
+                         "signature": x(rsig), "context": "vault-json"},
+                        "dropping the revoked list from a signed vault.json is detected"))
     lowered = {**vault_json, "kdf": {**vault_json["kdf"], "m_kib": 32768}}
     cases.append(reject("vault-json-kdf-params-altered", "crypto.md 5.1, 7.4", {**vv, "vault_json": lowered},
                         "downgrade of KDF parameters is detected after unlock"))
@@ -329,8 +342,8 @@ def pairing():
                        "et_pub": x(et_pub), "en_pub": x(en_pub)},
                       {"invite_id": x(k_n["invite_id"]), "k_req": x(k_n["k_req"]), "k_resp": x(k_n["k_resp"])},
                       note="both sides derive the same keys"))
-    req_plain = cbor2.dumps({"device_name": "Work MacBook", "sign_pub": b"\x01" * 32, "agree_pub": b"\x02" * 32},
-                            canonical=True)
+    req_plain = cbor2.dumps({"device_id": DEVICE_B, "device_name": "Work MacBook", "sign_pub": b"\x01" * 32,
+                             "agree_pub": b"\x02" * 32}, canonical=True)
     ia = r.aad("invite-req", VAULT_ID, k_n["invite_id"])
     nonce = fill("nonce-req", 24)
     req_file = en_pub + r.seal(k_n["k_req"], req_plain, ia, nonce)
@@ -338,6 +351,8 @@ def pairing():
                       {"en_pub": x(en_pub), "k_req": x(k_n["k_req"]), "plaintext_cbor": x(req_plain),
                        "vault_id": x(VAULT_ID), "invite_id": x(k_n["invite_id"]), "nonce": x(nonce)},
                       {"req_file": x(req_file)}))
+    cases.append(case("device-fingerprint", "pairing-recovery.md 3.3 step 4", {"sign_pub": x(b"\x01" * 32)},
+                      {"fingerprint": r.device_fingerprint(b"\x01" * 32)}))
     resp_plain = cbor2.dumps({"secret_key": SK, "device_id": DEVICE_B}, canonical=True)
     ra = r.aad("invite-resp", VAULT_ID, k_n["invite_id"])
     rn = fill("nonce-resp", 24)
@@ -653,6 +668,8 @@ def verify_case(fname: str, c: dict) -> None:
             k2 = r.invite_keys(b(i["s"]), b(i["vault_id"]), b(i["et_priv"]), b(i["en_pub"]))
             assert k1 == k2
             assert (k1["invite_id"], k1["k_req"], k1["k_resp"]) == (b(e["invite_id"]), b(e["k_req"]), b(e["k_resp"]))
+        elif name == "device-fingerprint":
+            assert r.device_fingerprint(b(i["sign_pub"])) == e["fingerprint"]
         elif name == "invite-req":
             a = r.aad("invite-req", b(i["vault_id"]), b(i["invite_id"]))
             assert b(i["en_pub"]) + r.seal(b(i["k_req"]), b(i["plaintext_cbor"]), a, b(i["nonce"])) == b(e["req_file"])

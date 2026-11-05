@@ -46,7 +46,7 @@ Provider notes:
 ```
 figlock/
   vault.json                         replaceable. KDF params, wrapped keys, key epoch, revoked list (signed)
-  devices/<device_id>.json           created once by the authority; revocation edits vault.json, not this file
+  devices/<device_id>.json           created by the authority; replaced (re-signed) only by a key rotation
   log/<device_id>/<seq>.op           op file, create-only. <seq> is 8 decimal digits, 00000001 upward
   snap/<device_id>-<seq>.snap        snapshot, create-only. <seq> is the writer's own op seq it covers through
   inbox/<request_id>.req             pairing requests and shares (FIG-18), create-only
@@ -242,6 +242,8 @@ seen newer state syncs, and is listed in the threat model (S5, S6). It cannot fo
 
 ## 9. Revoked devices and key epochs
 
+- Because the authority key is derived from `VK`, a rotation re-signs every remaining device record. A record
+  that does not verify under the current authority key is ignored until it is rewritten.
 - Revoking a device rotates `VK` (`crypto.md` 9.1) and writes the device and its `revoked_at` stamp into the
   signed `revoked` list in `vault.json`, along with the new `key_epoch`.
 - A revoked device's op files are accepted only if their stamp is earlier than `revoked_at` **and** they

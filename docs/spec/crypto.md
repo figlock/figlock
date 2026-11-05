@@ -267,7 +267,29 @@ A revoked device still knows the old `VK`, so revocation MUST rotate it:
 4. Rewrap `VK'` under `AUK`, and for `rk_pub` if a Recovery Key is enabled (this needs only the public key).
 
 Rotation cannot recall data a revoked device already copied; it only protects what is written afterwards.
-This limit MUST be stated in the UI and the threat model (FIG-19).
+This limit MUST be stated in the UI and the threat model (FIG-19). The password and Secret Key are not
+changed by a rotation, so a revoked device that also holds `AUK` or both credentials can still unwrap the new
+`VK`; revoking a device whose credentials may be known is therefore followed by a password change and Secret
+Key rotation (`pairing-recovery.md` 4).
+
+### 9.2 `vault.json` members after a rotation
+
+Two members are added to the signed body and are omitted while empty (epoch 1 vaults do not have them):
+
+```
+"revoked":    [ { "device_id": hex16, "sign_pub": hex32, "revoked_at": [wall_ms, counter], "epoch": N } ]
+"epoch_keys": [ { "from": N, "to": N+1, "sealed": hex } ]
+```
+
+- `revoked` lists every revoked device. `sign_pub` is kept so that files the device wrote before the
+  revocation still verify. `revoked_at` is the revoking device's clock stamp, and `epoch` is the new
+  `key_epoch` produced by the revocation. A revoked device's record is not re-signed.
+- `epoch_keys` has one entry per rotation, in order. `sealed` is the `epoch_key` of step 3 above, sealed under
+  the VK of epoch `to`. A reader opens the chain newest first from the current `VK`; entries must be
+  contiguous (`to = from + 1`) down to epoch 1, or the file is refused.
+- Item keys are wrapped under `WK` with the epoch in the AAD. After a rotation a reader tries the current
+  epoch first and then older epochs from the chain, so items created before the rotation still open.
+  The snapshot written at the rotation carries every item key rewrapped under the new `WK`.
 
 ## 10. Memory and implementation rules
 

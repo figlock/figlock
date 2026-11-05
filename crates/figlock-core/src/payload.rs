@@ -76,30 +76,30 @@ pub struct Snapshot {
 }
 
 // ---- value helpers ----
-fn text(s: &str) -> Value {
+pub(crate) fn text(s: &str) -> Value {
     Value::Text(s.to_owned())
 }
-fn bytes(b: &[u8]) -> Value {
+pub(crate) fn bytes(b: &[u8]) -> Value {
     Value::Bytes(b.to_vec())
 }
-fn uint(n: u64) -> Value {
+pub(crate) fn uint(n: u64) -> Value {
     Value::Integer(n.into())
 }
 fn opt_bytes(b: &Option<Vec<u8>>) -> Value {
     b.as_ref().map_or(Value::Null, |b| bytes(b))
 }
-fn map(entries: Vec<(&str, Value)>) -> Value {
+pub(crate) fn map(entries: Vec<(&str, Value)>) -> Value {
     Value::Map(entries.into_iter().map(|(k, v)| (text(k), v)).collect())
 }
 
-fn encode_value(v: &Value) -> Vec<u8> {
+pub(crate) fn encode_value(v: &Value) -> Vec<u8> {
     let mut out = Vec::new();
     ciborium::into_writer(v, &mut out).expect("writing to a Vec cannot fail");
     out
 }
 
 /// Sort every map by the bytewise order of its encoded keys.
-fn canonical(v: Value) -> Value {
+pub(crate) fn canonical(v: Value) -> Value {
     match v {
         Value::Map(entries) => {
             let mut e: Vec<(Vec<u8>, Value, Value)> = entries
@@ -250,7 +250,7 @@ fn distinct_keys(m: &[(Value, Value)]) -> Result<()> {
 }
 
 /// Only the listed text keys, each at most once.
-fn check_keys(m: &[(Value, Value)], allowed: &[&str]) -> Result<()> {
+pub(crate) fn check_keys(m: &[(Value, Value)], allowed: &[&str]) -> Result<()> {
     distinct_keys(m)?;
     if m.iter()
         .any(|(k, _)| !k.as_text().is_some_and(|k| allowed.contains(&k)))
@@ -260,11 +260,11 @@ fn check_keys(m: &[(Value, Value)], allowed: &[&str]) -> Result<()> {
     Ok(())
 }
 
-fn as_map(v: Value) -> Result<Vec<(Value, Value)>> {
+pub(crate) fn as_map(v: Value) -> Result<Vec<(Value, Value)>> {
     v.into_map().map_err(|_| Error)
 }
 
-fn get<'a>(m: &'a [(Value, Value)], key: &str) -> Result<&'a Value> {
+pub(crate) fn get<'a>(m: &'a [(Value, Value)], key: &str) -> Result<&'a Value> {
     m.iter()
         .find(|(k, _)| k.as_text() == Some(key))
         .map(|(_, v)| v)
@@ -276,7 +276,7 @@ fn get_u64(m: &[(Value, Value)], key: &str) -> Result<u64> {
     u64::try_from(i).map_err(|_| Error)
 }
 
-fn arr<const N: usize>(v: &Value) -> Result<[u8; N]> {
+pub(crate) fn arr<const N: usize>(v: &Value) -> Result<[u8; N]> {
     v.as_bytes()
         .ok_or(Error)?
         .as_slice()
