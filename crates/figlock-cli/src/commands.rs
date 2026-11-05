@@ -271,7 +271,7 @@ pub fn copy(a: CopyArgs, json: bool) -> Res<()> {
         .ok_or_else(|| Fail::new(format!("the item has no field {field}")))?
         .clone();
     clipboard::copy(&value)?;
-    eprintln!("Copied {field} of {}", clean(title_of(&item)));
+    eprintln!("Copied to the clipboard: {}", clean(title_of(&item)));
     if a.clear_after > 0 {
         eprintln!(
             "The clipboard is cleared in {}s (Ctrl-C to keep it).",

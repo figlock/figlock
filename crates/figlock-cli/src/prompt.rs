@@ -11,8 +11,9 @@ use zeroize::Zeroizing;
 use crate::error::{Fail, Res};
 
 fn hidden(label: &str) -> Res<Zeroizing<String>> {
-    eprint!("{label}");
-    io::stderr().flush()?;
+    let mut err = io::stderr();
+    err.write_all(label.as_bytes())?;
+    err.flush()?;
     let line = rpassword::read_password().map_err(|_| {
         Fail::new("cannot read from the terminal; use the environment variable for scripts")
     })?;
