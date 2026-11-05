@@ -3,7 +3,7 @@
 //! This crate currently holds the crypto module (`docs/spec/crypto.md`, the container and invite parts of
 //! `sync.md` and `pairing-recovery.md`) and the sync logic of `sync.md` (hybrid logical clock, field-level
 //! merge, op batch and snapshot payloads, reader decisions), plus local search over non-secret fields
-//! (`search`). Every rule is checked against the test vectors in
+//! (`search`) and the Emergency Kit PDF with its verification step (`kit`). Every rule is checked against the test vectors in
 //! `docs/spec/vectors/` by `tests/vectors.rs` and `tests/sync.rs`.
 //!
 //! Conventions, from the spec:
@@ -18,6 +18,7 @@ mod hlc;
 mod items;
 mod kdf;
 mod keys;
+mod kit;
 mod merge;
 mod pairing;
 mod payload;
@@ -40,6 +41,7 @@ pub use keys::{
     VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, open_quick_unlock,
     seal_quick_unlock, unwrap_vk, wrap_vk,
 };
+pub use kit::{KIT_VERSION, KitInfo, render_kit, verify_kit_groups};
 pub use merge::{DeviceId, Register, State, Write};
 pub use pairing::{
     InviteKeys, invite_code_format, invite_code_parse, invite_keys, open_seal_to, seal_to,
