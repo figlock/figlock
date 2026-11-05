@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
-use super::approve::{Approver, DenyAll, TerminalApprover};
+use super::approve::{Approver, BiometricApprover, DenyAll, TerminalApprover};
 use super::audit::{self, AuditWriter};
 use super::client::{call, expect_ok};
 use super::peer::{SystemEnv, my_uid};
@@ -28,17 +28,17 @@ pub fn start(deny_all: bool) -> Res<()> {
     let writer = AuditWriter::open(&log, &vault)?;
     let socket = server::socket_path()?;
     let listener = server::bind(&socket)?;
-    let terminal = if deny_all {
-        None
+    let approver: Box<dyn Approver> = if deny_all {
+        Box::new(DenyAll)
+    } else if let Some(b) = BiometricApprover::open() {
+        eprintln!("approvals are asked with Touch ID");
+        Box::new(b)
+    } else if let Some(t) = TerminalApprover::open() {
+        eprintln!("no biometric prompt on this machine, approvals are asked on this terminal");
+        Box::new(t)
     } else {
-        TerminalApprover::open()
-    };
-    let approver: Box<dyn Approver> = match terminal {
-        Some(t) => Box::new(t),
-        None => {
-            eprintln!("warning: not asking anyone, so every request will be denied");
-            Box::new(DenyAll)
-        }
+        eprintln!("warning: not asking anyone, so every request will be denied");
+        Box::new(DenyAll)
     };
     let broker = Broker::start(
         vault,

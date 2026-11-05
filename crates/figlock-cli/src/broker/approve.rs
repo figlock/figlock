@@ -1,5 +1,5 @@
-//! Asking the user (`docs/spec/broker.md` 3.2). The broker only knows the [`Approver`] trait; the biometric
-//! prompt (FIG-35) will be another implementation. Until then the daemon asks on its own terminal.
+//! Asking the user (`docs/spec/broker.md` 3.2). The broker only knows the [`Approver`] trait. On a Mac the
+//! daemon asks with Touch ID ([`BiometricApprover`]); anywhere else it asks on its own terminal.
 
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
@@ -7,6 +7,7 @@ use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::time::Duration;
 
+use figlock_biometric::Outcome;
 use figlock_core::audit_clean_text;
 
 use super::peer::PeerId;
@@ -101,7 +102,63 @@ pub fn describe(req: &ApprovalRequest) -> String {
     s
 }
 
-/// Asks on the terminal the broker was started from. A temporary stand-in for the biometric prompt.
+/// The one line the system prompt shows (Touch ID has room for little more). It names the program the
+/// operating system verified, never the caller's own label, and keeps the dangerous cases loud.
+pub fn prompt_line(req: &ApprovalRequest) -> String {
+    let exe = req.peer.exe.as_deref().unwrap_or("an unknown program");
+    let name = exe
+        .rsplit('/')
+        .next()
+        .filter(|n| !n.is_empty())
+        .unwrap_or(exe);
+    let pid = req
+        .peer
+        .pid
+        .map_or(String::new(), |p| format!(" (pid {p})"));
+    let mut s = format!(
+        "let {}{pid} use {} for {}",
+        audit_clean_text(name, 40),
+        req.scope_words,
+        duration(req.ttl)
+    );
+    if req.mode == Mode::Reveal {
+        s.push_str(" - it will SEE the secret");
+    }
+    for warning in &req.loud {
+        s.push_str(&format!(". {warning}"));
+    }
+    audit_clean_text(&s, 240)
+}
+
+/// Asks with the system's biometric prompt. `confirm` is the prompt itself, injected so tests need no screen.
+pub struct BiometricApprover {
+    confirm: fn(&str, Duration) -> Outcome,
+}
+
+impl BiometricApprover {
+    /// `None` when this machine cannot show a biometric prompt.
+    pub fn open() -> Option<BiometricApprover> {
+        figlock_biometric::available().then_some(BiometricApprover {
+            confirm: figlock_biometric::confirm,
+        })
+    }
+
+    #[cfg(test)]
+    pub fn with(confirm: fn(&str, Duration) -> Outcome) -> BiometricApprover {
+        BiometricApprover { confirm }
+    }
+}
+
+impl Approver for BiometricApprover {
+    fn approve(&self, req: &ApprovalRequest, wait: Duration) -> Decision {
+        match (self.confirm)(&prompt_line(req), wait) {
+            Outcome::Confirmed => Decision::Allow,
+            Outcome::Declined | Outcome::TimedOut | Outcome::Unavailable => Decision::Deny,
+        }
+    }
+}
+
+/// Asks on the terminal the broker was started from.
 pub struct TerminalApprover {
     out: Mutex<File>,
     answers: Mutex<Receiver<String>>,
@@ -136,7 +193,7 @@ impl Approver for TerminalApprover {
         // Anything typed before this prompt appeared is not an answer to it.
         while answers.try_recv().is_ok() {}
         let text = format!(
-            "{}\n(This is a plain terminal question until the Touch ID prompt exists.)\nAllow? [y/N] ",
+            "{}\n(This Mac has no biometric prompt, so this is a plain terminal question.)\nAllow? [y/N] ",
             describe(req)
         );
         if out
@@ -211,6 +268,45 @@ mod tests {
         let text = describe(&r);
         assert!(text.contains("!! THE PROGRAM WILL SEE THE SECRET"));
         assert!(text.contains("given the secret value itself"));
+    }
+
+    #[test]
+    fn the_prompt_line_names_the_verified_program_not_the_claim() {
+        let line = prompt_line(&req("Anthropic Claude Code (trusted)", "to deploy"));
+        assert!(line.contains("real-agent"));
+        assert!(line.contains("pid 4242"));
+        assert!(line.contains("the item \"GitHub\""));
+        assert!(line.contains("15 minutes"));
+        assert!(!line.contains("Anthropic"));
+        assert!(!line.contains("/usr/bin/"));
+    }
+
+    #[test]
+    fn the_prompt_line_is_one_clean_line_and_keeps_warnings() {
+        let mut r = req("a", "b");
+        r.peer.exe = Some("/bin/x\u{1b}[2J\ny".into());
+        r.mode = Mode::Reveal;
+        r.loud = vec!["THE WHOLE VAULT"];
+        let line = prompt_line(&r);
+        assert!(!line.chars().any(char::is_control));
+        assert!(line.contains("SEE the secret") && line.contains("THE WHOLE VAULT"));
+        assert!(line.len() <= 240);
+    }
+
+    #[test]
+    fn only_a_confirmed_prompt_allows() {
+        let r = req("a", "b");
+        let w = Duration::from_secs(1);
+        let allow = BiometricApprover::with(|_, _| Outcome::Confirmed);
+        assert_eq!(allow.approve(&r, w), Decision::Allow);
+        for outcome in [Outcome::Declined, Outcome::TimedOut, Outcome::Unavailable] {
+            let b = match outcome {
+                Outcome::Declined => BiometricApprover::with(|_, _| Outcome::Declined),
+                Outcome::TimedOut => BiometricApprover::with(|_, _| Outcome::TimedOut),
+                _ => BiometricApprover::with(|_, _| Outcome::Unavailable),
+            };
+            assert_eq!(b.approve(&r, w), Decision::Deny, "{outcome:?}");
+        }
     }
 
     #[test]
