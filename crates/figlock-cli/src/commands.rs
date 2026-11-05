@@ -50,13 +50,18 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     };
     config::save(&cfg, vault.device_keys())?;
     let device_path = format!("devices/{}.json", hex::encode(vault.device_id()));
+    let mut created_paths: Vec<&str> = Vec::new();
     let written = store
         .put_new("vault.json", &created.vault_json)
-        .and_then(|()| store.put_new(&device_path, &created.device_record));
+        .and_then(|()| {
+            created_paths.push("vault.json");
+            store.put_new(&device_path, &created.device_record)
+        });
     if let Err(e) = written {
         config::forget();
-        let _ = store.delete("vault.json");
-        let _ = store.delete(&device_path);
+        for path in created_paths {
+            let _ = store.delete(path);
+        }
         return Err(e.into());
     }
     let secret_key = created.secret_key.format();
