@@ -18,6 +18,7 @@ mod hlc;
 mod items;
 mod kdf;
 mod keys;
+mod kit;
 mod merge;
 mod pairing;
 mod payload;
@@ -40,6 +41,7 @@ pub use keys::{
     VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, open_quick_unlock,
     seal_quick_unlock, unwrap_vk, wrap_vk,
 };
+pub use kit::{KIT_VERSION, KitInfo, render_kit, verify_kit_groups};
 pub use merge::{DeviceId, Register, State, Write};
 pub use pairing::{
     InviteKeys, invite_code_format, invite_code_parse, invite_keys, open_seal_to, seal_to,
