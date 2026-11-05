@@ -75,9 +75,11 @@ Sources: Bitwarden Agent Access SDK announcement and blog; 1Password Security fo
 
 ## 5. Search
 
-Local only, after unlock: in-memory index over titles, URLs, usernames, tags, notes and provider;
-nucleo-style fuzzy matching plus trigrams for typos; aliases; domain normalization; token prefix lookup;
-recency boost. Nothing secret is indexed.
+Local only, after unlock: in-memory index over an allow-list of non-secret fields (titles, URLs, usernames,
+tags, notes, provider, ...); fuzzy and typo-tolerant matching with an in-crate matcher (no nucleo
+dependency); domain normalization; token prefix lookup by provider; caller supplied aliases (tags already
+work as aliases, the schema has no alias field); recency boost. Nothing secret is indexed, the token value
+included. Details are in the `figlock-core` `search` module docs.
 
 ## 6. Google Drive setup
 
