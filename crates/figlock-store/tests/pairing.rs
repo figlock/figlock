@@ -10,6 +10,9 @@ use figlock_core::{
 };
 use figlock_store::{BlobStore, LocalFolder, StoreError};
 
+#[cfg(feature = "gdrive")]
+mod support;
+
 const T0: u64 = 1_700_000_000_000;
 
 fn hex(b: &[u8]) -> String {
@@ -40,7 +43,7 @@ impl Dev {
     }
 
     /// Commit pending changes and store the op file.
-    fn push(&mut self, store: &LocalFolder) {
+    fn push(&mut self, store: &impl BlobStore) {
         let file = self.vault.commit().unwrap().expect("something to write");
         store.put_new(&file.path, &file.bytes).unwrap();
         let seq = self
@@ -53,7 +56,7 @@ impl Dev {
     }
 
     /// Read device records and any new op files, in order per device.
-    fn sync(&mut self, store: &LocalFolder, now: u64) {
+    fn sync(&mut self, store: &impl BlobStore, now: u64) {
         for e in store.list("devices/").unwrap() {
             let _ = self.vault.add_device_record(&store.get(&e.path).unwrap());
         }
@@ -103,7 +106,14 @@ impl Dev {
 }
 
 /// Pair a new device through the folder, as `pairing-recovery.md` 3.2 draws it.
-fn pair(store: &LocalFolder, a: &mut Dev, sk: &SecretKey, pw: &str, name: &str, now: u64) -> Dev {
+fn pair(
+    store: &impl BlobStore,
+    a: &mut Dev,
+    sk: &SecretKey,
+    pw: &str,
+    name: &str,
+    now: u64,
+) -> Dev {
     // T: open an invite and show the code.
     let (mut invite, offer) = Invite::create(a.vault.vault_id(), now).unwrap();
     store.put_new(&offer.inv_path, &offer.inv).unwrap();
@@ -169,7 +179,27 @@ fn pair(store: &LocalFolder, a: &mut Dev, sk: &SecretKey, pw: &str, name: &str, 
 #[test]
 fn pair_and_revoke_over_a_local_folder() {
     let dir = tempfile::tempdir().unwrap();
-    let store = LocalFolder::open(dir.path()).unwrap();
+    pair_and_revoke(LocalFolder::open(dir.path()).unwrap());
+}
+
+/// The same flow through the Google Drive adapter, against the fake Drive.
+#[cfg(feature = "gdrive")]
+#[test]
+fn pair_and_revoke_over_google_drive() {
+    let fake = support::fake_drive::FakeDrive::start();
+    let drive = figlock_store::GoogleDrive::with_endpoint(
+        &fake.base,
+        figlock_store::StaticToken("good-token".into()),
+    )
+    .unwrap();
+    pair_and_revoke(drive);
+    // Everything stored is a flat, validated name: nothing but FigLock's own paths.
+    for name in fake.names() {
+        figlock_store::validate_path(&name).unwrap();
+    }
+}
+
+fn pair_and_revoke(store: impl BlobStore) {
     let pw = password();
 
     // Device A creates the vault in the folder and stores a login.

@@ -43,8 +43,9 @@ Provider notes:
   `createdTime` (ties by id) wins on every client; if a file carrying our nonce won we own the path,
   otherwise we delete ours and report `Exists`. The nonce also makes a create whose response was lost safe
   to resolve without creating twice. Reads, listings and `put_replace` use the oldest copy only, ignore the
-  others, and `delete` removes every copy; byte-identical duplicates are harmless. Adapters do not
-  cache path-to-id maps across calls (a stale id is a correctness risk; a cache is a later optimisation).
+  others, and `delete` removes every copy; byte-identical duplicates are harmless. The only id cache is
+  the one a `list` fills, used as a shortcut for `get`: a 404 or any write or delete of that path falls back
+  to a lookup by name, so a stale id costs a request, never wrong data.
   Anything Drive returns is untrusted: names must be valid storage paths, and an upload-session URL is only
   followed if it stays on the API host.
 

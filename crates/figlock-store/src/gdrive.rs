@@ -18,7 +18,8 @@
 //! Everything Drive returns is treated as untrusted: names must pass [`validate_path`], ids must be plain
 //! tokens, sizes are capped, and an upload-session `Location` is only followed if it stays on the API host.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -59,6 +60,10 @@ pub struct GoogleDrive {
     base: Url,
     tokens: Box<dyn TokenSource>,
     retry_delays: Vec<Duration>,
+    /// Oldest copy of each path as of the last `list`: (id, size). Only a shortcut for `get` so reading a
+    /// listed blob costs one request instead of two. A miss or a 404 falls back to a lookup by name, and
+    /// every write or delete of a path drops its entry, so a stale id can cost a request but never wrong data.
+    listed: Mutex<HashMap<String, (String, u64)>>,
 }
 
 /// One Drive file, after validation.
@@ -115,6 +120,7 @@ impl GoogleDrive {
             base,
             tokens: Box::new(tokens),
             retry_delays: RETRY_DELAYS_MS.map(Duration::from_millis).to_vec(),
+            listed: Mutex::new(HashMap::new()),
         })
     }
 
@@ -275,6 +281,21 @@ impl GoogleDrive {
         }
         // A listing that never ends is a hostile or broken provider, not a big vault.
         Err(StoreError::Unavailable)
+    }
+
+    fn forget(&self, path: &str) {
+        if let Ok(mut m) = self.listed.lock() {
+            m.remove(path);
+        }
+    }
+
+    fn download(&self, id: &str) -> Result<Vec<u8>> {
+        let url = self.url(&format!("/drive/v3/files/{id}"), &[("alt", "media")]);
+        let resp = self.send("GET", &url, &[], None, Retry::Yes)?;
+        if resp.body.len() as u64 > MAX_BLOB_BYTES {
+            return Err(StoreError::TooLarge);
+        }
+        Ok(resp.body)
     }
 
     fn oldest(&self, name: &str) -> Result<Option<Remote>> {
@@ -480,20 +501,26 @@ fn fresh_nonce() -> Result<String> {
 impl BlobStore for GoogleDrive {
     fn get(&self, path: &str) -> Result<Vec<u8>> {
         validate_path(path)?;
+        let hit = self.listed.lock().ok().and_then(|m| m.get(path).cloned());
+        if let Some((id, size)) = hit {
+            if size > MAX_BLOB_BYTES {
+                return Err(StoreError::TooLarge);
+            }
+            match self.download(&id) {
+                Err(StoreError::NotFound) => self.forget(path),
+                other => return other,
+            }
+        }
         let file = self.oldest(path)?.ok_or(StoreError::NotFound)?;
         if file.size > MAX_BLOB_BYTES {
             return Err(StoreError::TooLarge);
         }
-        let url = self.url(&format!("/drive/v3/files/{}", file.id), &[("alt", "media")]);
-        let resp = self.send("GET", &url, &[], None, Retry::Yes)?;
-        if resp.body.len() as u64 > MAX_BLOB_BYTES {
-            return Err(StoreError::TooLarge);
-        }
-        Ok(resp.body)
+        self.download(&file.id)
     }
 
     fn put_new(&self, path: &str, bytes: &[u8]) -> Result<()> {
         validate_path(path)?;
+        self.forget(path);
         if bytes.len() as u64 > MAX_BLOB_BYTES {
             return Err(StoreError::TooLarge);
         }
@@ -539,6 +566,7 @@ impl BlobStore for GoogleDrive {
 
     fn put_replace(&self, path: &str, bytes: &[u8]) -> Result<()> {
         validate_path(path)?;
+        self.forget(path);
         if bytes.len() as u64 > MAX_BLOB_BYTES {
             return Err(StoreError::TooLarge);
         }
@@ -560,9 +588,6 @@ impl BlobStore for GoogleDrive {
         validate_prefix(prefix)?;
         let mut oldest: BTreeMap<String, Remote> = BTreeMap::new();
         for r in self.list_remote(None)? {
-            if !r.name.starts_with(prefix) {
-                continue;
-            }
             match oldest.get(&r.name) {
                 Some(cur) if cur.age_key() <= r.age_key() => {}
                 _ => {
@@ -570,8 +595,15 @@ impl BlobStore for GoogleDrive {
                 }
             }
         }
+        if let Ok(mut m) = self.listed.lock() {
+            *m = oldest
+                .iter()
+                .map(|(n, r)| (n.clone(), (r.id.clone(), r.size)))
+                .collect();
+        }
         Ok(oldest
             .into_values()
+            .filter(|r| r.name.starts_with(prefix))
             .map(|r| Entry {
                 path: r.name,
                 size: r.size,
@@ -583,6 +615,7 @@ impl BlobStore for GoogleDrive {
 
     fn delete(&self, path: &str) -> Result<()> {
         validate_path(path)?;
+        self.forget(path);
         // Every copy goes, not just the oldest, so a duplicate cannot resurface the deleted blob.
         for f in self.list_remote(Some(path))? {
             if f.name == path {
