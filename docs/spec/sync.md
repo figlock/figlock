@@ -37,9 +37,16 @@ Provider notes:
 - **iCloud Drive and other synced folders.** A file listed but not yet downloaded is "not available yet",
   not "missing". The adapter asks the OS to download it and the sync engine retries; it is never treated as
   a gap (section 8).
-- **Google Drive.** Names are not unique in Drive, so the adapter keeps a path-to-file-id map and creates
-  files with a create-only request. If duplicates of one path appear, the adapter keeps the oldest, ignores
-  the others and warns; byte-identical duplicates are harmless.
+- **Google Drive.** Names are not unique in Drive, so create-only is built on top of it. The namespace is
+  flat: the full path is the Drive file name in the appDataFolder. `put_new` looks the name up, creates the
+  file with a random nonce in its `appProperties`, then lists every file with that name. The oldest by
+  `createdTime` (ties by id) wins on every client; if a file carrying our nonce won we own the path,
+  otherwise we delete ours and report `Exists`. The nonce also makes a create whose response was lost safe
+  to resolve without creating twice. Reads, listings and `put_replace` use the oldest copy only, ignore the
+  others, and `delete` removes every copy; byte-identical duplicates are harmless. Adapters do not
+  cache path-to-id maps across calls (a stale id is a correctness risk; a cache is a later optimisation).
+  Anything Drive returns is untrusted: names must be valid storage paths, and an upload-session URL is only
+  followed if it stays on the API host.
 
 ## 3. Layout
 
