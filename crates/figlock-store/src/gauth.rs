@@ -6,9 +6,12 @@
 //! PKCE (S256) means a stolen code is useless without the verifier, which never leaves this process.
 //!
 //! Only the `drive.appdata` scope is requested (ADR-0010), and a token response that grants anything else is
-//! refused. The client ID and secret identify the app, not the user; Google documents the secret of an
-//! installed-app client as non-confidential, so the defaults are compiled in and can be overridden with
-//! `FIGLOCK_GOOGLE_CLIENT_ID` / `FIGLOCK_GOOGLE_CLIENT_SECRET` (for forks, or to spread API quota).
+//! refused. The client ID and secret identify the app, not the user, and Google documents the secret of an
+//! installed-app client as non-confidential. Even so it is not kept in git (ADR-0021): the client ID is
+//! compiled in, and the secret is injected when the official binaries are built, from the
+//! `FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET` build variable. A build without it (any source build) has no built-in
+//! secret and signs in only when `FIGLOCK_GOOGLE_CLIENT_SECRET` is set at run time. `FIGLOCK_GOOGLE_CLIENT_ID`
+//! and `FIGLOCK_GOOGLE_CLIENT_SECRET` also override the built-in client (forks, or to spread API quota).
 //!
 //! The refresh token is the long-lived credential. It is returned to the caller to store; this module never
 //! writes it anywhere and never puts it in an error or a `Debug` string.
@@ -34,8 +37,9 @@ pub const SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
 /// The FigLock Desktop OAuth client (Google Cloud project `figlock-prod`, FIG-40).
 const DEFAULT_CLIENT_ID: &str =
     "994923112244-m67ar9qhp123m2meq1l2g39d0m7h3icm.apps.googleusercontent.com";
-/// Non-confidential for installed apps (see the module docs). Empty until the real value is filled in.
-const DEFAULT_CLIENT_SECRET: &str = "";
+/// The client secret of official builds, injected by the release workflow (see the module docs and
+/// ADR-0021). `None` in every other build. Never put the value in the repository.
+const BUILD_CLIENT_SECRET: Option<&str> = option_env!("FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET");
 
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
@@ -86,13 +90,12 @@ impl GoogleOAuth {
     }
 
     /// The built-in client, or the one named by `FIGLOCK_GOOGLE_CLIENT_ID` and `FIGLOCK_GOOGLE_CLIENT_SECRET`.
-    /// `None` when no secret is configured at all.
+    /// `None` when no secret is available: neither set at run time nor compiled into this build.
     pub fn from_env() -> Option<Self> {
         let var = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
         let id = var("FIGLOCK_GOOGLE_CLIENT_ID").unwrap_or_else(|| DEFAULT_CLIENT_ID.to_owned());
-        let secret =
-            var("FIGLOCK_GOOGLE_CLIENT_SECRET").unwrap_or_else(|| DEFAULT_CLIENT_SECRET.to_owned());
-        (!secret.is_empty()).then(|| Self::new(&id, &secret))
+        let secret = resolve_secret(var("FIGLOCK_GOOGLE_CLIENT_SECRET"), BUILD_CLIENT_SECRET)?;
+        Some(Self::new(&id, &secret))
     }
 
     /// A client that can only revoke: Google's revoke endpoint needs the token, not a client secret.
@@ -259,6 +262,13 @@ impl fmt::Debug for RefreshingToken {
     }
 }
 
+/// A secret given at run time wins over the one compiled into the build; empty values count as unset.
+fn resolve_secret(runtime: Option<String>, build: Option<&str>) -> Option<String> {
+    runtime
+        .filter(|v| !v.is_empty())
+        .or_else(|| build.filter(|v| !v.is_empty()).map(str::to_owned))
+}
+
 /// The grant must be exactly `drive.appdata`. Anything broader means something other than what we asked for.
 fn check_scope(tokens: &Value) -> Result<()> {
     match tokens["scope"].as_str() {
@@ -375,4 +385,35 @@ fn respond(stream: &mut TcpStream, status: u16, message: &str) {
         body.len()
     );
     let _ = stream.flush();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_secret;
+
+    #[test]
+    fn a_run_time_secret_beats_the_build_one() {
+        assert_eq!(
+            resolve_secret(Some("run".into()), Some("build")).as_deref(),
+            Some("run")
+        );
+        assert_eq!(
+            resolve_secret(None, Some("build")).as_deref(),
+            Some("build")
+        );
+        assert_eq!(
+            resolve_secret(Some("run".into()), None).as_deref(),
+            Some("run")
+        );
+    }
+
+    #[test]
+    fn empty_values_count_as_unset_and_no_secret_means_none() {
+        assert_eq!(
+            resolve_secret(Some(String::new()), Some("build")).as_deref(),
+            Some("build")
+        );
+        assert_eq!(resolve_secret(Some(String::new()), Some("")), None);
+        assert_eq!(resolve_secret(None, None), None);
+    }
 }

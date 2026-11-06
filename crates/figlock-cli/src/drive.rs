@@ -13,12 +13,16 @@ use crate::error::{Fail, Res};
 
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
+/// Source builds carry no Google client secret (ADR-0021); say how to get sign-in anyway.
+pub fn no_client() -> Fail {
+    Fail::new(
+        "this build has no Google client secret (only official release builds do); install a release build, \
+         or set FIGLOCK_GOOGLE_CLIENT_SECRET (and FIGLOCK_GOOGLE_CLIENT_ID for your own client)",
+    )
+}
+
 fn client() -> Res<GoogleOAuth> {
-    GoogleOAuth::from_env().ok_or_else(|| {
-        Fail::new(
-            "Google sign-in is not configured in this build; set FIGLOCK_GOOGLE_CLIENT_ID and FIGLOCK_GOOGLE_CLIENT_SECRET",
-        )
-    })
+    GoogleOAuth::from_env().ok_or_else(no_client)
 }
 
 /// Best effort: ask the OS to open the consent page. The URL is always printed too.

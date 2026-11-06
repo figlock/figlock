@@ -41,6 +41,18 @@ git config core.hooksPath .githooks   # pre-commit hook: format check and lint
 
 Recipes skip a language until its workspace exists (`Cargo.toml`, `pnpm-workspace.yaml`).
 
+## Google Drive sign-in in a local build
+
+Source builds have no Google client secret (ADR-0021). To try `figlock drive login` locally, set it for the run
+(never commit it, never paste it into an issue or PR):
+
+```sh
+read -rs FIGLOCK_GOOGLE_CLIENT_SECRET && export FIGLOCK_GOOGLE_CLIENT_SECRET
+```
+
+The secret is in the owner's FigLock vault. While the Google consent screen is in Testing status, only listed
+test accounts can sign in. Official release builds get the secret from CI (`FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET`).
+
 ## Versions
 
 Pinned in [`mise.toml`](../mise.toml). Bump them there, in one PR, and nowhere else.
