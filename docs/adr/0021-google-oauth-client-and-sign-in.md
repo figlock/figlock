@@ -21,7 +21,8 @@ devices. Tools such as rclone and gcloud ship their client the same way.
   of anything else is refused.
 - The refresh token is stored owner-only (`drive-token.json`, mode 0600) beside the device keys, moving to
   the platform keystore with them. It is never logged or printed. `figlock drive logout` revokes it at Google
-  and deletes it.
+  (best effort, the secret is not needed) and always deletes the local file, even if it is damaged or its
+  permissions are loose.
 
 ## Consequences
 
