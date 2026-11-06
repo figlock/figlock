@@ -11,7 +11,7 @@ publish.workspace = true
 default = []
 # Google Drive appDataFolder adapter (ADR-0010). Off by default so the pure-storage build stays small and
 # wasm builds can bring their own transport.
-gdrive = ["dep:ureq", "dep:serde_json", "dep:url", "dep:getrandom"]
+gdrive = ["dep:ureq", "dep:serde_json", "dep:url", "dep:getrandom", "dep:base64", "dep:sha2"]
 
 [dependencies]
 tempfile.workspace = true
@@ -19,11 +19,15 @@ ureq = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 url = { workspace = true, optional = true }
 getrandom = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
 
 [dev-dependencies]
 figlock-core = { path = "../figlock-core" }
 getrandom.workspace = true
 tiny_http.workspace = true
+base64.workspace = true
+sha2.workspace = true
 serde_json.workspace = true
 
 [lints]
