@@ -162,6 +162,15 @@ impl<B: Backend> Quick<B> {
         }
     }
 
+    /// Like `fetch`, but a keystore failure is a warning and a fall back to the master password, since
+    /// quick unlock is only a convenience.
+    pub fn fetch_or_full(&self, vault: &str, now: u64) -> Fetch {
+        self.fetch(vault, now).unwrap_or_else(|e| {
+            eprintln!("warning: quick unlock is unavailable: {e}");
+            Fetch::Full(Fallback::NotConfirmed)
+        })
+    }
+
     /// The kept key, after the policy checks and the prompt.
     pub fn fetch(&self, vault: &str, now: u64) -> Res<Fetch> {
         let Some(mut state) = self.state_for(vault) else {
@@ -415,6 +424,47 @@ mod tests {
 
     fn got_key(f: Fetch) -> bool {
         matches!(f, Fetch::Key(k) if k.expose() == &[7; 32])
+    }
+
+    struct Broken;
+
+    impl Backend for Broken {
+        fn available(&self) -> bool {
+            true
+        }
+        fn confirm(&self, _reason: &str) -> Outcome {
+            Outcome::Confirmed
+        }
+        fn put_key(&self, _vault: &str, _key: &[u8; 32]) -> Res<()> {
+            Err(Fail::new("keychain locked"))
+        }
+        fn get_key(&self, _vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
+            Err(Fail::new("keychain locked"))
+        }
+        fn has_key(&self, _vault: &str) -> Res<bool> {
+            Err(Fail::new("keychain locked"))
+        }
+        fn delete_key(&self, _vault: &str) -> Res<()> {
+            Err(Fail::new("keychain locked"))
+        }
+        fn boot_id(&self) -> String {
+            String::new()
+        }
+    }
+
+    #[test]
+    fn a_keychain_failure_falls_back_to_the_full_prompt() {
+        let dir = tempfile::tempdir().unwrap();
+        let (_d, _fake, good) = setup();
+        good.enable(VAULT, &key(), T0).unwrap();
+        let state = std::fs::read(good.state_path()).unwrap();
+        std::fs::write(dir.path().join("quick-unlock.json"), state).unwrap();
+        let q = Quick::new(dir.path().to_path_buf(), Broken, 3600);
+        assert!(q.fetch(VAULT, T0 + 60).is_err());
+        assert!(matches!(
+            q.fetch_or_full(VAULT, T0 + 60),
+            Fetch::Full(Fallback::NotConfirmed)
+        ));
     }
 
     #[test]

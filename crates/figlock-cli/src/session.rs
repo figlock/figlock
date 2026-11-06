@@ -116,13 +116,17 @@ impl Session {
 
         let mut quick_unlocked = None;
         if !force_full {
-            match quick.fetch(&vault_id, now / 1000)? {
+            match quick.fetch_or_full(&vault_id, now / 1000) {
                 quick::Fetch::Key(auk) => match unlock(&auk)? {
                     Ok(done) => quick_unlocked = Some((done, auk)),
                     Err(_) => {
                         // The kept key no longer opens the vault: the password or Secret Key changed.
-                        quick.forget(&vault_id)?;
-                        eprintln!("quick unlock is off because the vault's keys changed");
+                        match quick.forget(&vault_id) {
+                            Ok(()) => {
+                                eprintln!("quick unlock is off because the vault's keys changed")
+                            }
+                            Err(e) => eprintln!("warning: quick unlock key was not removed: {e}"),
+                        }
                     }
                 },
                 quick::Fetch::Full(quick::Fallback::Expired(why)) => {
