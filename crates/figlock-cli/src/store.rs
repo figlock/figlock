@@ -22,11 +22,7 @@ pub fn open(spec: &StoreSpec) -> Res<Box<dyn BlobStore>> {
 pub fn open_drive() -> Res<Box<dyn BlobStore>> {
     let token = config::load_drive_token()?
         .ok_or_else(|| Fail::new("not signed in to Google Drive; run `figlock drive login`"))?;
-    let oauth = GoogleOAuth::from_env().ok_or_else(|| {
-        Fail::new(
-            "Google sign-in is not configured in this build; set FIGLOCK_GOOGLE_CLIENT_ID and FIGLOCK_GOOGLE_CLIENT_SECRET",
-        )
-    })?;
+    let oauth = GoogleOAuth::from_env().ok_or_else(crate::drive::no_client)?;
     let source = oauth.token_source(figlock_store::Credentials {
         refresh_token: token.to_string(),
     });
