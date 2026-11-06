@@ -5,9 +5,13 @@
 //! touches the underlying storage, so a hostile folder or provider cannot make FigLock read or write
 //! outside its own area.
 
+#[cfg(feature = "gdrive")]
+mod gdrive;
 mod local;
 mod path;
 
+#[cfg(feature = "gdrive")]
+pub use gdrive::{GoogleDrive, StaticToken, TokenSource};
 pub use local::LocalFolder;
 pub use path::validate_path;
 
@@ -42,6 +46,10 @@ pub enum StoreError {
     /// The path is not a valid FigLock storage path, or resolves outside the store.
     InvalidPath,
     TooLarge,
+    /// The provider refused the credentials (expired or revoked sign-in, missing scope). Sign in again.
+    Unauthorized,
+    /// The provider could not be reached or kept failing (offline, rate limited, 5xx). Retry later.
+    Unavailable,
     Io(std::io::ErrorKind),
 }
 
@@ -53,6 +61,8 @@ impl fmt::Display for StoreError {
             StoreError::NotYetAvailable => f.write_str("not downloaded yet"),
             StoreError::InvalidPath => f.write_str("invalid path"),
             StoreError::TooLarge => f.write_str("blob too large"),
+            StoreError::Unauthorized => f.write_str("sign-in required"),
+            StoreError::Unavailable => f.write_str("storage unavailable"),
             StoreError::Io(kind) => write!(f, "storage error: {kind}"),
         }
     }

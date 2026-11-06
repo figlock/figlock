@@ -4,6 +4,9 @@
 use figlock_store::{BlobStore, LocalFolder, StoreError, validate_path};
 use std::sync::Arc;
 
+#[cfg(feature = "gdrive")]
+mod support;
+
 fn run_contract<S: BlobStore + Send + Sync + 'static>(make: impl Fn() -> S) {
     get_missing(&make());
     put_new_is_create_only(&make());
@@ -366,4 +369,18 @@ mod symlinks {
             "nothing was written outside the store"
         );
     }
+}
+
+#[cfg(feature = "gdrive")]
+#[test]
+fn google_drive_meets_the_contract() {
+    use figlock_store::{GoogleDrive, StaticToken};
+    let servers = std::sync::Mutex::new(Vec::new());
+    run_contract(|| {
+        let fake = support::fake_drive::FakeDrive::start();
+        let drive =
+            GoogleDrive::with_endpoint(&fake.base, StaticToken("good-token".into())).unwrap();
+        servers.lock().unwrap().push(fake);
+        drive
+    });
 }
