@@ -61,6 +61,7 @@ impl Env {
         let mut c = Command::new(env!("CARGO_BIN_EXE_figlock"));
         c.args(args)
             .env("FIGLOCK_HOME", self.home.path())
+            .env("FIGLOCK_DEVICE_KEYS", "file")
             .env("FIGLOCK_PASSWORD", pw)
             .env_remove("XDG_RUNTIME_DIR");
         if let Some(sk) = sk {

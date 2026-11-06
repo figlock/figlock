@@ -9,6 +9,7 @@ fn figlock(home: &TempDir, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_figlock"))
         .args(args)
         .env("FIGLOCK_HOME", home.path())
+        .env("FIGLOCK_DEVICE_KEYS", "file")
         .output()
         .unwrap()
 }
@@ -40,6 +41,7 @@ fn logout_offline(home: &TempDir) -> Output {
     Command::new(env!("CARGO_BIN_EXE_figlock"))
         .args(["drive", "logout"])
         .env("FIGLOCK_HOME", home.path())
+        .env("FIGLOCK_DEVICE_KEYS", "file")
         .env("HTTPS_PROXY", "http://127.0.0.1:9")
         .env("https_proxy", "http://127.0.0.1:9")
         .output()

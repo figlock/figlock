@@ -16,6 +16,7 @@ mod generate;
 #[cfg(unix)]
 mod http;
 mod import;
+mod keystore;
 mod prompt;
 mod quick;
 mod render;
