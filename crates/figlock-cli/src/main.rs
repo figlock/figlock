@@ -10,6 +10,7 @@ mod broker;
 mod clipboard;
 mod commands;
 mod config;
+mod drive;
 mod error;
 mod generate;
 #[cfg(unix)]
@@ -75,11 +76,24 @@ enum Command {
     Run(RunArgs),
     /// Make an HTTP request through the broker, which adds the secret itself. You never see the secret.
     Http(HttpArgs),
+    /// Sign this device in to Google Drive, where a vault can be stored.
+    Drive {
+        #[command(subcommand)]
+        action: DriveCmd,
+    },
     /// The Claude skill that teaches agents to use secrets through the broker.
     Skill {
         #[command(subcommand)]
         action: SkillCmd,
     },
+}
+
+#[derive(Subcommand)]
+enum DriveCmd {
+    /// Sign in with your browser. FigLock only gets a hidden app folder, never your files.
+    Login,
+    /// Revoke FigLock's access and forget the sign-in on this device.
+    Logout,
 }
 
 #[derive(Subcommand)]
@@ -476,6 +490,10 @@ fn main() -> ExitCode {
         // These end with the exit code of the program or the request, not just success or failure.
         Command::Run(a) => run_command(a),
         Command::Http(a) => http_command(a),
+        Command::Drive { action } => ok(match action {
+            DriveCmd::Login => drive::login(json),
+            DriveCmd::Logout => drive::logout(json),
+        }),
         Command::Skill { action } => ok(match action {
             SkillCmd::Install(a) => skill::install(&a, json),
             SkillCmd::Show => {

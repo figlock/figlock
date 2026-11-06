@@ -6,10 +6,14 @@
 //! outside its own area.
 
 #[cfg(feature = "gdrive")]
+mod gauth;
+#[cfg(feature = "gdrive")]
 mod gdrive;
 mod local;
 mod path;
 
+#[cfg(feature = "gdrive")]
+pub use gauth::{Credentials, GoogleOAuth, RefreshingToken};
 #[cfg(feature = "gdrive")]
 pub use gdrive::{GoogleDrive, StaticToken, TokenSource};
 pub use local::LocalFolder;
