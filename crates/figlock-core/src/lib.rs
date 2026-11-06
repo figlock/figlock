@@ -73,7 +73,8 @@ pub use secret::Key;
 pub use secret_key::SecretKey;
 pub use signing::{sign_json, verify_json};
 pub use vault::{
-    Approval, Committed, Created, DeviceInfo, DeviceKeys, FieldValue, ItemView, Revocation, Vault,
+    Approval, Committed, Created, CredentialChange, DeviceInfo, DeviceKeys, FieldValue, ItemView,
+    Revocation, Rotated, Vault,
 };
 pub use wire::{aad, hlc_bytes, u16be, u32be, u64be};
 

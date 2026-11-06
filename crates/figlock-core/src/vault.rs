@@ -130,6 +130,21 @@ pub struct Revocation {
     pub snapshot: Committed,
 }
 
+/// What [`Vault::change_credentials`] changes. Anything left out stays as it is.
+#[derive(Clone, Copy, Default)]
+pub struct CredentialChange<'a> {
+    pub new_password: Option<&'a str>,
+    pub rotate_secret_key: bool,
+    pub params: Option<KdfParams>,
+}
+
+/// The result of a credential change: replace `vault.json` with `vault_json`, and give the person the new
+/// Emergency Kit when `secret_key` is set (`pairing-recovery.md` 5).
+pub struct Rotated {
+    pub vault_json: Vec<u8>,
+    pub secret_key: Option<SecretKey>,
+}
+
 /// A committed op file ready to be written with `put_new`.
 #[derive(Clone, Debug)]
 pub struct Committed {
@@ -790,6 +805,91 @@ impl Vault {
             records,
             remove: vec![record_path(target)],
             snapshot,
+        })
+    }
+
+    /// Change the master password, rotate the Secret Key, or both (`crypto.md` 9). The current credentials
+    /// are checked against the wrapped `VK` first. A fresh salt and (when `rotate_secret_key`) a fresh
+    /// Secret Key give a new `AUK`, and `VK` is rewrapped under it: nothing is re-encrypted and the epoch
+    /// does not change. The replacement `vault.json` is signed with the same authority key, one `revision`
+    /// higher. Every other device fails its next quick unlock and asks for a full unlock with the new
+    /// credentials. This vault takes the new wrap only if every step succeeds.
+    ///
+    /// This does not rotate `VK`: someone holding the old credentials and a copy of the earlier `vault.json`
+    /// can still open the `VK` of that copy. After a revocation, run it before anything new is written.
+    pub fn change_credentials(
+        &mut self,
+        password: &str,
+        secret_key: &SecretKey,
+        change: CredentialChange<'_>,
+    ) -> Result<Rotated> {
+        let params = change.params.unwrap_or(self.params);
+        params.check()?;
+        let old_auk = derive_auk(
+            password,
+            secret_key,
+            &self.vault_id,
+            &self.salt,
+            &self.params,
+        )?;
+        let vk = unwrap_vk(
+            &old_auk,
+            &self.wrapped_vk,
+            &self.vault_id,
+            self.epoch,
+            &self.params.bytes_with_salt(&self.salt),
+        )?;
+        if derive_vault_keys(&vk)?.authority_public() != self.keys.authority_public() {
+            return Err(Error);
+        }
+
+        let salt = random::<16>()?;
+        let new_secret_key = if change.rotate_secret_key {
+            Some(SecretKey::random()?)
+        } else {
+            None
+        };
+        let new_password = change.new_password.unwrap_or(password);
+        let auk = derive_auk(
+            new_password,
+            new_secret_key.as_ref().unwrap_or(secret_key),
+            &self.vault_id,
+            &salt,
+            &params,
+        )?;
+        let wrapped_vk = wrap_vk(
+            &auk,
+            &vk,
+            &self.vault_id,
+            self.epoch,
+            &params.bytes_with_salt(&salt),
+        )?;
+
+        let revision = self.revision + 1;
+        let mut body = vault_json_body_with(
+            self,
+            &salt,
+            &wrapped_vk,
+            (self.epoch, revision, &self.keys.authority_public()),
+            (&self.revoked, &self.epoch_keys),
+        );
+        // `vault_json_body_with` reads the KDF parameters from `self`; the new ones replace them.
+        body["kdf"] = json!({
+            "m_kib": params.m_kib, "t": params.t, "p": params.p, "salt": hexs(&salt),
+        });
+        let vault_json = with_signature(
+            body.clone(),
+            sign_json(&self.keys.authority_seed, "vault-json", &body)?,
+        )?;
+
+        // Nothing below can fail.
+        self.params = params;
+        self.salt = salt;
+        self.wrapped_vk = wrapped_vk;
+        self.revision = revision;
+        Ok(Rotated {
+            vault_json,
+            secret_key: new_secret_key,
         })
     }
 
