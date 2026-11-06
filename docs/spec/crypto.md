@@ -273,6 +273,15 @@ additional unlock path. PRF is never the only root of trust (research: PRF suppo
 After any change the old wrapped material is removed from `vault.json`, and other devices learn of it at
 their next sync and ask for a full unlock.
 
+A password change, Argon2 parameter change or Secret Key rotation (the first three rows) writes a new
+`vault.json` and nothing else. The signing device first checks the current credentials against the wrapped
+`VK`, then picks a fresh `salt` (and a fresh `SK` when it is rotated), derives the new `AUK`, and replaces
+`wrapped_vk` and the `kdf` member. `key_epoch`, `authority_pub`, `revoked` and `epoch_keys` are unchanged, the
+file is signed with the same authority key, and `revision` goes up by one. An old `AUK`, including one kept
+for quick unlock, no longer opens the file. `VK` is not rotated, so this protects only against someone who
+has not seen a copy of the earlier `vault.json`: after a revocation the change MUST be made before new
+items are written, or the revoked device can still open that epoch with the old credentials and its copy.
+
 ### 9.1 Vault Key rotation
 
 A revoked device still knows the old `VK`, so revocation MUST rotate it:
