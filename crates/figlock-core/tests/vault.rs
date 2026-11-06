@@ -265,6 +265,53 @@ fn unlock_rejects_wrong_credentials() {
     a.lock();
 }
 
+#[test]
+fn unlock_with_the_derived_key_matches_a_password_unlock() {
+    let (a, c) = created();
+    let sk = sk_copy(&c);
+    let auk = Vault::unlock_key(&c.vault_json, pw(), &sk).unwrap();
+    let (v, _) = Vault::unlock_with_key(
+        &c.vault_json,
+        &auk,
+        DeviceKeys::generate().unwrap(),
+        "Phone",
+        &[],
+        T0 + 1,
+    )
+    .unwrap();
+    assert_eq!(v.vault_id(), a.vault_id());
+}
+
+#[test]
+fn unlock_with_a_wrong_key_fails() {
+    let (_, c) = created();
+    let wrong = figlock_core::Key::random().unwrap();
+    assert!(
+        Vault::unlock_with_key(
+            &c.vault_json,
+            &wrong,
+            DeviceKeys::generate().unwrap(),
+            "Phone",
+            &[],
+            T0 + 1,
+        )
+        .is_err()
+    );
+    let other = SecretKey::random().unwrap();
+    let derived = Vault::unlock_key(&c.vault_json, pw(), &other).unwrap();
+    assert!(
+        Vault::unlock_with_key(
+            &c.vault_json,
+            &derived,
+            DeviceKeys::generate().unwrap(),
+            "Phone",
+            &[],
+            T0 + 1,
+        )
+        .is_err()
+    );
+}
+
 fn tamper(json: &[u8], f: impl FnOnce(&mut Value)) -> Vec<u8> {
     let mut v: Value = serde_json::from_slice(json).unwrap();
     f(&mut v);

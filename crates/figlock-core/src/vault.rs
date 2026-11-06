@@ -214,6 +214,43 @@ fn with_signature(mut body: Json, sig: [u8; 64]) -> Result<Vec<u8>> {
 }
 
 /// Split a signed JSON file into its body (without the signature member) and the signature.
+/// The fields of `vault.json` that unlocking reads before any key exists.
+struct Header {
+    params: KdfParams,
+    salt: [u8; 16],
+    vault_id: [u8; 16],
+    epoch: u32,
+    revision: u64,
+    wrapped: Vec<u8>,
+}
+
+impl Header {
+    fn parse(o: &Map<String, Json>) -> Result<Header> {
+        if o.get("v") != Some(&json!(1))
+            || o.get("suite") != Some(&json!("fl1"))
+            || o.get("min_format_version") != Some(&json!(1))
+        {
+            return Err(Error);
+        }
+        let kdf = o.get("kdf").and_then(Json::as_object).ok_or(Error)?;
+        let num = |m: &Map<String, Json>, k: &str| -> Result<u64> {
+            m.get(k).and_then(Json::as_u64).ok_or(Error)
+        };
+        Ok(Header {
+            params: KdfParams {
+                m_kib: u32::try_from(num(kdf, "m_kib")?).map_err(|_| Error)?,
+                t: u32::try_from(num(kdf, "t")?).map_err(|_| Error)?,
+                p: u32::try_from(num(kdf, "p")?).map_err(|_| Error)?,
+            },
+            salt: unhex::<16>(kdf.get("salt").ok_or(Error)?)?,
+            vault_id: unhex::<16>(o.get("vault_id").ok_or(Error)?)?,
+            epoch: u32::try_from(num(o, "key_epoch")?).map_err(|_| Error)?,
+            revision: num(o, "revision")?,
+            wrapped: unhex_vec(o.get("wrapped_vk").ok_or(Error)?)?,
+        })
+    }
+}
+
 fn split_signature(bytes: &[u8]) -> Result<(Json, [u8; 64])> {
     let mut v: Json = serde_json::from_slice(bytes).map_err(|_| Error)?;
     let sig = unhex::<64>(
@@ -414,32 +451,40 @@ impl Vault {
         known_records: &[Vec<u8>],
         now_ms: u64,
     ) -> Result<(Vault, Option<Vec<u8>>)> {
+        let auk = Self::unlock_key(vault_json, password, secret_key)?;
+        Self::unlock_with_key(vault_json, &auk, device, device_name, known_records, now_ms)
+    }
+
+    /// The Account Unlock Key for this `vault.json`, from the master password and Secret Key. A device keeps
+    /// it only for quick unlock (`crypto.md` 8), sealed by a platform key.
+    pub fn unlock_key(vault_json: &[u8], password: &str, secret_key: &SecretKey) -> Result<Key> {
+        let (body, _) = split_signature(vault_json)?;
+        let h = Header::parse(body.as_object().ok_or(Error)?)?;
+        derive_auk(password, secret_key, &h.vault_id, &h.salt, &h.params)
+    }
+
+    /// Unlock with an Account Unlock Key from [`Vault::unlock_key`] or a quick-unlock store. A wrong key
+    /// fails the same way a wrong password does.
+    pub fn unlock_with_key(
+        vault_json: &[u8],
+        auk: &Key,
+        device: DeviceKeys,
+        device_name: &str,
+        known_records: &[Vec<u8>],
+        now_ms: u64,
+    ) -> Result<(Vault, Option<Vec<u8>>)> {
         let (body, sig) = split_signature(vault_json)?;
         let o = body.as_object().ok_or(Error)?;
-        if o.get("v") != Some(&json!(1))
-            || o.get("suite") != Some(&json!("fl1"))
-            || o.get("min_format_version") != Some(&json!(1))
-        {
-            return Err(Error);
-        }
-        let kdf = o.get("kdf").and_then(Json::as_object).ok_or(Error)?;
-        let num = |m: &Map<String, Json>, k: &str| -> Result<u64> {
-            m.get(k).and_then(Json::as_u64).ok_or(Error)
-        };
-        let params = KdfParams {
-            m_kib: u32::try_from(num(kdf, "m_kib")?).map_err(|_| Error)?,
-            t: u32::try_from(num(kdf, "t")?).map_err(|_| Error)?,
-            p: u32::try_from(num(kdf, "p")?).map_err(|_| Error)?,
-        };
-        let salt = unhex::<16>(kdf.get("salt").ok_or(Error)?)?;
-        let vault_id = unhex::<16>(o.get("vault_id").ok_or(Error)?)?;
-        let epoch = u32::try_from(num(o, "key_epoch")?).map_err(|_| Error)?;
-        let revision = num(o, "revision")?;
-        let wrapped = unhex_vec(o.get("wrapped_vk").ok_or(Error)?)?;
-
-        let auk = derive_auk(password, secret_key, &vault_id, &salt, &params)?;
+        let Header {
+            params,
+            salt,
+            vault_id,
+            epoch,
+            revision,
+            wrapped,
+        } = Header::parse(o)?;
         let vk = unwrap_vk(
-            &auk,
+            auk,
             &wrapped,
             &vault_id,
             epoch,

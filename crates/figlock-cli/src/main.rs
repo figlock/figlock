@@ -17,6 +17,7 @@ mod generate;
 mod http;
 mod import;
 mod prompt;
+mod quick;
 mod render;
 #[cfg(unix)]
 mod run;
@@ -77,6 +78,13 @@ enum Command {
     Run(RunArgs),
     /// Make an HTTP request through the broker, which adds the secret itself. You never see the secret.
     Http(HttpArgs),
+    /// Unlock with Touch ID or the device password instead of the master password and Secret Key.
+    QuickUnlock {
+        #[command(subcommand)]
+        action: QuickCmd,
+    },
+    /// Lock the vault: the next command asks for the full unlock (or Touch ID again if quick unlock is on).
+    Lock,
     /// Sign this device in to Google Drive, where a vault can be stored.
     Drive {
         #[command(subcommand)]
@@ -87,6 +95,16 @@ enum Command {
         #[command(subcommand)]
         action: SkillCmd,
     },
+}
+
+#[derive(Subcommand)]
+enum QuickCmd {
+    /// Turn it on. Asks for the master password and Secret Key once.
+    Enable,
+    /// Turn it off and delete the kept key.
+    Disable,
+    /// Show whether it is on.
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -475,6 +493,14 @@ fn run_command(_: RunArgs) -> error::Res<i32> {
     ))
 }
 
+fn quick_command(action: &QuickCmd, json: bool) -> error::Res<()> {
+    match action {
+        QuickCmd::Enable => quick::enable(json),
+        QuickCmd::Disable => quick::disable(json),
+        QuickCmd::Status => quick::status(json),
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
@@ -494,6 +520,8 @@ fn main() -> ExitCode {
         // These end with the exit code of the program or the request, not just success or failure.
         Command::Run(a) => run_command(a),
         Command::Http(a) => http_command(a),
+        Command::QuickUnlock { action } => ok(quick_command(&action, json)),
+        Command::Lock => ok(quick::lock(json)),
         Command::Drive { action } => ok(match action {
             DriveCmd::Login => drive::login(json),
             DriveCmd::Logout => drive::logout(json),

@@ -593,3 +593,18 @@ mod clipboard {
         assert!(text(&out.stderr).contains("no clipboard tool"));
     }
 }
+
+#[test]
+fn quick_unlock_is_off_by_default_and_commands_without_a_prompt_work() {
+    let e = Env::init();
+    assert!(e.ok(&["quick-unlock", "status"]).contains("off"));
+    assert!(e.ok(&["lock"]).contains("Locked"));
+    assert!(e.ok(&["quick-unlock", "disable"]).contains("off"));
+    // Turning it off twice is fine, and nothing was written for it.
+    assert!(e.ok(&["quick-unlock", "disable"]).contains("off"));
+    assert!(!e.home.path().join("quick-unlock.json").exists());
+    // Ordinary commands still ask for the full unlock.
+    let out = e.run_with(&["find"], None, "wrong password", Some(&e.secret_key));
+    assert!(!out.status.success());
+    assert!(text(&out.stderr).contains("could not unlock"));
+}

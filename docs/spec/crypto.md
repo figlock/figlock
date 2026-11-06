@@ -252,7 +252,7 @@ Quick unlock is local to a device and is never synced.
   (or the platform's equivalent wrap). A biometric check releases `QK` use and yields `AUK`.
 - The CLI broker daemon, desktop and mobile apps use the same blob format where the platform permits;
   where the platform gives only a keychain item protected by biometrics, that item holds `AUK` directly.
-- A full master-password unlock is required: after a reboot or app restart, after 7 days since the last full
+- A full master-password unlock is required: after a reboot or app restart, after 4 hours without use, after 7 days since the last full
   unlock, after 5 failed biometric attempts, after a password change or key rotation, and when the vault is
   locked by the user. These are defaults; users MAY tighten them.
 - Disabling quick unlock or revoking the device deletes `qu_blob` and `QK`.

@@ -528,6 +528,7 @@ dependencies = [
  "hex",
  "nix",
  "rpassword",
+ "security-framework",
  "serde_json",
  "sha2",
  "subtle",

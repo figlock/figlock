@@ -1,7 +1,8 @@
 //! This device's local state: where the vault lives and this device's private keys.
 //!
 //! `config.json` names the store folder and the device. `device.json` holds the device keys (owner-only
-//! permissions). Moving the keys into the platform keystore, and quick unlock, come with the broker daemon.
+//! permissions). Quick unlock keeps its policy state next to them (`quick.rs`); moving the device keys into the platform
+//! keystore is still to do.
 //! The master password and the Secret Key are never written here.
 
 use std::fs;
@@ -76,6 +77,11 @@ pub(crate) fn private_dir(path: &Path) -> Res<()> {
 pub(crate) fn private_dir(path: &Path) -> Res<()> {
     fs::create_dir_all(path)?;
     Ok(())
+}
+
+/// A new owner-only file; fails if it exists.
+pub(crate) fn create_private_file(path: &Path) -> std::io::Result<fs::File> {
+    create_private(path)
 }
 
 #[cfg(unix)]
