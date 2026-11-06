@@ -444,6 +444,15 @@ fn failed_init_removes_only_what_it_wrote() {
 }
 
 #[test]
+fn a_folder_without_vault_json_says_it_is_not_found() {
+    let e = Env::init();
+    fs::remove_file(e.store.path().join("vault.json")).unwrap();
+    let out = e.run(&["find"]);
+    assert!(!out.status.success());
+    assert!(text(&out.stderr).contains("vault.json not found"));
+}
+
+#[test]
 fn before_init_commands_explain_what_to_do() {
     let home = TempDir::new().unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_figlock"))
