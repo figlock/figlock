@@ -8,7 +8,7 @@ use std::time::Duration;
 use figlock_store::GoogleOAuth;
 use serde_json::json;
 
-use crate::config;
+use crate::config::{self, StoredDriveToken};
 use crate::error::{Fail, Res};
 
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -61,24 +61,37 @@ pub fn login(json: bool) -> Res<()> {
 }
 
 pub fn logout(json: bool) -> Res<()> {
-    let Some(token) = config::load_drive_token()? else {
-        if json {
-            println!("{}", json!({"status": "not-signed-in"}));
-        } else {
-            println!("Not signed in to Google Drive.");
+    let token = match config::read_drive_token_for_logout()? {
+        StoredDriveToken::Missing => {
+            if json {
+                println!("{}", json!({"status": "not-signed-in"}));
+            } else {
+                println!("Not signed in to Google Drive.");
+            }
+            return Ok(());
         }
-        return Ok(());
+        StoredDriveToken::Damaged => None,
+        StoredDriveToken::Token(t) => Some(t),
     };
     // Revoke first so the token is dead at Google even if someone copied the file. A failure (offline, or
     // already revoked) must not trap the user in a signed-in state, so the local copy goes either way.
-    let revoked = client().and_then(|c| c.revoke(&token).map_err(Fail::from));
+    let revoked = token.map(|t| GoogleOAuth::for_revoke().revoke(&t).is_ok());
     config::forget_drive_token()?;
-    match (&revoked, json) {
-        (Ok(()), true) => println!("{}", json!({"status": "signed-out", "revoked": true})),
-        (Ok(()), false) => println!("Signed out of Google Drive and revoked FigLock's access."),
-        (Err(_), true) => println!("{}", json!({"status": "signed-out", "revoked": false})),
-        (Err(_), false) => println!(
+    match (revoked, json) {
+        (Some(true), true) => println!("{}", json!({"status": "signed-out", "revoked": true})),
+        (Some(true), false) => {
+            println!("Signed out of Google Drive and revoked FigLock's access.")
+        }
+        (Some(false), true) => println!("{}", json!({"status": "signed-out", "revoked": false})),
+        (Some(false), false) => println!(
             "Signed out on this device, but Google could not be reached to revoke access. Remove FigLock under Google Account > Security > Third-party access to be sure."
+        ),
+        (None, true) => println!(
+            "{}",
+            json!({"status": "signed-out", "revoked": false, "reason": "damaged-token-file"})
+        ),
+        (None, false) => println!(
+            "Removed a damaged drive-token.json, so there was nothing to revoke. Remove FigLock under Google Account > Security > Third-party access to be sure."
         ),
     }
     Ok(())

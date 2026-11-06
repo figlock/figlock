@@ -141,10 +141,12 @@ fn save_drive_token_in(home: &Path, refresh_token: &str) -> Res<()> {
 }
 
 /// The stored Google refresh token, or `None` when this device is not signed in to Google.
+#[allow(dead_code)]
 pub fn load_drive_token() -> Res<Option<Zeroizing<String>>> {
     load_drive_token_in(&home()?)
 }
 
+#[allow(dead_code)]
 fn load_drive_token_in(home: &Path) -> Res<Option<Zeroizing<String>>> {
     let path = drive_token_path(home);
     #[cfg(unix)]
@@ -166,15 +168,37 @@ fn load_drive_token_in(home: &Path) -> Res<Option<Zeroizing<String>>> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(e.into()),
     };
-    let damaged =
-        || Fail::new("drive-token.json is damaged; sign in again with `figlock drive login`");
-    let v: Value = serde_json::from_slice(&raw).map_err(|_| damaged())?;
+    parse_drive_token(&raw).map(Some).ok_or_else(|| {
+        Fail::new("drive-token.json is damaged; sign in again with `figlock drive login`")
+    })
+}
+
+fn parse_drive_token(raw: &[u8]) -> Option<Zeroizing<String>> {
+    let v: Value = serde_json::from_slice(raw).ok()?;
     let token = v
         .get("refresh_token")
         .and_then(Value::as_str)
-        .filter(|t| !t.is_empty())
-        .ok_or_else(damaged)?;
-    Ok(Some(Zeroizing::new(token.to_owned())))
+        .filter(|t| !t.is_empty())?;
+    Some(Zeroizing::new(token.to_owned()))
+}
+
+/// What sign-out finds on disk. Unlike [`load_drive_token`] it reads a token file with loose permissions too:
+/// that file may have leaked, which is the best reason to revoke it.
+pub enum StoredDriveToken {
+    Missing,
+    Damaged,
+    Token(Zeroizing<String>),
+}
+
+pub fn read_drive_token_for_logout() -> Res<StoredDriveToken> {
+    match fs::read(drive_token_path(&home()?)) {
+        Ok(raw) => Ok(match parse_drive_token(&Zeroizing::new(raw)) {
+            Some(t) => StoredDriveToken::Token(t),
+            None => StoredDriveToken::Damaged,
+        }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(StoredDriveToken::Missing),
+        Err(e) => Err(e.into()),
+    }
 }
 
 /// Delete the stored Google refresh token. Missing is fine.

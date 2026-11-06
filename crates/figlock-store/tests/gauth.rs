@@ -251,6 +251,24 @@ fn revoke_posts_the_token_and_tolerates_an_already_dead_one() {
 }
 
 #[test]
+fn revoke_needs_no_client_secret() {
+    let google = FakeGoogle::start();
+    let oauth = figlock_store::GoogleOAuth::new("client-id", "")
+        .with_endpoints(
+            &format!("{}/auth", google.base),
+            &format!("{}/token", google.base),
+            &format!("{}/revoke", google.base),
+        )
+        .unwrap();
+    oauth.revoke("refresh-1").unwrap();
+    let s = google.state.lock().unwrap();
+    let (path, params) = s.seen.last().unwrap();
+    assert_eq!(path, "/revoke");
+    assert!(params.contains(&("token".into(), "refresh-1".into())));
+    assert!(!params.iter().any(|(k, _)| k == "client_secret"));
+}
+
+#[test]
 fn sign_in_then_use_the_vault_store_end_to_end() {
     let google = FakeGoogle::start();
     let drive_fake = FakeDrive::start();

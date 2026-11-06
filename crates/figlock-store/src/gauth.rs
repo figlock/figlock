@@ -95,6 +95,17 @@ impl GoogleOAuth {
         (!secret.is_empty()).then(|| Self::new(&id, &secret))
     }
 
+    /// A client that can only revoke: Google's revoke endpoint needs the token, not a client secret.
+    pub fn for_revoke() -> Self {
+        Self::from_env().unwrap_or_else(|| {
+            let id = std::env::var("FIGLOCK_GOOGLE_CLIENT_ID")
+                .ok()
+                .filter(|v| !v.is_empty())
+                .unwrap_or_else(|| DEFAULT_CLIENT_ID.to_owned());
+            Self::new(&id, "")
+        })
+    }
+
     /// Point at other endpoints (a test double). Plain `http` is accepted for loopback tests only.
     pub fn with_endpoints(mut self, auth: &str, token: &str, revoke: &str) -> Result<Self> {
         let parse = |s: &str| Url::parse(s).map_err(|_| StoreError::InvalidPath);
