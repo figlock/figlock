@@ -24,6 +24,7 @@ mod run;
 mod scrub;
 mod session;
 mod skill;
+mod store;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -254,8 +255,11 @@ pub enum KdfProfile {
 #[derive(Args)]
 pub struct InitArgs {
     /// Folder that will hold the encrypted vault (a synced folder works).
+    #[arg(long, conflicts_with = "drive", required_unless_present = "drive")]
+    pub store: Option<PathBuf>,
+    /// Keep the encrypted vault in your Google Drive instead (run `figlock drive login` first).
     #[arg(long)]
-    pub store: PathBuf,
+    pub drive: bool,
     /// Name shown for this device.
     #[arg(long, default_value = "cli")]
     pub device_name: String,

@@ -74,3 +74,31 @@ fn logout_deletes_a_damaged_token_file_and_says_so() {
     assert!(stdout.contains("damaged"), "{stdout}");
     assert!(!stdout.contains("could not be reached"), "{stdout}");
 }
+
+#[test]
+fn init_needs_exactly_one_place_to_keep_the_vault() {
+    let home = TempDir::new().unwrap();
+    let neither = figlock(&home, &["init"]);
+    assert!(!neither.status.success());
+    let both = figlock(
+        &home,
+        &["init", "--drive", "--store", "/nonexistent-figlock-test"],
+    );
+    assert!(!both.status.success());
+    assert!(String::from_utf8_lossy(&both.stderr).contains("cannot be used with"));
+    assert!(!home.path().join("config.json").exists());
+}
+
+#[test]
+fn init_on_drive_without_a_sign_in_changes_nothing() {
+    let home = TempDir::new().unwrap();
+    let out = figlock(&home, &["init", "--drive", "--kdf", "floor"]);
+    assert!(!out.status.success());
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(err.contains("figlock drive login"), "{err}");
+    let left: Vec<_> = std::fs::read_dir(home.path()).unwrap().collect();
+    assert!(
+        left.is_empty(),
+        "no config or device keys were written: {left:?}"
+    );
+}

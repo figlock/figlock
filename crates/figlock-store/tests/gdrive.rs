@@ -250,3 +250,60 @@ fn only_the_app_data_folder_is_touched() {
     // create; reaching here means neither was violated.
     assert!(count(&fake, "GET", "/drive/v3/files") >= 2);
 }
+
+#[test]
+fn reading_a_listed_blob_takes_one_request() {
+    let fake = FakeDrive::start();
+    let d = drive(&fake);
+    for i in 1..=3 {
+        d.put_new(&format!("log/aa/{i:08}.op"), b"x").unwrap();
+    }
+    d.list("log/aa/").unwrap();
+    let before = fake.hits();
+    for i in 1..=3 {
+        assert_eq!(d.get(&format!("log/aa/{i:08}.op")).unwrap(), b"x");
+    }
+    assert_eq!(
+        fake.hits() - before,
+        3,
+        "no per-file name lookup after a listing"
+    );
+}
+
+#[test]
+fn a_stale_listing_never_returns_old_or_wrong_data() {
+    let fake = FakeDrive::start();
+    let (mine, other) = (drive(&fake), drive(&fake));
+    mine.put_new("vault.json", b"v1").unwrap();
+    mine.list("").unwrap();
+
+    // Another client replaces the content in place, then deletes and recreates another path.
+    other.put_replace("vault.json", b"v2").unwrap();
+    assert_eq!(
+        mine.get("vault.json").unwrap(),
+        b"v2",
+        "same id, current bytes"
+    );
+
+    other.put_new("inbox/r1.req", b"first").unwrap();
+    mine.list("").unwrap();
+    other.delete("inbox/r1.req").unwrap();
+    assert_eq!(
+        mine.get("inbox/r1.req"),
+        Err(StoreError::NotFound),
+        "deleted file is not served"
+    );
+    other.put_new("inbox/r1.req", b"second").unwrap();
+    assert_eq!(
+        mine.get("inbox/r1.req").unwrap(),
+        b"second",
+        "a new file under the old name"
+    );
+
+    // This client's own writes drop its shortcut.
+    mine.list("").unwrap();
+    mine.delete("inbox/r1.req").unwrap();
+    assert_eq!(mine.get("inbox/r1.req"), Err(StoreError::NotFound));
+    mine.put_replace("vault.json", b"v3").unwrap();
+    assert_eq!(mine.get("vault.json").unwrap(), b"v3");
+}

@@ -14,8 +14,17 @@ use zeroize::Zeroizing;
 
 use crate::error::{Fail, Res};
 
+/// Where this device's vault lives.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StoreSpec {
+    /// A folder on this machine (possibly synced by iCloud Drive, Dropbox, Syncthing).
+    Folder(PathBuf),
+    /// The hidden appDataFolder in the Google Drive this device is signed in to (`figlock drive login`).
+    Drive,
+}
+
 pub struct Config {
-    pub store: PathBuf,
+    pub store: StoreSpec,
     pub device_name: String,
 }
 
@@ -91,10 +100,16 @@ fn create_private(path: &Path) -> std::io::Result<fs::File> {
 pub fn save(cfg: &Config, device: &DeviceKeys) -> Res<()> {
     let home = home()?;
     private_dir(&home)?;
-    let store = cfg
-        .store
-        .to_str()
-        .ok_or_else(|| Fail::new("the store path is not valid text"))?;
+    let body = match &cfg.store {
+        StoreSpec::Folder(path) => {
+            let path = path
+                .to_str()
+                .ok_or_else(|| Fail::new("the store path is not valid text"))?;
+            json!({ "store": path, "device_name": cfg.device_name })
+        }
+        StoreSpec::Drive => json!({ "store_kind": "drive", "device_name": cfg.device_name }),
+    }
+    .to_string();
     let keys = Zeroizing::new(
         json!({
             "device_id": hex::encode(device.device_id),
@@ -106,7 +121,6 @@ pub fn save(cfg: &Config, device: &DeviceKeys) -> Res<()> {
     let mut f = create_private(&device_path(&home))
         .map_err(|_| Fail::new("this device is already set up"))?;
     f.write_all(keys.as_bytes())?;
-    let body = json!({ "store": store, "device_name": cfg.device_name }).to_string();
     if let Err(e) = fs::write(config_path(&home), body) {
         let _ = fs::remove_file(device_path(&home));
         return Err(e.into());
@@ -231,8 +245,17 @@ pub fn load() -> Res<Config> {
             .map(str::to_owned)
             .ok_or_else(|| Fail::new("config.json is damaged"))
     };
+    let store = match v.get("store_kind").and_then(Value::as_str) {
+        None => StoreSpec::Folder(get("store")?.into()),
+        Some("drive") => StoreSpec::Drive,
+        Some(_) => {
+            return Err(Fail::new(
+                "config.json names a storage kind this version does not know",
+            ));
+        }
+    };
     Ok(Config {
-        store: get("store")?.into(),
+        store,
         device_name: get("device_name")?,
     })
 }

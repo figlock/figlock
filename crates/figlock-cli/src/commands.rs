@@ -5,11 +5,10 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use figlock_core::{Index, ItemType, ItemView, KdfParams, Vault, is_secret_field, validate_field};
-use figlock_store::{BlobStore, LocalFolder};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use crate::config::{self, Config};
+use crate::config::{self, Config, StoreSpec};
 use crate::error::{Fail, Res};
 use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
 use crate::session::{Session, id_hex, now_ms, title_of};
@@ -32,11 +31,24 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     if config::is_initialised()? {
         return Err(Fail::new("this device already has a vault set up"));
     }
-    let store = LocalFolder::open(&a.store)?;
-    if store.get("vault.json").is_ok() {
-        return Err(Fail::new(
-            "a vault already exists in that folder; use the device pairing flow to add this device",
-        ));
+    let spec = match &a.store {
+        Some(path) => {
+            std::fs::create_dir_all(path)?;
+            StoreSpec::Folder(std::fs::canonicalize(path)?)
+        }
+        None => StoreSpec::Drive,
+    };
+    let store = crate::store::open(&spec)?;
+    // Only a definite "not there" lets init continue: an unreachable or signed-out store must not look like
+    // an empty one, or a second vault could be created next to the first.
+    match store.get("vault.json") {
+        Err(figlock_store::StoreError::NotFound) => {}
+        Ok(_) => {
+            return Err(Fail::new(
+                "a vault already exists there; use the device pairing flow to add this device",
+            ));
+        }
+        Err(e) => return Err(e.into()),
     }
     let params = match a.kdf {
         KdfProfile::Default => KdfParams::DEFAULT,
@@ -45,7 +57,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     let password = prompt::new_password()?;
     let (vault, created) = Vault::create(&password, &a.device_name, params, now_ms())?;
     let cfg = Config {
-        store: std::fs::canonicalize(&a.store)?,
+        store: spec,
         device_name: a.device_name,
     };
     config::save(&cfg, vault.device_keys())?;
@@ -72,7 +84,10 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
             "secret_key": secret_key.as_str(),
         }))?;
     } else {
-        println!("Vault created in {}", cfg.store.display());
+        match &cfg.store {
+            StoreSpec::Folder(path) => println!("Vault created in {}", path.display()),
+            StoreSpec::Drive => println!("Vault created in your Google Drive (hidden app folder)"),
+        }
         println!("Secret Key: {}", secret_key.as_str());
     }
     eprintln!(

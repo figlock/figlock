@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use figlock_core::{DeviceId, Index, ItemId, ItemView, Vault};
-use figlock_store::{BlobStore, LocalFolder, StoreError};
+use figlock_store::{BlobStore, StoreError};
 
 use crate::config;
 use crate::error::{Fail, Res};
@@ -12,7 +12,7 @@ use crate::prompt;
 
 pub struct Session {
     pub vault: Vault,
-    store: LocalFolder,
+    store: Box<dyn BlobStore>,
 }
 
 pub fn now_ms() -> u64 {
@@ -44,13 +44,17 @@ fn short(device: &DeviceId) -> String {
 impl Session {
     pub fn open() -> Res<Session> {
         let cfg = config::load()?;
-        if !cfg.store.is_dir() {
-            return Err(Fail::new("the vault folder is missing or not available"));
-        }
-        let store = LocalFolder::open(&cfg.store)?;
-        let vault_json = store
-            .get("vault.json")
-            .map_err(|_| Fail::new("vault.json not found in the vault folder"))?;
+        let store = crate::store::open(&cfg.store)?;
+        let vault_json = store.get("vault.json").map_err(|e| match e {
+            StoreError::NotFound => Fail::new("vault.json not found in the vault folder"),
+            StoreError::Unauthorized => {
+                Fail::new("storage sign-in was refused; run `figlock drive login`")
+            }
+            StoreError::Unavailable => {
+                Fail::new("storage could not be reached; check the connection and try again")
+            }
+            e => e.into(),
+        })?;
         let mut records = Vec::new();
         for e in store.list("devices/")? {
             if let Ok(bytes) = store.get(&e.path) {
