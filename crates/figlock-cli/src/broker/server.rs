@@ -6,8 +6,8 @@ use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use super::Broker;
@@ -68,17 +68,10 @@ pub fn bind(path: &Path) -> Res<UnixListener> {
             Err(e) => return Err(e.into()),
         }
     }
-    // The socket is created under a mask that cannot leave it open to others, then checked.
-    // The mask is process-wide, so two swaps must not interleave (one would restore the other's mask and
-    // leave the process stuck on 0o177).
-    static UMASK: Mutex<()> = Mutex::new(());
-    let bound = {
-        let _swap = UMASK.lock().unwrap_or_else(|e| e.into_inner());
-        let old = nix::sys::stat::umask(nix::sys::stat::Mode::from_bits_truncate(0o177));
-        let bound = UnixListener::bind(path);
-        nix::sys::stat::umask(old);
-        bound
-    };
+    // The folder was just checked to be private to this user, so nobody else can reach the socket in the
+    // moment before it is tightened. No process-wide umask change: it would hand other threads files and
+    // folders without their owner's execute bit.
+    let bound = UnixListener::bind(path);
     let listener = bound?;
     fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
     if fs::metadata(path)?.permissions().mode() & 0o777 != 0o600 {
