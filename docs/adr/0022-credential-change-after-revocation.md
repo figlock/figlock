@@ -1,6 +1,6 @@
 # ADR-0022: Credential change after revocation
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-06
 - Decision: D22 in `docs/decisions.md`
 
