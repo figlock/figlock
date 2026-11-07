@@ -38,12 +38,16 @@ ditto -c -k --keepParent "$bin" "$zip"
 
 echo "Submitting to Apple notarization"
 notarytool_args=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
-result=$(xcrun notarytool submit "$zip" "${notarytool_args[@]}" --wait --output-format json)
-status=$(printf '%s' "$result" | /usr/bin/plutil -extract status raw -o - -)
-id=$(printf '%s' "$result" | /usr/bin/plutil -extract id raw -o - -)
+result=$(xcrun notarytool submit "$zip" "${notarytool_args[@]}" --wait --output-format json) || true
+status=$(printf '%s' "$result" | /usr/bin/plutil -extract status raw -o - - 2>/dev/null) || status=unknown
+id=$(printf '%s' "$result" | /usr/bin/plutil -extract id raw -o - - 2>/dev/null) || id=
 if [ "$status" != "Accepted" ]; then
-  echo "Notarization $id finished with status: $status" >&2
-  xcrun notarytool log "$id" "${notarytool_args[@]}" >&2 || true
+  echo "Notarization ${id:-without a submission id} finished with status: $status" >&2
+  if [ -n "$id" ]; then
+    xcrun notarytool log "$id" "${notarytool_args[@]}" >&2 || true
+  else
+    printf '%s\n' "$result" >&2
+  fi
   exit 1
 fi
 
