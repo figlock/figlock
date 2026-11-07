@@ -113,6 +113,12 @@ the end.
 - Lint errors, test failures and flaky tests are always worth fixing, even when you didn't cause them.
 - Plans, comparisons and reports for human review go through `inkloop` (`npx -y inkloop <file.html>`),
   kept under `.inkloop/` (gitignored). Once a review round ends, attach the HTML to its Paperclip task.
+- Everything on the website (`site/`) must be SEO friendly and easy for Google, other crawlers and search
+  or AI ingestion to list: semantic HTML with one `h1` and a clear heading order, a unique `title` and
+  meta description per page, canonical URLs, Open Graph and Twitter tags, `sitemap.xml` and `robots.txt`
+  listing every public page, descriptive link text and image alt text, and structured data (JSON-LD) where
+  it fits. Keep pages fast and static. Every new or changed page updates the sitemap and keeps Lighthouse
+  SEO at 100. The CSP and other security headers stay as they are.
 - Use `gh-axi` for GitHub operations when available.
 - Ask before using any harness feature that spawns a large swarm of subagents.
 - Writing: never use the em dash character; use a plain dash `-`.
