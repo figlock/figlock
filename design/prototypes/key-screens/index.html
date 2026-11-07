@@ -1,0 +1,1356 @@
+<!doctype html>
+<!--
+  FigLock - connected product prototype (reference only, not shipped code).
+  Handset markup and CSS derived from the Open Design iPhone shell (Apache-2.0).
+  Tokens are plain CSS custom properties on :root and :root[data-theme="dark"].
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FigLock prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* OD-LAYOUT-PRIMITIVES v1 - structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+</style>
+
+<style>
+/* ============ Design tokens: light (default) ============ */
+:root {
+  color-scheme: light;
+  --bg: #faf9f9;
+  --surface: #ffffff;
+  --surface-sunken: #f2f0f1;
+  --surface-raised: #ffffff;
+  --text: #1b191d;
+  --text-secondary: #5a555c;
+  --text-tertiary: #6b656d;
+  --text-on-primary: #ffffff;
+  --link: #3b5afe;
+  --border: #e5e2e4;
+  --border-strong: #8d878f;
+  /* primary trial #3B5AFE; previous indigo: #343d73 / hover #272e5a / subtle #eef0f9 */
+  --primary: #3b5afe;
+  --primary-hover: #2c46d6;
+  --primary-subtle: #eef1ff;
+  --agent: #0f6e7a;
+  --agent-subtle: #e6f3f5;
+  --success: #1e7a4d;
+  --success-subtle: #e8f5ee;
+  --warning: #8a5a00;
+  --warning-subtle: #fbf1dc;
+  --danger: #b3261e;
+  --danger-subtle: #fdecea;
+  --focus: #3b5afe;
+  --scrim: rgba(27, 25, 29, 0.45);
+  --shadow-float: 0 16px 40px rgba(27, 25, 29, 0.18);
+
+  /* type, spacing, radius, motion (theme independent) */
+  --font-ui: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-xs: 12px; --fs-sm: 13px; --fs-base: 14px; --fs-md: 16px;
+  --fs-lg: 18px; --fs-xl: 20px; --fs-2xl: 24px; --fs-3xl: 30px;
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px; --sp-16: 64px;
+  --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px; --r-full: 999px;
+  --t-80: 80ms; --t-120: 120ms; --t-200: 200ms; --t-320: 320ms;
+  --ease-out: cubic-bezier(.2, .7, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+}
+/* ============ Design tokens: dark ============ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121114;
+  --surface: #1b191d;
+  --surface-sunken: #0d0c0e;
+  --surface-raised: #242127;
+  --text: #f2f0f1;
+  --text-secondary: #c4bfc3;
+  --text-tertiary: #a29ca0;
+  --text-on-primary: #121114;
+  --link: #9fb0ff;
+  --border: #2a272c;
+  --border-strong: #6f6972;
+  --primary: #9fb0ff;
+  --primary-hover: #b8c4ff;
+  --primary-subtle: #161d4a;
+  --agent: #5cc8d6;
+  --agent-subtle: #0f2b30;
+  --success: #5cd08f;
+  --success-subtle: #0f2a1b;
+  --warning: #e8b04a;
+  --warning-subtle: #2e2208;
+  --danger: #ff8a80;
+  --danger-subtle: #3a1512;
+  --focus: #9fb0ff;
+  --scrim: rgba(0, 0, 0, 0.62);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+/* macOS window chrome (OS-drawn, not product tokens) */
+:root { --mac-close: #ff5f57; --mac-min: #febc2e; --mac-zoom: #28c840; }
+/* Handset shell values live in their own block so product tokens never collapse the device. */
+:root {
+  --phone-screen-width: 390px;
+  --phone-screen-height: 844px;
+  --phone-bezel: 12px;
+  --phone-outer-radius: 60px;
+  --phone-screen-radius: 48px;
+  --phone-safe-top: 59px;
+  --phone-safe-bottom: 34px;
+  --phone-system-fg: var(--text);
+  --phone-screen-bg: var(--bg);
+}
+
+/* ============ Base ============ */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; }
+body { min-height: 100dvh; background: var(--surface-sunken); color: var(--text); font-family: var(--font-ui); font-size: var(--fs-base); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+h1, h2, h3, p, dl, dd, dt, ul, fieldset, legend { margin: 0; padding: 0; }
+ul { list-style: none; }
+fieldset { border: 0; min-width: 0; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.mono { font-family: var(--font-mono); }
+.muted { color: var(--text-secondary); }
+.i12 { --od-icon-size: 12px; } .i16 { --od-icon-size: 16px; } .i20 { --od-icon-size: 20px; } .i24 { --od-icon-size: 24px; }
+.od-icon * { vector-effect: non-scaling-stroke; }
+
+/* ============ Prototype bar (reference chrome, not product UI) ============ */
+.pbar { position: sticky; top: 0; z-index: 50; background: var(--surface); border-bottom: 1px solid var(--border); padding: var(--sp-3) var(--sp-6); display: grid; gap: var(--sp-2); }
+.pbar-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3) var(--sp-6); }
+.pb-title { font-size: var(--fs-base); font-weight: 600; margin-right: auto; }
+.tabs { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.tab { min-height: 36px; padding: 0 var(--sp-3); border-radius: var(--r-sm); border: 1px solid transparent; background: transparent; color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 500; transition: background var(--t-80); }
+.tab[aria-current="true"] { background: var(--primary-subtle); color: var(--primary); border-color: var(--primary); font-weight: 600; }
+@media (hover: hover) { .tab:hover { background: var(--surface-sunken); } .tab[aria-current="true"]:hover { background: var(--primary-subtle); } }
+.hint { font-size: var(--fs-sm); color: var(--text-secondary); min-height: 20px; }
+.stage { display: grid; place-items: center; padding: var(--sp-6) var(--sp-4) var(--sp-8); }
+
+/* segmented control (labels wrap radios; bar uses buttons) */
+.seg { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--r-sm); background: var(--surface-sunken); box-shadow: inset 0 0 0 1px var(--border); }
+.seg > button, .seg > label { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: calc(var(--control-h, 36px) - 4px); padding: 0 var(--sp-4); border: 0; border-radius: calc(var(--r-sm) - 2px); background: transparent; color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 500; cursor: pointer; transition: background var(--t-120); }
+.seg > button[aria-pressed="true"], .seg > label:has(input:checked) { background: var(--surface-raised); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--border-strong); }
+.seg input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.seg > label:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ============ Frames ============ */
+.is-desktop { --control-h: 36px; --fs-body: var(--fs-base); --row-h: 56px; --hit: 36px; }
+.is-phone { --control-h: 44px; --fs-body: var(--fs-md); --row-h: 64px; --hit: 44px; }
+.desk { position: relative; width: 1280px; height: 800px; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--r-lg); background: var(--bg); color: var(--text); font-size: var(--fs-body); }
+.app { height: 100%; font-size: var(--fs-body); color: var(--text); background: var(--bg); }
+
+.phone-frame { position: relative; width: calc(var(--phone-screen-width, 393px) + var(--phone-bezel, 12px) * 2); height: calc(var(--phone-screen-height, 852px) + var(--phone-bezel, 12px) * 2); padding: var(--phone-bezel, 12px); border-radius: var(--phone-outer-radius, 60px); background: linear-gradient(145deg, rgba(255,255,255,.18), transparent 17%), linear-gradient(160deg, #3a3a3d 0%, #1d1d20 47%, #09090b 100%); box-shadow: inset 0 0 0 1px rgba(255,255,255,.13), inset 0 0 0 2px rgba(0,0,0,.9), 0 34px 70px -20px rgba(0,0,0,.55), 0 12px 28px -12px rgba(0,0,0,.36); isolation: isolate; }
+.phone-frame::before, .phone-frame::after { content: ""; position: absolute; z-index: -1; top: 102px; bottom: 102px; width: 3px; border-radius: 3px; background: linear-gradient(to bottom, transparent, rgba(255,255,255,.13) 12%, transparent 22%, transparent 78%, rgba(255,255,255,.08) 90%, transparent); }
+.phone-frame::before { left: -1px; } .phone-frame::after { right: -1px; }
+.hardware-button { position: absolute; width: 4px; border-radius: 3px; background: linear-gradient(90deg, #050506, #242428 58%, #08080a); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+.hardware-button.silent { left: -3px; top: 175px; height: 34px; }
+.hardware-button.volume-up { left: -3px; top: 225px; height: 62px; }
+.hardware-button.volume-down { left: -3px; top: 299px; height: 62px; }
+.hardware-button.power { right: -3px; top: 252px; height: 104px; }
+.phone-screen { position: relative; width: var(--phone-screen-width, 393px); height: var(--phone-screen-height, 852px); overflow: hidden; border-radius: var(--phone-screen-radius, 48px); background: var(--phone-screen-bg, #f7f7f8); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); font-family: var(--font-ui); font-size: var(--fs-body); color: var(--text); }
+.phone-content { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-top: var(--phone-safe-top, 59px); padding-bottom: var(--phone-safe-bottom, 34px); background: var(--phone-screen-bg, #f7f7f8); }
+.phone-content::-webkit-scrollbar { display: none; }
+.dynamic-island { position: absolute; z-index: 20; top: 11px; left: 50%; width: 126px; height: 37px; transform: translateX(-50%); border-radius: 999px; background: #000; box-shadow: inset 0 -1px 1px rgba(255,255,255,.05); pointer-events: none; }
+.status-bar { position: absolute; z-index: 15; top: 0; left: 0; right: 0; height: var(--phone-safe-top, 59px); display: flex; align-items: flex-start; justify-content: space-between; padding: 18px 27px 0; color: var(--phone-system-fg, #111214); font-size: 15px; font-weight: 650; letter-spacing: -.01em; pointer-events: none; }
+.status-icons { display: inline-flex; align-items: center; gap: 6px; }
+.status-icons svg { display: block; width: 17px; height: 11px; fill: currentColor; }
+.status-icons .battery { width: 25px; }
+.home-indicator { position: absolute; z-index: 20; left: 50%; bottom: 8px; width: 134px; height: 5px; transform: translateX(-50%); border-radius: 999px; background: var(--phone-system-fg, #111214); opacity: .9; pointer-events: none; }
+@media (max-width: 480px) {
+  .stage { padding: 0; }
+  .phone-frame { width: 100%; height: 100dvh; padding: 0; border-radius: 0; background: none; box-shadow: none; zoom: 1; }
+  .phone-frame::before, .phone-frame::after, .hardware-button { display: none; }
+  .phone-screen { width: 100%; height: 100%; border-radius: 0; }
+}
+
+/* ============ Shared components ============ */
+.wm { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: 700; font-size: var(--fs-lg); letter-spacing: -0.01em; color: var(--text); }
+.wm::before { content: ""; width: 28px; height: 28px; flex: none; background: url(logo/figlock-icon.svg) center / contain no-repeat; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: var(--control-h); padding: 0 var(--sp-4); border-radius: var(--r-sm); border: 1px solid transparent; font-size: var(--fs-body); font-weight: 600; line-height: 1.2; white-space: nowrap; transition: background var(--t-120), border-color var(--t-120); }
+.btn-primary { background: var(--primary); color: var(--text-on-primary); }
+.btn-secondary { background: var(--primary-subtle); color: var(--primary); }
+.btn-ghost { background: transparent; color: var(--primary); }
+.btn-danger { background: var(--danger); color: var(--text-on-primary); }
+.btn-block { width: 100%; }
+@media (hover: hover) {
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-secondary:hover { background: color-mix(in srgb, var(--primary) 14%, var(--primary-subtle)); }
+  .btn-ghost:hover { background: var(--primary-subtle); }
+  .btn-danger:hover { background: color-mix(in srgb, var(--danger) 86%, var(--text)); }
+}
+.btn:disabled, .btn[aria-disabled="true"] { background: var(--surface-sunken); color: var(--text-tertiary); border-color: var(--border); cursor: not-allowed; }
+.icon-btn { display: inline-grid; place-items: center; width: var(--hit); height: var(--hit); border-radius: var(--r-sm); border: 1px solid transparent; background: transparent; color: var(--text-secondary); }
+@media (hover: hover) { .icon-btn:hover { background: var(--surface-sunken); color: var(--text); } }
+
+.badge { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 2px var(--sp-2); border-radius: var(--r-xs); border: 1px solid var(--border); background: var(--surface-sunken); color: var(--text-secondary); font-size: var(--fs-xs); font-weight: 600; line-height: 1.5; max-width: 100%; }
+.badge-agent { background: var(--agent-subtle); color: var(--agent); border-color: transparent; }
+.badge-success { background: var(--success-subtle); color: var(--success); border-color: transparent; }
+.badge-warning { background: var(--warning-subtle); color: var(--warning); border-color: transparent; }
+.kbd { font-family: var(--font-mono); font-size: var(--fs-xs); padding: 0 6px; border: 1px solid var(--border); border-radius: var(--r-xs); color: var(--text-tertiary); background: var(--surface); line-height: 1.6; }
+
+.note { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--surface-sunken); color: var(--text-secondary); font-size: var(--fs-sm); line-height: 1.5; }
+.note > .od-icon { margin-top: 2px; }
+.note-warning { background: var(--warning-subtle); color: var(--warning); }
+.note-success { background: var(--success-subtle); color: var(--success); }
+.note-danger { background: var(--danger-subtle); color: var(--danger); }
+.note-agent { background: var(--agent-subtle); color: var(--text); }
+.note-agent > .od-icon { color: var(--agent); }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); }
+.card-pad { padding: var(--sp-5); display: grid; gap: var(--sp-4); }
+.h-title { font-size: var(--fs-xl); font-weight: 600; line-height: 1.3; }
+.h-sec { font-size: var(--fs-lg); font-weight: 600; line-height: 1.3; }
+.page-title { font-size: var(--fs-3xl); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.settings .card-pad { padding: 0; border: 0; background: none; gap: var(--sp-2); }
+.settings .card-pad > h2 { font-size: var(--fs-sm); font-weight: 600; color: var(--text-secondary); padding: 0 var(--sp-4); }
+.settings .card-pad > div:not(.note), .settings .card-pad > fieldset { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-1) var(--sp-4); }
+.settings .card-pad > fieldset { padding: var(--sp-3) var(--sp-4); }
+.settings { display: grid; gap: var(--sp-6); }
+.grab { align-self: center; width: 36px; height: 5px; margin: var(--sp-2) 0 0; border-radius: var(--r-full); background: var(--border-strong); flex: none; }
+.status-bar { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+.lead { font-size: var(--fs-body); }
+.small { font-size: var(--fs-sm); color: var(--text-secondary); }
+
+/* form controls */
+.fgroup { display: grid; gap: 6px; }
+.fgroup > label, .flabel { font-size: var(--fs-sm); font-weight: 500; color: var(--text-secondary); }
+.input-wrap { position: relative; display: flex; align-items: center; }
+.input { width: 100%; min-height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font-size: var(--fs-body); }
+.input-wrap .input { padding-right: calc(var(--hit) + 4px); }
+.input-wrap .icon-btn { position: absolute; right: 0; }
+.input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.input.mono { letter-spacing: .04em; }
+.err { display: flex; gap: 6px; align-items: flex-start; color: var(--danger); font-size: var(--fs-sm); }
+.err > .od-icon { margin-top: 2px; }
+select.input { appearance: auto; }
+
+.switch { display: inline-flex; align-items: center; justify-content: center; width: 59px; min-height: var(--control-h); padding: 0; border: 0; background: none; }
+.switch .track { position: relative; width: 51px; height: 31px; border-radius: var(--r-full); background: var(--surface-sunken); border: 1px solid var(--border-strong); transition: background var(--t-200); }
+.switch .thumb { position: absolute; top: 1px; left: 1px; width: 27px; height: 27px; border-radius: var(--r-full); background: var(--text-secondary); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25); transition: transform var(--t-200) var(--ease-out); }
+.switch[aria-checked="true"] .track { background: var(--primary); border-color: var(--primary); }
+.switch[aria-checked="true"] .thumb { transform: translateX(20px); background: var(--text-on-primary); }
+.sw-text { min-width: 24px; font-size: var(--fs-sm); color: var(--text-secondary); text-align: right; }
+
+.avatar { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-full); background: var(--primary-subtle); color: var(--primary); font-size: var(--fs-sm); font-weight: 600; flex: none; }
+.itile { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: var(--r-sm); background: var(--primary-subtle); color: var(--primary); }
+.is-phone .itile { width: 40px; height: 40px; }
+.itile-lg { width: 48px; height: 48px; }
+
+.bar { height: 3px; border-radius: var(--r-full); background: var(--border); overflow: hidden; margin-top: var(--sp-2); }
+.bar > i { display: block; height: 100%; background: var(--primary); transform-origin: left center; animation: drain var(--dur, 30s) linear forwards; animation-delay: var(--elapsed, 0s); }
+.bar.warn > i { background: var(--warning); }
+@keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+.empty { display: grid; justify-items: center; text-align: center; gap: var(--sp-3); max-width: 380px; margin: 0 auto; padding: var(--sp-10) var(--sp-4); }
+.empty .etile { display: grid; place-items: center; width: 48px; height: 48px; border-radius: var(--r-md); background: var(--surface-sunken); color: var(--text-secondary); }
+.empty .etile.warn { background: var(--warning-subtle); color: var(--warning); }
+.empty p { color: var(--text-secondary); }
+.skel { height: var(--row-h); margin: var(--sp-2) 0; border-radius: var(--r-md); background: var(--surface-sunken); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
+
+/* ============ Unlock ============ */
+.unlock { height: 100%; display: grid; place-items: center; padding: var(--sp-6); background: var(--bg); }
+.unlock-card { width: 100%; max-width: 400px; display: grid; gap: var(--sp-4); justify-items: stretch; }
+.is-desktop .unlock-card { padding: var(--sp-8); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.unlock-top { display: grid; justify-items: center; gap: var(--sp-3); text-align: center; }
+.unlock-logo { display: block; width: 72px; height: 72px; }
+.lockbadge { display: grid; place-items: center; width: 56px; height: 56px; border-radius: var(--r-full); background: var(--primary-subtle); color: var(--primary); }
+.acct { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-sunken); }
+.or { display: flex; align-items: center; gap: var(--sp-3); color: var(--text-tertiary); font-size: var(--fs-sm); }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.foot-note { text-align: center; font-size: var(--fs-sm); color: var(--text-tertiary); }
+
+/* ============ Desktop shell ============ */
+.win { display: grid; grid-template-columns: 232px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; }
+.side { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4) var(--sp-3); background: var(--surface-sunken); border-right: 1px solid var(--border); min-height: 0; overflow-y: auto; }
+.traffic { display: flex; gap: var(--sp-2); padding: var(--sp-1) var(--sp-2) var(--sp-2); }
+.traffic i { display: block; width: 12px; height: 12px; border-radius: var(--r-full); }
+.traffic i:nth-child(1) { background: var(--mac-close); }
+.traffic i:nth-child(2) { background: var(--mac-min); }
+.traffic i:nth-child(3) { background: var(--mac-zoom); }
+.searchbtn { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text-secondary); text-align: left; }
+.searchbtn > span { flex: 1; }
+.side nav { display: grid; gap: 2px; }
+.side-h { padding: var(--sp-3) var(--sp-3) var(--sp-1); font-size: var(--fs-xs); font-weight: 600; color: var(--text-tertiary); }
+.navbtn { display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid transparent; border-radius: var(--r-sm); background: transparent; color: var(--text-secondary); font-weight: 500; text-align: left; transition: background var(--t-80); }
+.navbtn > span:not(.count) { flex: 1; }
+.navbtn .count { font-size: var(--fs-xs); color: var(--text-tertiary); }
+.navbtn[aria-current="page"] { background: var(--primary-subtle); color: var(--primary); font-weight: 600; }
+@media (hover: hover) { .navbtn:hover { background: var(--surface); } .navbtn[aria-current="page"]:hover { background: var(--primary-subtle); } }
+.side-foot { margin-top: auto; display: grid; gap: var(--sp-3); }
+.syncrow { align-items: flex-start; font-size: var(--fs-xs); padding: 0 var(--sp-1); }
+.u-name { font-weight: 600; font-size: var(--fs-sm); }
+.u-sub { font-size: var(--fs-xs); color: var(--text-tertiary); }
+.main { min-width: 0; min-height: 0; overflow-y: auto; }
+.main.is-split { overflow: hidden; }
+.split { display: grid; grid-template-columns: 360px minmax(0, 1fr); height: 100%; }
+.listpane { display: flex; flex-direction: column; min-height: 0; background: var(--bg); border-right: 1px solid var(--border); }
+.lp-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-4) var(--sp-4) var(--sp-3); }
+.lp-search { padding: 0 var(--sp-4) var(--sp-2); }
+.lp-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--sp-3) var(--sp-4); }
+.detailpane { min-height: 0; overflow-y: auto; }
+.detailpane .detail { padding: var(--sp-8); max-width: 680px; }
+.page { padding: var(--sp-6); max-width: 820px; display: grid; gap: var(--sp-6); }
+.page-h { display: grid; gap: var(--sp-1); }
+.center-pane { height: 100%; display: grid; place-items: center; }
+
+.search { position: relative; display: flex; align-items: center; }
+.search > .od-icon { position: absolute; left: var(--sp-3); color: var(--text-tertiary); pointer-events: none; }
+.search .input { padding-left: 36px; padding-right: 48px; }
+.search .kbd { position: absolute; right: var(--sp-2); }
+.meta { padding: var(--sp-2) var(--sp-4); font-size: var(--fs-sm); color: var(--text-secondary); min-height: 32px; }
+.lp-scroll .meta { padding-left: var(--sp-1); }
+
+.list { display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
+.li { display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: var(--row-h); padding: var(--sp-2) var(--sp-4); border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; text-align: left; color: var(--text); transition: background var(--t-80); }
+.li .li-txt { flex: 1; min-width: 0; }
+.li-name { font-weight: 600; }
+.li-sub { font-size: var(--fs-sm); color: var(--text-secondary); }
+.why { display: block; margin-top: 2px; }
+.li.is-sel { background: var(--primary-subtle); }
+.list li:last-child .li { border-bottom: 0; }
+.li-chev { color: var(--text-tertiary); }
+@media (hover: hover) { .li:hover { background: var(--surface-sunken); } .li.is-sel:hover { background: var(--primary-subtle); } }
+
+/* ============ Detail ============ */
+.detail { display: grid; gap: var(--sp-5); align-content: start; }
+.is-phone .detail { padding: var(--sp-2) var(--sp-4) var(--sp-6); }
+.dhead { display: flex; align-items: center; gap: var(--sp-4); }
+.dhead h1 { font-size: var(--fs-2xl); font-weight: 600; line-height: 1.25; }
+.dhead h1:focus { outline: none; }
+.fcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); }
+.frow { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); }
+.frow:first-child { border-top: 0; }
+.frow-top { display: grid; gap: var(--sp-2); }
+.is-desktop .frow-top { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.acts { display: flex; gap: var(--sp-2); }
+.fval { overflow-wrap: anywhere; word-break: break-word; }
+.fval.mono { font-family: var(--font-mono); }
+.fval.masked { letter-spacing: .14em; font-size: var(--fs-lg); line-height: 1.4; }
+.fval.is-revealed { padding: var(--sp-1) var(--sp-2); margin: 2px 0; border-radius: var(--r-xs); background: var(--warning-subtle); color: var(--text); word-break: break-all; }
+.copied { display: flex; align-items: center; gap: 6px; margin-top: var(--sp-2); color: var(--success); font-size: var(--fs-sm); font-weight: 500; }
+.reveal-cap { font-size: var(--fs-xs); color: var(--text-secondary); margin-top: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.chip-host { display: inline-flex; align-items: center; padding: 2px var(--sp-2); border: 1px solid var(--border-strong); border-radius: var(--r-xs); font-family: var(--font-mono); font-size: var(--fs-sm); background: var(--surface); }
+.agentcard { padding: var(--sp-4); border: 1px solid var(--agent); border-radius: var(--r-md); background: var(--agent-subtle); display: grid; gap: var(--sp-3); }
+.agentcard.idle { border-color: var(--border); background: var(--surface); }
+.agentcard .ac-title { font-weight: 600; }
+.agentcard .ac-ic { color: var(--agent); }
+.agent-id { display: flex; align-items: center; gap: var(--sp-2); font-weight: 600; }
+.agent-id .od-icon { color: var(--agent); }
+
+/* ============ Phone chrome ============ */
+.app.is-phone { height: 100%; }
+.m-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 56px; padding: var(--sp-2) var(--sp-4); background: var(--bg); }
+.m-title { font-size: var(--fs-3xl); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; }
+.m-title:focus { outline: none; }
+.m-head .btn-ghost { padding: 0 var(--sp-2); color: var(--link); margin-left: calc(var(--sp-2) * -1); }
+.tabbar { display: grid; grid-template-columns: repeat(4, 1fr); background: color-mix(in srgb, var(--surface) 90%, transparent); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-top: 1px solid var(--border); }
+.tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 56px; border: 0; background: transparent; color: var(--text-secondary); font-size: var(--fs-xs); font-weight: 500; white-space: nowrap; }
+.tabbar button[aria-current="page"] { color: var(--primary); font-weight: 600; }
+.pull { text-align: center; font-size: var(--fs-xs); color: var(--text-tertiary); padding: var(--sp-1) 0 var(--sp-2); }
+.msearch { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-4) var(--sp-3); }
+.msearch .search { flex: 1; }
+.chiprail { padding-bottom: var(--sp-3); --od-rail-pad: 16px; }
+.chip { min-height: 44px; padding: 0 var(--sp-4); border: 1px solid var(--border-strong); border-radius: var(--r-full); background: var(--surface); color: var(--text-secondary); font-weight: 500; }
+.chip[aria-pressed="true"] { background: var(--primary-subtle); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.is-phone .meta { padding: 0 var(--sp-4) var(--sp-2); }
+.is-phone .lp-body { padding: 0 var(--sp-4) var(--sp-6); }
+.is-phone .page { padding: var(--sp-2) var(--sp-4) var(--sp-6); max-width: none; gap: var(--sp-5); }
+.offline-strip { margin: 0 var(--sp-4) var(--sp-3); }
+
+/* ============ Settings, devices, kit ============ */
+.srow { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) 0; border-top: 1px solid var(--border); }
+.srow:first-of-type { border-top: 0; }
+.srow .od-field { gap: 2px; }
+.srow .small { max-width: 52ch; }
+.slabel { font-weight: 500; }
+.is-desktop .srow select.input { width: 200px; }
+.is-phone .srow.sel { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+.dev { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3) var(--sp-4); padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); }
+.dev:first-child { border-top: 0; }
+.is-phone .dev { grid-template-columns: auto minmax(0, 1fr); }
+.is-phone .dev .btn { grid-column: 1 / -1; width: 100%; }
+.dev-name { font-weight: 600; }
+.pair-code { font-family: var(--font-mono); font-size: var(--fs-3xl); font-weight: 500; letter-spacing: .12em; padding: var(--sp-4); text-align: center; background: var(--surface-sunken); border-radius: var(--r-md); border: 1px solid var(--border); }
+.is-desktop .pair-grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--sp-6); align-items: start; }
+.is-phone .pair-grid { display: grid; gap: var(--sp-5); }
+.secretkey { display: block; font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: 500; letter-spacing: .02em; padding: var(--sp-5) var(--sp-4); text-align: center; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--r-md); overflow-wrap: anywhere; }
+.is-phone .secretkey { font-size: var(--fs-md); padding: var(--sp-5) var(--sp-2); letter-spacing: 0; }
+.secretkey .sep { color: var(--text-tertiary); }
+.steps { font-size: var(--fs-sm); color: var(--text-secondary); font-weight: 500; }
+
+/* ============ Overlay: approval sheet and dialogs ============ */
+.overlay { position: absolute; inset: 0; z-index: 12; display: flex; font-size: var(--fs-body); }
+.overlay.is-modal { align-items: center; justify-content: center; padding: var(--sp-6); }
+.overlay.is-sheet { align-items: flex-end; }
+.scrim { position: absolute; inset: 0; background: var(--scrim); }
+.sheet { position: relative; display: flex; flex-direction: column; background: var(--surface-raised); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-float); overflow: hidden; }
+.sheet.agent { border: 1.5px solid var(--agent); }
+.is-modal .sheet { width: min(620px, 100%); max-height: 100%; border-radius: var(--r-lg); }
+.is-sheet .sheet { width: 100%; max-height: calc(100% - var(--phone-safe-top, 59px)); border-radius: var(--r-xl) var(--r-xl) 0 0; }
+.overlay.enter .scrim { animation: fade-in var(--t-200) var(--ease-out); }
+.overlay.enter.is-modal .sheet { animation: pop-in var(--t-200) var(--ease-out); }
+.overlay.enter.is-sheet .sheet { animation: sheet-in var(--t-320) var(--ease-out); }
+.overlay.closing .scrim { animation: fade-out 140ms var(--ease-in) forwards; }
+.overlay.closing .sheet { animation: pop-out 140ms var(--ease-in) forwards; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { to { opacity: 0; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes pop-out { to { opacity: 0; transform: translateY(8px); } }
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-band { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-3) var(--sp-6); background: var(--agent-subtle); color: var(--agent); font-size: var(--fs-sm); font-weight: 600; flex-wrap: wrap; }
+.sheet-band .by { margin-left: auto; font-weight: 500; color: var(--text-secondary); font-size: var(--fs-xs); }
+.sheet-body { overflow-y: auto; padding: var(--sp-6); display: grid; gap: var(--sp-5); align-content: start; }
+.is-phone .sheet-band, .is-phone .sheet-body, .is-phone .sheet-foot { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+.sheet-body h2 { font-size: var(--fs-xl); font-weight: 600; line-height: 1.3; }
+.sheet-body h2:focus { outline: none; }
+.facts { display: grid; gap: var(--sp-4); }
+.fact { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: var(--sp-3); }
+.fact + .fact { border-top: 1px solid var(--border); padding-top: var(--sp-4); }
+.is-phone .fact { grid-template-columns: 1fr; gap: var(--sp-1); }
+.fact dt { font-size: var(--fs-sm); font-weight: 500; color: var(--text-secondary); }
+.fact dd { display: grid; gap: var(--sp-1); }
+.fact .sub { font-size: var(--fs-sm); color: var(--text-secondary); }
+.how { display: grid; gap: var(--sp-2); }
+.opt { position: relative; display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); cursor: pointer; min-height: var(--hit); }
+.opt input { margin: 3px 0 0; width: 16px; height: 16px; accent-color: var(--primary); flex: none; }
+.opt:has(input:checked) { border-color: var(--primary); background: var(--primary-subtle); }
+.opt:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+.opt .opt-t { display: flex; align-items: center; gap: var(--sp-2); font-weight: 600; flex-wrap: wrap; }
+.opt .opt-d { font-size: var(--fs-sm); color: var(--text-secondary); }
+.opt.warn { border-color: var(--warning); background: var(--warning-subtle); }
+.opt.warn .opt-t { color: var(--warning); }
+.opt.warn .opt-d { color: var(--warning); }
+.opt.warn:has(input:checked) { box-shadow: inset 0 0 0 1px var(--warning); }
+.sheet-foot { display: flex; gap: var(--sp-3); padding: var(--sp-4) var(--sp-6); border-top: 1px solid var(--border); background: var(--surface-raised); flex-wrap: wrap; }
+.is-phone .sheet-foot { flex-direction: column; padding-bottom: calc(var(--sp-4) + 12px); }
+.sheet-phase { display: grid; justify-items: center; text-align: center; gap: var(--sp-3); padding: var(--sp-8) var(--sp-4); }
+.bio { position: relative; display: grid; place-items: center; width: 72px; height: 72px; border-radius: var(--r-full); background: var(--primary-subtle); color: var(--primary); }
+.bio::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-full); border: 2px solid var(--primary); animation: ring 1.6s var(--ease-out) infinite; }
+@keyframes ring { from { transform: scale(1); opacity: .7; } to { transform: scale(1.5); opacity: 0; } }
+.bio.ok { background: var(--success-subtle); color: var(--success); }
+.bio.ok::after { display: none; }
+.toast { position: absolute; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); z-index: 13; max-width: calc(100% - 32px); padding: 10px var(--sp-4); background: var(--surface-raised); border: 1px solid var(--border-strong); border-radius: var(--r-md); box-shadow: var(--shadow-float); font-size: var(--fs-sm); color: var(--text); }
+.is-phone .toast { bottom: calc(var(--phone-safe-bottom, 34px) + 72px); }
+
+/* ============ Apple-style restraint ============
+   One accent (primary) for interactive state. Neutral fills for selection, tiles and secondary buttons.
+   Semantic colour (teal agent, warning, success, danger) lives on icons and short text only, never on large surfaces. */
+:root { --fill: color-mix(in srgb, var(--text) 7%, transparent); --fill-strong: color-mix(in srgb, var(--text) 12%, transparent); }
+.btn-secondary { background: var(--fill); color: var(--text); }
+@media (hover: hover) { .btn-secondary:hover { background: var(--fill-strong); } }
+.navbtn[aria-current="page"], .navbtn[aria-current="page"]:hover { background: var(--fill); color: var(--primary); }
+.li.is-sel, .li.is-sel:hover { background: var(--fill); }
+.itile, .avatar, .lockbadge { background: var(--fill); color: var(--text-secondary); }
+.agentcard { border-color: var(--border); background: var(--surface); }
+.sheet.agent { border: 1px solid var(--border); }
+.sheet-band { background: var(--surface-sunken); color: var(--text); }
+.sheet-band .od-icon { color: var(--agent); }
+.sheet-band .by { color: var(--text-secondary); }
+.note-warning, .note-success, .note-danger, .note-agent { background: var(--surface-sunken); color: var(--text-secondary); }
+.note-warning > .od-icon { color: var(--warning); }
+.note-success > .od-icon { color: var(--success); }
+.note-danger > .od-icon { color: var(--danger); }
+.how { gap: 0; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+.opt, .opt.warn { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; }
+.opt:last-child { border-bottom: 0; }
+.opt:has(input:checked), .opt.warn:has(input:checked) { background: var(--fill); box-shadow: none; }
+.opt.warn .opt-t { color: var(--text); }
+.opt.warn .opt-d { color: var(--text-secondary); }
+.opt.warn .od-icon { color: var(--warning); }
+.chip { background: var(--fill); border: 0; color: var(--text); }
+.chip[aria-pressed="true"] { background: var(--primary); color: var(--text-on-primary); }
+.tab[aria-current="true"], .tab[aria-current="true"]:hover { background: var(--fill); border-color: transparent; color: var(--primary); }
+.fval.is-revealed { background: var(--fill); }
+.bar.warn > i { background: var(--text-secondary); }
+
+/* Desktop sheet: compact so all six items and both actions fit at 1280 x 800 */
+.is-desktop .overlay.is-modal { padding: var(--sp-4); }
+.is-desktop .is-modal .sheet { width: min(680px, 100%); }
+.is-desktop .sheet-band { padding: var(--sp-2) var(--sp-6); }
+.is-desktop .sheet-body { padding: var(--sp-4) var(--sp-6); gap: var(--sp-3); }
+.is-desktop .facts { gap: var(--sp-3); }
+.is-desktop .fact { grid-template-columns: 104px minmax(0, 1fr); gap: var(--sp-3); }
+.is-desktop .fact + .fact { padding-top: var(--sp-3); }
+.is-desktop .opt { padding: var(--sp-2) var(--sp-3); }
+.is-desktop .sheet .note { padding: var(--sp-2) var(--sp-3); }
+.is-desktop .sheet-foot { padding: var(--sp-3) var(--sp-6); }
+.is-desktop .page { padding-bottom: var(--sp-10); }
+.sheet-body { min-height: 0; scroll-padding-bottom: var(--sp-4); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  .overlay *, .bio::after, .skel { animation: none !important; }
+  .bar > i { animation-timing-function: steps(30, end); }
+}
+</style>
+</head>
+<body>
+<header class="pbar" id="pbar"></header>
+<main class="stage" id="stage"></main>
+<div class="sr-only" id="live" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* Lucide paths, 1.5px stroke (non-scaling) */
+const P = {
+  lock: '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  fingerprint: '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
+  key: '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>',
+  bot: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff: '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  chevR: '<path d="m9 18 6-6-6-6"/>',
+  chevL: '<path d="m15 18-6-6 6-6"/>',
+  plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  sliders: '<line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/>',
+  phone: '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  circleAlert: '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  wifioff: '<path d="M12 20h.01"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/><path d="M5 12.859a10 10 0 0 1 5.17-2.69"/><path d="M19 12.859a10 10 0 0 0-2.007-1.523"/><path d="M2 8.82a15 15 0 0 1 4.177-2.643"/><path d="M22 8.82a15 15 0 0 0-11.288-3.764"/><path d="m2 2 20 20"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  inbox: '<polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  terminal: '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>'
+};
+const icon = (n, s = 16, cls = '') => `<svg class="od-icon i${s}${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[n]}</svg>`;
+
+/* ---------- sample data (all made up) ---------- */
+const PW = 'example-Passw0rd-NotReal';
+const ITEMS = [
+  { id: 'cloudflare', type: 'login', name: 'Cloudflare', sub: 'mira.okafor@example.com', alias: 'cf', domain: 'dash.cloudflare.com', site: 'https://dash.cloudflare.com', user: 'mira.okafor@example.com', secret: PW, tags: ['dns', 'work'], updated: 'Edited 2 days ago', notes: 'DNS and CDN for the studio site. Two-factor sign-in uses an authenticator app.' },
+  { id: 'fastmail', type: 'login', name: 'Fastmail', sub: 'mira@example.com', alias: 'mail', domain: 'app.fastmail.com', site: 'https://app.fastmail.com', user: 'mira@example.com', secret: PW + '2', tags: ['email'], updated: 'Edited 3 weeks ago', notes: 'Personal mail account.' },
+  { id: 'github', type: 'token', name: 'GitHub token', sub: 'Personal access token', alias: 'gh', domain: 'api.github.com', hosts: ['api.github.com'], secret: 'ghp_EXAMPLEexampleEXAMPLE', scopes: 'repo (read), workflow', tags: ['code', 'agents'], updated: 'Created 3 weeks ago', notes: 'Used by build tools and coding agents. Read access to the studio repositories.' },
+  { id: 'linear', type: 'login', name: 'Linear', sub: 'mira.okafor@example.com', alias: 'tasks', domain: 'linear.app', site: 'https://linear.app', user: 'mira.okafor@example.com', secret: PW + '3', tags: ['work'], updated: 'Edited 1 month ago', notes: 'Team planning workspace.' },
+  { id: 'notion', type: 'login', name: 'Notion', sub: 'mira.okafor@example.com', alias: 'wiki', domain: 'notion.so', site: 'https://www.notion.so', user: 'mira.okafor@example.com', secret: PW + '4', tags: ['work', 'docs'], updated: 'Edited 5 days ago', notes: 'Shared team wiki.' },
+  { id: 'sentry', type: 'token', name: 'Sentry auth token', sub: 'Organization token', alias: 'errors', domain: 'sentry.io', hosts: ['sentry.io'], secret: 'sntrys_EXAMPLEexampleEXAMPLE', scopes: 'project:read, event:read', tags: ['monitoring'], updated: 'Created 2 months ago', notes: 'Read-only token for release tracking.' },
+  { id: 'stripe', type: 'token', name: 'Stripe API key', sub: 'Restricted key, test mode', alias: 'payments', domain: 'api.stripe.com', hosts: ['api.stripe.com'], secret: 'rk_test_EXAMPLEexampleEXAMPLE', scopes: 'charges (read), customers (read)', tags: ['billing'], updated: 'Created 6 days ago', notes: 'Test mode only. Rotated every quarter.' },
+  { id: 'vercel', type: 'token', name: 'Vercel token', sub: 'Deploy token', alias: 'deploy', domain: 'api.vercel.com', hosts: ['api.vercel.com'], secret: 'vcl_EXAMPLEexampleEXAMPLE', scopes: 'deployments (write)', tags: ['hosting'], updated: 'Created 4 months ago', notes: 'Used by the release pipeline.' }
+];
+const byId = (id) => ITEMS.find((i) => i.id === id);
+
+/* ---------- state ---------- */
+const mq = matchMedia('(prefers-color-scheme: dark)');
+const state = {
+  vp: innerWidth <= 640 ? 'phone' : 'desktop',
+  appearance: 'light',
+  tab: 'unlock',
+  route: 'unlock', // unlock | vault | devices | kit | settings
+  vaultView: 'normal', // normal | empty | error
+  filter: 'all', q: '', selId: 'cloudflare', mDetail: false, mSearch: false,
+  sync: 'ok', loading: false,
+  unlock: { pw: '', error: '', busy: false, show: false },
+  reveal: null, copied: {},
+  req: { status: 'pending', method: 'http', until: 0 },
+  overlay: null, opener: null,
+  devices: [
+    { id: 'mac', name: 'Studio Mac', kind: 'laptop', meta: 'macOS 15 - Active now', current: true },
+    { id: 'iphone', name: "Mira's iPhone", kind: 'phone', meta: 'iOS 19 - Last active 2 hours ago' },
+    { id: 'work', name: 'Work laptop', kind: 'laptop', meta: 'Linux - Last active 5 days ago' }
+  ],
+  pair: { code: 'K7M-2QX', notice: '' },
+  kit: { step: 1, error: '', value: '', saved: false },
+  settings: { autoLock: '5', lockOnSleep: true, clipSecs: 30, quick: true, agentDuration: 15, agentMethod: 'http' }
+};
+const REVEAL_SECS = 10;
+const KIT_KEY = ['FL1', 'ABCD', 'EFGH', 'JKLM', 'NPQR', 'STUV'];
+const theme = () => (state.appearance === 'system' ? (mq.matches ? 'dark' : 'light') : state.appearance);
+const applyTheme = () => { document.documentElement.dataset.theme = theme(); };
+const bio = () => (state.vp === 'phone' ? 'Face ID' : 'Touch ID');
+const announce = (m) => { const l = $('#live'); l.textContent = ''; setTimeout(() => { l.textContent = m; }, 30); };
+
+/* ---------- search ---------- */
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[n];
+}
+function matchItem(it, q) {
+  const s = q.trim().toLowerCase();
+  if (!s) return { text: '' };
+  if (it.name.toLowerCase().includes(s)) return { text: 'Matches name' };
+  if (it.alias.includes(s)) return { text: `Matches alias "${it.alias}"` };
+  if (it.domain.includes(s)) return { text: `Matches domain ${it.domain}` };
+  const tag = it.tags.find((t) => t.includes(s));
+  if (tag) return { text: `Matches tag "${tag}"` };
+  if (s.length >= 3) {
+    const words = [...it.name.toLowerCase().split(/[^a-z0-9]+/), it.alias, ...it.domain.split(/[^a-z0-9]+/)].filter((w) => w.length >= 3);
+    const max = s.length >= 6 ? 2 : 1;
+    const hit = words.find((w) => lev(s, w) <= max);
+    if (hit) return { text: `Typo-corrected to "${hit}"`, typo: true, word: hit };
+  }
+  return null;
+}
+function getList() {
+  return ITEMS.filter((i) => state.filter === 'all' || i.type === state.filter)
+    .map((it) => ({ it, m: matchItem(it, state.q) })).filter((x) => x.m);
+}
+const filterTitle = () => ({ all: 'All items', login: 'Logins', token: 'API tokens' }[state.filter]);
+function metaText(list) {
+  const q = state.q.trim();
+  if (!q) return `${list.length} ${list.length === 1 ? 'item' : 'items'}`;
+  const typo = list.find((x) => x.m.typo);
+  if (typo) return `Showing results for "${typo.m.word}". You typed "${q}".`;
+  return `${list.length} ${list.length === 1 ? 'result' : 'results'}`;
+}
+
+/* ---------- list + detail views ---------- */
+function rowHTML(x, sel) {
+  const { it, m } = x;
+  return `<li><button type="button" class="li${sel ? ' is-sel' : ''}" data-action="open-item" data-id="${it.id}" data-fk="item-${it.id}"${sel ? ' aria-current="true"' : ''}>
+    <span class="itile">${icon(it.type === 'login' ? 'globe' : 'key', 20)}</span>
+    <span class="li-txt od-field"><span class="li-name od-truncate">${esc(it.name)}</span><span class="li-sub od-truncate">${esc(it.sub)}</span>${m.text ? `<span class="why"><span class="badge">${esc(m.text)}</span></span>` : ''}</span>
+    ${state.vp === 'phone' ? icon('chevR', 16, 'li-chev') : ''}
+  </button></li>`;
+}
+function skeletonHTML() { return '<div aria-hidden="true"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>'; }
+function listHTML(list) {
+  if (state.loading) return skeletonHTML();
+  if (!list.length) {
+    return `<div class="empty">
+      <span class="etile">${icon('search', 24)}</span>
+      <h2 class="h-sec">No items match "${esc(state.q.trim())}"</h2>
+      <p>Check the spelling, or try an alias or a domain. Clearing the search shows everything again.</p>
+      <button type="button" class="btn btn-secondary" data-action="clear-search" data-fk="clear-search">Clear search</button>
+    </div>`;
+  }
+  const rows = list.map((x) => rowHTML(x, state.vp === 'desktop' && x.it.id === state.selId)).join('');
+  return `<ul class="list" id="rows">${rows}</ul>`;
+}
+function emptyVault() {
+  return `<div class="empty">
+    <span class="etile">${icon('inbox', 24)}</span>
+    <h2 class="h-sec">Your vault is empty</h2>
+    <p>Add a login or an API token to get started. Everything you save is encrypted on this device before it syncs.</p>
+    <div class="od-cluster" style="justify-content:center">
+      <button type="button" class="btn btn-primary" data-action="new-item" data-fk="add-first">${icon('plus', 16)} Add your first item</button>
+      <button type="button" class="btn btn-secondary" data-action="import">${icon('upload', 16)} Import from a file</button>
+    </div>
+  </div>`;
+}
+function errorState() {
+  if (state.loading) {
+    return `<div class="empty"><span class="etile warn">${icon('refresh', 24)}</span><h2 class="h-sec">Trying to reach sync</h2><p>This usually takes a few seconds.</p><div style="width:100%">${skeletonHTML()}</div></div>`;
+  }
+  return `<div class="empty">
+    <span class="etile warn">${icon('wifioff', 24)}</span>
+    <h2 class="h-sec">FigLock can't reach sync right now</h2>
+    <p>Your vault is safe and still works on this device. Changes are saved here and will sync when the connection is back.</p>
+    <div class="od-cluster" style="justify-content:center">
+      <button type="button" class="btn btn-primary" data-action="retry" data-fk="retry">${icon('refresh', 16)} Try again</button>
+      <button type="button" class="btn btn-secondary" data-action="offline" data-fk="offline">Keep working offline</button>
+    </div>
+  </div>`;
+}
+
+/* detail */
+const fieldValue = (it, f) => ({ user: it.user, secret: it.secret, site: it.site }[f] || '');
+function copiedHTML(key) {
+  const c = state.copied[key]; if (!c) return '';
+  const el = ((Date.now() - c.start) / 1000).toFixed(2);
+  return `<div class="copied">${icon('check', 16)}<span>Copied. Clipboard clears in ${c.secs} seconds.</span></div><div class="bar" style="--dur:${c.secs}s;--elapsed:-${el}s" aria-hidden="true"><i></i></div>`;
+}
+function copyBtn(it, field, label) {
+  return `<button type="button" class="btn btn-secondary" data-action="copy" data-id="${it.id}" data-field="${field}" data-fk="copy-${it.id}-${field}" aria-label="Copy ${esc(label)}">${icon('copy', 16)} Copy</button>`;
+}
+function plainRow(it, field, label, value, mono) {
+  const key = `${it.id}:${field}`;
+  return `<div class="frow"><div class="frow-top"><div class="od-field"><span class="flabel">${label}</span><span class="fval${mono ? ' mono' : ''}">${esc(value)}</span></div><div class="acts">${copyBtn(it, field, label.toLowerCase())}</div></div>${copiedHTML(key)}</div>`;
+}
+function infoRow(label, valueHTML) { return `<div class="frow"><div class="od-field"><span class="flabel">${label}</span><span class="fval">${valueHTML}</span></div></div>`; }
+function secretRow(it, label) {
+  const key = `${it.id}:secret`;
+  const rv = state.reveal && state.reveal.key === key;
+  const el = rv ? ((Date.now() - state.reveal.start) / 1000).toFixed(2) : 0;
+  return `<div class="frow"><div class="frow-top">
+    <div class="od-field"><span class="flabel">${label}</span>
+      ${rv ? `<span class="fval mono is-revealed">${esc(it.secret)}</span><span class="reveal-cap">Hides again after ${REVEAL_SECS} seconds.</span>`
+           : `<span class="fval mono masked" aria-label="${label}, hidden">••••••••••••</span>`}
+    </div>
+    <div class="acts">
+      <button type="button" class="btn btn-secondary" data-action="toggle-reveal" data-id="${it.id}" data-fk="reveal-${it.id}" aria-label="${rv ? 'Hide' : 'Show'} ${label.toLowerCase()}">${icon(rv ? 'eyeoff' : 'eye', 16)} ${rv ? 'Hide' : 'Show'}</button>
+      ${copyBtn(it, 'secret', label.toLowerCase())}
+    </div></div>
+    ${rv ? `<div class="bar warn" style="--dur:${REVEAL_SECS}s;--elapsed:-${el}s" aria-hidden="true"><i></i></div>` : ''}
+    ${copiedHTML(key)}</div>`;
+}
+function agentCard(it) {
+  if (it.id !== 'github') {
+    return `<section class="agentcard idle" aria-label="Agent access"><div class="od-row-top"><span class="ac-ic">${icon('bot', 20)}</span><div class="od-field od-fill"><span class="ac-title">Agent access</span><span class="small">No agent has access. An agent has to ask, and you approve with ${bio()}.</span></div></div></section>`;
+  }
+  const r = state.req;
+  if (r.status === 'pending') {
+    return `<section class="agentcard" aria-label="Agent request"><div class="od-row-top"><span class="ac-ic">${icon('bot', 20)}</span><div class="od-field od-fill"><span class="ac-title">Claude Code is asking to use this token</span><span class="small">Nothing happens until you approve with ${bio()}.</span></div></div>
+      <div><button type="button" class="btn btn-secondary" data-action="review-request" data-fk="review-req">${icon('bot', 16)} Review request</button></div></section>`;
+  }
+  if (r.status === 'approved') {
+    const t = new Date(r.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const how = { http: 'through HTTP', env: 'as an environment variable', reveal: 'with the value revealed' }[r.method];
+    return `<section class="agentcard" aria-label="Agent access"><div class="od-row-top"><span class="ac-ic">${icon('bot', 20)}</span><div class="od-field od-fill"><span class="ac-title">Claude Code has access</span><span class="small">It can use this token ${how} until ${t}.</span></div></div>
+      <div class="od-cluster"><span class="badge badge-success">${icon('shield', 12)} Approved</span><button type="button" class="btn btn-secondary" data-action="end-access" data-fk="end-access">End access now</button></div></section>`;
+  }
+  const msg = r.status === 'denied' ? "You denied Claude Code's request. It can ask again." : 'Access ended. Claude Code has to ask again.';
+  return `<section class="agentcard idle" aria-label="Agent access"><div class="od-row-top"><span class="ac-ic">${icon('bot', 20)}</span><div class="od-field od-fill"><span class="ac-title">${r.status === 'denied' ? 'Request denied' : 'Access ended'}</span><span class="small">${msg}</span></div></div></section>`;
+}
+function detailHTML(it) {
+  if (!it) return `<div class="empty"><span class="etile">${icon('layers', 24)}</span><h2 class="h-sec">Select an item</h2><p>Choose an item from the list to see its details.</p></div>`;
+  const rows = it.type === 'login'
+    ? plainRow(it, 'user', 'Username', it.user) + secretRow(it, 'Password') + plainRow(it, 'site', 'Website', it.site) + infoRow('Alias', `<span class="mono">${esc(it.alias)}</span>`)
+    : secretRow(it, 'Token') + infoRow('Allowed hosts', `<span class="chips">${it.hosts.map((h) => `<span class="chip-host">${esc(h)}</span>`).join('')}</span>`) + infoRow('Scopes', esc(it.scopes)) + infoRow('Alias', `<span class="mono">${esc(it.alias)}</span>`);
+  return `<article class="detail" aria-labelledby="dtitle">
+    <div class="dhead"><span class="itile itile-lg">${icon(it.type === 'login' ? 'globe' : 'key', 24)}</span>
+      <div class="od-field od-fill"><h1 id="dtitle" tabindex="-1">${esc(it.name)}</h1><span class="small">${it.type === 'login' ? 'Login' : 'API token'} - ${esc(it.updated)}</span></div></div>
+    ${it.type === 'token' ? agentCard(it) : ''}
+    <div class="fcard">${rows}</div>
+    <div class="fcard"><div class="frow"><div class="od-field"><span class="flabel">Notes</span><span class="fval">${esc(it.notes)}</span></div></div></div>
+  </article>`;
+}
+
+/* ---------- unlock ---------- */
+function unlockView() {
+  const u = state.unlock;
+  const err = u.error ? `<div class="err">${icon('circleAlert', 16)}<span>${esc(u.error)}</span></div>` : '';
+  return `<div class="unlock"><div class="unlock-card">
+    <div class="unlock-top"><img class="unlock-logo" src="logo/figlock-icon.svg" alt="FigLock" width="72" height="72" />
+      <h1 class="h-title" id="pagetitle">Your vault is locked</h1></div>
+    <div class="acct"><span class="avatar" aria-hidden="true">MO</span><div class="od-field od-fill"><span class="u-name">Mira Okafor</span><span class="u-sub od-truncate">mira.okafor@example.com</span></div></div>
+    <div class="fgroup"><label for="pw">Master password</label>
+      <div class="input-wrap"><input class="input" id="pw" type="${u.show ? 'text' : 'password'}" autocomplete="off" value="${esc(u.pw)}" data-fk="pw" aria-describedby="pwErr"${u.error ? ' aria-invalid="true"' : ''}${u.busy ? ' disabled' : ''} />
+        <button type="button" class="icon-btn" data-action="toggle-pw" data-fk="toggle-pw" aria-label="${u.show ? 'Hide' : 'Show'} master password" aria-pressed="${u.show}">${icon(u.show ? 'eyeoff' : 'eye', 20)}</button></div>
+      <div id="pwErr" aria-live="polite">${err}</div></div>
+    <button type="button" class="btn btn-primary btn-block" data-action="unlock" data-fk="unlock"${u.busy ? ' disabled' : ''}>${u.busy ? 'Unlocking' : 'Unlock'}</button>
+    <div class="or"><span>or</span></div>
+    <button type="button" class="btn btn-secondary btn-block" data-action="unlock-bio" data-fk="unlock-bio"${u.busy ? ' disabled' : ''}>${icon('fingerprint', 20)} Unlock with ${bio()}</button>
+    <p class="foot-note">Your vault is end-to-end encrypted. Only you can read it.</p>
+  </div></div>`;
+}
+
+/* ---------- navigation chrome ---------- */
+function sideHTML() {
+  const c = { all: ITEMS.length, login: ITEMS.filter((i) => i.type === 'login').length, token: ITEMS.filter((i) => i.type === 'token').length };
+  const nav = (label, ic, route, filter, count) => {
+    const cur = state.route === route && (!filter || state.filter === filter);
+    return `<button type="button" class="navbtn" data-action="nav" data-route="${route}"${filter ? ` data-filter="${filter}"` : ''} data-fk="nav-${route}${filter || ''}"${cur ? ' aria-current="page"' : ''}>${icon(ic, 16)}<span>${label}</span>${count != null ? `<span class="count">${count}</span>` : ''}</button>`;
+  };
+  const sync = state.sync === 'ok'
+    ? `<span class="badge badge-success">${icon('shield', 12)} Synced and encrypted</span>`
+    : `<span class="badge badge-warning">${icon('wifioff', 12)} Offline, saved here</span>`;
+  return `<div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div>
+    <nav aria-label="Main">
+      <p class="side-h">Vault</p>
+      ${nav('All items', 'layers', 'vault', 'all', c.all)}${nav('Logins', 'globe', 'vault', 'login', c.login)}${nav('API tokens', 'key', 'vault', 'token', c.token)}
+      <p class="side-h">Account</p>
+      ${nav('Devices', 'phone', 'devices')}${nav('Emergency Kit', 'key', 'kit')}${nav('Settings', 'sliders', 'settings')}
+    </nav>
+    <div class="side-foot">
+      <div class="od-row syncrow">${sync}</div>
+      <div class="od-row"><span class="avatar" aria-hidden="true">MO</span><div class="od-field od-fill"><span class="u-name">Mira Okafor</span></div></div>
+      <button type="button" class="btn btn-secondary btn-block" data-action="lock" data-fk="lock">${icon('logout', 16)} Lock vault</button>
+    </div>`;
+}
+function tabbar() {
+  const t = (label, ic, route) => `<button type="button" data-action="nav" data-route="${route}" data-fk="tb-${route}"${state.route === route ? ' aria-current="page"' : ''}>${icon(ic, 20)}<span>${label}</span></button>`;
+  return `<nav class="tabbar" aria-label="Main">${t('Vault', 'layers', 'vault')}${t('Devices', 'phone', 'devices')}${t('Emergency Kit', 'key', 'kit')}${t('Settings', 'sliders', 'settings')}</nav>`;
+}
+function pageShell(title, sub, inner) {
+  if (state.vp === 'phone') {
+    return `<div class="od-screen"><header class="m-head"><h1 class="m-title" id="pagetitle" tabindex="-1">${title}</h1></header><div class="od-scroll" data-sk="mscroll"><div class="page">${sub ? `<p class="muted lead">${sub}</p>` : ''}${inner}</div></div>${tabbar()}</div>`;
+  }
+  return `<div class="page"><header class="page-h"><h1 class="page-title" id="pagetitle" tabindex="-1">${title}</h1>${sub ? `<p class="muted">${sub}</p>` : ''}</header>${inner}</div>`;
+}
+
+/* ---------- vault screens ---------- */
+function searchField() {
+  return `<div class="search"><label class="sr-only" for="q">Search vault</label>${icon('search', 16)}<input class="input" id="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search by name, alias or domain" value="${esc(state.q)}" data-fk="q" />${state.vp === 'desktop' ? '<kbd class="kbd" aria-hidden="true">/</kbd>' : ''}</div>`;
+}
+function deskVault() {
+  if (state.vaultView === 'empty') return `<div class="center-pane">${emptyVault()}</div>`;
+  if (state.vaultView === 'error') return `<div class="center-pane">${errorState()}</div>`;
+  const list = getList();
+  return `<div class="split"><section class="listpane" aria-label="Items">
+      <div class="lp-head"><h1 class="h-sec" id="pagetitle" tabindex="-1">${filterTitle()}</h1><button type="button" class="btn btn-secondary" data-action="new-item" data-fk="new-item">${icon('plus', 16)} New item</button></div>
+      <div class="lp-search">${searchField()}</div>
+      <div class="meta" id="meta" aria-live="polite">${esc(metaText(list))}</div>
+      <div class="lp-scroll" data-sk="list" id="results">${listHTML(list)}</div>
+    </section>
+    <section class="detailpane" data-sk="detail" id="detail" aria-label="Item details">${detailHTML(byId(state.selId))}</section></div>`;
+}
+function phoneVault() {
+  if (state.mDetail) {
+    const it = byId(state.selId);
+    return `<div class="od-screen"><header class="m-head"><button type="button" class="btn btn-ghost" data-action="back" data-fk="back">${icon('chevL', 20)} Vault</button><span class="od-spacer" style="width:44px;height:44px"></span></header>
+      <div class="od-scroll" data-sk="mscroll" id="detail">${detailHTML(it)}</div></div>`;
+  }
+  const head = `<header class="m-head"><h1 class="m-title" id="pagetitle" tabindex="-1">Vault</h1><div class="od-row"><button type="button" class="icon-btn" data-action="open-search" data-fk="open-search" aria-label="Search vault">${icon('search', 20)}</button><button type="button" class="icon-btn" data-action="new-item" data-fk="new-item" aria-label="New item">${icon('plus', 20)}</button></div></header>`;
+  let body;
+  if (state.vaultView === 'empty') body = emptyVault();
+  else if (state.vaultView === 'error') body = errorState();
+  else {
+    const list = getList();
+    const chips = [['all', 'All items'], ['login', 'Logins'], ['token', 'API tokens']].map(([f, l]) => `<button type="button" class="chip" data-action="filter" data-filter="${f}" data-fk="chip-${f}" aria-pressed="${state.filter === f}">${l}</button>`).join('');
+    body = `${state.mSearch || state.q ? `<div class="msearch">${searchField()}<button type="button" class="btn btn-ghost" data-action="close-search" data-fk="close-search">Cancel</button></div>` : '<p class="pull">Pull down to search</p>'}
+      <div class="od-rail chiprail" role="group" aria-label="Filter items">${chips}</div>
+      ${state.sync === 'offline' ? `<div class="note note-warning offline-strip">${icon('wifioff', 16)}<span>Offline. Changes are saved on this device and will sync later.</span></div>` : ''}
+      <div class="meta" id="meta" aria-live="polite">${esc(metaText(list))}</div>
+      <div class="lp-body" id="results">${listHTML(list)}</div>`;
+  }
+  return `<div class="od-screen">${head}<div class="od-scroll" data-sk="mscroll" id="mscroll">${body}</div>${tabbar()}</div>`;
+}
+
+/* ---------- devices ---------- */
+function devicesBody() {
+  const others = state.devices.filter((d) => !d.current).length;
+  const list = state.devices.map((d) => `<li class="dev"><span class="itile">${icon(d.kind, 20)}</span>
+      <div class="od-field"><span class="dev-name">${esc(d.name)}${d.current ? ' <span class="badge">This device</span>' : ''}</span><span class="small">${esc(d.meta)}</span></div>
+      ${d.current ? '' : `<button type="button" class="btn btn-secondary" data-action="revoke" data-id="${d.id}" data-fk="revoke-${d.id}" aria-label="Revoke device ${esc(d.name)}">Revoke device</button>`}</li>`).join('');
+  return `<div class="pair-grid">
+    <section class="card card-pad" aria-labelledby="pairH"><h2 class="h-sec" id="pairH">Pair a new device</h2>
+      <p class="small">On the new device, choose "Pair with a code" and enter this code. It works once and stays valid for 5 minutes.</p>
+      <div class="pair-code" aria-label="Pairing code ${esc(state.pair.code.split('').join(' '))}">${esc(state.pair.code)}</div>
+      <div class="od-cluster"><button type="button" class="btn btn-secondary" data-action="copy-code" data-fk="copy-code">${icon('copy', 16)} Copy code</button><button type="button" class="btn btn-secondary" data-action="gen-code" data-fk="gen-code">${icon('refresh', 16)} New code</button></div>
+      ${copiedHTML('pair')}
+    </section>
+    <section aria-labelledby="devH" class="od-stack" style="--od-gap:12px"><h2 class="h-sec" id="devH">Your devices</h2>
+      ${state.pair.notice ? `<div class="note note-success" role="status">${icon('check', 16)}<span>${esc(state.pair.notice)}</span></div>` : ''}
+      <ul class="fcard">${list}</ul>
+      ${others === 0 ? '<p class="small">No other devices are paired. Use a pairing code to add one.</p>' : ''}
+    </section></div>`;
+}
+
+/* ---------- emergency kit ---------- */
+function kitBody() {
+  const k = state.kit;
+  const shown = KIT_KEY.map((g, i) => `<span>${g}</span>`).join('<span class="sep">-</span>');
+  const hidden = KIT_KEY.map((g, i) => `<span>${i === 0 ? g : '••••'}</span>`).join('<span class="sep">-</span>');
+  if (k.step === 1) {
+    return `<section class="card card-pad" aria-labelledby="kitH"><span class="steps">Step 1 of 2</span><h2 class="h-sec" id="kitH">${icon('key', 20)} Your Secret Key</h2>
+      <p class="small">You need your Secret Key, together with your master password, to add a new device or recover your vault.</p>
+      <code class="secretkey" aria-label="Secret Key FL1, ABCD, EFGH, JKLM, NPQR, STUV">${shown}</code>
+      <div class="note note-warning">${icon('alert', 16)}<span><strong>Keep this safe, it is shown only once.</strong> Save the Emergency Kit somewhere only you can reach, such as a password-protected file or a printed copy.</span></div>
+      <div class="od-cluster">
+        ${k.saved ? `<span class="badge badge-success">${icon('check', 12)} Emergency Kit saved</span>` : `<button type="button" class="btn btn-secondary" data-action="kit-download" data-fk="kit-download">${icon('download', 16)} Download Emergency Kit</button>`}
+        <button type="button" class="btn btn-secondary" data-action="kit-copy" data-fk="kit-copy">${icon('copy', 16)} Copy Secret Key</button>
+      </div>
+      ${copiedHTML('kit')}
+      <div><button type="button" class="btn btn-primary" data-action="kit-continue" data-fk="kit-continue">I saved it, continue</button></div>
+    </section>`;
+  }
+  if (k.step === 2) {
+    return `<section class="card card-pad" aria-labelledby="kitH"><span class="steps">Step 2 of 2</span><h2 class="h-sec" id="kitH">Verify you saved it</h2>
+      <p class="small">The key is hidden now. Open your saved Emergency Kit and re-enter the last group of your Secret Key.</p>
+      <code class="secretkey" aria-label="Secret Key, hidden">${hidden}</code>
+      <div class="fgroup"><label for="kitv">Last group of your Secret Key</label>
+        <input class="input mono" id="kitv" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="4" value="${esc(k.value)}" data-fk="kitv" aria-describedby="kitHelp kitErr"${k.error ? ' aria-invalid="true"' : ''} />
+        <span class="small" id="kitHelp">Four characters, for example ABCD.</span>
+        <div id="kitErr" aria-live="polite">${k.error ? `<div class="err">${icon('circleAlert', 16)}<span>${esc(k.error)}</span></div>` : ''}</div></div>
+      <div class="od-cluster"><button type="button" class="btn btn-primary" data-action="kit-verify" data-fk="kit-verify">Verify</button><button type="button" class="btn btn-ghost" data-action="kit-back" data-fk="kit-back">Back</button></div>
+    </section>`;
+  }
+  return `<section class="card card-pad" aria-labelledby="kitH"><h2 class="h-sec" id="kitH">Secret Key saved</h2>
+    <div class="note note-success" role="status">${icon('shield', 16)}<span>Verified. Your Emergency Kit matches. FigLock will not show this Secret Key again.</span></div>
+    <code class="secretkey" aria-label="Secret Key, hidden">${hidden}</code>
+    <div><button type="button" class="btn btn-primary" data-action="kit-done" data-fk="kit-done">Back to vault</button></div></section>`;
+}
+
+/* ---------- settings ---------- */
+function settingsBody() {
+  const s = state.settings;
+  const opt = (v, l, cur) => `<option value="${v}"${String(cur) === String(v) ? ' selected' : ''}>${l}</option>`;
+  const sw = (key, label, help) => `<div class="srow"><div class="od-field od-fill"><span class="slabel" id="sl-${key}">${label}</span>${help ? `<span class="small">${help}</span>` : ''}</div>
+      <span class="sw-text" aria-hidden="true">${s[key] ? 'On' : 'Off'}</span><button type="button" class="switch" role="switch" aria-checked="${s[key]}" aria-labelledby="sl-${key}" data-action="toggle-setting" data-setting="${key}" data-fk="sw-${key}"><span class="track"><span class="thumb"></span></span></button></div>`;
+  const sel = (key, label, help, options) => `<div class="srow sel"><div class="od-field od-fill"><label class="slabel" for="s-${key}">${label}</label>${help ? `<span class="small">${help}</span>` : ''}</div>
+      <select class="input" id="s-${key}" data-setting="${key}" data-fk="s-${key}">${options}</select></div>`;
+  const ap = (v, l, ic) => `<label>${icon(ic, 16)}<input type="radio" name="appearance" value="${v}"${state.appearance === v ? ' checked' : ''} data-fk="ap-${v}" />${l}</label>`;
+  return `<section class="card card-pad" aria-labelledby="h-ap"><h2 class="h-sec" id="h-ap">Appearance</h2>
+      <fieldset><legend class="sr-only">Appearance</legend><div class="seg">${ap('system', 'System', 'monitor')}${ap('light', 'Light', 'sun')}${ap('dark', 'Dark', 'moon')}</div></fieldset>
+    </section>
+    <section class="card card-pad" aria-labelledby="h-sec"><h2 class="h-sec" id="h-sec">Security</h2><div>
+      ${sel('autoLock', 'Auto-lock', 'Lock the vault after this much time without activity.', opt('1', '1 minute', s.autoLock) + opt('5', '5 minutes', s.autoLock) + opt('15', '15 minutes', s.autoLock) + opt('60', '1 hour', s.autoLock))}
+      ${sw('lockOnSleep', 'Lock when the device sleeps', 'The vault locks as soon as the screen turns off.')}
+      ${sel('clipSecs', 'Clear clipboard after', 'Copied secrets are removed from the clipboard after this time.', opt(15, '15 seconds', s.clipSecs) + opt(30, '30 seconds', s.clipSecs) + opt(60, '1 minute', s.clipSecs) + opt(120, '2 minutes', s.clipSecs))}
+      ${sw('quick', `Quick unlock with ${bio()}`, 'Your master password is still needed after a restart.')}
+    </div></section>
+    <section class="card card-pad" aria-labelledby="h-ag"><h2 class="h-sec" id="h-ag"><span class="od-row">${icon('bot', 20, 'ac-ic')} Agent defaults</span></h2><div>
+      ${sel('agentDuration', 'Approval length', 'How long an approved agent can use a secret.', opt(5, '5 minutes', s.agentDuration) + opt(15, '15 minutes', s.agentDuration) + opt(30, '30 minutes', s.agentDuration) + opt(60, '1 hour', s.agentDuration))}
+      ${sel('agentMethod', 'Default way to use a secret', 'You can change this on each request.', opt('http', 'Use through HTTP', s.agentMethod) + opt('env', 'Inject as environment variable', s.agentMethod))}
+      <div class="srow"><div class="od-field od-fill"><span class="slabel">Approve with ${bio()}</span><span class="small">Every agent request needs it. This cannot be turned off.</span></div><span class="badge badge-success">${icon('shield', 12)} Always on</span></div>
+    </div>
+    <div class="note note-agent">${icon('info', 16)}<span>Reveal is never a default. It always needs its own approval.</span></div></section>
+    <section class="card card-pad" aria-labelledby="h-dv"><h2 class="h-sec" id="h-dv">Devices</h2>
+      <div class="srow"><div class="od-field od-fill"><span class="slabel">${state.devices.length} paired devices</span><span class="small">Pair a new device or revoke one you no longer use.</span></div><button type="button" class="btn btn-secondary od-fixed" data-action="nav" data-route="devices" data-fk="manage-devices">Manage devices</button></div>
+    </section>
+    ${state.vp === 'phone' ? `<button type="button" class="btn btn-secondary btn-block" data-action="lock" data-fk="lock">${icon('logout', 16)} Lock vault</button>` : ''}`;
+}
+
+/* ---------- compose app ---------- */
+function deskView() {
+  if (state.route === 'unlock') return unlockView();
+  let main;
+  if (state.route === 'vault') main = deskVault();
+  else if (state.route === 'devices') main = pageShell('Devices', 'Pair a new device with a code, or revoke one you no longer use.', devicesBody());
+  else if (state.route === 'kit') main = pageShell('Emergency Kit', 'Your Secret Key and a saved copy let you recover your vault.', kitBody());
+  else main = pageShell('Settings', '', `<div class="settings">${settingsBody()}</div>`);
+  const split = state.route === 'vault' && state.vaultView === 'normal';
+  return `<div class="win"><aside class="side">${sideHTML()}</aside><main class="main${split ? ' is-split' : ''}" data-sk="main">${main}</main></div>`;
+}
+function phoneView() {
+  if (state.route === 'unlock') return unlockView();
+  if (state.route === 'vault') return phoneVault();
+  if (state.route === 'devices') return pageShell('Devices', 'Pair a new device with a code, or revoke one you no longer use.', devicesBody());
+  if (state.route === 'kit') return pageShell('Emergency Kit', 'Your Secret Key and a saved copy let you recover your vault.', kitBody());
+  return pageShell('Settings', '', `<div class="settings">${settingsBody()}</div>`);
+}
+
+function render(opts = {}) {
+  const a = document.activeElement;
+  const fk = a && a.dataset ? a.dataset.fk : null;
+  const inOv = $('#overlay') && $('#overlay').contains(a);
+  const sk = $$('[data-sk]').map((e) => [e.dataset.sk, e.scrollTop]);
+  $('#app').innerHTML = state.vp === 'phone' ? phoneView() : deskView();
+  if (!opts.resetScroll) sk.forEach(([k, t]) => { const e = $(`[data-sk="${k}"]`); if (e) e.scrollTop = t; });
+  if (!inOv) {
+    if (opts.focus) { const e = $(opts.focus); if (e) e.focus({ preventScroll: true }); }
+    else if (fk) {
+      const e = $(`#app [data-fk="${fk}"]`);
+      if (e) { e.focus({ preventScroll: true }); if (/^(text|search|password)$/.test(e.type || '')) { try { const n = e.value.length; e.setSelectionRange(n, n); } catch (x) { /* noop */ } } }
+    }
+  }
+  updateBar();
+}
+function updateResults() {
+  const list = getList();
+  const r = $('#results'); if (r) r.innerHTML = listHTML(list);
+  const m = $('#meta'); if (m) m.textContent = metaText(list);
+}
+
+/* ---------- overlays ---------- */
+function approveHTML() {
+  const ov = state.overlay, it = byId('github'), dur = state.settings.agentDuration, m = ov.method;
+  const titles = {
+    http: `Approve Claude Code to use ${it.name} for ${dur} minutes`,
+    env: `Approve Claude Code to use ${it.name} as an environment variable for ${dur} minutes`,
+    reveal: `Approve Claude Code to reveal ${it.name} for ${dur} minutes`
+  };
+  const grab = state.vp === 'phone' ? '<span class="grab"></span>' : '';
+  const band = `${grab}<div class="sheet-band">${icon('bot', 20)}<span>FigLock approval request</span><span class="by">Drawn by FigLock, not by the agent</span></div>`;
+  if (ov.phase === 'waiting') {
+    return `<div class="scrim"></div><section class="sheet agent" role="dialog" aria-modal="true" aria-labelledby="ovTitle">${band}
+      <div class="sheet-phase"><span class="bio">${icon('fingerprint', 24, 'i24')}</span><h2 class="h-title" id="ovTitle" tabindex="-1">Waiting for ${bio()}</h2><p class="muted">Confirm on this device to approve. Nothing is shared until you do.</p></div>
+      <div class="sheet-foot"><button type="button" class="btn btn-secondary" data-action="approve-cancel" data-fk="approve-cancel">Cancel</button></div></section>`;
+  }
+  if (ov.phase === 'done') {
+    const t = new Date(state.req.until).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    return `<div class="scrim"></div><section class="sheet agent" role="dialog" aria-modal="true" aria-labelledby="ovTitle">${band}
+      <div class="sheet-phase"><span class="bio ok">${icon('shield', 24, 'i24')}</span><h2 class="h-title" id="ovTitle" tabindex="-1">Approved</h2><p class="muted">Claude Code can use ${esc(it.name)} until ${t}. You can end access at any time.</p></div></section>`;
+  }
+  const o = (v, ic, t, d, extra) => `<label class="opt${v === 'reveal' ? ' warn' : ''}"><input type="radio" name="how" value="${v}"${m === v ? ' checked' : ''} data-fk="how-${v}" /><span class="od-field od-fill"><span class="opt-t">${icon(ic, 16)} ${t}${extra || ''}</span><span class="opt-d">${d}</span></span></label>`;
+  return `<div class="scrim" data-action="dismiss"></div><section class="sheet agent" role="dialog" aria-modal="true" aria-labelledby="ovTitle">${band}
+    <div class="sheet-body">
+      <h2 id="ovTitle" tabindex="-1">${esc(titles[m])}</h2>
+      <dl class="facts">
+        <div class="fact"><dt>Who is asking</dt><dd><span class="agent-id">${icon('bot', 20)} Claude Code</span><span class="sub">Identified by its code signature, matching the tool you added to FigLock on 3 Nov. Running in Terminal, started by you at 10:42.</span></dd></div>
+        <div class="fact"><dt>What</dt><dd><span class="od-row"><span class="ac-ic" style="color:var(--text-secondary)">${icon('key', 16)}</span><strong>${esc(it.name)}</strong></span><span class="sub">API token - last used 3 days ago</span></dd></div>
+        <div class="fact"><dt>How</dt><dd><fieldset class="how"><legend class="sr-only">How Claude Code will use the token</legend>
+          ${o('http', 'globe', 'Use through HTTP', 'FigLock adds the token to requests. Claude Code never sees the value.', ' <span class="badge">Default</span>')}
+          ${o('env', 'terminal', 'Inject as environment variable', 'FigLock sets the variable for one session. Programs in that session can read it.')}
+          ${o('reveal', 'alert', 'Reveal the value', 'Claude Code would see the token in plain text, and this needs its own approval.')}
+        </fieldset></dd></div>
+        <div class="fact"><dt>Where</dt><dd><span class="chips">${it.hosts.map((h) => `<span class="chip-host">${esc(h)}</span>`).join('')}</span><span class="sub">${m === 'http' ? 'FigLock only sends the token to these hosts.' : 'FigLock can limit requests to these hosts only when it sends them for the agent.'}</span></dd></div>
+        <div class="fact"><dt>For how long</dt><dd><strong>${dur} minutes</strong><span class="sub">Access ends on its own. You can end it sooner from the item.</span></dd></div>
+      </dl>
+      ${m === 'reveal' ? `<div class="note note-warning">${icon('alert', 16)}<span>This is a separate approval from using the token. Only continue if this task needs the value itself.</span></div>` : ''}
+      <div class="note">${icon('info', 16)}<span>This stops accidental leaks. An agent with shell access could still print it.</span></div>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="btn btn-primary" data-action="approve" data-fk="approve">${icon('fingerprint', 20)} ${m === 'reveal' ? 'Approve reveal with ' : 'Approve with '}${bio()}</button>
+      <button type="button" class="btn btn-secondary" data-action="deny" data-fk="deny">Deny</button>
+    </div></section>`;
+}
+function revokeHTML() {
+  const d = state.devices.find((x) => x.id === state.overlay.deviceId);
+  if (!d) return '';
+  return `<div class="scrim" data-action="dismiss"></div><section class="sheet" role="alertdialog" aria-modal="true" aria-labelledby="ovTitle" aria-describedby="ovDesc">
+    ${state.vp === 'phone' ? '<span class="grab"></span>' : ''}
+    <div class="sheet-body"><h2 id="ovTitle" tabindex="-1">Revoke ${esc(d.name)}?</h2>
+      <p id="ovDesc" class="muted">${esc(d.name)} will be signed out right away and its local copy of your vault will be removed.</p></div>
+    <div class="sheet-foot"><button type="button" class="btn btn-secondary" data-action="dismiss" data-fk="cancel-revoke">Cancel</button><button type="button" class="btn btn-danger" data-action="revoke-confirm" data-fk="revoke-confirm">Revoke ${esc(d.name)}</button></div></section>`;
+}
+function renderOverlay(first) {
+  const o = $('#overlay'); if (!o) return;
+  const app = $('#app');
+  if (!state.overlay) { o.hidden = true; o.innerHTML = ''; o.className = 'overlay'; if (app) app.inert = false; return; }
+  o.className = `overlay ${state.vp === 'phone' ? 'is-sheet' : 'is-modal'}${first ? ' enter' : ''}`;
+  o.innerHTML = state.overlay.kind === 'approve' ? approveHTML() : revokeHTML();
+  o.hidden = false;
+  if (app) app.inert = true;
+}
+function openOverlay(ov) {
+  state.opener = { el: document.activeElement, fk: document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.fk : null };
+  state.overlay = ov;
+  renderOverlay(true);
+  const t = ov.kind === 'revoke' ? $('#overlay [data-fk="cancel-revoke"]') : $('#ovTitle');
+  if (t) t.focus({ preventScroll: true });
+}
+function closeOverlay() {
+  if (!state.overlay) return;
+  clearTimeout(state.overlay.t);
+  const o = $('#overlay'); o.classList.remove('enter'); o.classList.add('closing');
+  setTimeout(() => {
+    state.overlay = null; renderOverlay();
+    const op = state.opener; let target = null;
+    if (op) {
+      if (op.el && document.contains(op.el)) target = op.el;
+      else if (op.fk) target = $(`#app [data-fk="${op.fk}"]`) || $(`[data-fk="${op.fk}"]`);
+    }
+    target = target || $('#dtitle') || $('#pagetitle');
+    if (target) target.focus({ preventScroll: true });
+  }, 140);
+}
+function openApprove() { openOverlay({ kind: 'approve', method: state.settings.agentMethod, phase: 'review' }); }
+function approve() {
+  const ov = state.overlay; if (!ov || ov.phase !== 'review') return;
+  ov.phase = 'waiting'; renderOverlay(); $('#ovTitle').focus({ preventScroll: true });
+  ov.t = setTimeout(() => {
+    state.req = { status: 'approved', method: ov.method, until: Date.now() + state.settings.agentDuration * 60000 };
+    ov.phase = 'done'; renderOverlay(); $('#ovTitle').focus({ preventScroll: true }); render(); announce('Approved.');
+    ov.t = setTimeout(closeOverlay, 1400);
+  }, 1500);
+}
+
+/* ---------- clipboard, reveal ---------- */
+const copyTimers = {}; let revTimer = null; let toastTimer = null;
+function doCopy(key, text) {
+  try { if (navigator.clipboard) navigator.clipboard.writeText(text).catch(() => {}); } catch (e) { /* preview may block clipboard */ }
+  const secs = state.settings.clipSecs;
+  clearTimeout(copyTimers[key]);
+  state.copied[key] = { start: Date.now(), secs };
+  copyTimers[key] = setTimeout(() => {
+    delete state.copied[key];
+    try { if (navigator.clipboard) navigator.clipboard.writeText('').catch(() => {}); } catch (e) { /* noop */ }
+    render(); announce('Clipboard cleared.');
+  }, secs * 1000);
+  render(); announce(`Copied. Clipboard clears in ${secs} seconds.`);
+}
+function clearReveal() { state.reveal = null; clearTimeout(revTimer); }
+function toast(msg) {
+  const t = $('#toast'); if (!t) return;
+  t.textContent = msg; t.hidden = false; clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 3500);
+}
+
+/* ---------- navigation ---------- */
+function go(name) {
+  if (state.overlay) { clearTimeout(state.overlay.t); state.overlay = null; renderOverlay(); }
+  clearReveal(); state.mDetail = false; state.mSearch = false; state.tab = name;
+  const vault = (extra) => Object.assign(state, { route: 'vault', vaultView: 'normal', q: '', filter: 'all', selId: 'cloudflare' }, extra || {});
+  let focus = null;
+  switch (name) {
+    case 'unlock': Object.assign(state, { route: 'unlock' }); state.unlock = { pw: '', error: '', busy: false, show: false }; focus = '#pw'; break;
+    case 'list': vault(); break;
+    case 'login': vault({ mDetail: true }); break;
+    case 'token': vault({ selId: 'github', mDetail: true }); break;
+    case 'approval': vault({ selId: 'github', mDetail: true }); state.req = { status: 'pending', method: 'http', until: 0 }; break;
+    case 'devices': state.route = 'devices'; state.pair.notice = ''; break;
+    case 'kit': state.route = 'kit'; state.kit = { step: 1, error: '', value: '', saved: false }; break;
+    case 'settings': state.route = 'settings'; break;
+    case 'empty': vault(); state.vaultView = 'empty'; break;
+    case 'error': vault(); state.vaultView = 'error'; state.loading = false; break;
+  }
+  render({ resetScroll: true, focus });
+  if (name === 'approval') openApprove();
+}
+
+/* ---------- prototype bar ---------- */
+const TABS = [['unlock', '1 Unlock'], ['list', '2 List and search'], ['login', '3 Login detail'], ['token', '3 Token detail'], ['approval', '4 Agent approval'], ['devices', '5 Device pairing'], ['kit', '6 Emergency Kit'], ['settings', '7 Settings'], ['empty', 'Empty state'], ['error', 'Error state']];
+const HINTS = {
+  unlock: 'Any password unlocks. Try an empty field or "wrong" to see the error. The biometric button simulates a successful scan.',
+  list: 'Press / or Cmd+K to search (iPhone: pull the list down). Try "cloudflair", "gh", "payments" or "dash".',
+  login: 'Show reveals the password for 10 seconds. Copy clears the clipboard after the time chosen in Settings.',
+  token: 'The GitHub token has a pending agent request. Review request opens the approval sheet.',
+  approval: 'Pick a method. Reveal needs its own approval. Esc closes the sheet without a decision.',
+  devices: 'Revoke a device to see the confirmation step. Only the confirm button uses danger styling.',
+  kit: 'The last group to enter in step 2 is STUV.',
+  settings: 'Appearance here is linked to the theme toggle above.',
+  empty: 'A calm empty state with two next steps.',
+  error: 'Try again shows a short loading state. Keep working offline returns to the vault.'
+};
+function buildBar() {
+  $('#pbar').innerHTML = `<div class="pbar-top"><strong class="pb-title">FigLock prototype</strong>
+    <div class="seg" role="group" aria-label="Viewport"><button type="button" data-action="set-vp" data-vp="desktop">${icon('monitor', 16)} Desktop 1280 x 800</button><button type="button" data-action="set-vp" data-vp="phone">${icon('phone', 16)} iPhone 390 x 844</button></div>
+    <div class="seg" role="group" aria-label="Theme"><button type="button" data-action="set-theme" data-theme-set="light">${icon('sun', 16)} Light</button><button type="button" data-action="set-theme" data-theme-set="dark">${icon('moon', 16)} Dark</button></div></div>
+    <nav class="tabs" aria-label="Screens">${TABS.map(([k, l]) => `<button type="button" class="tab" data-action="go" data-go="${k}">${l}</button>`).join('')}</nav>
+    <p class="hint" id="hint"></p>`;
+}
+function updateBar() {
+  $$('[data-go]').forEach((b) => b.setAttribute('aria-current', String(b.dataset.go === state.tab)));
+  $$('[data-vp]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.vp === state.vp)));
+  $$('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === theme())));
+  const h = $('#hint'); if (h) h.textContent = HINTS[state.tab] || '';
+}
+
+/* ---------- stage ---------- */
+const STATUS = '<div class="status-bar" aria-hidden="true"><span>9:41</span><span class="status-icons"><svg viewBox="0 0 18 12"><path d="M1 10.5h2V8H1v2.5Zm4 0h2V5.5H5v5Zm4 0h2V3H9v7.5Zm4 0h2V.5h-2v10Z"/></svg><svg viewBox="0 0 18 12"><path d="M9 11.2 7.2 9.4a2.55 2.55 0 0 1 3.6 0L9 11.2Zm4.1-4.1-1.35 1.35a3.9 3.9 0 0 0-5.5 0L4.9 7.1a5.8 5.8 0 0 1 8.2 0Zm3-3-1.35 1.35a8.15 8.15 0 0 0-11.5 0L1.9 4.1a10.05 10.05 0 0 1 14.2 0Z"/></svg><svg class="battery" viewBox="0 0 27 12"><path fill-rule="evenodd" d="M2.5 1h19A2.5 2.5 0 0 1 24 3.5v5a2.5 2.5 0 0 1-2.5 2.5h-19A2.5 2.5 0 0 1 0 8.5v-5A2.5 2.5 0 0 1 2.5 1Zm0 1A1.5 1.5 0 0 0 1 3.5v5A1.5 1.5 0 0 0 2.5 10h19A1.5 1.5 0 0 0 23 8.5v-5A1.5 1.5 0 0 0 21.5 2h-19Zm.5 1h17.5A1.5 1.5 0 0 1 22 4.5v3A1.5 1.5 0 0 1 20.5 9H3V3Zm22 1.5a1.5 1.5 0 0 1 0 3v-3Z"/></svg></span></div><div class="dynamic-island" aria-hidden="true"></div><div class="home-indicator" aria-hidden="true"></div>';
+function buildStage() {
+  const st = $('#stage');
+  st.innerHTML = state.vp === 'desktop'
+    ? '<div class="desk is-desktop" id="frame"><div id="app" class="app"></div><div id="overlay" class="overlay" hidden></div><div id="toast" class="toast" role="status" hidden></div></div>'
+    : `<div class="phone-frame" id="frame" data-phone-shell data-platform="iphone"><span class="hardware-button silent" aria-hidden="true"></span><span class="hardware-button volume-up" aria-hidden="true"></span><span class="hardware-button volume-down" aria-hidden="true"></span><span class="hardware-button power" aria-hidden="true"></span>
+        <section class="phone-screen is-phone" data-phone-screen><main class="phone-content" data-phone-content><div id="app" class="app is-phone"></div></main><div id="overlay" class="overlay" hidden></div><div id="toast" class="toast" role="status" hidden></div>${STATUS}</section></div>`;
+  fit();
+  render({ resetScroll: true });
+  if (state.overlay) renderOverlay(false);
+}
+function fit() {
+  const f = $('#frame'); if (!f) return;
+  const bar = $('#pbar').offsetHeight;
+  const aw = innerWidth - 32, ah = innerHeight - bar - 48;
+  let z = 1;
+  if (state.vp === 'desktop') z = Math.min(1, aw / 1280, ah / 800);
+  else if (innerWidth > 480) z = Math.min(1, ah / 868, aw / 414);
+  f.style.zoom = innerWidth <= 480 && state.vp === 'phone' ? '' : String(Math.max(0.3, z));
+}
+
+/* ---------- events ---------- */
+function unlockNow() {
+  const u = state.unlock; if (u.busy) return;
+  const pw = u.pw.trim();
+  if (!pw) { u.error = 'Enter your master password to unlock.'; render({ focus: '#pw' }); return; }
+  if (pw.toLowerCase() === 'wrong') { u.error = "That password didn't unlock the vault. Check for typos and try again."; render({ focus: '#pw' }); return; }
+  u.error = ''; u.busy = true; render();
+  setTimeout(() => { state.route = 'vault'; state.tab = 'list'; state.vaultView = 'normal'; state.unlock = { pw: '', error: '', busy: false, show: false }; render({ resetScroll: true }); announce('Vault unlocked.'); }, 700);
+}
+function bioUnlock() {
+  const u = state.unlock; if (u.busy) return;
+  u.error = ''; u.busy = true; render();
+  setTimeout(unlockFinish, 900);
+}
+function unlockFinish() { state.route = 'vault'; state.tab = 'list'; state.vaultView = 'normal'; state.unlock = { pw: '', error: '', busy: false, show: false }; render({ resetScroll: true }); announce('Vault unlocked.'); }
+function focusSearch() {
+  if (state.route === 'unlock' || state.overlay) return;
+  if (state.route !== 'vault' || state.vaultView !== 'normal') { Object.assign(state, { route: 'vault', vaultView: 'normal', tab: 'list' }); }
+  state.mDetail = false;
+  if (state.vp === 'phone') state.mSearch = true;
+  render({ resetScroll: true, focus: '#q' });
+  const q = $('#q'); if (q) { q.focus(); q.select(); }
+}
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action]'); if (!el) return;
+  const d = el.dataset;
+  switch (d.action) {
+    case 'go': go(d.go); break;
+    case 'set-vp': if (state.vp !== d.vp) { state.vp = d.vp; buildStage(); } break;
+    case 'set-theme': state.appearance = d.themeSet; applyTheme(); if (state.route === 'settings') render(); updateBar(); break;
+    case 'toggle-pw': state.unlock.show = !state.unlock.show; render(); break;
+    case 'unlock': unlockNow(); break;
+    case 'unlock-bio': bioUnlock(); break;
+    case 'lock': clearReveal(); state.route = 'unlock'; state.tab = 'unlock'; state.unlock = { pw: '', error: '', busy: false, show: false }; render({ resetScroll: true, focus: '#pw' }); break;
+    case 'nav':
+      clearReveal(); state.route = d.route; state.mDetail = false; state.mSearch = false;
+      if (d.route === 'vault') { if (d.filter) state.filter = d.filter; state.vaultView = 'normal'; state.q = ''; }
+      state.tab = d.route === 'vault' ? 'list' : d.route;
+      if (d.route === 'kit') state.kit = { step: 1, error: '', value: '', saved: false };
+      state.pair.notice = ''; render({ resetScroll: true }); break;
+    case 'filter': state.filter = d.filter; render(); break;
+    case 'focus-search': focusSearch(); break;
+    case 'open-search': state.mSearch = true; render({ focus: '#q' }); break;
+    case 'close-search': state.mSearch = false; state.q = ''; render({ focus: '[data-fk="open-search"]' }); break;
+    case 'clear-search': state.q = ''; if (state.vp === 'phone') state.mSearch = true; render({ focus: '#q' }); break;
+    case 'open-item':
+      clearReveal(); state.selId = d.id;
+      if (state.vp === 'phone') { state.mDetail = true; state.tab = byId(d.id).type === 'login' ? 'login' : 'token'; render({ resetScroll: true, focus: '#dtitle' }); }
+      else { render(); }
+      break;
+    case 'back': clearReveal(); state.mDetail = false; state.tab = 'list'; render({ focus: `[data-fk="item-${state.selId}"]` }); break;
+    case 'new-item': toast('The item editor is outside this prototype.'); break;
+    case 'import': toast('Import is outside this prototype.'); break;
+    case 'retry': state.loading = true; render(); setTimeout(() => { state.loading = false; state.vaultView = 'normal'; state.sync = 'ok'; state.tab = 'list'; render({ resetScroll: true }); announce('Back in sync.'); }, 1000); break;
+    case 'offline': state.vaultView = 'normal'; state.sync = 'offline'; state.tab = 'list'; render({ resetScroll: true }); break;
+    case 'toggle-reveal': {
+      const key = `${d.id}:secret`;
+      if (state.reveal && state.reveal.key === key) { clearReveal(); announce('Hidden.'); }
+      else { clearReveal(); state.reveal = { key, start: Date.now() }; revTimer = setTimeout(() => { state.reveal = null; render(); announce('Hidden again.'); }, REVEAL_SECS * 1000); announce(`Shown for ${REVEAL_SECS} seconds.`); }
+      render(); break;
+    }
+    case 'copy': doCopy(`${d.id}:${d.field}`, fieldValue(byId(d.id), d.field)); break;
+    case 'review-request': openApprove(); break;
+    case 'end-access': state.req = { status: 'ended', method: 'http', until: 0 }; render(); announce('Access ended.'); break;
+    case 'approve': approve(); break;
+    case 'approve-cancel': { const ov = state.overlay; clearTimeout(ov.t); ov.phase = 'review'; renderOverlay(); const a = $('#overlay [data-fk="approve"]'); if (a) a.focus(); break; }
+    case 'deny': state.req = { status: 'denied', method: 'http', until: 0 }; closeOverlay(); render(); announce('Request denied.'); break;
+    case 'dismiss': closeOverlay(); break;
+    case 'gen-code': { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; const r = () => A[Math.floor(Math.random() * A.length)]; state.pair.code = `${r()}${r()}${r()}-${r()}${r()}${r()}`; delete state.copied.pair; render(); announce('New pairing code ready.'); break; }
+    case 'copy-code': doCopy('pair', state.pair.code); break;
+    case 'revoke': openOverlay({ kind: 'revoke', deviceId: d.id }); break;
+    case 'revoke-confirm': {
+      const dev = state.devices.find((x) => x.id === state.overlay.deviceId);
+      state.devices = state.devices.filter((x) => x.id !== state.overlay.deviceId);
+      state.pair.notice = `${dev.name} was revoked and signed out.`;
+      state.opener = { el: null, fk: 'gen-code' }; closeOverlay(); render(); announce(state.pair.notice); break;
+    }
+    case 'kit-download': state.kit.saved = true; render(); announce('Emergency Kit saved.'); break;
+    case 'kit-copy': doCopy('kit', KIT_KEY.join('-')); break;
+    case 'kit-continue': state.kit.step = 2; state.kit.error = ''; render({ focus: '#kitv' }); break;
+    case 'kit-back': state.kit.step = 1; state.kit.error = ''; render(); break;
+    case 'kit-verify': {
+      const v = state.kit.value.replace(/[\s-]/g, '').toUpperCase();
+      if (!v) state.kit.error = 'Enter the last group of your Secret Key.';
+      else if (v !== KIT_KEY[5]) state.kit.error = "That doesn't match the last group. Check your saved Emergency Kit and try again.";
+      else { state.kit.step = 3; state.kit.error = ''; delete state.copied.kit; render({ focus: '[data-fk="kit-done"]' }); announce('Secret Key verified.'); break; }
+      render({ focus: '#kitv' }); break;
+    }
+    case 'kit-done': state.route = 'vault'; state.tab = 'list'; state.vaultView = 'normal'; render({ resetScroll: true }); break;
+    case 'toggle-setting': state.settings[d.setting] = !state.settings[d.setting]; render(); break;
+  }
+});
+
+document.addEventListener('change', (e) => {
+  const t = e.target;
+  if (t.name === 'how' && state.overlay) { state.overlay.method = t.value; renderOverlay(); const c = $('#overlay input[name="how"]:checked'); if (c) c.focus(); }
+  else if (t.name === 'appearance') { state.appearance = t.value; applyTheme(); updateBar(); }
+  else if (t.dataset.setting && t.tagName === 'SELECT') {
+    const k = t.dataset.setting; state.settings[k] = ['clipSecs', 'agentDuration'].includes(k) ? Number(t.value) : t.value;
+  }
+});
+document.addEventListener('input', (e) => {
+  const t = e.target;
+  if (t.id === 'pw') state.unlock.pw = t.value;
+  else if (t.id === 'q') { state.q = t.value; updateResults(); }
+  else if (t.id === 'kitv') state.kit.value = t.value;
+});
+document.addEventListener('keydown', (e) => {
+  const t = e.target;
+  if (state.overlay) {
+    if (e.key === 'Escape') { e.preventDefault(); if (state.overlay.phase === 'waiting') { document.querySelector('[data-action="approve-cancel"]').click(); } else closeOverlay(); }
+    else if (e.key === 'Tab') {
+      const f = $$('#overlay button, #overlay input, #overlay [tabindex="0"]').filter((x) => !x.disabled);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement.id === 'ovTitle')) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    return;
+  }
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+  if (e.key === 'Enter' && t.id === 'pw') { e.preventDefault(); unlockNow(); return; }
+  if (e.key === 'Enter' && t.id === 'kitv') { e.preventDefault(); document.querySelector('[data-action="kit-verify"]').click(); return; }
+  if (state.route === 'unlock') return;
+  if ((e.key === '/' && !typing) || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k')) { e.preventDefault(); focusSearch(); return; }
+  if (e.key === 'Escape' && t.id === 'q') {
+    if (state.q) { state.q = ''; t.value = ''; updateResults(); }
+    else if (state.vp === 'phone') document.querySelector('[data-action="close-search"]').click();
+    else t.blur();
+    return;
+  }
+  if (t.id === 'q' && e.key === 'ArrowDown') { const f = $('#rows .li'); if (f) { e.preventDefault(); f.focus(); } return; }
+  if (t.classList && t.classList.contains('li') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const rows = $$('#rows .li'), i = rows.indexOf(t);
+    const n = rows[i + (e.key === 'ArrowDown' ? 1 : -1)];
+    e.preventDefault();
+    if (n) n.focus(); else if (e.key === 'ArrowUp' && $('#q')) $('#q').focus();
+  }
+});
+
+/* iPhone: pull the list down to open search (pointer drag or trackpad scroll up at the top) */
+let pull = null, wheelAcc = 0;
+const canPull = () => state.vp === 'phone' && state.route === 'vault' && !state.mDetail && !state.mSearch && state.vaultView === 'normal' && !state.overlay;
+document.addEventListener('pointerdown', (e) => { const s = e.target.closest('#mscroll'); pull = s && canPull() && s.scrollTop <= 0 ? e.clientY : null; });
+document.addEventListener('pointermove', (e) => { if (pull != null && e.clientY - pull > 64) { pull = null; state.mSearch = true; render({ focus: '#q' }); } });
+document.addEventListener('pointerup', () => { pull = null; });
+document.addEventListener('wheel', (e) => {
+  const s = e.target.closest('#mscroll');
+  if (!s || !canPull() || s.scrollTop > 0) { wheelAcc = 0; return; }
+  if (e.deltaY < 0) { wheelAcc += -e.deltaY; if (wheelAcc > 60) { wheelAcc = 0; state.mSearch = true; render({ focus: '#q' }); } } else wheelAcc = 0;
+}, { passive: true });
+
+window.addEventListener('resize', fit);
+mq.addEventListener('change', () => { if (state.appearance === 'system') { applyTheme(); updateBar(); } });
+
+/* ---------- boot ---------- */
+applyTheme();
+buildBar();
+buildStage();
+go('unlock');
+})();
+</script>
+</body>
+</html>
