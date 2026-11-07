@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FigLock logo suite</title>
+<link rel="icon" href="app-icons/figlock-favicon.svg" type="image/svg+xml" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  color-scheme: light;
+  --bg: #faf9f9; --surface: #ffffff; --surface-sunken: #f2f0f1;
+  --text: #1b191d; --text-secondary: #5a555c; --text-tertiary: #6b656d;
+  --border: #e5e2e4; --border-strong: #8d878f;
+  --primary: #3b5afe; --primary-subtle: #eef1ff; --text-on-primary: #ffffff;
+  --danger: #b3261e; --danger-subtle: #fdecea;
+  --ground-dark: #10142b; --ground-dark-text: #ffffff;
+  --logo-blue-top: #4a90f2; --logo-blue-bottom: #2e47e2; --logo-f: #3050e4;
+  --font-ui: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --fs-xs: 12px; --fs-sm: 13px; --fs-base: 14px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 20px; --fs-2xl: 24px; --fs-3xl: 30px;
+  --r-xs: 6px; --r-sm: 10px; --r-md: 14px; --r-lg: 20px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121114; --surface: #1b191d; --surface-sunken: #0d0c0e;
+  --text: #f2f0f1; --text-secondary: #c4bfc3; --text-tertiary: #a29ca0;
+  --border: #2a272c; --border-strong: #6f6972;
+  --primary: #9fb0ff; --primary-subtle: #161d4a; --text-on-primary: #121114;
+  --danger: #ff8a80; --danger-subtle: #3a1512;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: var(--fs-md); line-height: 1.6; }
+h1, h2, h3, p, ul { margin: 0; padding: 0; }
+ul { list-style: none; }
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+img { display: block; max-width: 100%; height: auto; }
+.top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; padding: 12px 24px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.top img { width: 32px; height: 32px; }
+.top strong { font-size: var(--fs-lg); }
+.top nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+.top a { padding: 6px 12px; border-radius: var(--r-sm); color: var(--text-secondary); text-decoration: none; font-size: var(--fs-sm); font-weight: 500; }
+.top a:hover { background: var(--primary-subtle); color: var(--primary); }
+.theme { min-height: 36px; padding: 0 16px; border: 0; border-radius: var(--r-sm); background: var(--primary-subtle); color: var(--primary); font: 600 var(--fs-sm) var(--font-ui); cursor: pointer; }
+main { max-width: 1080px; margin: 0 auto; padding: 48px 24px 96px; display: grid; gap: 64px; }
+.hero { display: grid; grid-template-columns: 200px 1fr; gap: 40px; align-items: center; }
+.hero img { width: 200px; height: 200px; }
+.hero h1 { font-size: var(--fs-3xl); line-height: 1.2; letter-spacing: -0.01em; }
+.hero p { margin-top: 12px; color: var(--text-secondary); max-width: 56ch; }
+section > h2 { font-size: var(--fs-2xl); line-height: 1.25; letter-spacing: -0.01em; }
+section > .lead { margin-top: 8px; color: var(--text-secondary); max-width: 64ch; }
+.grid { display: grid; gap: 16px; margin-top: 24px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.grid.wide { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.tile { display: grid; grid-template-rows: 1fr auto; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); overflow: hidden; }
+.stage { display: grid; place-items: center; min-height: 200px; padding: 32px; }
+.stage.light { background: #ffffff; }
+.stage.dark { background: var(--ground-dark); }
+.stage.check { background: repeating-conic-gradient(var(--surface-sunken) 0 25%, var(--surface) 0 50%) 0 0 / 20px 20px; }
+.stage.blue { background: #3b5afe; }
+.cap { padding: 12px 16px; border-top: 1px solid var(--border); display: grid; gap: 2px; }
+.cap b { font-size: var(--fs-base); }
+.cap span, .cap code { font-size: var(--fs-xs); color: var(--text-secondary); }
+code { font-family: var(--font-mono); }
+.colors { display: grid; gap: 16px; margin-top: 24px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.sw { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+.sw i { display: block; height: 72px; }
+.sw div { padding: 12px 16px; display: grid; }
+.sw b { font-size: var(--fs-base); }
+.sw code { font-size: var(--fs-xs); color: var(--text-secondary); }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 24px; align-items: start; }
+.clear { position: relative; display: inline-block; padding: 64px; border: 1px dashed var(--primary); background: var(--primary-subtle); }
+.clear img { width: 256px; height: 256px; outline: 1px solid var(--border-strong); }
+.clear em { position: absolute; font-style: normal; font: 500 var(--fs-xs) var(--font-mono); color: var(--primary); }
+.clear .t { top: 20px; left: 50%; transform: translateX(-50%); }
+.clear .l { left: 20px; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: left center; }
+.rules { display: grid; gap: 8px; color: var(--text-secondary); }
+.rules li { padding-left: 20px; position: relative; }
+.rules li::before { content: ""; position: absolute; left: 0; top: 0.7em; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.sizes { display: flex; align-items: flex-end; gap: 24px; flex-wrap: wrap; margin-top: 24px; padding: 24px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.sizes figure { margin: 0; display: grid; justify-items: center; gap: 8px; }
+.sizes figcaption { font: 500 var(--fs-xs) var(--font-mono); color: var(--text-secondary); }
+.bad { border-color: var(--danger); }
+.bad .cap { background: var(--danger-subtle); }
+.bad .cap b { color: var(--danger); }
+.bad .stage img { width: 120px; }
+table { width: 100%; border-collapse: collapse; margin-top: 24px; font-size: var(--fs-sm); }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--text-secondary); font-weight: 600; }
+@media (max-width: 720px) { .hero { grid-template-columns: 1fr; } .top nav { display: none; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <img src="figlock-icon.svg" alt="" width="32" height="32" />
+  <strong>FigLock logo suite</strong>
+  <nav aria-label="Sections">
+    <a href="#icon">Icon</a><a href="#mark">Mark</a><a href="#lockups">Lockups</a><a href="#apps">App icons</a><a href="#social">Social</a><a href="#colour">Colour</a><a href="#usage">Usage</a><a href="#files">Files</a>
+  </nav>
+  <button class="theme" type="button" id="theme" aria-pressed="false">Dark page</button>
+</header>
+
+<main>
+  <div class="hero">
+    <img src="figlock-icon.svg" alt="FigLock app icon: a white padlock with a small f on a blue rounded square" width="200" height="200" />
+    <div>
+      <h1>FigLock logo suite</h1>
+      <p>One master icon, drawn as a padlock with an f on its body, and the assets built from it: mark, wordmark, lockups, app icons for each platform, and social formats. Every file is SVG.</p>
+    </div>
+  </div>
+
+  <section id="icon">
+    <h2>Master icon</h2>
+    <p class="lead">The icon is the source for everything else. Its geometry is never redrawn. The flat version is for places where a gradient will not print or render.</p>
+    <div class="grid">
+      <div class="tile"><div class="stage light"><img src="figlock-icon.svg" width="160" height="160" alt="FigLock icon" /></div><div class="cap"><b>Icon, gradient</b><code>figlock-icon.svg</code></div></div>
+      <div class="tile"><div class="stage dark"><img src="figlock-icon.svg" width="160" height="160" alt="FigLock icon on a dark ground" /></div><div class="cap"><b>Icon on dark</b><span>Same file, no change needed</span></div></div>
+      <div class="tile"><div class="stage light"><img src="figlock-icon-flat.svg" width="160" height="160" alt="FigLock icon, flat" /></div><div class="cap"><b>Icon, flat</b><code>figlock-icon-flat.svg</code></div></div>
+    </div>
+  </section>
+
+  <section id="mark">
+    <h2>Mark</h2>
+    <p class="lead">The padlock alone, with the f cut out so the ground shows through. Use it where the squircle would be too heavy.</p>
+    <div class="grid">
+      <div class="tile"><div class="stage light"><img src="mark/figlock-mark-color.svg" height="170" width="130" alt="FigLock mark in blue" /></div><div class="cap"><b>Colour</b><code>mark/figlock-mark-color.svg</code></div></div>
+      <div class="tile"><div class="stage dark"><img src="mark/figlock-mark-white.svg" height="170" width="130" alt="FigLock mark in white" /></div><div class="cap"><b>White</b><code>mark/figlock-mark-white.svg</code></div></div>
+      <div class="tile"><div class="stage light"><img src="mark/figlock-mark-black.svg" height="170" width="130" alt="FigLock mark in black" /></div><div class="cap"><b>Black</b><code>mark/figlock-mark-black.svg</code></div></div>
+    </div>
+  </section>
+
+  <section id="lockups">
+    <h2>Wordmark and lockups</h2>
+    <p class="lead">The wordmark is set in Figtree Bold. The font is embedded in each SVG, so the files look the same everywhere.</p>
+    <div class="grid wide">
+      <div class="tile"><div class="stage light"><img src="lockups/figlock-lockup-horizontal.svg" width="320" height="90" alt="FigLock horizontal lockup" /></div><div class="cap"><b>Horizontal, light ground</b><code>lockups/figlock-lockup-horizontal.svg</code></div></div>
+      <div class="tile"><div class="stage dark"><img src="lockups/figlock-lockup-horizontal-on-dark.svg" width="320" height="90" alt="FigLock horizontal lockup for dark grounds" /></div><div class="cap"><b>Horizontal, dark ground</b><code>lockups/figlock-lockup-horizontal-on-dark.svg</code></div></div>
+      <div class="tile"><div class="stage light"><img src="lockups/figlock-lockup-stacked.svg" width="200" height="188" alt="FigLock stacked lockup" /></div><div class="cap"><b>Stacked, light ground</b><code>lockups/figlock-lockup-stacked.svg</code></div></div>
+      <div class="tile"><div class="stage dark"><img src="lockups/figlock-lockup-stacked-on-dark.svg" width="200" height="188" alt="FigLock stacked lockup for dark grounds" /></div><div class="cap"><b>Stacked, dark ground</b><code>lockups/figlock-lockup-stacked-on-dark.svg</code></div></div>
+      <div class="tile"><div class="stage light"><img src="lockups/figlock-wordmark.svg" width="260" height="89" alt="FigLock wordmark" /></div><div class="cap"><b>Wordmark, light ground</b><code>lockups/figlock-wordmark.svg</code></div></div>
+      <div class="tile"><div class="stage dark"><img src="lockups/figlock-wordmark-on-dark.svg" width="260" height="89" alt="FigLock wordmark for dark grounds" /></div><div class="cap"><b>Wordmark, dark ground</b><code>lockups/figlock-wordmark-on-dark.svg</code></div></div>
+    </div>
+  </section>
+
+  <section id="apps">
+    <h2>App icons</h2>
+    <p class="lead">Each platform gets its own file, drawn to that platform's rules, instead of one file resized.</p>
+    <div class="grid">
+      <div class="tile"><div class="stage check"><img src="app-icons/figlock-ios-1024.svg" width="140" height="140" alt="iOS icon" style="border-radius:31px" /></div><div class="cap"><b>iOS, 1024 square</b><span>Full bleed. The system applies the corner mask (shown rounded here).</span><code>app-icons/figlock-ios-1024.svg</code></div></div>
+      <div class="tile"><div class="stage check"><img src="app-icons/figlock-macos-1024.svg" width="160" height="160" alt="macOS icon" /></div><div class="cap"><b>macOS, 1024 canvas</b><span>824 squircle with margin and soft shadow</span><code>app-icons/figlock-macos-1024.svg</code></div></div>
+      <div class="tile"><div class="stage check"><img src="app-icons/figlock-maskable-1024.svg" width="140" height="140" alt="Maskable web icon" /></div><div class="cap"><b>Web, maskable</b><span>Mark sits inside the 80% safe zone</span><code>app-icons/figlock-maskable-1024.svg</code></div></div>
+      <div class="tile"><div class="stage check"><img src="app-icons/figlock-favicon.svg" width="96" height="96" alt="Favicon" /></div><div class="cap"><b>Favicon</b><span>Heavier strokes for 16 to 32 px</span><code>app-icons/figlock-favicon.svg</code></div></div>
+      <div class="tile"><div class="stage check"><div style="position:relative;width:140px;height:140px;border-radius:50%;overflow:hidden"><img src="app-icons/figlock-android-background.svg" width="140" height="140" alt="" style="position:absolute;inset:0" /><img src="app-icons/figlock-android-foreground.svg" width="140" height="140" alt="Android adaptive icon" style="position:absolute;inset:0" /></div></div><div class="cap"><b>Android adaptive</b><span>Background and foreground layers (shown with a circle mask)</span><code>app-icons/figlock-android-*.svg</code></div></div>
+      <div class="tile"><div class="stage light"><img src="app-icons/figlock-android-monochrome.svg" width="120" height="120" alt="Android monochrome icon" /></div><div class="cap"><b>Android themed icon</b><span>Single-colour layer the system tints</span><code>app-icons/figlock-android-monochrome.svg</code></div></div>
+    </div>
+  </section>
+
+  <section id="social">
+    <h2>Social</h2>
+    <div class="grid wide">
+      <div class="tile"><div class="stage light"><img src="social/figlock-social-card.svg" width="420" height="221" alt="FigLock social card" /></div><div class="cap"><b>Social card, 1200 x 630</b><code>social/figlock-social-card.svg</code></div></div>
+      <div class="tile"><div class="stage light"><img src="social/figlock-avatar-round.svg" width="160" height="160" alt="FigLock round avatar" /></div><div class="cap"><b>Round avatar</b><code>social/figlock-avatar-round.svg</code></div></div>
+    </div>
+  </section>
+
+  <section id="colour">
+    <h2>Colour</h2>
+    <p class="lead">The logo keeps its own blues. The product interface uses a separate primary, so the two are related but not identical.</p>
+    <div class="colors">
+      <div class="sw"><i style="background:linear-gradient(var(--logo-blue-top), var(--logo-blue-bottom))"></i><div><b>Logo gradient</b><code>#4A90F2 to #2E47E2</code></div></div>
+      <div class="sw"><i style="background:var(--logo-f)"></i><div><b>Letter f, flat icon</b><code>#3050E4</code></div></div>
+      <div class="sw"><i style="background:#3b5afe"></i><div><b>Interface primary, light</b><code>#3B5AFE</code></div></div>
+      <div class="sw"><i style="background:#9fb0ff"></i><div><b>Interface primary, dark</b><code>#9FB0FF</code></div></div>
+      <div class="sw"><i style="background:var(--ground-dark)"></i><div><b>Dark ground for lockups</b><code>#10142B</code></div></div>
+    </div>
+  </section>
+
+  <section id="usage">
+    <h2>Usage</h2>
+    <div class="two">
+      <div>
+        <div class="clear"><em class="t">x</em><em class="l">x</em><img src="figlock-icon.svg" width="256" height="256" alt="Icon with clear space" /></div>
+      </div>
+      <div>
+        <h3>Clear space</h3>
+        <ul class="rules" style="margin-top:12px">
+          <li>Keep a margin of at least one quarter of the icon's width (x) on every side.</li>
+          <li>The same margin applies to the lockups, measured from the icon's edge.</li>
+          <li>Place the icon on light or dark grounds with enough contrast. Use the dark-ground lockups on dark.</li>
+          <li>Pick the favicon file below 32 px. Use the master icon from 32 px up.</li>
+        </ul>
+      </div>
+    </div>
+    <h3 style="margin-top:40px">Minimum sizes</h3>
+    <div class="sizes">
+      <figure><img src="app-icons/figlock-favicon.svg" width="16" height="16" alt="" /><figcaption>16 favicon</figcaption></figure>
+      <figure><img src="app-icons/figlock-favicon.svg" width="32" height="32" alt="" /><figcaption>32 favicon</figcaption></figure>
+      <figure><img src="figlock-icon.svg" width="48" height="48" alt="" /><figcaption>48 icon</figcaption></figure>
+      <figure><img src="lockups/figlock-lockup-horizontal.svg" width="120" height="34" alt="" /><figcaption>120 wide lockup</figcaption></figure>
+      <figure><img src="lockups/figlock-lockup-stacked.svg" width="72" height="68" alt="" /><figcaption>72 wide stacked</figcaption></figure>
+    </div>
+    <h3 style="margin-top:40px">Do not</h3>
+    <div class="grid">
+      <div class="tile bad"><div class="stage light"><img src="figlock-icon.svg" alt="Stretched icon, shown as a misuse" style="transform:scaleX(1.5)" /></div><div class="cap"><b>Do not stretch</b><span>Scale proportionally only.</span></div></div>
+      <div class="tile bad"><div class="stage light"><img src="figlock-icon.svg" alt="Rotated icon, shown as a misuse" style="transform:rotate(18deg)" /></div><div class="cap"><b>Do not rotate</b><span>Keep the padlock upright.</span></div></div>
+      <div class="tile bad"><div class="stage light"><img src="figlock-icon.svg" alt="Recoloured icon, shown as a misuse" style="filter:hue-rotate(150deg) saturate(1.6)" /></div><div class="cap"><b>Do not recolour</b><span>Use the supplied colour, white or black files.</span></div></div>
+      <div class="tile bad"><div class="stage blue"><img src="figlock-icon.svg" alt="Icon on a similar blue ground, shown as a misuse" /></div><div class="cap"><b>Do not place on a similar blue</b><span>The squircle disappears. Use the white mark instead.</span></div></div>
+    </div>
+  </section>
+
+  <section id="files">
+    <h2>Files</h2>
+    <table>
+      <thead><tr><th>File</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><code>figlock-icon.svg</code></td><td>Master icon, the supplied code unchanged</td></tr>
+        <tr><td><code>figlock-icon-flat.svg</code></td><td>One-colour background, no gradient</td></tr>
+        <tr><td><code>mark/figlock-mark-{color,white,black}.svg</code></td><td>Padlock alone, f cut out</td></tr>
+        <tr><td><code>lockups/figlock-wordmark[-on-dark].svg</code></td><td>Name only</td></tr>
+        <tr><td><code>lockups/figlock-lockup-{horizontal,stacked}[-on-dark].svg</code></td><td>Icon with name</td></tr>
+        <tr><td><code>app-icons/*</code></td><td>iOS, macOS, Android layers, web maskable, favicon</td></tr>
+        <tr><td><code>social/*</code></td><td>Social card and round avatar</td></tr>
+      </tbody>
+    </table>
+    <p class="lead" style="margin-top:16px">These are vector files. PNG, ICO and ICNS exports are not included because no raster export tool was available. Export them from the SVGs at the sizes each store asks for.</p>
+  </section>
+</main>
+<script>
+(function () {
+  var b = document.getElementById('theme');
+  b.addEventListener('click', function () {
+    var d = document.documentElement.dataset.theme === 'dark';
+    document.documentElement.dataset.theme = d ? 'light' : 'dark';
+    b.setAttribute('aria-pressed', String(!d));
+    b.textContent = d ? 'Dark page' : 'Light page';
+  });
+})();
+</script>
+</body>
+</html>

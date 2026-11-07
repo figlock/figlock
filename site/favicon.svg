@@ -1,1 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="FigLock"><rect width="32" height="32" rx="8" fill="#663c74"/><path d="M16 6c-4.4 0-8 3.6-8 8 0 3.3 2 6.1 4.8 7.4V25h6.4v-3.6C22 20.1 24 17.3 24 14c0-4.4-3.6-8-8-8z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><circle cx="16" cy="14" r="2" fill="#fff"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="FigLock favicon">
+  <title>FigLock favicon</title>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4A90F2"/><stop offset="1" stop-color="#2E47E2"/></linearGradient></defs>
+  <rect width="64" height="64" rx="14" fill="url(#bg)"/>
+  <path d="M21 30 V21 a11 11 0 0 1 22 0 V30" fill="none" stroke="#fff" stroke-width="6.5"/>
+  <rect x="13" y="28" width="38" height="29" rx="5" fill="#fff"/>
+  <path d="M32 50 V43 C32 40.3 33.4 39 36.2 39" fill="none" stroke="#3050E4" stroke-width="4.6" stroke-linecap="round"/>
+  <path d="M28.6 44.6 H36" fill="none" stroke="#3050E4" stroke-width="3.4" stroke-linecap="round"/>
+</svg>
