@@ -1,0 +1,101 @@
+name: Release (macOS)
+
+# Builds a universal figlock binary, signs it with the Developer ID certificate and notarizes it.
+# Publishing the result (GitHub release, install.sh, Homebrew) is FIG-32. Setup is in docs/macos-signing.md.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  sign:
+    runs-on: macos-latest
+    environment: release
+    env:
+      KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+
+      - name: Check signing secrets are set
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          for v in MACOS_CERT_P12 MACOS_CERT_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER; do
+            if [ -z "${!v}" ]; then
+              echo "::error::secret $v is not set, see docs/macos-signing.md"
+              exit 1
+            fi
+          done
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build universal binary
+        env:
+          FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET: ${{ secrets.FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET }}
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo build --release --locked -p figlock-cli --target aarch64-apple-darwin
+          cargo build --release --locked -p figlock-cli --target x86_64-apple-darwin
+          mkdir -p dist
+          lipo -create -output dist/figlock \
+            target/aarch64-apple-darwin/release/figlock \
+            target/x86_64-apple-darwin/release/figlock
+
+      - name: Import certificate into a temporary keychain
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain"
+          printf '%s' "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          identity=$(security find-identity -v -p codesigning "$keychain" | awk '/Developer ID Application/ {print $2; exit}')
+          if [ -z "$identity" ]; then
+            echo "::error::no Developer ID Application identity in the imported certificate"
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+          echo "SIGN_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+      - name: Sign and notarize
+        env:
+          NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          umask 077
+          printf '%s' "$NOTARY_KEY" > "$RUNNER_TEMP/notary.p8"
+          NOTARY_KEY_PATH="$RUNNER_TEMP/notary.p8" scripts/sign-macos.sh dist/figlock
+
+      - name: Verify the signed archive
+        run: |
+          mkdir verify
+          ditto -x -k dist/figlock.zip verify
+          codesign --verify --strict --verbose=2 verify/figlock
+          verify/figlock --version
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: figlock-macos-universal
+          path: dist/figlock.zip
+          if-no-files-found: error
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/cert.p12"
