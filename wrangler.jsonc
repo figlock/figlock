@@ -5,6 +5,7 @@
   "assets": {
     "directory": "./site"
   },
+  "previews": {},
   "routes": [
     { "pattern": "figlock.com", "custom_domain": true },
     { "pattern": "www.figlock.com", "custom_domain": true }
