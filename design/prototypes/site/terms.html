@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terms - FigLock</title>
+  <meta name="description" content="The terms for the FigLock website and software.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="logo/app-icons/figlock-favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="ref/tokens.css">
+  <style>
+:root {
+  --container: 72rem;
+  --prose: 44rem;
+  --hairline: 1px;
+  --icon-sm: 1rem;
+  --icon-md: 1.25rem;
+  --icon-lg: 1.5rem;
+  --logo-height: 2rem;
+  --sheet-width: 26rem;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden]:not([hidden="until-found" i]) { display: none !important; }
+html { -webkit-text-size-adjust: 100%; scroll-padding-top: var(--space-16); }
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-regular);
+  line-height: var(--leading-normal);
+}
+h1, h2, h3, p, ul, ol, dl, dd, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: var(--color-text-link); text-underline-offset: 0.2em; }
+a:hover { color: var(--color-primary-hover); }
+code, .mono { font-family: var(--font-mono); font-variant-ligatures: none; }
+code { font-size: 0.92em; background: var(--color-surface-sunken); padding: 0 var(--space-1); border-radius: var(--radius-xs); }
+:focus-visible { outline: var(--focus-ring-width) solid var(--color-focus); outline-offset: var(--focus-ring-offset); border-radius: var(--radius-xs); }
+.icon { width: var(--icon-md); height: var(--icon-md); flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.wrap { width: 100%; max-width: var(--container); margin-inline: auto; padding-inline: var(--space-4); }
+
+.skip-link {
+  position: absolute; left: var(--space-4); top: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary); color: var(--color-text-on-primary);
+  border-radius: var(--radius-sm); font-weight: var(--weight-semibold); text-decoration: none;
+  transform: translateY(-300%); z-index: var(--z-toast);
+}
+.skip-link:focus { transform: none; color: var(--color-text-on-primary); }
+
+.site-header { border-bottom: var(--hairline) solid var(--color-border); background: var(--color-bg); }
+.site-header .wrap { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-height: var(--space-16); }
+.brand { display: inline-flex; align-items: center; min-height: var(--control-height-lg); }
+.brand img { display: block; height: var(--logo-height); width: auto; }
+.site-nav { display: flex; gap: var(--space-1); }
+.site-nav a {
+  display: inline-flex; align-items: center; min-height: var(--control-height-lg);
+  padding-inline: var(--space-3); border-radius: var(--radius-sm);
+  color: var(--color-text-secondary); font-weight: var(--weight-medium); text-decoration: none;
+}
+.site-nav a:hover { background: var(--color-surface-sunken); color: var(--color-text); }
+.site-nav a[aria-current="page"] { color: var(--color-text); background: var(--color-primary-subtle); }
+
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2);
+  min-height: var(--control-height-lg); padding: var(--space-2) var(--space-5);
+  border: var(--hairline) solid var(--color-border-strong); border-radius: var(--radius-sm);
+  background: var(--color-surface); color: var(--color-text);
+  font: inherit; font-size: var(--text-md); font-weight: var(--weight-semibold);
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+.button:hover { background: var(--color-surface-sunken); color: var(--color-text); }
+.button--primary { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-text-on-primary); }
+.button--primary:hover { background: var(--color-primary-hover); border-color: var(--color-primary-hover); color: var(--color-text-on-primary); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-warning-subtle); color: var(--color-warning);
+  border-radius: var(--radius-full); font-size: var(--text-sm); font-weight: var(--weight-semibold);
+}
+
+h1 { font-size: var(--text-3xl); font-weight: var(--weight-bold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); }
+h2 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); letter-spacing: var(--tracking-tight); }
+h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-snug); }
+
+.hero { padding-block: var(--space-10) var(--space-12); }
+.hero-grid { display: grid; gap: var(--space-10); align-items: center; }
+.hero-copy { display: grid; gap: var(--space-5); justify-items: start; }
+.lede { font-size: var(--text-lg); color: var(--color-text-secondary); max-width: 38rem; }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+.sheet { display: grid; gap: var(--space-3); justify-items: center; }
+.sheet-card {
+  width: 100%; max-width: var(--sheet-width);
+  background: var(--color-surface-raised); border: var(--hairline) solid var(--color-border);
+  border-top: var(--space-1) solid var(--color-agent);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+  padding: var(--space-6); display: grid; gap: var(--space-4);
+}
+.sheet-head { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-agent); font-size: var(--text-sm); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-wide); }
+.sheet-card h3 { font-size: var(--text-xl); }
+.sheet-card dl { display: grid; grid-template-columns: auto 1fr; gap: var(--space-2) var(--space-4); padding: var(--space-4); background: var(--color-agent-subtle); border-radius: var(--radius-md); font-size: var(--text-base); }
+.sheet-card dt { color: var(--color-text-secondary); font-weight: var(--weight-medium); }
+.sheet-card dd { color: var(--color-text); overflow-wrap: anywhere; }
+.sheet-actions { display: grid; gap: var(--space-2); }
+.sheet-actions .button { width: 100%; }
+.sheet-card .button--primary { background: var(--color-agent); border-color: var(--color-agent); color: var(--color-bg); }
+.sheet figcaption { font-size: var(--text-sm); color: var(--color-text-tertiary); max-width: var(--sheet-width); text-align: center; }
+
+.section { padding-block: var(--space-12); border-top: var(--hairline) solid var(--color-border); }
+.section h2 { margin-bottom: var(--space-6); }
+.cards { display: grid; gap: var(--space-4); }
+.card { background: var(--color-surface); border: var(--hairline) solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-6); display: grid; gap: var(--space-3); align-content: start; }
+.card h3 { display: flex; align-items: center; gap: var(--space-3); }
+.card p { color: var(--color-text-secondary); }
+.card .icon { width: var(--icon-lg); height: var(--icon-lg); color: var(--color-primary); }
+.card--agent { background: var(--color-agent-subtle); border-color: var(--color-agent); }
+.card--agent .icon, .card--agent h3 { color: var(--color-agent); }
+.card--agent p { color: var(--color-text); }
+
+.steps { display: grid; gap: var(--space-4); counter-reset: step; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: auto 1fr; column-gap: var(--space-4); row-gap: var(--space-2); background: var(--color-surface); border: var(--hairline) solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-6); }
+.steps li::before {
+  content: counter(step); grid-row: span 2;
+  display: grid; place-items: center; width: var(--space-10); height: var(--space-10);
+  border-radius: var(--radius-full); background: var(--color-primary-subtle); color: var(--color-primary);
+  font-weight: var(--weight-bold); font-size: var(--text-lg);
+}
+.steps p { color: var(--color-text-secondary); }
+
+.notice { display: flex; gap: var(--space-4); align-items: flex-start; background: var(--color-warning-subtle); color: var(--color-text); border: var(--hairline) solid var(--color-warning); border-radius: var(--radius-lg); padding: var(--space-6); }
+.notice .icon { color: var(--color-warning); margin-top: var(--space-1); }
+.notice p { max-width: 44rem; }
+
+.site-footer { border-top: var(--hairline) solid var(--color-border); background: var(--color-surface-sunken); padding-block: var(--space-8); color: var(--color-text-secondary); }
+.site-footer .wrap { display: grid; gap: var(--space-4); }
+.site-footer ul { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-4); }
+.site-footer a { display: inline-flex; align-items: center; min-height: var(--control-height-lg); }
+
+.prose-page { padding-block: var(--space-10) var(--space-16); }
+.prose { max-width: var(--prose); display: grid; gap: var(--space-4); }
+.prose .meta { color: var(--color-text-tertiary); font-size: var(--text-sm); }
+.prose h2 { font-size: var(--text-xl); margin: var(--space-6) 0 0; }
+.prose ul { list-style: disc; padding-left: var(--space-6); display: grid; gap: var(--space-2); }
+.prose p, .prose li { color: var(--color-text-secondary); }
+.prose strong { color: var(--color-text); }
+.prose .notice { margin-block: var(--space-2); }
+
+@media (min-width: 640px) {
+  .wrap { padding-inline: var(--space-6); }
+  h1 { font-size: var(--text-4xl); }
+  .cards--2 { grid-template-columns: repeat(2, 1fr); }
+  .sheet-actions { grid-template-columns: 2fr 1fr; }
+}
+@media (min-width: 1024px) {
+  .hero { padding-block: var(--space-16); }
+  .hero-grid { grid-template-columns: 1.1fr 1fr; gap: var(--space-16); }
+  .cards--3 { grid-template-columns: repeat(3, 1fr); }
+  .steps { grid-template-columns: repeat(2, 1fr); }
+  .site-footer .wrap { grid-template-columns: 1fr auto; align-items: center; }
+}
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="index.html" aria-label="FigLock home">
+        <picture>
+          <source srcset="logo/lockups/figlock-lockup-horizontal-on-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="114" height="32">
+        </picture>
+      </a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html" aria-current="page">Terms</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="prose-page">
+    <div class="wrap">
+      <article class="prose">
+        <h1>Terms</h1>
+        <p class="meta">Draft for the prototype. Last updated 1 November 2026.</p>
+        <p>These terms cover this website and the FigLock software as it is released. They are short on purpose.</p>
+
+        <h2>The software</h2>
+        <p>FigLock is free software, dual licensed under MIT or Apache-2.0. You may use, copy and change it under either licence. The licence text that ships with the code is what applies to the code.</p>
+
+        <h2>Status</h2>
+        <p>FigLock is in planning and early development. Nothing is released and it has had no security audit. Please don't store real secrets in anything built from it until the audit is done and published.</p>
+
+        <h2>No warranty</h2>
+        <p>The software and this website are provided as they are, without warranty of any kind. To the extent the law allows, the authors aren't liable for loss that comes from using them.</p>
+
+        <h2>Your responsibilities</h2>
+        <ul>
+          <li>Keep your master password and Secret Key safe. We can't recover them.</li>
+          <li>Keep your Emergency Kit somewhere you trust.</li>
+          <li>Approve agent requests only when you recognise the agent, the item and the time limit.</li>
+        </ul>
+
+        <h2>Limits of agent protection</h2>
+        <p>FigLock stops accidental leaks to agents. An agent with shell access could still print a value you allowed it to inject. Review what you approve.</p>
+
+        <h2>Security reports</h2>
+        <p>If you find a security problem, please write to <a href="mailto:security@figlock.com">security@figlock.com</a>. We will reply, and we will credit you if you want.</p>
+
+        <h2>Changes and questions</h2>
+        <p>We may update these terms as the project grows, and we will note the date at the top. Questions are welcome at <a href="mailto:hello@figlock.com">hello@figlock.com</a>.</p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>FigLock is free software, dual licensed MIT or Apache-2.0.</p>
+      <ul>
+        <li><a href="privacy.html">Privacy</a></li>
+        <li><a href="terms.html">Terms</a></li>
+        <li><a href="mailto:security@figlock.com">Report a security issue</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
