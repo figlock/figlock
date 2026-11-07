@@ -206,6 +206,9 @@ Rules for native shells:
   tables above are updated by hand in the same PR as any token change.
 - `site/tokens.css` is a byte-identical copy of `design/tokens.css` for the static site. Copy it after any token
   change; `just design-check` fails on drift.
+- `site/fonts/` self-hosts Figtree and JetBrains Mono (woff2 plus their OFL licences) because the site CSP only
+  allows `self` fonts and styles. `site/logo/figlock-social-card.png` is the PNG render of `social/figlock-social-card.svg`
+  used for Open Graph.
 
 ## 11. Using this with OpenDesign
 
