@@ -1,9 +1,9 @@
 # FigLock design system
 
-Status: v1 (FIG-22). This file and `tokens.css` are the brand contract: OpenDesign reads them, and every
-app (web, desktop, extension in `packages/ui`; iOS and Android natively) builds from them. If a screen
-needs something this file does not allow, change this file first. Logo and final wordmark are a separate
-decision (FIG-46); everything below works with a placeholder mark.
+Status: v1.1 (FIG-22, updated by FIG-23 and FIG-46, see ADR-0023). This file and `tokens.css` are the brand
+contract: OpenDesign reads them, and every app (web, desktop, extension in `packages/ui`; iOS and Android
+natively) builds from them. If a screen needs something this file does not allow, change this file first.
+The logo, wordmark and app icons live in `design/logo/` (section 7.1).
 
 ## 1. Principles
 
@@ -32,8 +32,8 @@ decision (FIG-46); everything below works with a placeholder mark.
 
 ## 3. Color
 
-Use only semantic tokens (`--color-*`) in components. The raw palette (fig, warm neutral) exists to define
-them. The brand color is **fig**, a muted aubergine; everything else is warm neutral. **Agent teal** is
+Use only semantic tokens (`--color-*`) in components. The raw palette (brand blue, warm neutral) exists to define
+them. The brand color is **brand blue**; everything else is warm neutral. **Agent teal** is
 reserved for anything about an AI agent (grant sheets, agent audit entries) so users learn "teal means an
 agent is involved".
 
@@ -47,8 +47,8 @@ at least 4.5:1, large text and UI boundaries at least 3:1.
 | `--color-text` | #1b191d | 16.6 | #f2f0f1 | 16.6 |
 | `--color-text-secondary` | #5a555c | 6.9 | #c4bfc3 | 10.4 |
 | `--color-text-tertiary` | #6b656d | 5.4 | #a29ca0 | 7.0 |
-| `--color-primary` / link | #663c74 | 8.1 | #d3aedd | 9.7 |
-| `--color-text-on-primary` on primary | #ffffff | 8.5 | #121114 | 9.7 |
+| `--color-primary` / link | #3b5afe | 4.9 | #9fb0ff | 9.1 |
+| `--color-text-on-primary` on primary | #ffffff | 5.2 | #121114 | 9.1 |
 | `--color-agent` | #0f6e7a | 5.7 | #5cc8d6 | 9.6 |
 | `--color-success` | #1e7a4d | 5.1 | #5cd08f | 9.7 |
 | `--color-warning` | #8a5a00 | 5.6 | #e8b04a | 9.6 |
@@ -70,7 +70,7 @@ Background (`--color-bg`) is #faf9f9 in light and #121114 in dark. Surfaces step
 
 ## 4. Typography
 
-- **UI:** Inter (variable, self-hosted, OFL) on web, desktop and extension; SF Pro on iOS and Roboto on
+- **UI:** Figtree (variable, self-hosted, OFL) on web, desktop and extension; SF Pro on iOS and Roboto on
   Android. The system stack in `--font-sans` is the fallback.
 - **Secrets, tokens, codes and the Secret Key:** a monospace font (`--font-mono`, JetBrains Mono), always
   with tabular, unambiguous glyphs. Group long values (`FL1-ABCD-EFGH-...`) so they can be read aloud and
@@ -97,8 +97,8 @@ Background (`--color-bg`) is #faf9f9 in light and #121114 in dark. Surfaces step
 - 4 px base grid. Use the `--space-*` scale only; there are no one-off paddings.
 - Common patterns: 16 px page padding on phones, 24 px on desktop; 8 px between a label and its field;
   12 px between related controls; 24 to 32 px between sections.
-- **Radius:** `xs` 4 (badges, chips), `sm` 6 (inputs, buttons), `md` 10 (cards, list rows), `lg` 14 (sheets,
-  dialogs), `xl` 20 (large phone sheets), `full` (avatars, switches). Nested elements use a smaller radius
+- **Radius:** `xs` 6 (badges, chips), `sm` 10 (inputs, buttons), `md` 14 (cards, list rows), `lg` 20 (sheets,
+  dialogs), `xl` 28 (large phone sheets), `full` (avatars, switches). Nested elements use a smaller radius
   than their container.
 - **Elevation:** prefer borders and surface steps to shadows. Shadows (`--shadow-sm|md|lg`) only for
   floating layers: menus, popovers, sheets, toasts.
@@ -127,6 +127,21 @@ Background (`--color-bg`) is #faf9f9 in light and #121114 in dark. Surfaces step
 - Every icon-only button has a visible tooltip or label on desktop and an accessible name on all platforms.
 - Reserved meanings: padlock = vault locked state only; key = Secret Key and key items; shield-check =
   approved or healthy; bot = anything about an agent (always in agent teal); fingerprint = biometric.
+
+### 7.1 Logo and app icons
+
+The logo was designed in OpenDesign (FIG-46) and is stored in `design/logo/`: a white padlock with a small
+"f" on a blue rounded square, and a wordmark set in Figtree Bold. Treat those files as the source of truth.
+
+- `figlock-icon.svg` is the app icon, `figlock-icon-flat.svg` the same without the gradient. `mark/` holds
+  the padlock mark in color, black and white. `lockups/` holds the wordmark and the horizontal and stacked
+  lockups, each for light and dark backgrounds. `app-icons/` holds the favicon and the iOS, macOS, Android
+  (foreground, background, monochrome) and maskable icons. `social/` holds the avatar and the social card.
+  `index.html` is a contact sheet of all of them.
+- Use a file as it is. Do not recolor, stretch, add effects, redraw the "f" or retype the wordmark. Pick the
+  `on-dark` variant on dark backgrounds.
+- The wordmark SVGs embed Figtree Bold, so they render the same on every machine.
+- Store and platform icon sizes are exported from these SVGs by the release tasks, not drawn again.
 
 ## 8. Components with special rules
 
@@ -174,7 +189,7 @@ Tokens are authored in CSS and generated by name to other platforms. The mapping
 | Token group | Web, desktop, extension | SwiftUI | Jetpack Compose |
 | ----------- | ----------------------- | ------- | --------------- |
 | Colors | `var(--color-*)` | `Color("figlock/<name>")` in an asset catalog with light and dark variants, wrapped by `enum FLColor` | `FigLockColors` data class provided through `CompositionLocal`, with `lightColors()` and `darkColors()` |
-| Type | `--text-*`, `--weight-*`, `--leading-*` | `Font.custom("Inter", size:relativeTo:)` or system font with `.dynamicTypeSize` | `TextStyle` set in `FigLockTypography`, sizes in `sp` |
+| Type | `--text-*`, `--weight-*`, `--leading-*` | `Font.custom("Figtree", size:relativeTo:)` or system font with `.dynamicTypeSize` | `TextStyle` set in `FigLockTypography`, sizes in `sp` |
 | Spacing | `--space-*` (rem) | `enum FLSpace { static let s4: CGFloat = 16 }` | `object FLSpace { val s4 = 16.dp }` |
 | Radius | `--radius-*` | `RoundedRectangle(cornerRadius:)` with `FLRadius` constants | `RoundedCornerShape(FLRadius.md)` via `Shapes` |
 | Motion | `--duration-*`, `--ease-*` | `Animation.timingCurve(0.2, 0, 0, 1, duration: 0.2)`; respect `accessibilityReduceMotion` | `tween(durationMillis = 200, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f))`; respect `Settings.Global.ANIMATOR_DURATION_SCALE` |
@@ -197,6 +212,10 @@ Rules for native shells:
 - Point OpenDesign at `design/DESIGN.md` and `design/tokens.css` for every prototype.
 - Export prototypes and screenshots into `design/prototypes/` so tasks and PRs can link them.
 - Prototypes are references, not shipped code. Implementations live in `packages/ui` and the native apps.
+- The key screens prototype (FIG-23) is `design/prototypes/key-screens/index.html`. It has toggles for
+  screen, light or dark, and desktop (1280 x 800) or iPhone (390 x 844). It covers unlock, list and search,
+  item detail, the agent approval sheet, device pairing, the Emergency Kit, settings, and one empty and one
+  error state. Build the real screens from it and from this file, not the other way round.
 - Never import real vault data or personal details into OpenDesign. Use made-up sample items only.
 
 ## 12. Changing this file

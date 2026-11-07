@@ -2,21 +2,17 @@
  * FigLock design tokens (FIG-22). Source of truth for web, desktop and extension (packages/ui).
  * iOS and Android map the same names to SwiftUI and Compose; see design/DESIGN.md.
  * Contrast ratios of every text/background pair are listed in DESIGN.md and meet WCAG 2.2 AA.
- * Never reference the raw palette (--fig-*, --neutral-*) from components; use the semantic tokens.
+ * Never reference the raw palette (--brand-*, --neutral-*) from components; use the semantic tokens.
  */
 
 :root {
-  /* ---- Raw palette: fig (brand) ---- */
-  --fig-50: #f7f2f8;
-  --fig-100: #ede2ef;
-  --fig-200: #dac3df;
-  --fig-300: #d3aedd;
-  --fig-400: #a06fad;
-  --fig-500: #7f4e8e;
-  --fig-600: #663c74;
-  --fig-700: #502e5c;
-  --fig-800: #3a2143;
-  --fig-900: #261530;
+  /* ---- Raw palette: brand blue ---- */
+  --brand-50: #eef1ff;
+  --brand-200: #b8c4ff;
+  --brand-300: #9fb0ff;
+  --brand-500: #3b5afe;
+  --brand-600: #2c46d6;
+  --brand-900: #161d4a;
 
   /* ---- Raw palette: warm neutral ---- */
   --neutral-0: #ffffff;
@@ -33,7 +29,7 @@
   --neutral-950: #121114;
 
   /* ---- Typography ---- */
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-sans: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --text-xs: 0.75rem; /* 12 */
@@ -73,11 +69,11 @@
   --space-16: 4rem; /* 64 */
 
   /* ---- Radius ---- */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
   --radius-full: 9999px;
 
   /* ---- Sizing ---- */
@@ -119,14 +115,14 @@
   --color-text-secondary: #5a555c;
   --color-text-tertiary: #6b656d;
   --color-text-on-primary: #ffffff;
-  --color-text-link: #663c74;
+  --color-text-link: #3b5afe;
 
   --color-border: #e5e2e4;
   --color-border-strong: #8d878f; /* inputs and controls: 3:1 against bg */
 
-  --color-primary: #663c74;
-  --color-primary-hover: #502e5c;
-  --color-primary-subtle: #f7f2f8;
+  --color-primary: #3b5afe;
+  --color-primary-hover: #2c46d6;
+  --color-primary-subtle: #eef1ff;
 
   --color-agent: #0f6e7a; /* everything about an AI agent asking for access */
   --color-agent-subtle: #e6f3f5;
@@ -138,7 +134,7 @@
   --color-danger: #b3261e;
   --color-danger-subtle: #fdecea;
 
-  --color-focus: #663c74;
+  --color-focus: #3b5afe;
   --color-overlay: rgb(27 25 29 / 0.5);
 
   --shadow-sm: 0 1px 2px rgb(27 25 29 / 0.08);
@@ -160,14 +156,14 @@
     --color-text-secondary: #c4bfc3;
     --color-text-tertiary: #a29ca0;
     --color-text-on-primary: #121114;
-    --color-text-link: #d3aedd;
+    --color-text-link: #9fb0ff;
 
     --color-border: #2a272c;
     --color-border-strong: #6f6972;
 
-    --color-primary: #d3aedd;
-    --color-primary-hover: #dac3df;
-    --color-primary-subtle: #261530;
+    --color-primary: #9fb0ff;
+    --color-primary-hover: #b8c4ff;
+    --color-primary-subtle: #161d4a;
 
     --color-agent: #5cc8d6;
     --color-agent-subtle: #0f2b30;
@@ -179,7 +175,7 @@
     --color-danger: #ff8a80;
     --color-danger-subtle: #3a1512;
 
-    --color-focus: #d3aedd;
+    --color-focus: #9fb0ff;
     --color-overlay: rgb(0 0 0 / 0.6);
 
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
@@ -200,14 +196,14 @@
   --color-text-secondary: #c4bfc3;
   --color-text-tertiary: #a29ca0;
   --color-text-on-primary: #121114;
-  --color-text-link: #d3aedd;
+  --color-text-link: #9fb0ff;
 
   --color-border: #2a272c;
   --color-border-strong: #6f6972;
 
-  --color-primary: #d3aedd;
-  --color-primary-hover: #dac3df;
-  --color-primary-subtle: #261530;
+  --color-primary: #9fb0ff;
+  --color-primary-hover: #b8c4ff;
+  --color-primary-subtle: #161d4a;
 
   --color-agent: #5cc8d6;
   --color-agent-subtle: #0f2b30;
@@ -219,7 +215,7 @@
   --color-danger: #ff8a80;
   --color-danger-subtle: #3a1512;
 
-  --color-focus: #d3aedd;
+  --color-focus: #9fb0ff;
   --color-overlay: rgb(0 0 0 / 0.6);
 
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);

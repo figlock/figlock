@@ -217,7 +217,7 @@ fieldset { border: 0; min-width: 0; }
 
 /* ============ Shared components ============ */
 .wm { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: 700; font-size: var(--fs-lg); letter-spacing: -0.01em; color: var(--text); }
-.wm::before { content: ""; width: 28px; height: 28px; flex: none; background: url(logo/figlock-icon.svg) center / contain no-repeat; }
+.wm::before { content: ""; width: 28px; height: 28px; flex: none; background: url(../../logo/figlock-icon.svg) center / contain no-repeat; }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: var(--control-h); padding: 0 var(--sp-4); border-radius: var(--r-sm); border: 1px solid transparent; font-size: var(--fs-body); font-weight: 600; line-height: 1.2; white-space: nowrap; transition: background var(--t-120), border-color var(--t-120); }
 .btn-primary { background: var(--primary); color: var(--text-on-primary); }
 .btn-secondary { background: var(--primary-subtle); color: var(--primary); }
@@ -790,7 +790,7 @@ function unlockView() {
   const u = state.unlock;
   const err = u.error ? `<div class="err">${icon('circleAlert', 16)}<span>${esc(u.error)}</span></div>` : '';
   return `<div class="unlock"><div class="unlock-card">
-    <div class="unlock-top"><img class="unlock-logo" src="logo/figlock-icon.svg" alt="FigLock" width="72" height="72" />
+    <div class="unlock-top"><img class="unlock-logo" src="../../logo/figlock-icon.svg" alt="FigLock" width="72" height="72" />
       <h1 class="h-title" id="pagetitle">Your vault is locked</h1></div>
     <div class="acct"><span class="avatar" aria-hidden="true">MO</span><div class="od-field od-fill"><span class="u-name">Mira Okafor</span><span class="u-sub od-truncate">mira.okafor@example.com</span></div></div>
     <div class="fgroup"><label for="pw">Master password</label>
