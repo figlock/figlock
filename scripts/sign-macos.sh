@@ -24,9 +24,10 @@ if [ -n "${SIGN_KEYCHAIN:-}" ]; then
 fi
 
 echo "Signing $bin"
-codesign --force --timestamp --options runtime "${keychain_args[@]}" --sign "$SIGN_IDENTITY" "$bin"
+codesign --force --timestamp --options runtime ${keychain_args[@]+"${keychain_args[@]}"} --sign "$SIGN_IDENTITY" "$bin"
 codesign --verify --strict --verbose=2 "$bin"
-if ! codesign --display --verbose=2 "$bin" 2>&1 | grep -q 'flags=.*runtime'; then
+display=$(codesign --display --verbose=2 "$bin" 2>&1)
+if ! grep -q 'flags=.*runtime' <<<"$display"; then
   echo "hardened runtime is not enabled on $bin" >&2
   exit 1
 fi
