@@ -49,8 +49,8 @@ starts from that comment.
 - **Paperclip is the plan.** It runs locally at `http://127.0.0.1:3100` and holds the goal, one project per
   phase, tasks, blockers ("blocked by" links), the assets register and the project handbook (FIG-61). If
   something is not in Paperclip, it is not planned.
-- **GitHub is the public record of code.** Repo `seemantshekhar43/figlock` (public) for now; it moves to a
-  `figlock` org later and GitHub redirects the old URLs. Never hard-code the github.com path in user-facing
+- **GitHub is the public record of code.** Repo `figlock/figlock` (public; it moved from
+  `seemantshekhar43/figlock` and GitHub redirects the old URLs). Never hard-code the github.com path in user-facing
   places: use figlock.com URLs (`figlock.com/install.sh`, docs links) so the move is invisible to users.
 
 ### Where things go
@@ -85,7 +85,7 @@ anything risky.
 For a task that will change code, do every step, in order:
 
 1. Move the Paperclip task to **In Progress**.
-2. `gh issue create --repo seemantshekhar43/figlock --title "FIG-<n>: <task title>" --label <area>` with the
+2. `gh issue create --repo figlock/figlock --title "FIG-<n>: <task title>" --label <area>` with the
    task's goal and exit criteria as the body. No secrets, no local paths.
 3. Comment the GitHub issue link on the Paperclip task.
 4. Branch `FIG-<n>-<short-slug>` off `main`.

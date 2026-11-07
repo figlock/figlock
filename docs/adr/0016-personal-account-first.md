@@ -18,6 +18,11 @@ Host at `seemantshekhar43/figlock` now and transfer to a `figlock` organization 
 - After the move: update the crates.io repository field, the Homebrew tap, Actions secrets, Pages and branch rules.
 - Some files already mention the github.com path (for example the issue template contact link) and are updated at transfer time.
 
+## Outcome
+
+The `figlock` org was created and the repo transferred on 2026-11-07 (FIG-14). It is now `figlock/figlock`; the
+references listed above were updated in the same change.
+
 ## Alternatives considered
 
 - Create the org now: reserved name is optional and empty (FIG-1); the overhead is not needed yet.

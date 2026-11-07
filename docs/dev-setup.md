@@ -20,7 +20,7 @@ echo 'eval "$(mise activate zsh)"' >> ~/.zshrc   # then open a new shell
 ## 3. Clone and set up
 
 ```sh
-git clone https://github.com/seemantshekhar43/figlock.git
+git clone https://github.com/figlock/figlock.git
 cd figlock
 mise trust
 mise install                  # Rust (with rustfmt, clippy), Node, pnpm, just, cargo-deny
