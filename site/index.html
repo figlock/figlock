@@ -8,8 +8,15 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#faf9f9" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#121114" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="canonical" href="https://figlock.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FigLock">
+  <meta property="og:title" content="FigLock - one vault for you and your agents">
+  <meta property="og:description" content="FigLock is a free, open-source password and secrets manager. Your vault is encrypted and lives in storage you already own, and AI agents can use a secret after you approve it, without seeing it.">
+  <meta property="og:url" content="https://figlock.com/">
+  <meta property="og:image" content="https://figlock.com/logo/figlock-social-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/site.css">
 </head>
@@ -18,7 +25,12 @@
 
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28">FigLock</a>
+      <a class="brand" href="/" aria-label="FigLock home">
+        <picture>
+          <source srcset="/logo/lockups/figlock-lockup-horizontal-on-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="/logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="114" height="32">
+        </picture>
+      </a>
       <nav class="site-nav" aria-label="Main">
         <a href="/privacy/">Privacy</a>
         <a href="/terms/">Terms</a>
@@ -29,9 +41,9 @@
   <main id="main">
     <section class="hero" aria-labelledby="hero-title">
       <div class="wrap hero-grid">
-        <div>
+        <div class="hero-copy">
           <p class="badge">
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
             In development - nothing to install yet
           </p>
           <h1 id="hero-title">One vault for you and your agents</h1>
@@ -43,21 +55,24 @@
         </div>
 
         <figure class="sheet">
-          <div class="sheet-card" aria-hidden="true">
-            <div class="sheet-head">
+          <div class="sheet-card" role="img" aria-label="Mock-up of the agent approval sheet: Approve Claude Code to use GitHub token for 15 minutes, with Approve with Touch ID and Deny.">
+            <div class="sheet-head" aria-hidden="true">
               <svg class="icon" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-              Agent request
+              AGENT REQUEST
             </div>
-            <h3>Approve Claude Code to use GitHub token for 15 minutes</h3>
-            <dl>
+            <h3 aria-hidden="true">Approve Claude Code to use GitHub token for 15 minutes</h3>
+            <dl aria-hidden="true">
               <dt>Who</dt><dd>Claude Code, started from Terminal</dd>
               <dt>What</dt><dd>GitHub token</dd>
               <dt>How</dt><dd>Added to HTTP requests for you</dd>
               <dt>Where</dt><dd class="mono">api.github.com</dd>
               <dt>For</dt><dd>15 minutes</dd>
             </dl>
-            <div class="sheet-actions">
-              <span class="button button--primary">Approve with Touch ID</span>
+            <div class="sheet-actions" aria-hidden="true">
+              <span class="button button--primary">
+                <svg class="icon" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+                Approve with Touch ID
+              </span>
               <span class="button">Deny</span>
             </div>
           </div>
@@ -124,11 +139,17 @@
         <h2 id="platforms-title">Where it will run</h2>
         <ul class="cards cards--2">
           <li class="card">
-            <h3>Command line and desktop</h3>
+            <h3>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg>
+              Command line and desktop
+            </h3>
             <p>A <code>figlock</code> command for macOS, Linux and Windows comes first, then a desktop app for macOS.</p>
           </li>
           <li class="card">
-            <h3>Browser, web and phones</h3>
+            <h3>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+              Browser, web and phones
+            </h3>
             <p>A browser extension with autofill, an installable web app, then native iPhone and Android apps.</p>
           </li>
         </ul>
@@ -139,7 +160,7 @@
       <div class="wrap">
         <h2 id="status-title">Where we are</h2>
         <div class="notice" role="note">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
           <p>FigLock is in planning and early development. Nothing is released and it has had no security audit. Please don't store real secrets in anything built from it until the audit is done and published.</p>
         </div>
       </div>

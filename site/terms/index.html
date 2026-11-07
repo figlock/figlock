@@ -8,8 +8,15 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#faf9f9" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#121114" media="(prefers-color-scheme: dark)">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="canonical" href="https://figlock.com/terms/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FigLock">
+  <meta property="og:title" content="Terms - FigLock">
+  <meta property="og:description" content="Plain-language terms for using FigLock and this website while the project is in development.">
+  <meta property="og:url" content="https://figlock.com/terms/">
+  <meta property="og:image" content="https://figlock.com/logo/figlock-social-card.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/site.css">
 </head>
@@ -18,7 +25,12 @@
 
   <header class="site-header">
     <div class="wrap">
-      <a class="brand" href="/"><img src="/favicon.svg" alt="" width="28" height="28">FigLock</a>
+      <a class="brand" href="/" aria-label="FigLock home">
+        <picture>
+          <source srcset="/logo/lockups/figlock-lockup-horizontal-on-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="/logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="114" height="32">
+        </picture>
+      </a>
       <nav class="site-nav" aria-label="Main">
         <a href="/privacy/">Privacy</a>
         <a href="/terms/" aria-current="page">Terms</a>
@@ -26,7 +38,7 @@
     </div>
   </header>
 
-  <main id="main">
+  <main id="main" class="prose-page">
     <div class="wrap">
       <article class="prose">
         <h1>Terms</h1>
