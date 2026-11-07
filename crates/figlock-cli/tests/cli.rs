@@ -53,6 +53,7 @@ impl Env {
         let mut c = Command::new(env!("CARGO_BIN_EXE_figlock"));
         c.args(args)
             .env("FIGLOCK_HOME", self.home.path())
+            .env("FIGLOCK_DEVICE_KEYS", "file")
             .env("FIGLOCK_PASSWORD", pw)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -458,6 +459,7 @@ fn before_init_commands_explain_what_to_do() {
     let out = Command::new(env!("CARGO_BIN_EXE_figlock"))
         .args(["find"])
         .env("FIGLOCK_HOME", home.path())
+        .env("FIGLOCK_DEVICE_KEYS", "file")
         .env("FIGLOCK_PASSWORD", PW)
         .output()
         .unwrap();

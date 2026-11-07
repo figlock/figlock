@@ -54,6 +54,7 @@ impl Env {
         let mut c = Command::new(env!("CARGO_BIN_EXE_figlock"));
         c.args(args)
             .env("FIGLOCK_HOME", self.home.path())
+            .env("FIGLOCK_DEVICE_KEYS", "file")
             .env("FIGLOCK_PASSWORD", pw)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -146,6 +147,7 @@ fn dry_run_reports_without_a_vault_a_password_or_a_write() {
             "--dry-run",
         ])
         .env("FIGLOCK_HOME", TempDir::new().unwrap().path())
+        .env("FIGLOCK_DEVICE_KEYS", "file")
         .env_remove("FIGLOCK_PASSWORD")
         .env_remove("FIGLOCK_SECRET_KEY")
         .stdin(Stdio::null())

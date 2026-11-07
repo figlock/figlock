@@ -44,8 +44,8 @@ Two things shaped the decision:
 - Sign-in is authorization code with a loopback redirect on `127.0.0.1` and PKCE S256. The listener only
   accepts a request carrying our random `state`. Only the `drive.appdata` scope is requested, and a grant of
   anything else is refused.
-- The refresh token is stored owner-only (`drive-token.json`, mode 0600) beside the device keys, moving to the
-  platform keystore with them (FIG-69). It is never logged or printed. `figlock drive logout` revokes it at
+- The refresh token is stored owner-only (`drive-token.json`, mode 0600) in the device config directory. The device keys
+  have since moved to the macOS keychain (FIG-73); the token follows them to the platform keystore (FIG-69). It is never logged or printed. `figlock drive logout` revokes it at
   Google and deletes the local copy even when the file is damaged or has loose permissions.
 - There is deliberately no environment override for the OAuth or Drive endpoints: a hostile environment could
   then receive the bearer token.
