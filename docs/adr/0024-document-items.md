@@ -1,6 +1,6 @@
 # ADR-0024: Document items and per-field size limits
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-09
 - Decision: D24 in `docs/decisions.md`
 
