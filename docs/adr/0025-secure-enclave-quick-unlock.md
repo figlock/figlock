@@ -56,6 +56,10 @@ is opaque and only the same chip can use it.
   The stricter current-biometric-set flag is a possible later opt-in. The exact flag combination for the
   watch is settled by a test on a Mac with a paired watch; if it does not work, Touch ID and the device
   password ship and the watch is a follow-up.
+- **No biometric hardware means a password, in three levels.** A Mac with a Secure Enclave but no Touch ID
+  asks for the login password in the system sheet and keeps the hardware-bound key. A Mac without a Secure
+  Enclave uses the keychain item behind the system prompt. Where no prompt can show (SSH, headless, no login
+  password), the master password and Secret Key are asked, as today.
 - **Every use prompts.** Each command that needs `AUK` asks. There is no grace window for now. The broker keeps
   the vault in memory, so agent use through it asks once per broker session.
 - **The CLI and the future app stand alone and feel the same.** Neither requires the other. Both follow the
