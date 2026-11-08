@@ -35,11 +35,31 @@ use std::process::ExitCode;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use figlock_core::{ItemType, Source};
 
+const TOP_HELP: &str = "\
+Getting started:
+  figlock init --store ~/Documents/figlock-vault    Create a vault (a synced folder works), set up this device
+  figlock add -t login --title GitHub --set username=ada --secret password
+  figlock find github                               Search (fuzzy)
+  figlock get github --reveal                       Show an item with its secrets
+  figlock copy github                               Copy the password; the clipboard is cleared after 30 seconds
+
+Giving an agent access without handing it the secret:
+  figlock broker start                              Unlock once and approve requests (Touch ID)
+  figlock run --item \"API key\" -- ./deploy.sh     Run a program with the secret in its environment
+  figlock http --item \"API key\" https://api.example.com/me
+
+Item types: login, token, note, env, ssh, doc. `figlock add --help` lists the fields of each.
+Everything is stored encrypted; nothing leaves this machine except ciphertext in the folder or Drive you choose.
+More: https://figlock.com";
+
 #[derive(Parser)]
 #[command(
     name = "figlock",
     version,
-    about = "Headless, agent-aware password manager"
+    about = "Headless, agent-aware password manager",
+    long_about = "FigLock keeps passwords, API tokens and files in one encrypted vault you can use from the \
+command line, and lets AI agents use a secret after you approve it, without ever seeing it.",
+    after_help = TOP_HELP
 )]
 struct Cli {
     /// Machine-readable output.
@@ -207,12 +227,16 @@ pub struct RunArgs {
 
 #[derive(Clone, Copy, ValueEnum)]
 pub enum GrantTtl {
+    /// One use, then it must be approved again.
     #[value(name = "once")]
     Once,
+    /// Fifteen minutes.
     #[value(name = "15m")]
     Min15,
+    /// One day.
     #[value(name = "1d")]
     Day,
+    /// Until `figlock lock` or `figlock broker lock`.
     #[value(name = "until-lock")]
     UntilLock,
 }
@@ -297,11 +321,31 @@ fn parse_kv(s: &str) -> Result<(String, String), String> {
         .ok_or_else(|| "expected field=value".to_owned())
 }
 
+const ADD_HELP: &str = "\
+Fields by item type (a trailing * marks a secret: give it with --secret, never --set):
+  login   username, password*, totp*, url/<id>
+  token   provider, token*, env_var, scopes, expires_at, allowed_hosts/<id>
+  note    body
+  env     env/<NAME>*          one per variable, for example env/DATABASE_URL
+  ssh     private_key*, public_key, passphrase*
+  doc     password*, expires_at, url/<id>; attach files with --file
+Every type also takes: notes, tags/<tag>, custom/<id>/name and custom/<id>/value*.
+<id> is any short lowercase name you pick, such as 1 or work.
+
+Examples:
+  figlock add -t login --title GitHub --set username=ada --set url/1=https://github.com --secret password
+  figlock add -t token --title \"API key\" --set provider=example --set env_var=EXAMPLE_TOKEN --set allowed_hosts/1=api.example.com --secret token
+  figlock add -t doc --title \"Apple signing\" --file cert.p12 --secret password
+
+Limits: each field has a size cap (a title 1 KiB, a password 4 KiB, notes 256 KiB); a file is up to 768 KiB, eight per item.";
+
 #[derive(Args)]
+#[command(after_help = ADD_HELP)]
 pub struct AddArgs {
     /// login, token, note, env, ssh or doc.
     #[arg(long = "type", short = 't', value_parser = parse_type)]
     pub item_type: ItemType,
+    /// What the item is called. It is what `find` searches first.
     #[arg(long)]
     pub title: String,
     /// Attach a file (doc items only, up to 768 KiB). Repeat for several files.
@@ -319,8 +363,10 @@ pub struct AddArgs {
 pub struct EditArgs {
     /// Item id, unique id prefix, or a search that finds one item.
     pub item: String,
+    /// Set a non-secret field, `name=value`. Replaces the current value.
     #[arg(long = "set", value_name = "FIELD=VALUE", value_parser = parse_kv)]
     pub set: Vec<(String, String)>,
+    /// Set a secret field. The new value is prompted, or read from stdin.
     #[arg(long = "secret", value_name = "FIELD")]
     pub secret: Vec<String>,
     /// Remove a field.
@@ -342,15 +388,19 @@ pub struct EditArgs {
 
 #[derive(Args)]
 pub struct FindArgs {
+    /// Words to look for in titles, usernames, URLs, tags and file names. Secrets are never searched.
     pub query: Vec<String>,
+    /// Only items of this type: login, token, note, env, ssh or doc.
     #[arg(long = "type", short = 't', value_parser = parse_type)]
     pub item_type: Option<ItemType>,
+    /// Show at most this many matches.
     #[arg(long, default_value_t = 20)]
     pub limit: usize,
 }
 
 #[derive(Args)]
 pub struct GetArgs {
+    /// Item id, unique id prefix, or a search that finds one item.
     pub item: String,
     /// Print only this field's value.
     #[arg(long, short = 'f', conflicts_with = "file")]
@@ -371,6 +421,7 @@ pub struct GetArgs {
 
 #[derive(Args)]
 pub struct CopyArgs {
+    /// Item id, unique id prefix, or a search that finds one item.
     pub item: String,
     /// Field to copy; defaults to the item's main secret.
     #[arg(long, short = 'f')]
@@ -382,6 +433,7 @@ pub struct CopyArgs {
 
 #[derive(Args)]
 pub struct GenerateArgs {
+    /// How many characters.
     #[arg(long, short = 'l', default_value_t = 20)]
     pub length: usize,
     /// Letters and digits only.
@@ -401,9 +453,13 @@ pub struct ExportArgs {
 
 #[derive(Clone, Copy, ValueEnum)]
 pub enum ImportSource {
+    /// Chrome's password export (CSV).
     Chrome,
+    /// Apple Passwords export (CSV).
     Apple,
+    /// Bitwarden export (CSV).
     Bitwarden,
+    /// 1Password export (CSV).
     #[value(name = "1password")]
     OnePassword,
     /// A plain text dump of notes; notes are split at lines of `---` or `===`.
@@ -426,6 +482,7 @@ impl ImportSource {
 pub struct ImportArgs {
     /// The export file (CSV) or notes dump (text).
     pub file: PathBuf,
+    /// Which program the file came from.
     #[arg(long, value_enum)]
     pub from: ImportSource,
     /// Show what would be imported without asking for the password or writing anything.
@@ -560,5 +617,54 @@ fn main() -> ExitCode {
             eprintln!("error: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod help_tests {
+    use clap::{Command, CommandFactory};
+
+    use super::Cli;
+
+    /// Every command and every argument a person can type has help text, and none of it uses an em dash.
+    fn walk(cmd: &Command, path: &str, problems: &mut Vec<String>) {
+        let here = format!("{path} {}", cmd.get_name());
+        if cmd.get_name() != "help" {
+            if cmd.get_about().is_none() && !path.is_empty() {
+                problems.push(format!("{here}: no description"));
+            }
+            for arg in cmd.get_arguments() {
+                let id = arg.get_id().as_str();
+                if matches!(id, "help" | "version") || arg.is_hide_set() {
+                    continue;
+                }
+                if arg.get_help().is_none() && arg.get_long_help().is_none() {
+                    problems.push(format!("{here}: argument {id} has no help"));
+                }
+            }
+        }
+        for sub in cmd.get_subcommands() {
+            walk(sub, &here, problems);
+        }
+    }
+
+    #[test]
+    fn every_command_and_argument_explains_itself() {
+        let mut problems = Vec::new();
+        walk(&Cli::command(), "", &mut problems);
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
+
+    #[test]
+    fn rendered_help_never_uses_an_em_dash() {
+        fn render(mut cmd: Command, out: &mut String) {
+            out.push_str(&cmd.render_long_help().to_string());
+            for sub in cmd.get_subcommands().cloned().collect::<Vec<_>>() {
+                render(sub, out);
+            }
+        }
+        let mut all = String::new();
+        render(Cli::command(), &mut all);
+        assert!(!all.contains('\u{2014}'), "em dash in help text");
     }
 }
