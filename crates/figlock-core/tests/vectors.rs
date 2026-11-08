@@ -359,12 +359,60 @@ fn rotation() {
     }
 }
 
+/// The Secure Enclave variant (ADR-0025). The vectors give QK's secret so the platform's ECDH can be done in
+/// software here; the product never has that secret.
+fn quick_unlock_se_case(c: &serde_json::Value) {
+    use p256::{PublicKey, SecretKey, ecdh::diffie_hellman, elliptic_curve::sec1::ToSec1Point};
+    let (i, e) = (&c["inputs"], &c["expected"]);
+    let n = name(c);
+    if n == "quick-unlock-se-seal" {
+        let eph: [u8; 32] = arr(&i["eph_secret"]);
+        let b = vh::seal_quick_unlock_se_with(
+            &bytes(&i["qk_public"]),
+            &eph,
+            &key(&i["auk"]),
+            &arr(&i["vault_id"]),
+            &arr(&i["device_id"]),
+            &arr(&i["nonce"]),
+        )
+        .unwrap();
+        assert_eq!(b, bytes(&e["blob"]), "{n}");
+        assert_eq!(
+            fc::quick_unlock_se_ephemeral_public(&b).unwrap().to_vec(),
+            bytes(&e["eph_public"]),
+            "{n}"
+        );
+        return;
+    }
+    let qk = SecretKey::from_slice(&bytes(&i["qk_secret"])).unwrap();
+    let qk_public = qk.public_key().to_sec1_point(false).as_bytes().to_vec();
+    let blob = bytes(&i["blob"]);
+    let r = fc::quick_unlock_se_ephemeral_public(&blob).and_then(|eph| {
+        let peer = PublicKey::from_sec1_bytes(&eph).map_err(|_| figlock_core::Error)?;
+        let shared = diffie_hellman(qk.to_nonzero_scalar(), peer.as_affine());
+        fc::open_quick_unlock_se(
+            &blob,
+            &qk_public,
+            shared.raw_secret_bytes().as_slice(),
+            &arr(&i["vault_id"]),
+            &arr(&i["device_id"]),
+        )
+    });
+    if is_reject(c) {
+        assert_rejected(r, n);
+    } else {
+        assert_eq!(r.unwrap().expose().to_vec(), bytes(&e["auk"]), "{n}");
+    }
+}
+
 #[test]
 fn quick_unlock() {
     for c in load("quick-unlock.json") {
         let (i, e) = (&c["inputs"], &c["expected"]);
         let n = name(&c);
-        if i.get("nonce").is_some() {
+        if n.starts_with("quick-unlock-se-") {
+            quick_unlock_se_case(&c);
+        } else if i.get("nonce").is_some() {
             let b = vh::seal_quick_unlock_with_nonce(
                 &key(&i["qk"]),
                 &key(&i["auk"]),

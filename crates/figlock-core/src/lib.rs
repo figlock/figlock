@@ -26,6 +26,7 @@ mod kit;
 mod merge;
 mod pairing;
 mod payload;
+mod quick_se;
 mod reader;
 mod schema;
 mod search;
@@ -66,6 +67,10 @@ pub use pairing::{
     x25519_public,
 };
 pub use payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem, padded_size};
+pub use quick_se::{
+    QUICK_SE_POINT_LEN, open_quick_unlock_se, quick_unlock_se_ephemeral_public,
+    seal_quick_unlock_se,
+};
 pub use reader::{
     LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
@@ -94,5 +99,6 @@ pub mod vector_hooks {
     pub use crate::kdf::hkdf_raw;
     pub use crate::keys::{epoch_key_with_nonce, seal_quick_unlock_with_nonce, wrap_vk_with_nonce};
     pub use crate::pairing::seal_to_with;
+    pub use crate::quick_se::seal_quick_unlock_se_with;
     pub use crate::signing::canonical_json;
 }

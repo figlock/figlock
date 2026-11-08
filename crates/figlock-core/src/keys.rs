@@ -151,7 +151,7 @@ pub fn open_epoch_key(
     )?)
 }
 
-fn qu_aad(vault_id: &[u8; 16], device_id: &[u8; 16]) -> Vec<u8> {
+pub(crate) fn qu_aad(vault_id: &[u8; 16], device_id: &[u8; 16]) -> Vec<u8> {
     aad("quick-unlock", &[vault_id, device_id])
 }
 
