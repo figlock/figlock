@@ -79,6 +79,7 @@ jobs:
   publish:
     needs: [check-version, linux, macos]
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
     env:
@@ -106,3 +107,15 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release/* \
             --repo "$GITHUB_REPOSITORY" --title "figlock $VERSION" --generate-notes
+
+      - name: Update the Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          tap=figlock/homebrew-tap
+          path=Formula/figlock.rb
+          sha=$(gh api "repos/$tap/contents/$path" --jq .sha 2>/dev/null || true)
+          gh api -X PUT "repos/$tap/contents/$path" \
+            -f message="figlock $VERSION" \
+            -f content="$(base64 < release/figlock.rb | tr -d '\n')" \
+            ${sha:+-f sha="$sha"}

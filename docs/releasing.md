@@ -8,8 +8,8 @@ A release is a version tag. `release.yml` does the rest and the `release` enviro
 1. Bump `version` under `[workspace.package]` in `Cargo.toml` (and the `0.0.0` path-dependency versions in
    `crates/*/Cargo.toml`), merge it to `main` through a PR.
 2. Tag the merge commit and push the tag: `git tag v<version> && git push origin v<version>`.
-3. Approve the `release` environment when the run asks (once for each of the Linux builds and once for the
-   macOS signing job).
+3. Approve the `release` environment when the run asks (once for each of the Linux builds, the macOS signing
+   job and the publish job).
 4. The `publish` job creates the GitHub release with:
    - `figlock-<version>-universal-apple-darwin.tar.gz` (signed, notarized)
    - `figlock-<version>-x86_64-unknown-linux-musl.tar.gz` and `figlock-<version>-aarch64-unknown-linux-musl.tar.gz`
@@ -24,8 +24,10 @@ build secret fails the first step of that job.
 - `curl -fsSL https://figlock.com/install.sh | sh` picks the archive for the machine, checks it against
   `SHA256SUMS` and installs to `~/.local/bin` (`FIGLOCK_INSTALL_DIR`, `FIGLOCK_VERSION` and `FIGLOCK_BASE_URL`
   override). Source: `site/install.sh`.
-- Homebrew: copy `figlock.rb` from the release into the `figlock/homebrew-tap` repo (`Formula/figlock.rb`).
-  Automating that push needs a token for the tap repo and is a follow-up.
+- Homebrew: `brew install figlock/tap/figlock`. The `publish` job writes `Formula/figlock.rb` into
+  `figlock/homebrew-tap` with the `HOMEBREW_TAP_TOKEN` secret (a fine-grained token with Contents read and write
+  on that one repo, kept in the `release` environment; it expires after a year, so renew it or releases fail at
+  the last step).
 - crates.io is deliberately not used (ADR-0021: a source build has no Google client secret, so Drive sign-in
   would not work).
 
