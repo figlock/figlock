@@ -252,6 +252,20 @@ Quick unlock is local to a device and is never synced.
   (or the platform's equivalent wrap). A biometric check releases `QK` use and yields `AUK`.
 - The CLI broker daemon, desktop and mobile apps use the same blob format where the platform permits;
   where the platform gives only a keychain item protected by biometrics, that item holds `AUK` directly.
+- **Secure Enclave variant (macOS, ADR-0025).** `QK` is a P-256 key agreement key that never leaves the chip, so
+  the blob cannot be a symmetric `seal`. The unlock key is wrapped to `QK`'s public key instead:
+
+  ```
+  eph     = fresh P-256 key pair
+  Z       = ECDH(eph_secret, QK_public)                      32 bytes, the x coordinate
+  K       = HKDF-SHA256(ikm = Z, salt = eph_public || QK_public,
+                        info = "figlock quick-unlock se v1" || vault_id || device_id, len = 32)
+  qu_blob = 0x01 || eph_public (65 bytes, uncompressed) || seal(K, AUK, aad("quick-unlock", vault_id, device_id))
+  ```
+
+  Opening runs `ECDH(QK_secret, eph_public)` inside the chip, which asks for user presence first. The key is
+  made with `.userPresence` (Touch ID or the device password) and the watch constraint, so a paired Apple
+  Watch can approve where macOS allows. Vectors for the software half are in `quick-unlock.json`.
 - A full master-password unlock is required: after a reboot or app restart, after 4 hours without use, after 7 days since the last full
   unlock, after 5 failed biometric attempts, after a password change or key rotation, and when the vault is
   locked by the user. These are defaults; users MAY tighten them.

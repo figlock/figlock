@@ -4,7 +4,9 @@ From a clean Mac to a passing `just check`.
 
 ## 1. Prerequisites
 
-- Xcode command line tools: `xcode-select --install`
+- Xcode command line tools: `xcode-select --install`. They include `swiftc`, which builds the small Swift shim
+  for Secure Enclave quick unlock (`crates/figlock-biometric/swift`). Without it the build still works and
+  quick unlock keeps using the keychain, with a build warning.
 - [Homebrew](https://brew.sh)
 - Git, and the GitHub CLI if you open PRs: `brew install git gh`
 

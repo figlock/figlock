@@ -579,6 +579,7 @@ dependencies = [
  "objc2",
  "objc2-foundation",
  "objc2-local-authentication",
+ "zeroize",
 ]
 
 [[package]]
@@ -592,6 +593,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hex",
  "nix",
+ "p256",
  "rpassword",
  "security-framework",
  "serde_json",

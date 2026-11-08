@@ -18,6 +18,7 @@ use zeroize::Zeroizing;
 
 use crate::config;
 use crate::error::{Fail, Res};
+use crate::quick_se::{Chip, Hardware};
 use crate::session::{self, Session};
 
 /// Without use for this long, the next command needs a full unlock. `FIGLOCK_QUICK_IDLE_SECS` can only
@@ -31,8 +32,9 @@ const MAX_FAILURES: u64 = 5;
 /// What the platform gives quick unlock. Injected so tests need no keychain and no screen.
 pub trait Backend {
     fn available(&self) -> bool;
-    /// Ask the person at the keyboard (Touch ID or the device password).
-    fn confirm(&self, reason: &str) -> Outcome;
+    /// Ask the person at the keyboard (Touch ID or the device password). A backend whose key is itself behind
+    /// the prompt (the Secure Enclave) opens it here and hands it out from `get_key`.
+    fn confirm(&self, vault: &str, reason: &str) -> Outcome;
     fn put_key(&self, vault: &str, key: &[u8; 32]) -> Res<()>;
     fn get_key(&self, vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>>;
     /// Whether a key is kept, without reading it.
@@ -40,6 +42,10 @@ pub trait Backend {
     fn delete_key(&self, vault: &str) -> Res<()>;
     /// Changes on every reboot, so a restart asks for the master password again.
     fn boot_id(&self) -> String;
+    /// How the kept key is protected, for `quick-unlock status`: `None` when nothing is kept.
+    fn protection(&self, _vault: &str) -> Option<&'static str> {
+        None
+    }
 }
 
 /// Why a command still needs the master password.
@@ -64,12 +70,14 @@ pub struct Quick<B: Backend> {
     idle_secs: u64,
 }
 
-pub fn system() -> Res<Quick<System>> {
+pub fn system() -> Res<Quick<Hardware<Chip, System>>> {
     let idle = std::env::var("FIGLOCK_QUICK_IDLE_SECS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .map_or(IDLE_SECS, |v| v.min(IDLE_SECS));
-    Ok(Quick::new(config::home()?, System, idle))
+    let home = config::home()?;
+    let backend = Hardware::new(home.clone(), config::device_id(), Chip, System);
+    Ok(Quick::new(home, backend, idle))
 }
 
 impl<B: Backend> Quick<B> {
@@ -195,7 +203,7 @@ impl<B: Backend> Quick<B> {
         if !self.backend.has_key(vault)? {
             return Ok(Fetch::Full(Fallback::Off));
         }
-        match self.backend.confirm("unlock your FigLock vault") {
+        match self.backend.confirm(vault, "unlock your FigLock vault") {
             Outcome::Confirmed => {}
             Outcome::Declined => {
                 let failures = num("failures") + 1;
@@ -220,11 +228,23 @@ impl<B: Backend> Quick<B> {
     }
 }
 
-fn say(json: bool, message: &str, on: bool, kept: bool) -> Res<()> {
+fn say(json: bool, message: &str, on: bool, kept: bool, protection: Option<&str>) -> Res<()> {
     if json {
-        println!("{}", json!({ "enabled": on, "unlocked": kept }));
+        println!(
+            "{}",
+            json!({ "enabled": on, "unlocked": kept, "protection": protection })
+        );
     } else {
         println!("{message}");
+        match protection {
+            Some("secure-enclave") => println!(
+                "Protection: Secure Enclave. The key is bound to this Mac's chip and every use asks for Touch ID, your device password or your Apple Watch."
+            ),
+            Some(_) => println!(
+                "Protection: login keychain, behind a Touch ID or device password prompt. This Mac cannot use the Secure Enclave."
+            ),
+            None => {}
+        }
     }
     Ok(())
 }
@@ -245,17 +265,25 @@ pub fn enable(json: bool) -> Res<()> {
         "Quick unlock is on. Later commands ask for Touch ID or your device password.",
         true,
         true,
+        quick.backend.protection(&vault),
     )
 }
 
 /// `figlock quick-unlock disable`
 pub fn disable(json: bool) -> Res<()> {
     system()?.forget(&session::peek_vault_id()?)?;
-    say(json, "Quick unlock is off.", false, false)
+    say(json, "Quick unlock is off.", false, false, None)
 }
 
 pub fn status(json: bool) -> Res<()> {
-    let (on, kept) = system()?.status(&session::peek_vault_id()?);
+    let quick = system()?;
+    let vault = session::peek_vault_id()?;
+    let (on, kept) = quick.status(&vault);
+    let protection = if on {
+        quick.backend.protection(&vault)
+    } else {
+        None
+    };
     let msg = match (on, kept) {
         (false, _) => "Quick unlock is off.",
         (true, true) => "Quick unlock is on and the vault can be opened with Touch ID.",
@@ -263,7 +291,7 @@ pub fn status(json: bool) -> Res<()> {
             "Quick unlock is on, but the vault is locked: the next command asks for the master password."
         }
     };
-    say(json, msg, on, kept)
+    say(json, msg, on, kept, protection)
 }
 
 /// `figlock lock`: drop the kept key. Quick unlock stays on and refills at the next full unlock.
@@ -287,8 +315,12 @@ impl Backend for System {
         figlock_biometric::available()
     }
 
-    fn confirm(&self, reason: &str) -> Outcome {
+    fn confirm(&self, _vault: &str, reason: &str) -> Outcome {
         figlock_biometric::confirm(reason, std::time::Duration::from_secs(60))
+    }
+
+    fn protection(&self, vault: &str) -> Option<&'static str> {
+        matches!(self.has_key(vault), Ok(true)).then_some("keychain")
     }
 
     fn put_key(&self, vault: &str, key: &[u8; 32]) -> Res<()> {
@@ -341,7 +373,7 @@ impl Backend for System {
     fn available(&self) -> bool {
         false
     }
-    fn confirm(&self, _reason: &str) -> Outcome {
+    fn confirm(&self, _vault: &str, _reason: &str) -> Outcome {
         Outcome::Unavailable
     }
     fn put_key(&self, _vault: &str, _key: &[u8; 32]) -> Res<()> {
@@ -388,7 +420,7 @@ mod tests {
         fn available(&self) -> bool {
             true
         }
-        fn confirm(&self, _reason: &str) -> Outcome {
+        fn confirm(&self, _vault: &str, _reason: &str) -> Outcome {
             self.0.asked.set(self.0.asked.get() + 1);
             self.0.answer.get().unwrap_or(Outcome::Confirmed)
         }
@@ -432,7 +464,7 @@ mod tests {
         fn available(&self) -> bool {
             true
         }
-        fn confirm(&self, _reason: &str) -> Outcome {
+        fn confirm(&self, _vault: &str, _reason: &str) -> Outcome {
             Outcome::Confirmed
         }
         fn put_key(&self, _vault: &str, _key: &[u8; 32]) -> Res<()> {
