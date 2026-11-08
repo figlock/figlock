@@ -38,6 +38,10 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     environment: release
+    env:
+      # ring compiles C and assembly; musl-gcc (from musl-tools) is the C compiler for a static musl build.
+      CC_x86_64_unknown_linux_musl: musl-gcc
+      CC_aarch64_unknown_linux_musl: musl-gcc
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v4

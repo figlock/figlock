@@ -573,7 +573,7 @@ checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "figlock-biometric"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "block2",
  "objc2",
@@ -584,7 +584,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-cli"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "clap",
  "figlock-biometric",
@@ -607,7 +607,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-core"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "argon2",
  "base64",
@@ -631,7 +631,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-ffi"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "figlock-core",
  "tempfile",
@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-store"
-version = "0.0.0"
+version = "0.1.0"
 dependencies = [
  "base64",
  "figlock-core",
