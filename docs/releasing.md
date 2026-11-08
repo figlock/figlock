@@ -5,7 +5,7 @@ A release is a version tag. `release.yml` does the rest and the `release` enviro
 
 ## Cut a release
 
-1. Bump `version` under `[workspace.package]` in `Cargo.toml` (and the `0.0.0` path-dependency versions in
+1. Bump `version` under `[workspace.package]` in `Cargo.toml` (and the path-dependency `version` fields in
    `crates/*/Cargo.toml`), merge it to `main` through a PR.
 2. Tag the merge commit and push the tag: `git tag v<version> && git push origin v<version>`.
 3. Approve the `release` environment when the run asks (once for each of the Linux builds, the macOS signing
