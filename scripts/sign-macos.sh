@@ -32,9 +32,11 @@ if ! grep -q 'flags=.*runtime' <<<"$display"; then
   exit 1
 fi
 
+# The archive holds the binary at its top level, with no parent directory and no AppleDouble (._) entries, so
+# `unzip` gives a single `figlock` that release.yml and the verify step both expect.
 zip="$bin.zip"
 rm -f "$zip"
-ditto -c -k --keepParent "$bin" "$zip"
+(cd "$(dirname "$bin")" && ditto -c -k --norsrc --noextattr --noqtn "$(basename "$bin")" "$(basename "$zip")")
 
 echo "Submitting to Apple notarization"
 notarytool_args=(--key "$NOTARY_KEY_PATH" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER")
