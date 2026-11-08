@@ -189,6 +189,9 @@ impl<E: Enclave, K: Backend> Backend for Hardware<E, K> {
             let _ = self.keychain.delete_key(vault);
             return Ok(());
         }
+        for path in [self.qk_path(), self.blob_path()] {
+            let _ = fs::remove_file(path);
+        }
         self.keychain.put_key(vault, key)
     }
 
@@ -411,6 +414,35 @@ mod tests {
         assert_eq!(rig.chip.0.asked.get(), 1, "one prompt to open it");
         assert_eq!(rig.keychain.0.asked.get(), 0, "the app prompt is not used");
         assert_eq!(rig.hw().protection(VAULT), Some("secure-enclave"));
+    }
+
+    #[test]
+    fn a_refill_without_the_chip_leaves_no_chip_files_and_the_keychain_key_opens() {
+        let rig = Rig::new();
+        let key = auk();
+        rig.quick().enable(VAULT, &key, T0).unwrap();
+        assert!(rig.qk().is_file() && rig.blob().is_file());
+
+        rig.chip.0.missing.set(true);
+        rig.hw().put_key(VAULT, key.expose()).unwrap();
+        assert!(!rig.qk().exists() && !rig.blob().exists());
+        assert!(!rig.hw().has_chip_key());
+        let got = rig.hw().get_key(VAULT).unwrap();
+        assert_eq!(got.as_deref(), Some(key.expose()));
+        assert_eq!(rig.hw().protection(VAULT), Some("keychain"));
+    }
+
+    #[test]
+    fn a_failed_blob_write_leaves_no_chip_key_behind() {
+        let rig = Rig::new();
+        let key = auk();
+        fs::create_dir(rig.blob()).unwrap();
+
+        rig.hw().put_key(VAULT, key.expose()).unwrap();
+        assert!(!rig.qk().exists(), "no new chip key without its wrap");
+        assert!(!rig.hw().has_chip_key());
+        let got = rig.hw().get_key(VAULT).unwrap();
+        assert_eq!(got.as_deref(), Some(key.expose()));
     }
 
     #[test]
