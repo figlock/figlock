@@ -1,0 +1,108 @@
+name: Release
+
+# On a version tag: build the Linux binaries, sign and notarize the macOS one (release-macos.yml), then publish
+# archives, SHA256SUMS and the Homebrew formula to a GitHub release. install.sh on figlock.com and the Homebrew
+# tap both read from that release. The tag must match the workspace version in Cargo.toml.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          version=$(awk -F'"' '/^\[workspace.package\]/ {p=1} p && /^version = / {print $2; exit}' Cargo.toml)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match the workspace version $version in Cargo.toml"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  linux:
+    needs: check-version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            runner: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    environment: release
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Check the build secret is set
+        env:
+          FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET: ${{ secrets.FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET }}
+        run: |
+          if [ -z "$FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET" ]; then
+            echo "::error::secret FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET is not set (ADR-0021)"
+            exit 1
+          fi
+
+      - name: Build
+        env:
+          FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET: ${{ secrets.FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          rustup target add ${{ matrix.target }}
+          cargo build --release --locked -p figlock-cli --target ${{ matrix.target }}
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/figlock dist/figlock
+          dist/figlock --version
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: figlock-${{ matrix.target }}
+          path: dist/figlock
+          if-no-files-found: error
+
+  macos:
+    needs: check-version
+    uses: ./.github/workflows/release-macos.yml
+    secrets: inherit
+
+  publish:
+    needs: [check-version, linux, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: figlock-*
+          path: artifacts
+
+      - name: Package
+        run: |
+          mkdir -p inputs/universal-apple-darwin
+          unzip -q artifacts/figlock-macos-universal/figlock.zip -d inputs/universal-apple-darwin
+          mkdir -p inputs/x86_64-unknown-linux-musl inputs/aarch64-unknown-linux-musl
+          cp artifacts/figlock-x86_64-unknown-linux-musl/figlock inputs/x86_64-unknown-linux-musl/
+          cp artifacts/figlock-aarch64-unknown-linux-musl/figlock inputs/aarch64-unknown-linux-musl/
+          scripts/package-release.sh "$VERSION" inputs release
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/* \
+            --repo "$GITHUB_REPOSITORY" --title "figlock $VERSION" --generate-notes
