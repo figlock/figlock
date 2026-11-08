@@ -4,6 +4,8 @@
 
 use std::time::Duration;
 
+pub mod enclave;
+
 /// What the person did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Outcome {

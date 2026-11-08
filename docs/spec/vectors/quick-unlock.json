@@ -47,6 +47,133 @@
       },
       "expected": "reject",
       "why": "device id is in the AAD"
+    },
+    {
+      "name": "quick-unlock-se-seal",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_public": "047bd95a1785d697b4c20531f40214af4e813a544e85870c605adc1115451c1afa6328b3a2521eab81718bf5c801d670564375c3f9c2e83dbe1f7cc298f2668eed",
+        "eph_secret": "abb5d09b19247102a8ea27db1a51e2eeeff6aa75b959262ce98d321a2acf38ee",
+        "auk": "069a63502702a52901b3b1451bc7ca2db8285e5cbd17816feaa365f9c1047a7e",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+        "nonce": "fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146"
+      },
+      "expected": {
+        "eph_public": "04901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b0",
+        "shared": "448d7e65bededfb3dbac75d298a215b3c906211265039d9fa6374e0dc361a2f7",
+        "wrap_key": "06a5b7ce896ac9c5e0d90b05d4790cfd18d5f6401378cacb54ae6f2d5c706c20",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47"
+      }
+    },
+    {
+      "name": "quick-unlock-se-open",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": {
+        "auk": "069a63502702a52901b3b1451bc7ca2db8285e5cbd17816feaa365f9c1047a7e"
+      }
+    },
+    {
+      "name": "quick-unlock-se-other-device",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "bb8b7895c05bf9f375d4217069c7ff4a"
+      },
+      "expected": "reject",
+      "why": "device id is in the AAD and the key derivation"
+    },
+    {
+      "name": "quick-unlock-se-other-vault",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "445b48ee1c53db3cfe3e9eee6fe18618",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "vault id is in the AAD and the key derivation"
+    },
+    {
+      "name": "quick-unlock-se-wrong-qk",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "17d7c34f450bb559a5015f02880ce3abe312052a763159a9e64e1a5134dff876",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "a different Secure Enclave key derives a different wrap key"
+    },
+    {
+      "name": "quick-unlock-se-flipped-bit",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c46",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "any change to the ciphertext fails the tag"
+    },
+    {
+      "name": "quick-unlock-se-swapped-ephemeral",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0104c24f2d5fb0cc454ee12a7460a81041a13d7a1fad0e3299facc1dfa78a4d8ddd9d2e4725a6ce5f0d4b551858ef05de7fd1ee39de8da7222187b3c0c57ee5daeed01fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "another ephemeral public key gives another shared secret"
+    },
+    {
+      "name": "quick-unlock-se-wrong-version",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0204901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "only version 1 exists"
+    },
+    {
+      "name": "quick-unlock-se-truncated",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "0104901c0934460030fd46bba88d55a64b6e94c9550146143cc1f85430d794c539d3c140f1e28579d593a1946469567a0f3cf9acb12ed4a1da9f3da27922256611b001fa60533f439c5714d16efbee9a",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "shorter than the smallest possible blob"
+    },
+    {
+      "name": "quick-unlock-se-bad-point",
+      "spec": "ADR-0025",
+      "inputs": {
+        "qk_secret": "b5eeddc13b3dbbc1c0c6b7ce0686f64c6e1040744ba0fc695ec0ce1441ea396a",
+        "blob": "01000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001fa60533f439c5714d16efbee9a0ceef54eb896023aa6e146253d21fbe3abb7c6df0528a5b5ad75b323cdba98db57f994f752c4f16ec29228f353a3bac3e991d66d8ba4f08b748c47",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407"
+      },
+      "expected": "reject",
+      "why": "the ephemeral key is not a point on the curve"
     }
   ]
 }

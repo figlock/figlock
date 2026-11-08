@@ -20,6 +20,7 @@ mod import;
 mod keystore;
 mod prompt;
 mod quick;
+mod quick_se;
 mod render;
 #[cfg(unix)]
 mod run;

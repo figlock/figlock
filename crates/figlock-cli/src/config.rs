@@ -263,6 +263,17 @@ pub fn forget_drive_token() -> Res<()> {
     }
 }
 
+/// This device's id, read from `device.json` without touching any key.
+pub fn device_id() -> Option<[u8; 16]> {
+    let raw = fs::read(device_path(&home().ok()?)).ok()?;
+    let id = serde_json::from_slice::<Value>(&raw)
+        .ok()?
+        .get("device_id")?
+        .as_str()
+        .map(str::to_owned)?;
+    hex::decode(id).ok()?.try_into().ok()
+}
+
 /// Undo [`save`] after a later step of `init` failed.
 pub fn forget() {
     if let Ok(home) = home() {

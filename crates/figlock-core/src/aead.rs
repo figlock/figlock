@@ -8,7 +8,7 @@ use crate::{Error, Key, Result};
 /// The envelope format version byte.
 pub const VERSION: u8 = 1;
 const NONCE_LEN: usize = 24;
-const TAG_LEN: usize = 16;
+pub(crate) const TAG_LEN: usize = 16;
 
 fn cipher(key: &Key) -> Result<XChaCha20Poly1305> {
     XChaCha20Poly1305::new_from_slice(key.expose()).map_err(|_| Error)

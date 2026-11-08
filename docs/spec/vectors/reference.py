@@ -13,6 +13,8 @@ import unicodedata
 
 from argon2.low_level import Type, hash_secret_raw
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from nacl import bindings as nb
@@ -276,6 +278,49 @@ def verify_json(authority_pub: bytes, context: str, obj, sig: bytes) -> None:
 # ---- quick unlock (crypto.md 8, software variant) ----
 def quick_unlock_blob(qk: bytes, auk_: bytes, vault_id: bytes, device_id: bytes, nonce: bytes) -> bytes:
     return seal(qk, auk_, aad("quick-unlock", vault_id, device_id), nonce)
+
+
+# ---- quick unlock, Secure Enclave variant (ADR-0025) ----
+# QK is a P-256 key agreement key. In the product its secret half never leaves the Secure Enclave; the vectors
+# use a software key so the wrap around it can be checked byte for byte.
+SE_VERSION = b"\x01"
+SE_INFO = b"figlock quick-unlock se v1"
+P256_POINT = 65
+
+
+def p256_pub(secret: bytes) -> bytes:
+    key = ec.derive_private_key(int.from_bytes(secret, "big"), ec.SECP256R1())
+    return key.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+
+
+def p256_agree(secret: bytes, peer_pub: bytes) -> bytes:
+    key = ec.derive_private_key(int.from_bytes(secret, "big"), ec.SECP256R1())
+    peer = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), peer_pub)
+    return key.exchange(ec.ECDH(), peer)
+
+
+def se_wrap_key(shared: bytes, eph_pub: bytes, qk_pub: bytes, vault_id: bytes, device_id: bytes) -> bytes:
+    return HKDF(algorithm=hashes.SHA256(), length=32, salt=eph_pub + qk_pub,
+                info=SE_INFO + vault_id + device_id).derive(shared)
+
+
+def quick_unlock_se_blob(qk_pub: bytes, eph_secret: bytes, auk_: bytes, vault_id: bytes, device_id: bytes,
+                         nonce: bytes) -> bytes:
+    eph_pub = p256_pub(eph_secret)
+    k = se_wrap_key(p256_agree(eph_secret, qk_pub), eph_pub, qk_pub, vault_id, device_id)
+    return SE_VERSION + eph_pub + seal(k, auk_, aad("quick-unlock", vault_id, device_id), nonce)
+
+
+def quick_unlock_se_open(qk_secret: bytes, blob: bytes, vault_id: bytes, device_id: bytes) -> bytes:
+    if len(blob) < 1 + P256_POINT + 1 + 24 + 16 or blob[:1] != SE_VERSION:
+        raise Reject()
+    eph_pub = blob[1:1 + P256_POINT]
+    try:
+        shared = p256_agree(qk_secret, eph_pub)
+    except ValueError as e:
+        raise Reject() from e
+    k = se_wrap_key(shared, eph_pub, p256_pub(qk_secret), vault_id, device_id)
+    return open_(k, blob[1 + P256_POINT:], aad("quick-unlock", vault_id, device_id))
 
 
 # ---- rotation (crypto.md 9.1) ----

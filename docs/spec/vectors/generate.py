@@ -407,7 +407,49 @@ def quick_unlock():
         case("quick-unlock-open", "crypto.md 8", base, {"auk": x(auk)}),
         reject("quick-unlock-other-device", "crypto.md 8", {**base, "device_id": x(DEVICE_B)},
                "device id is in the AAD"),
-    ]}
+    ] + quick_unlock_se(auk)}
+
+
+def quick_unlock_se(auk):
+    """Secure Enclave variant (ADR-0025): ECDH with QK, HKDF, then the usual seal. QK's secret is a software
+    stand-in here; the product keeps it in the Secure Enclave."""
+    qk_secret = fill("qk-se-secret", 32)
+    qk_pub = r.p256_pub(qk_secret)
+    eph_secret = fill("qk-se-eph", 32)
+    other_secret = fill("qk-se-other", 32)
+    nonce = fill("nonce-qu-se", 24)
+    eph_pub = r.p256_pub(eph_secret)
+    shared = r.p256_agree(eph_secret, qk_pub)
+    assert shared == r.p256_agree(qk_secret, eph_pub)
+    wrap_key = r.se_wrap_key(shared, eph_pub, qk_pub, VAULT_ID, DEVICE_A)
+    blob = r.quick_unlock_se_blob(qk_pub, eph_secret, auk, VAULT_ID, DEVICE_A, nonce)
+    base = {"qk_secret": x(qk_secret), "blob": x(blob), "vault_id": x(VAULT_ID), "device_id": x(DEVICE_A)}
+    flipped = bytearray(blob)
+    flipped[-1] ^= 1
+    swapped = blob[:1] + r.p256_pub(other_secret) + blob[1 + r.P256_POINT:]
+    return [
+        case("quick-unlock-se-seal", "ADR-0025",
+             {"qk_public": x(qk_pub), "eph_secret": x(eph_secret), "auk": x(auk), "vault_id": x(VAULT_ID),
+              "device_id": x(DEVICE_A), "nonce": x(nonce)},
+             {"eph_public": x(eph_pub), "shared": x(shared), "wrap_key": x(wrap_key), "blob": x(blob)}),
+        case("quick-unlock-se-open", "ADR-0025", base, {"auk": x(auk)}),
+        reject("quick-unlock-se-other-device", "ADR-0025", {**base, "device_id": x(DEVICE_B)},
+               "device id is in the AAD and the key derivation"),
+        reject("quick-unlock-se-other-vault", "ADR-0025", {**base, "vault_id": x(fill("other-vault", 16))},
+               "vault id is in the AAD and the key derivation"),
+        reject("quick-unlock-se-wrong-qk", "ADR-0025", {**base, "qk_secret": x(other_secret)},
+               "a different Secure Enclave key derives a different wrap key"),
+        reject("quick-unlock-se-flipped-bit", "ADR-0025", {**base, "blob": x(bytes(flipped))},
+               "any change to the ciphertext fails the tag"),
+        reject("quick-unlock-se-swapped-ephemeral", "ADR-0025", {**base, "blob": x(swapped)},
+               "another ephemeral public key gives another shared secret"),
+        reject("quick-unlock-se-wrong-version", "ADR-0025", {**base, "blob": x(b"\x02" + blob[1:])},
+               "only version 1 exists"),
+        reject("quick-unlock-se-truncated", "ADR-0025", {**base, "blob": x(blob[:80])},
+               "shorter than the smallest possible blob"),
+        reject("quick-unlock-se-bad-point", "ADR-0025", {**base, "blob": x(blob[:1] + bytes(65) + blob[66:])},
+               "the ephemeral key is not a point on the curve"),
+    ]
 
 
 def pairing():
@@ -761,7 +803,20 @@ def verify_case(fname: str, c: dict) -> None:
             assert (o["lk"], n["lk"], o["authority_pub"], n["authority_pub"]) == (
                 b(e["old_lk"]), b(e["new_lk"]), b(e["old_authority_pub"]), b(e["new_authority_pub"]))
     elif fname == "quick-unlock.json":
-        if "nonce" in i:
+        if name.startswith("quick-unlock-se-"):
+            if name == "quick-unlock-se-seal":
+                blob = r.quick_unlock_se_blob(b(i["qk_public"]), b(i["eph_secret"]), b(i["auk"]), b(i["vault_id"]),
+                                              b(i["device_id"]), b(i["nonce"]))
+                assert blob == b(e["blob"])
+                assert r.p256_pub(b(i["eph_secret"])) == b(e["eph_public"])
+                assert r.p256_agree(b(i["eph_secret"]), b(i["qk_public"])) == b(e["shared"])
+            elif e == "reject":
+                expect_reject(lambda: r.quick_unlock_se_open(b(i["qk_secret"]), b(i["blob"]), b(i["vault_id"]),
+                                                             b(i["device_id"])))
+            else:
+                assert r.quick_unlock_se_open(b(i["qk_secret"]), b(i["blob"]), b(i["vault_id"]),
+                                              b(i["device_id"])) == b(e["auk"])
+        elif "nonce" in i:
             assert r.quick_unlock_blob(b(i["qk"]), b(i["auk"]), b(i["vault_id"]), b(i["device_id"]),
                                        b(i["nonce"])) == b(e["blob"])
         elif e == "reject":
