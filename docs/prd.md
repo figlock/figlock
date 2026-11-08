@@ -75,6 +75,7 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 | Import: Chrome, Apple, Bitwarden, 1Password CSV; raw notes dump with token detection | must |
 | Export, encrypted and plain                                                  | must     |
 | Secure note, SSH key, `.env` bundle                                          | should   |
+| Document: small files (`.p12`, `.p8`, service-account JSON) with a password, URL and tags | should |
 | TOTP next to the login (opt-in per item)                                     | should   |
 | Item history (previous values)                                               | should   |
 | FIDO CXF import/export, passkey storage                                      | later    |

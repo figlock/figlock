@@ -122,7 +122,9 @@ A vault is a set of **items**. An item is a set of **fields**, each a **register
 `(hlc, device_id, value)`. The state of an item is the map from `field_id` to its winning register.
 
 `field_id` is a short ASCII name chosen by the schema, for example `title`, `username`, `password`,
-`notes`, `provider`, `env_var`, `tags/<tag>`, `url/<uuid>`, `custom/<uuid>/name`, `custom/<uuid>/value`.
+`notes`, `provider`, `env_var`, `tags/<tag>`, `url/<uuid>`, `custom/<uuid>/name`, `custom/<uuid>/value`,
+`file/<uuid>/name`, `file/<uuid>/mime`, `file/<uuid>/data`. Each field name has a maximum value size
+(ADR-0024); a device applies it to its own writes and to every op and snapshot it reads.
 Multi-valued data is stored as many fields with unique ids, so concurrent additions never collide:
 adding a second URL is writing `url/<new uuid>`; removing it is writing the field's null value.
 
