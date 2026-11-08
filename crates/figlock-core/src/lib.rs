@@ -13,6 +13,7 @@
 
 mod aead;
 mod audit;
+mod document;
 mod error;
 mod file;
 mod hlc;
@@ -39,6 +40,7 @@ pub use audit::{
     AUDIT_EVENTS, AuditChain, AuditRecord, ZERO_PREV, audit_frame, audit_payload, audit_split,
     clean_text as audit_clean_text, read_audit_chain,
 };
+pub use document::{MAX_FILE_BYTES, decode_file, encode_file};
 pub use error::{Error, Result};
 pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
 pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};
@@ -67,7 +69,10 @@ pub use payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem, pa
 pub use reader::{
     LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
-pub use schema::{ItemType, MAX_VALUE_BYTES, is_secret_field, validate_field};
+pub use schema::{
+    ItemType, MAX_FIELDS_PER_ITEM, MAX_FILES_PER_ITEM, MAX_VALUE_BYTES, is_secret_field,
+    max_value_bytes, validate_field,
+};
 pub use search::{Hit, Index};
 pub use secret::Key;
 pub use secret_key::SecretKey;

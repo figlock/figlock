@@ -3,7 +3,7 @@
 //! Pure logic over bytes: it produces `vault.json`, device records and op files, and consumes them, but never
 //! touches storage. The CLI (FIG-29) and the sync engine move the bytes through a `BlobStore`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ciborium::Value as Cbor;
 use ed25519_dalek::SigningKey;
@@ -21,7 +21,8 @@ use crate::merge::{DeviceId, State, Write};
 use crate::payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem};
 use crate::reader::accept_from_revoked;
 use crate::schema::{
-    FIELD_DELETED, FIELD_IK, FIELD_TYPE, FIELD_VAULT, ItemType, MAX_VALUE_BYTES, validate_field,
+    FIELD_DELETED, FIELD_IK, FIELD_TYPE, FIELD_VAULT, ItemType, MAX_FIELDS_PER_ITEM,
+    MAX_FILES_PER_ITEM, max_value_bytes, validate_field,
 };
 use crate::signing::{sign_json, verify_json};
 use crate::{
@@ -29,13 +30,35 @@ use crate::{
     wrap_item_key,
 };
 
-const ALL_TYPES: [ItemType; 5] = [
+/// What sealing adds to a CBOR text value: the CBOR header (up to 9 bytes), the nonce and the tag, with room to spare.
+const BLOB_OVERHEAD: usize = 64;
+
+const ALL_TYPES: [ItemType; 6] = [
     ItemType::Login,
     ItemType::Token,
     ItemType::Note,
     ItemType::EnvBundle,
     ItemType::SshKey,
+    ItemType::Document,
 ];
+
+/// Whether an item with these field names stays within the per-item limits. A device checks its own writes;
+/// the limits are not enforced on ops from other devices because a count across concurrent edits has no
+/// single right answer (`docs/adr/0024-document-items.md`).
+fn check_counts<'a>(fields: impl Iterator<Item = &'a str>) -> Result<()> {
+    let mut total = 0;
+    let mut files = BTreeSet::new();
+    for f in fields {
+        total += 1;
+        if let Some(id) = f.strip_prefix("file/").and_then(|r| r.split('/').next()) {
+            files.insert(id.to_owned());
+        }
+    }
+    if total > MAX_FIELDS_PER_ITEM || files.len() > MAX_FILES_PER_ITEM {
+        return Err(Error);
+    }
+    Ok(())
+}
 
 fn record_path(id: &DeviceId) -> String {
     format!("devices/{}.json", hexs(id))
@@ -1030,7 +1053,7 @@ impl Vault {
                 if !known
                     || f.blob
                         .as_ref()
-                        .is_some_and(|b| b.len() > MAX_VALUE_BYTES + 64)
+                        .is_some_and(|b| b.len() > max_value_bytes(&field) + BLOB_OVERHEAD)
                 {
                     return Err(Error);
                 }
@@ -1123,7 +1146,7 @@ impl Vault {
         let stamp = self.hlc.local(now_ms)?;
         let blob = match value {
             Some(v) => {
-                if v.len() > MAX_VALUE_BYTES {
+                if v.len() > max_value_bytes(field) {
                     return Err(Error);
                 }
                 let vid = self.vault_id;
@@ -1161,6 +1184,7 @@ impl Vault {
         for (f, _) in fields {
             validate_field(t, f)?;
         }
+        check_counts(fields.iter().map(|(f, _)| *f))?;
         let id = random::<16>()?;
         let ik = Key::random()?;
         let wrapped = wrap_item_key(&self.keys.wk, &ik, &self.vault_id, &id, self.epoch)?;
@@ -1190,6 +1214,11 @@ impl Vault {
     ) -> Result<()> {
         let t = self.item_type(id)?;
         validate_field(t, field)?;
+        if value.is_some() {
+            let mut live = self.live_fields(id);
+            live.insert(field.to_owned());
+            check_counts(live.iter().map(String::as_str))?;
+        }
         self.set_text(*id, field, value, now_ms)
     }
 
@@ -1312,7 +1341,7 @@ impl Vault {
                 } => {
                     if blob
                         .as_ref()
-                        .is_some_and(|b| b.len() > MAX_VALUE_BYTES + 64)
+                        .is_some_and(|b| b.len() > max_value_bytes(&field) + BLOB_OVERHEAD)
                         || !self.field_allowed(&item, &field)
                     {
                         return Err(Error);
@@ -1436,6 +1465,21 @@ impl Vault {
             Ok(t) => validate_field(t, field).is_ok(),
             Err(_) => ALL_TYPES.iter().any(|t| validate_field(*t, field).is_ok()),
         }
+    }
+
+    /// Names of the item's fields that currently hold a value.
+    fn live_fields(&self, id: &ItemId) -> BTreeSet<String> {
+        self.state
+            .items()
+            .get(id)
+            .map(|fields| {
+                fields
+                    .iter()
+                    .filter(|(f, r)| !f.starts_with('_') && !matches!(r.value, FieldValue::Removed))
+                    .map(|(f, _)| f.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     fn read_text(&mut self, id: &ItemId, field: &str) -> Result<Option<Zeroizing<String>>> {

@@ -15,7 +15,7 @@ use std::fmt;
 
 use zeroize::Zeroizing;
 
-use crate::{ItemType, MAX_VALUE_BYTES, validate_field};
+use crate::{ItemType, max_value_bytes, validate_field};
 
 /// Larger inputs are refused before any parsing.
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;
@@ -327,7 +327,7 @@ fn push(fields: &mut Fields, name: &str, value: &str) {
 
 /// Fail the record when any value is larger than a field may be.
 fn check_sizes(fields: &Fields) -> Result<(), SkipReason> {
-    if fields.iter().any(|(_, v)| v.len() > MAX_VALUE_BYTES) {
+    if fields.iter().any(|(n, v)| v.len() > max_value_bytes(n)) {
         Err(SkipReason::FieldTooLarge)
     } else {
         Ok(())

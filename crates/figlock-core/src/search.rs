@@ -186,7 +186,11 @@ fn classify(field: &str) -> Option<Kind> {
         "scopes" | "notes" | "body" => Kind::Text,
         _ if field.starts_with("url/") || field.starts_with("allowed_hosts/") => Kind::Host,
         _ if field.starts_with("tags/") => Kind::Tag,
-        _ if field.starts_with("custom/") && field.ends_with("/name") => Kind::Name,
+        _ if (field.starts_with("custom/") || field.starts_with("file/"))
+            && field.ends_with("/name") =>
+        {
+            Kind::Name
+        }
         _ => return None,
     })
 }

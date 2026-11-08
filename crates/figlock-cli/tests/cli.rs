@@ -610,3 +610,241 @@ fn quick_unlock_is_off_by_default_and_commands_without_a_prompt_work() {
     assert!(!out.status.success());
     assert!(text(&out.stderr).contains("could not unlock"));
 }
+
+/// Bytes that are not valid UTF-8 and do not look like text, so a lossy path would corrupt them.
+fn file_bytes(n: usize) -> Vec<u8> {
+    let mut b = vec![0u8; n];
+    getrandom::fill(&mut b).unwrap();
+    b[0] = 0xff;
+    b
+}
+
+#[test]
+fn a_file_goes_in_and_out_byte_for_byte_and_never_shows_in_listings() {
+    use std::os::unix::fs::PermissionsExt;
+    let e = Env::init();
+    let dir = TempDir::new().unwrap();
+    let src = dir.path().join("signing-cert.p12");
+    let bytes = file_bytes(4_000);
+    fs::write(&src, &bytes).unwrap();
+
+    let out = e.run_stdin(
+        &[
+            "add",
+            "--type",
+            "doc",
+            "--title",
+            "Apple signing",
+            "--set",
+            "url/1=https://developer.apple.com",
+            "--set",
+            "tags/ci=",
+            "--secret",
+            "password",
+            "--file",
+            src.to_str().unwrap(),
+        ],
+        &format!("{SECRET}\n"),
+    );
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_no_secret("add", &out);
+    let id = text(&out.stdout).trim().to_owned();
+
+    // Listings and plain get show the file's name and size, never its contents or the password.
+    let b64 = figlock_b64(&bytes);
+    for args in [
+        vec!["get", &id],
+        vec!["get", &id, "--json"],
+        vec!["find", "apple"],
+    ] {
+        let out = e.run(&args);
+        assert!(out.status.success(), "{args:?}: {}", text(&out.stderr));
+        assert_no_secret("listing", &out);
+        assert!(
+            !text(&out.stdout).contains(&b64[..40]),
+            "{args:?} printed the file"
+        );
+    }
+    let shown = e.ok(&["get", &id]);
+    assert!(shown.contains("signing-cert.p12"), "{shown}");
+    assert!(shown.contains("4000 bytes"), "{shown}");
+
+    // The file name is searchable, the contents are not.
+    assert!(e.ok(&["find", "signing-cert"]).contains("Apple signing"));
+    assert!(e.run(&["find", &b64[10..50]]).stdout.is_empty());
+
+    // Out to a new path, owner-only, identical bytes.
+    let dest = dir.path().join("restored.p12");
+    let d = dest.to_str().unwrap();
+    let out = e.run(&["get", &id, "--file", "signing-cert.p12", "--out", d]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(fs::read(&dest).unwrap(), bytes);
+    assert_eq!(
+        fs::metadata(&dest).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
+    // Not overwritten unless asked.
+    let again = e.run(&["get", &id, "--file", "signing-cert.p12", "--out", d]);
+    assert!(!again.status.success());
+    assert!(text(&again.stderr).contains("already exists"));
+    assert_eq!(fs::read(&dest).unwrap(), bytes);
+    assert!(
+        e.run(&[
+            "get",
+            &id,
+            "--file",
+            "signing-cert.p12",
+            "--out",
+            d,
+            "--force"
+        ])
+        .status
+        .success()
+    );
+    // Stdout is binary-safe.
+    assert_eq!(
+        e.run(&["get", &id, "--file", "signing-cert.p12", "--out", "-"])
+            .stdout,
+        bytes
+    );
+    assert!(
+        !e.run(&["get", &id, "--file", "nope.p12", "--out", "-"])
+            .status
+            .success()
+    );
+
+    // Nothing readable on the storage side: not the name, not the contents, not the password.
+    for op in e.ops() {
+        let raw = fs::read(op).unwrap();
+        assert!(!contains(&raw, b"signing-cert"), "file name in ciphertext");
+        assert!(!contains(&raw, &bytes[..64]), "file bytes in ciphertext");
+        assert!(!contains(&raw, SECRET.as_bytes()), "password in ciphertext");
+    }
+
+    // Removing the file removes its fields and the item stays.
+    e.ok(&["edit", &id, "--remove-file", "signing-cert.p12"]);
+    assert!(!e.ok(&["get", &id]).contains("file/"));
+}
+
+#[test]
+fn files_are_checked_before_anything_is_written() {
+    let e = Env::init();
+    let dir = TempDir::new().unwrap();
+    let big = dir.path().join("big.bin");
+    fs::write(&big, vec![7u8; 786_432 + 1]).unwrap();
+    let empty = dir.path().join("empty.bin");
+    fs::write(&empty, b"").unwrap();
+    let ok = dir.path().join("ok.bin");
+    fs::write(&ok, b"tiny").unwrap();
+    e.add_login("seed", &[]);
+    let before = e.ops().len();
+    for (args, needle) in [
+        (
+            vec![
+                "add",
+                "-t",
+                "doc",
+                "--title",
+                "x",
+                "--file",
+                big.to_str().unwrap(),
+            ],
+            "768 KiB",
+        ),
+        (
+            vec![
+                "add",
+                "-t",
+                "doc",
+                "--title",
+                "x",
+                "--file",
+                empty.to_str().unwrap(),
+            ],
+            "768 KiB",
+        ),
+        (
+            vec![
+                "add",
+                "-t",
+                "doc",
+                "--title",
+                "x",
+                "--file",
+                dir.path().to_str().unwrap(),
+            ],
+            "regular file",
+        ),
+        (
+            vec![
+                "add",
+                "-t",
+                "doc",
+                "--title",
+                "x",
+                "--file",
+                "/nonexistent/f.bin",
+            ],
+            "cannot read",
+        ),
+        (
+            vec![
+                "add",
+                "-t",
+                "login",
+                "--title",
+                "x",
+                "--file",
+                ok.to_str().unwrap(),
+            ],
+            "doc items",
+        ),
+    ] {
+        let out = e.run(&args);
+        assert!(!out.status.success(), "{args:?}");
+        assert!(
+            text(&out.stderr).contains(needle),
+            "{args:?}: {}",
+            text(&out.stderr)
+        );
+    }
+    assert_eq!(e.ops().len(), before, "a refused add wrote an op");
+    // Too many files on one item is refused as well.
+    let mut args = vec!["add", "-t", "doc", "--title", "many"];
+    let path = ok.to_str().unwrap();
+    for _ in 0..9 {
+        args.extend(["--file", path]);
+    }
+    assert!(!e.run(&args).status.success());
+    assert_eq!(e.ops().len(), before);
+}
+
+#[test]
+fn an_oversize_text_field_is_refused() {
+    let e = Env::init();
+    let long = format!("title={}", "t".repeat(2000));
+    let out = e.run(&[
+        "add",
+        "-t",
+        "note",
+        "--title",
+        &"t".repeat(2000),
+        "--set",
+        &long,
+    ]);
+    assert!(!out.status.success());
+    assert!(
+        e.run(&["add", "-t", "note", "--title", &"t".repeat(2000)])
+            .status
+            .code()
+            != Some(0)
+    );
+}
+
+fn contains(hay: &[u8], needle: &[u8]) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle)
+}
+
+fn figlock_b64(bytes: &[u8]) -> String {
+    figlock_core::encode_file(bytes).unwrap().to_string()
+}

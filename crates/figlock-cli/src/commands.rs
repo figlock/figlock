@@ -1,6 +1,7 @@
 //! One function per subcommand.
 
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -14,7 +15,7 @@ use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
 use crate::session::{Session, id_hex, now_ms, title_of};
 use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
-    clipboard, generate, prompt,
+    clipboard, docfile, generate, prompt,
 };
 
 pub(crate) const VAULT_NAME: &str = "personal";
@@ -135,8 +136,20 @@ fn collect_fields(
     Ok(out)
 }
 
+fn file_fields(t: ItemType, files: &[PathBuf]) -> Res<Vec<(String, Zeroizing<String>)>> {
+    if !files.is_empty() && t != ItemType::Document {
+        return Err(Fail::new("--file only works on doc items"));
+    }
+    let mut out = Vec::new();
+    for path in files {
+        out.extend(docfile::fields_for(path)?);
+    }
+    Ok(out)
+}
+
 pub fn add(a: AddArgs, json: bool) -> Res<()> {
     let mut fields = collect_fields(a.item_type, a.set, a.secret)?;
+    fields.extend(file_fields(a.item_type, &a.files)?);
     if fields.iter().any(|(n, _)| n == "title") {
         return Err(Fail::new("use --title for the title"));
     }
@@ -157,16 +170,29 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
 }
 
 pub fn edit(a: EditArgs, json: bool) -> Res<()> {
-    if a.set.is_empty() && a.secret.is_empty() && a.unset.is_empty() && !a.delete && !a.restore {
+    if a.set.is_empty()
+        && a.secret.is_empty()
+        && a.unset.is_empty()
+        && a.files.is_empty()
+        && a.remove_files.is_empty()
+        && !a.delete
+        && !a.restore
+    {
         return Err(Fail::new(
-            "nothing to do: give --set, --secret, --unset, --delete or --restore",
+            "nothing to do: give --set, --secret, --unset, --file, --remove-file, --delete or --restore",
         ));
     }
     let mut s = Session::open()?;
     let item = s.resolve(&a.item, a.restore)?;
     let id = item.id;
-    let fields = collect_fields(item.item_type, a.set, a.secret)?;
-    for name in &a.unset {
+    let mut fields = collect_fields(item.item_type, a.set, a.secret)?;
+    fields.extend(file_fields(item.item_type, &a.files)?);
+    let mut unset = a.unset;
+    for name in &a.remove_files {
+        let fid = docfile::find(&item, name)?;
+        unset.extend(["name", "mime", "data"].map(|leaf| format!("file/{fid}/{leaf}")));
+    }
+    for name in &unset {
         validate_field(item.item_type, name).map_err(|_| {
             Fail::new(format!(
                 "{name} is not a field of a {} item",
@@ -178,8 +204,11 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
     for (name, value) in &fields {
         s.vault.set_field(&id, name, Some(value), now)?;
     }
-    for name in &a.unset {
-        s.vault.set_field(&id, name, None, now)?;
+    for name in &unset {
+        // A file's mime or data may be absent; removing a field the item never had is not an error.
+        if item.fields.contains_key(name) {
+            s.vault.set_field(&id, name, None, now)?;
+        }
     }
     if a.delete {
         s.vault.delete_item(&id, now)?;
@@ -226,6 +255,15 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
 pub fn get(a: GetArgs, json: bool) -> Res<()> {
     let mut s = Session::open()?;
     let item = s.resolve(&a.item, false)?;
+    if let (Some(name), Some(out)) = (&a.file, &a.out) {
+        let id = docfile::find(&item, name)?;
+        let bytes = docfile::read(&item, &id)?;
+        docfile::write_out(&bytes, out, a.force)?;
+        if out != "-" {
+            eprintln!("Wrote {} bytes to {out} (owner-only).", bytes.len());
+        }
+        return Ok(());
+    }
     if let Some(field) = a.field {
         let value = item
             .fields
@@ -252,7 +290,13 @@ pub fn get(a: GetArgs, json: bool) -> Res<()> {
         if name == "title" {
             continue;
         }
-        if is_secret_field(name) && !a.reveal {
+        if name.starts_with("file/") && name.ends_with("/data") {
+            println!(
+                "{name}: {} bytes (save it with --file NAME --out PATH)",
+                docfile::read(&item, &name["file/".len()..name.len() - "/data".len()])
+                    .map_or(0, |b| b.len())
+            );
+        } else if is_secret_field(name) && !a.reveal {
             println!("{name}: ******** (secret)");
         } else {
             println!("{name}: {}", clean(value));
@@ -267,6 +311,7 @@ fn default_secret_field(t: ItemType) -> Option<&'static str> {
         ItemType::Token => Some("token"),
         ItemType::Note => Some("body"),
         ItemType::SshKey => Some("private_key"),
+        ItemType::Document => Some("password"),
         ItemType::EnvBundle => None,
     }
 }

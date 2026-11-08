@@ -10,6 +10,7 @@ mod broker;
 mod clipboard;
 mod commands;
 mod config;
+mod docfile;
 mod drive;
 mod error;
 mod generate;
@@ -287,7 +288,7 @@ pub struct InitArgs {
 }
 
 fn parse_type(s: &str) -> Result<ItemType, String> {
-    ItemType::parse(s).map_err(|_| "expected login, token, note, env or ssh".to_owned())
+    ItemType::parse(s).map_err(|_| "expected login, token, note, env, ssh or doc".to_owned())
 }
 
 fn parse_kv(s: &str) -> Result<(String, String), String> {
@@ -298,11 +299,14 @@ fn parse_kv(s: &str) -> Result<(String, String), String> {
 
 #[derive(Args)]
 pub struct AddArgs {
-    /// login, token, note, env or ssh.
+    /// login, token, note, env, ssh or doc.
     #[arg(long = "type", short = 't', value_parser = parse_type)]
     pub item_type: ItemType,
     #[arg(long)]
     pub title: String,
+    /// Attach a file (doc items only, up to 768 KiB). Repeat for several files.
+    #[arg(long = "file", value_name = "PATH")]
+    pub files: Vec<PathBuf>,
     /// A non-secret field, `name=value` (for example `username=ada`, `url/1=https://example.com`).
     #[arg(long = "set", value_name = "FIELD=VALUE", value_parser = parse_kv)]
     pub set: Vec<(String, String)>,
@@ -322,6 +326,12 @@ pub struct EditArgs {
     /// Remove a field.
     #[arg(long = "unset", value_name = "FIELD")]
     pub unset: Vec<String>,
+    /// Attach a file (doc items only, up to 768 KiB). Repeat for several files.
+    #[arg(long = "file", value_name = "PATH")]
+    pub files: Vec<PathBuf>,
+    /// Remove an attached file, by name or id.
+    #[arg(long = "remove-file", value_name = "NAME")]
+    pub remove_files: Vec<String>,
     /// Move the item to the trash.
     #[arg(long, conflicts_with = "restore")]
     pub delete: bool,
@@ -343,8 +353,17 @@ pub struct FindArgs {
 pub struct GetArgs {
     pub item: String,
     /// Print only this field's value.
-    #[arg(long, short = 'f')]
+    #[arg(long, short = 'f', conflicts_with = "file")]
     pub field: Option<String>,
+    /// Save an attached file (by name or id) to --out.
+    #[arg(long = "file", value_name = "NAME", requires = "out")]
+    pub file: Option<String>,
+    /// Where to write the file: a new path (created owner-only) or `-` for stdout.
+    #[arg(long, value_name = "PATH", requires = "file")]
+    pub out: Option<String>,
+    /// Replace --out if it already exists.
+    #[arg(long, requires = "out")]
+    pub force: bool,
     /// Show secret values.
     #[arg(long)]
     pub reveal: bool,
