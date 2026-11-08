@@ -2,7 +2,7 @@
 
 The `Release (macOS)` workflow builds a universal `figlock` binary, signs it with a Developer ID Application
 certificate (hardened runtime), notarizes it with Apple and uploads `figlock.zip` as a build artifact.
-Publishing releases is separate (FIG-32). `scripts/sign-macos.sh` does the signing and notarizing and also
+`release.yml` calls it on a version tag and publishes the result (`docs/releasing.md`). `scripts/sign-macos.sh` does the signing and notarizing and also
 works on a developer Mac.
 
 A bare command-line binary cannot be stapled. Gatekeeper looks up the notarization ticket online the first
@@ -37,7 +37,7 @@ Never put the certificate, the key or any password in git, issues, logs or scree
 
 ## Running it
 
-Trigger the workflow from the Actions tab (`Release (macOS)`, Run workflow) or push a `v*` tag. A missing
+Trigger the workflow from the Actions tab (`Release (macOS)`, Run workflow) to check signing by hand. A `v*` tag runs `release.yml`, which calls it. A missing
 secret fails the first step with the name of the secret.
 
 ## Signing locally

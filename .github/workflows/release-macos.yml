@@ -1,11 +1,11 @@
 name: Release (macOS)
 
 # Builds a universal figlock binary, signs it with the Developer ID certificate and notarizes it.
-# Publishing the result (GitHub release, install.sh, Homebrew) is FIG-32. Setup is in docs/macos-signing.md.
+# Run it by hand to check signing, or let release.yml call it on a version tag, which publishes the result.
+# Setup is in docs/macos-signing.md.
 on:
   workflow_dispatch:
-  push:
-    tags: ['v*']
+  workflow_call:
 
 permissions:
   contents: read
