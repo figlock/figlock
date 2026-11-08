@@ -1,6 +1,6 @@
 # ADR-0025: Hardware-bound quick unlock with the Secure Enclave (CLI on macOS)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-09
 - Decision: D25 in `docs/decisions.md`
 
