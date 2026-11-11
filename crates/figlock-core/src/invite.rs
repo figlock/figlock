@@ -363,7 +363,7 @@ impl JoinAttempt {
     /// record read from storage must verify against the authority key derived from the unlocked vault; a
     /// vault that would have to create a fresh record for this device is refused (`pairing-recovery.md` 3.4).
     pub fn finish(
-        self,
+        &self,
         resp: &[u8],
         vault_json: &[u8],
         records: &[Vec<u8>],
@@ -388,7 +388,11 @@ impl JoinAttempt {
             vault_json,
             password,
             &secret_key,
-            self.device,
+            DeviceKeys {
+                device_id: self.device.device_id,
+                sign_seed: Key::from_bytes(*self.device.sign_seed.expose()),
+                agree_priv: Key::from_bytes(*self.device.agree_priv.expose()),
+            },
             &self.device_name,
             records,
             now_ms,

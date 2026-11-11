@@ -426,12 +426,13 @@ impl Desk {
     }
 
     pub fn join_finish(&self, password: &str, touch_id: bool) -> CmdRes<VaultState> {
-        let mut inner = self.inner();
-        let j = inner.joining.take().ok_or_else(nothing_to_do)?;
-        drop(inner);
-        let (joined, cfg) = j
-            .finish(password, now_ms())
-            .map_err(|f| CmdError::new("wrong_credentials", f.0))?;
+        let (joined, cfg) = {
+            let inner = self.inner();
+            let j = inner.joining.as_ref().ok_or_else(nothing_to_do)?;
+            j.finish(password, now_ms())
+                .map_err(|f| CmdError::new("wrong_credentials", f.0))?
+        };
+        self.inner().joining = None;
         config::save(&cfg, joined.vault.device_keys())?;
         let typed = Typed {
             password: Zeroizing::new(password.to_owned()),

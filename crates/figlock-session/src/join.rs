@@ -71,7 +71,7 @@ impl Join {
     }
 
     /// Unlock with the answer and the master password. Returns the unlocked vault and the config to save.
-    pub fn finish(self, password: &str, now_ms: u64) -> Res<(Joined, Config)> {
+    pub fn finish(&self, password: &str, now_ms: u64) -> Res<(Joined, Config)> {
         let resp = self.store.get(&self.attempt.resp_path())?;
         let vault_json = self.store.get("vault.json")?;
         let mut records = Vec::new();
@@ -89,8 +89,8 @@ impl Join {
         Ok((
             joined,
             Config {
-                store: self.spec,
-                device_name: self.device_name,
+                store: self.spec.clone(),
+                device_name: self.device_name.clone(),
             },
         ))
     }
@@ -177,6 +177,8 @@ mod tests {
             .put_new(&approval.response.path, &approval.response.bytes)
             .unwrap();
         assert!(join.finish("wrong-pw", T0 + 4).is_err());
+        let (joined, _) = join.finish("right-pw", T0 + 5).unwrap();
+        assert_eq!(joined.vault.vault_id(), vault.vault_id());
     }
 
     #[test]
