@@ -207,8 +207,6 @@ pub struct Vault {
     state: State<ItemId, String, FieldValue>,
     item_keys: BTreeMap<ItemId, Key>,
     pending: Vec<Op>,
-    /// The chain head and ops before the last `commit`, until `committed` or the next commit.
-    undo: Option<(u64, [u8; 32], Vec<Op>)>,
     own_seq: u64,
     own_prev: [u8; 32],
     applied: BTreeMap<DeviceId, (u64, [u8; 32])>,
@@ -595,7 +593,6 @@ impl Vault {
             state: State::new(),
             item_keys: BTreeMap::new(),
             pending: Vec::new(),
-            undo: None,
             own_seq: 0,
             own_prev: [0; 32],
             applied: BTreeMap::new(),
@@ -1337,29 +1334,13 @@ impl Vault {
             self.epoch,
             &batch.encode(),
         )?;
-        self.undo = Some((self.own_seq, self.own_prev, std::mem::take(&mut self.pending)));
         self.own_prev = Sha256::digest(&bytes).into();
         self.own_seq = seq;
+        self.pending.clear();
         Ok(Some(Committed {
             path: format!("log/{}/{seq:08}.op", hexs(&self.device.device_id)),
             bytes,
         }))
-    }
-
-    /// The file `commit` returned was written: forget what is needed to take it back.
-    pub fn committed(&mut self) {
-        self.undo = None;
-    }
-
-    /// The file `commit` returned could not be written: take the commit back, so its ops are pending again and
-    /// the next commit reuses its sequence number.
-    pub fn undo_commit(&mut self) {
-        if let Some((seq, prev, mut ops)) = self.undo.take() {
-            ops.append(&mut self.pending);
-            self.pending = ops;
-            self.own_seq = seq;
-            self.own_prev = prev;
-        }
     }
 
     // ---- reading ----

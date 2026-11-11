@@ -7,8 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use figlock_core::{
-    Created, DeviceKeys, ItemId, KdfParams, KitInfo, SecretKey, Vault, render_kit,
-    verify_kit_groups,
+    Created, DeviceKeys, KdfParams, KitInfo, SecretKey, Vault, render_kit, verify_kit_groups,
 };
 use figlock_session::config::{self, Config, StoreSpec};
 use figlock_session::error::{Fail, Res};
@@ -87,8 +86,6 @@ struct Inner {
     cache: Option<items::Cache>,
     /// Files chosen for a document item, until it is saved or the editor closes.
     staged: std::collections::HashMap<String, items::StagedData>,
-    /// A new item whose commit failed: it is pending in the vault, and saving the same draft again commits it.
-    unsaved_add: Option<(ItemId, u64)>,
     /// What the last copy left on the clipboard.
     copied: Option<items::Copied>,
     creating: Option<Creating>,
@@ -110,7 +107,6 @@ impl Inner {
         self.session = None;
         self.cache = None;
         self.staged.clear();
-        self.unsaved_add = None;
     }
 }
 
@@ -211,7 +207,6 @@ impl Desk {
                 session: None,
                 cache: None,
                 staged: std::collections::HashMap::new(),
-                unsaved_add: None,
                 copied: None,
                 creating: None,
                 joining: None,

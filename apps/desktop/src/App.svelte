@@ -11,6 +11,7 @@
 
   let vault = $state<VaultState | null>(null);
   let failed = $state(false);
+  let notice = $state("");
   let view = $state<"welcome" | "create" | "open" | "join">("welcome");
 
   const refresh = () =>
@@ -20,6 +21,7 @@
     );
   const enter = (s: VaultState) => {
     vault = s;
+    notice = "";
     view = "welcome";
   };
 
@@ -58,9 +60,15 @@
     <p class="text-text-secondary">Starting...</p>
   </main>
 {:else if vault.phase === "unlocked"}
-  <Workspace onlock={lockNow} onlocked={refresh} />
+  <Workspace
+    onlock={lockNow}
+    onlocked={(message) => {
+      notice = message ?? "";
+      void refresh();
+    }}
+  />
 {:else if vault.phase === "locked"}
-  <Unlock {vault} ondone={enter} />
+  <Unlock {vault} {notice} ondone={enter} />
 {:else if view === "create"}
   <Create touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
 {:else if view === "open"}

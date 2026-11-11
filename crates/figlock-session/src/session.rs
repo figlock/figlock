@@ -282,19 +282,11 @@ impl Session {
             return Ok(());
         };
         match self.store.put_new(&c.path, &c.bytes) {
-            Ok(()) => {
-                self.vault.committed();
-                Ok(())
-            }
-            Err(e) => {
-                self.vault.undo_commit();
-                match e {
-                    StoreError::Exists => Err(Fail::new(
-                        "another change was written at the same moment; run the command again",
-                    )),
-                    e => Err(e.into()),
-                }
-            }
+            Ok(()) => Ok(()),
+            Err(StoreError::Exists) => Err(Fail::new(
+                "another change was written at the same moment; run the command again",
+            )),
+            Err(e) => Err(e.into()),
         }
     }
 

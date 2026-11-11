@@ -4,8 +4,8 @@
   import Shell from "./Shell.svelte";
   import { errorOf, quickUnlock, unlock, type VaultState } from "./vault";
 
-  type Props = { vault: VaultState; ondone: (s: VaultState) => void };
-  let { vault, ondone }: Props = $props();
+  type Props = { vault: VaultState; notice?: string; ondone: (s: VaultState) => void };
+  let { vault, notice = "", ondone }: Props = $props();
 
   let password = $state("");
   let secretKey = $state("");
@@ -59,7 +59,7 @@
 
 <Shell title="Unlock your vault" subtitle="Your vault is locked.">
   <form class="flex flex-col gap-4" onsubmit={submit}>
-    {#if error}<Alert>{error}</Alert>{/if}
+    {#if error}<Alert>{error}</Alert>{:else if notice}<Alert tone="warning">{notice}</Alert>{/if}
     <TextField
       label="Master password"
       type={shown ? "text" : "password"}

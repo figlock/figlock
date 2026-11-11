@@ -15,14 +15,14 @@
   type Props = {
     /** The person pressed Lock. */
     onlock: () => void;
-    /** A command found the vault already locked. */
-    onlocked: () => void;
+    /** A command found the vault locked, or a failed save locked it. */
+    onlocked: (notice?: string) => void;
   };
   let { onlock, onlocked }: Props = $props();
 
   const nav = new Nav();
   const library = new Library(() => onlocked());
-  setWorkspace({ nav, library, relock: () => onlocked() });
+  setWorkspace({ nav, library, relock: (notice) => onlocked(notice) });
 
   let scroller = $state<HTMLElement>();
   let search = $state<HTMLInputElement>();

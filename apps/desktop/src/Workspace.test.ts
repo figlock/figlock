@@ -309,3 +309,26 @@ test("a vault with nothing in it offers to add the first item", async () => {
   open();
   expect(await screen.findByText("Your vault is empty")).toBeTruthy();
 });
+
+test("a save that failed and locked the vault sends the person to unlock with the message", async () => {
+  const user = userEvent.setup();
+  const onlocked = vi.fn();
+  render(Workspace, { onlock: vi.fn(), onlocked });
+  core.itemForEdit.mockResolvedValue({
+    id: "a1",
+    kind: "login",
+    fields: { title: "Cloudflare" },
+    secrets: ["password"],
+    files: [],
+  });
+  core.updateItem.mockRejectedValue({
+    code: "save_failed",
+    message: "Could not save. Unlock to try again.",
+  });
+  await user.click(await screen.findByRole("button", { name: /Cloudflare/ }));
+  await user.click(await screen.findByRole("button", { name: "Edit" }));
+  await user.click(await screen.findByRole("button", { name: "Save changes" }));
+  await waitFor(() =>
+    expect(onlocked).toHaveBeenCalledWith("Could not save. Unlock to try again."),
+  );
+});

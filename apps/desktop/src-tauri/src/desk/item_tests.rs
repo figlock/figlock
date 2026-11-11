@@ -513,7 +513,7 @@ fn atomic_inner() {
         )
         .unwrap_err()
     };
-    assert_eq!(code_of(err), "locked");
+    assert_eq!(code_of(err), "save_failed");
     assert_eq!(code_of(d.list_items("").unwrap_err()), "locked");
 
     // Another change after unlocking does not carry the half-applied title.
@@ -526,13 +526,13 @@ fn atomic_inner() {
 }
 
 #[test]
-fn a_failed_write_keeps_the_session_and_saving_again_writes_the_edit_once() {
-    scenario("write_retry_inner");
+fn a_failed_write_locks_the_vault_and_nothing_half_saved_survives() {
+    scenario("write_failure_inner");
 }
 
 #[test]
 #[ignore = "runs as a child of the test above"]
-fn write_retry_inner() {
+fn write_failure_inner() {
     use std::os::unix::fs::PermissionsExt;
 
     let d = desk();
@@ -548,96 +548,42 @@ fn write_retry_inner() {
         .unwrap()
         .path();
     let mode = |m| std::fs::set_permissions(&log, std::fs::Permissions::from_mode(m)).unwrap();
+    let relock = || {
+        assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    };
+
+    // An edit, an add, a delete: each one that cannot be written locks the vault.
+    mode(0o500);
+    let err = d
+        .update_item(&id, draft(&[("title", "Renamed")]))
+        .unwrap_err();
+    assert_eq!(code_of(err), "save_failed");
+    assert_eq!(code_of(d.list_items("").unwrap_err()), "locked");
+    mode(0o700);
+    relock();
+    assert_eq!(titles(&d, ""), ["Site"]);
 
     mode(0o500);
-    let edit = draft(&[("title", "Renamed")]);
-    let err = d.update_item(&id, edit).unwrap_err();
-    assert_ne!(code_of(err), "locked", "a failed write locked the vault");
-    assert_eq!(titles(&d, ""), ["Renamed"]);
-
+    let err = d
+        .add_item("login", draft(&[("title", "Ghost"), ("password", &secret)]))
+        .unwrap_err();
+    assert_eq!(code_of(err), "save_failed");
     mode(0o700);
-    d.update_item(&id, draft(&[("title", "Renamed")])).unwrap();
+    relock();
+    assert_eq!(titles(&d, ""), ["Site"]);
+
+    mode(0o500);
+    assert_eq!(code_of(d.delete_item(&id).unwrap_err()), "save_failed");
+    mode(0o700);
+    relock();
+
+    // Another save does not write any of the failed ones.
     d.add_item("login", draft(&[("title", "Next"), ("password", &secret)]))
         .unwrap();
-
     d.lock();
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    relock();
     let mut all = titles(&d, "");
     all.sort();
-    assert_eq!(all, ["Next", "Renamed"]);
+    assert_eq!(all, ["Next", "Site"]);
     assert_eq!(d.reveal_field(&id, "password").unwrap(), secret);
-}
-
-#[test]
-fn saving_again_after_a_failed_write_adds_one_item_and_one_copy_of_each_file() {
-    scenario("write_retry_files_inner");
-}
-
-#[test]
-#[ignore = "runs as a child of the test above"]
-fn write_retry_files_inner() {
-    use std::os::unix::fs::PermissionsExt;
-
-    let d = desk();
-    let (pw, key) = unlocked(&d);
-    let dir = test_dir();
-    let write = |name: &str, bytes: &[u8]| {
-        let p = dir.join(name);
-        std::fs::write(&p, bytes).unwrap();
-        p.display().to_string()
-    };
-    let secret = password();
-    let first = d
-        .add_item("login", draft(&[("title", "Seed"), ("password", &secret)]))
-        .unwrap();
-    let log = std::fs::read_dir(PathBuf::from(vault_dir()).join("log"))
-        .unwrap()
-        .next()
-        .unwrap()
-        .unwrap()
-        .path();
-    let mode = |m| std::fs::set_permissions(&log, std::fs::Permissions::from_mode(m)).unwrap();
-
-    // A new document whose write fails, then the same Save again.
-    let staged = d.stage_files(&[write("a.txt", b"one")]).unwrap();
-    let doc = || {
-        let mut x = draft(&[("title", "Papers")]);
-        x.add_files = staged.files.iter().map(|f| f.token.clone()).collect();
-        x
-    };
-    mode(0o500);
-    assert_ne!(code_of(d.add_item("doc", doc()).unwrap_err()), "locked");
-    mode(0o700);
-    let id = d.add_item("doc", doc()).unwrap();
-    assert_eq!(titles(&d, "Papers"), ["Papers"]);
-    assert_eq!(d.item_detail(&id).unwrap().files.len(), 1);
-
-    // An edit that attaches a file, whose write fails, then the same Save again.
-    let more = d.stage_files(&[write("b.txt", b"two")]).unwrap();
-    let edit = || {
-        let mut x = draft(&[("title", "Papers")]);
-        x.add_files = more.files.iter().map(|f| f.token.clone()).collect();
-        x
-    };
-    mode(0o500);
-    assert_ne!(code_of(d.update_item(&id, edit()).unwrap_err()), "locked");
-    mode(0o700);
-    d.update_item(&id, edit()).unwrap();
-    let mut names: Vec<String> = d
-        .item_detail(&id)
-        .unwrap()
-        .files
-        .into_iter()
-        .map(|f| f.name)
-        .collect();
-    names.sort();
-    assert_eq!(names, ["a.txt", "b.txt"]);
-
-    d.lock();
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
-    let mut all = titles(&d, "");
-    all.sort();
-    assert_eq!(all, ["Papers", "Seed"]);
-    assert_eq!(d.item_detail(&id).unwrap().files.len(), 2);
-    assert_eq!(d.reveal_field(&first, "password").unwrap(), secret);
 }

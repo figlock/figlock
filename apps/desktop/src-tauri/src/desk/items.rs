@@ -438,10 +438,8 @@ impl Desk {
         Ok(out)
     }
 
-    /// The fields of the staged files a save names, refusing a token that is not staged. The files stay staged
-    /// until the save is committed, and a file's id comes from its token, so saving again after a failed
-    /// write replaces the file instead of adding a copy.
-    fn staged_fields(inner: &Inner, tokens: &[String]) -> CmdRes<Vec<(String, Zeroizing<String>)>> {
+    /// Take the staged files a save names, refusing a token that is not staged.
+    fn take_staged(inner: &mut Inner, tokens: &[String]) -> CmdRes<Vec<docfile::Loaded>> {
         let unique: BTreeSet<&String> = tokens.iter().collect();
         if unique.len() != tokens.len() || tokens.iter().any(|t| !inner.staged.contains_key(t)) {
             return Err(CmdError::new(
@@ -451,28 +449,9 @@ impl Desk {
         }
         Ok(tokens
             .iter()
-            .filter_map(|t| inner.staged.get(t).map(|s| (t, &s.file)))
-            .flat_map(|(t, f)| {
-                docfile::fields_with_id(
-                    &t[..8],
-                    docfile::Loaded {
-                        name: f.name.clone(),
-                        mime: f.mime,
-                        data: f.data.clone(),
-                        size: f.size,
-                    },
-                )
-            })
+            .filter_map(|t| inner.staged.remove(t))
+            .map(|s| s.file)
             .collect())
-    }
-
-    fn fingerprint(t: ItemType, draft: &ItemDraft) -> u64 {
-        use std::hash::{DefaultHasher, Hash, Hasher};
-        let mut h = DefaultHasher::new();
-        kind_of(t).hash(&mut h);
-        draft.fields.hash(&mut h);
-        draft.add_files.hash(&mut h);
-        h.finish()
     }
 
     pub fn add_item(&self, kind: &str, draft: ItemDraft) -> CmdRes<String> {
@@ -484,25 +463,19 @@ impl Desk {
                     .into_iter()
                     .map(|(f, v)| (f, Zeroizing::new(v)))
                     .collect();
-            fields.extend(Self::staged_fields(inner, &draft.add_files)?);
-            let key = Self::fingerprint(t, &draft);
-            if let Some((id, k)) = &inner.unsaved_add {
-                if *k == key {
-                    let id = *id;
-                    return Self::finish(inner).map(|()| id_hex(&id));
-                }
+            for file in Self::take_staged(inner, &draft.add_files)? {
+                fields.extend(docfile::fields_of(file)?);
             }
             let refs: Vec<(&str, &str)> = fields
                 .iter()
                 .map(|(f, v)| (f.as_str(), v.as_str()))
                 .collect();
-            let session = inner.session.as_mut().ok_or_else(locked)?;
-            let id = session
-                .vault
-                .add_item(t, VAULT_NAME, &refs, now_ms())
-                .map_err(Fail::from)?;
-            inner.unsaved_add = Some((id, key));
-            Self::finish(inner)?;
+            let id = Self::save(inner, |s| {
+                s.vault
+                    .add_item(t, VAULT_NAME, &refs, now_ms())
+                    .map_err(Fail::from)
+            })?;
+            inner.staged.clear();
             Ok(id_hex(&id))
         })
     }
@@ -561,7 +534,10 @@ impl Desk {
                 })
                 .count();
             let wanted = Self::check_draft(t, &draft, kept, draft.add_files.len(), retained)?;
-            let new_files = Self::staged_fields(inner, &draft.add_files)?;
+            let mut new_files = Vec::new();
+            for file in Self::take_staged(inner, &draft.add_files)? {
+                new_files.extend(docfile::fields_of(file)?);
+            }
             let mut ops: Vec<(String, Option<Zeroizing<String>>)> = Vec::new();
             for (f, value) in &wanted {
                 if current.fields.get(f).map(|v| v.as_str()) != Some(value.as_str()) {
@@ -589,49 +565,46 @@ impl Desk {
         })
     }
 
-    /// Write the field changes of one item and commit them together. If a change is refused, the vault in memory
-    /// holds a half-applied edit the core cannot undo, so the session is dropped: nothing of the edit was
-    /// written, and the next unlock starts from what is stored. If only the write of the commit fails, the
-    /// changes stay pending and the session stays open, so saving again writes them once.
+    /// Write the field changes of one item and commit them together.
     pub(super) fn apply(
         inner: &mut Inner,
         item: &ItemId,
         ops: Vec<(String, Option<Zeroizing<String>>)>,
     ) -> CmdRes<()> {
         let now = now_ms();
-        let session = inner.session.as_mut().ok_or_else(locked)?;
-        let applied = (|| -> Result<(), Fail> {
+        Self::save(inner, |s| {
             for (f, value) in &ops {
-                session
-                    .vault
+                s.vault
                     .set_field(item, f, value.as_ref().map(|v| v.as_str()), now)
                     .map_err(Fail::from)?;
             }
             Ok(())
-        })();
-        if let Err(f) = applied {
-            inner.drop_session();
-            return Err(CmdError::new(
-                "locked",
-                format!(
-                    "{} The vault was locked so nothing half-saved is kept. Unlock it and try again.",
-                    f.0
-                ),
-            ));
-        }
-        Self::finish(inner)
+        })?;
+        inner.staged.clear();
+        Ok(())
     }
 
-    /// Commit what is pending. The list is rebuilt either way, since pending changes are already in the vault.
-    /// Only a commit that went through lets go of the staged files and the pending new item.
-    fn finish(inner: &mut Inner) -> CmdRes<()> {
+    /// Change the vault and commit, as one step. The core cannot discard changes it has not written, so if
+    /// either part fails the session is dropped rather than left holding a half-applied change that the next
+    /// commit would write. FIG-88 revisits this once the core can discard pending ops.
+    pub(super) fn save<T>(
+        inner: &mut Inner,
+        change: impl FnOnce(&mut figlock_session::Session) -> Result<T, Fail>,
+    ) -> CmdRes<T> {
         let session = inner.session.as_mut().ok_or_else(locked)?;
-        let committed = session.commit();
-        inner.cache = None;
-        committed?;
-        inner.staged.clear();
-        inner.unsaved_add = None;
-        Ok(())
+        match change(&mut *session).and_then(|v| session.commit().map(|()| v)) {
+            Ok(v) => {
+                inner.cache = None;
+                Ok(v)
+            }
+            Err(_) => {
+                inner.drop_session();
+                Err(CmdError::new(
+                    "save_failed",
+                    "Could not save. Unlock to try again.",
+                ))
+            }
+        }
     }
 
     pub fn delete_item(&self, id: &str) -> CmdRes<()> {
@@ -653,9 +626,14 @@ impl Desk {
     ) -> CmdRes<()> {
         let item = parse_id(id)?;
         self.with_session(|inner| {
-            let session = inner.session.as_mut().ok_or_else(locked)?;
-            f(session, &item, now_ms())?;
-            Self::finish(inner)
+            inner
+                .session
+                .as_mut()
+                .ok_or_else(locked)?
+                .vault
+                .item(&item)
+                .map_err(|_| not_found())?;
+            Self::save(inner, |s| f(s, &item, now_ms()))
         })
     }
 
