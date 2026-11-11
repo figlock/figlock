@@ -13,8 +13,8 @@ use zeroize::Zeroizing;
 
 use crate::broker::client::{call, expect_ok};
 use crate::broker::server;
-use crate::error::{Fail, Res};
 use crate::scrub::{MIN_LEN, Scrubber};
+use figlock_session::error::{Fail, Res};
 
 /// What to run and which secrets it gets.
 pub struct RunSpec {

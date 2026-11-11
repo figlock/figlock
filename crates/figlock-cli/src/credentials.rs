@@ -5,9 +5,9 @@
 use figlock_core::{CredentialChange, DeviceId, DeviceInfo, SecretKey};
 use serde_json::json;
 
-use crate::error::{Fail, Res};
-use crate::session::{Session, peek_vault_id};
 use crate::{prompt, quick};
+use figlock_session::error::{Fail, Res};
+use figlock_session::session::{Session, peek_vault_id};
 
 const OTHER_DEVICES: &str = "Other devices will ask for a full unlock with the new details.";
 
@@ -43,7 +43,7 @@ fn done(json: bool, what: &str) {
 
 /// `figlock password change`
 pub fn password_change(json: bool) -> Res<()> {
-    let (session, password, secret_key) = Session::open_for_change()?;
+    let (session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let mut session = session;
     let new_password = prompt::changed_password()?;
     let r = session.vault.change_credentials(
@@ -62,7 +62,7 @@ pub fn password_change(json: bool) -> Res<()> {
 
 /// `figlock secret-key rotate`
 pub fn secret_key_rotate(json: bool) -> Res<()> {
-    let (mut session, password, secret_key) = Session::open_for_change()?;
+    let (mut session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let r = session.vault.change_credentials(
         &password,
         &secret_key,
@@ -90,7 +90,7 @@ fn label(d: &DeviceInfo) -> String {
 
 /// `figlock device list`
 pub fn device_list(json: bool) -> Res<()> {
-    let session = Session::open()?;
+    let session = Session::open(prompt::terminal())?;
     let this = *session.vault.device_id();
     let devices = session.vault.devices();
     if json {
@@ -164,13 +164,13 @@ pub fn device_revoke(
     rotate_secret_key: bool,
     json: bool,
 ) -> Res<()> {
-    let (mut session, password, secret_key) = Session::open_for_change()?;
+    let (mut session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let target = pick(
         &session.vault.devices(),
         session.vault.device_id(),
         reference,
     )?;
-    let now = crate::session::now_ms();
+    let now = figlock_session::session::now_ms();
     let new_password = if change_password {
         Some(prompt::changed_password()?)
     } else {

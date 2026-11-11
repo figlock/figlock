@@ -64,7 +64,7 @@ pub fn is_initialised() -> Res<bool> {
 }
 
 #[cfg(unix)]
-pub(crate) fn private_dir(path: &Path) -> Res<()> {
+pub fn private_dir(path: &Path) -> Res<()> {
     use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
     fs::DirBuilder::new()
         .recursive(true)
@@ -76,13 +76,13 @@ pub(crate) fn private_dir(path: &Path) -> Res<()> {
 }
 
 #[cfg(not(unix))]
-pub(crate) fn private_dir(path: &Path) -> Res<()> {
+pub fn private_dir(path: &Path) -> Res<()> {
     fs::create_dir_all(path)?;
     Ok(())
 }
 
 /// A new owner-only file; fails if it exists.
-pub(crate) fn create_private_file(path: &Path) -> std::io::Result<fs::File> {
+pub fn create_private_file(path: &Path) -> std::io::Result<fs::File> {
     create_private(path)
 }
 

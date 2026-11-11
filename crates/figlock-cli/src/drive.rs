@@ -8,8 +8,8 @@ use std::time::Duration;
 use figlock_store::GoogleOAuth;
 use serde_json::json;
 
-use crate::config::{self, StoredDriveToken};
-use crate::error::{Fail, Res};
+use figlock_session::config::{self, StoredDriveToken};
+use figlock_session::error::{Fail, Res};
 
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 

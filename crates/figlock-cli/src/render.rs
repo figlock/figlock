@@ -7,26 +7,9 @@ use std::io::IsTerminal;
 use figlock_core::{ItemView, is_secret_field};
 use serde_json::{Map, Value, json};
 
-use crate::session::{id_hex, title_of};
+use figlock_session::session::{id_hex, title_of};
 
-/// Replace control characters (escape sequences, bells, carriage returns) except newline and tab.
-pub fn clean(s: &str) -> Cow<'_, str> {
-    if s.chars().any(|c| c.is_control() && c != '\n' && c != '\t') {
-        Cow::Owned(
-            s.chars()
-                .map(|c| {
-                    if c.is_control() && c != '\n' && c != '\t' {
-                        '?'
-                    } else {
-                        c
-                    }
-                })
-                .collect(),
-        )
-    } else {
-        Cow::Borrowed(s)
-    }
-}
+pub use figlock_session::clean;
 
 /// Text for stdout where a script may read it raw: cleaned only when a person is looking at a terminal.
 pub fn raw_or_clean(s: &str) -> Cow<'_, str> {

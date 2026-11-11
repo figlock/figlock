@@ -160,6 +160,7 @@ the end.
 ```
 crates/figlock-core/     crypto, items, op log, merge, search (pure, no I/O)
 crates/figlock-store/    BlobStore adapters: local folder, Google Drive, later Git and S3
+crates/figlock-session/  device config and keys, quick unlock, the unlocked vault session (CLI and desktop)
 crates/figlock-cli/      the figlock binary, including the broker daemon
 crates/figlock-ffi/      UniFFI (Swift, Kotlin) and wasm-bindgen exports
 apps/desktop/            Tauri 2

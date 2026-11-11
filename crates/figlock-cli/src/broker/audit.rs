@@ -10,8 +10,8 @@ use figlock_core::{Vault, audit_frame, audit_split};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-use crate::config;
-use crate::error::{Fail, Res};
+use figlock_session::config;
+use figlock_session::error::{Fail, Res};
 
 /// Where records go. A file in production; tests swap in one that fails.
 pub trait Sink: Send {

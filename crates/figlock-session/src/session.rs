@@ -1,5 +1,6 @@
 //! An unlocked vault plus its store: load every op file, resolve item references, write changes back.
 
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -9,15 +10,44 @@ use zeroize::Zeroizing;
 
 use crate::config;
 use crate::error::{Fail, Res};
-use crate::prompt;
 use crate::quick;
 
 /// The master password and Secret Key a full unlock was given.
 type Credentials = (Zeroizing<String>, SecretKey);
 
+/// How a front end asks for the credentials and reports what it noticed. Nothing here is a secret.
+pub trait Ui {
+    fn password(&self) -> Res<Zeroizing<String>>;
+    fn secret_key(&self) -> Res<SecretKey>;
+    /// Something worth knowing that is not a problem.
+    fn notice(&self, message: &str);
+    /// Something went wrong that did not stop the work.
+    fn warn(&self, message: &str);
+}
+
 pub struct Session {
     pub vault: Vault,
     store: Box<dyn BlobStore>,
+    ui: Box<dyn Ui>,
+}
+
+/// Replace control characters (escape sequences, bells, carriage returns) except newline and tab.
+pub fn clean(s: &str) -> Cow<'_, str> {
+    if s.chars().any(|c| c.is_control() && c != '\n' && c != '\t') {
+        Cow::Owned(
+            s.chars()
+                .map(|c| {
+                    if c.is_control() && c != '\n' && c != '\t' {
+                        '?'
+                    } else {
+                        c
+                    }
+                })
+                .collect(),
+        )
+    } else {
+        Cow::Borrowed(s)
+    }
 }
 
 pub fn now_ms() -> u64 {
@@ -71,7 +101,7 @@ fn wrong_credentials() -> Fail {
 }
 
 /// `vault_id` from `vault.json`, which names this vault's quick-unlock entry.
-pub(crate) fn vault_id_of(vault_json: &[u8]) -> Res<String> {
+pub fn vault_id_of(vault_json: &[u8]) -> Res<String> {
     serde_json::from_slice::<serde_json::Value>(vault_json)
         .ok()
         .and_then(|v| v["vault_id"].as_str().map(str::to_owned))
@@ -81,26 +111,26 @@ pub(crate) fn vault_id_of(vault_json: &[u8]) -> Res<String> {
 impl Session {
     /// Unlock with quick unlock when it is on and still valid, otherwise with the master password and
     /// Secret Key.
-    pub fn open() -> Res<Session> {
-        Self::open_with(false).map(|(s, _, _)| s)
+    pub fn open(ui: Box<dyn Ui>) -> Res<Session> {
+        Self::open_with(ui, false).map(|(s, _, _)| s)
     }
 
     /// Always asks for the master password and Secret Key, and hands back the Account Unlock Key for
     /// `figlock quick-unlock enable`.
-    pub fn open_full() -> Res<(Session, Key)> {
-        Self::open_with(true).map(|(s, auk, _)| (s, auk))
+    pub fn open_full(ui: Box<dyn Ui>) -> Res<(Session, Key)> {
+        Self::open_with(ui, true).map(|(s, auk, _)| (s, auk))
     }
 
     /// Always asks for the master password and Secret Key and hands them back, for the commands that change
     /// the credentials (`Vault::change_credentials` checks them again against the wrapped `VK`).
-    pub fn open_for_change() -> Res<(Session, Zeroizing<String>, SecretKey)> {
-        let (session, _, creds) = Self::open_with(true)?;
+    pub fn open_for_change(ui: Box<dyn Ui>) -> Res<(Session, Zeroizing<String>, SecretKey)> {
+        let (session, _, creds) = Self::open_with(ui, true)?;
         let (password, secret_key) =
             creds.ok_or_else(|| Fail::new("the unlock did not ask for credentials"))?;
         Ok((session, password, secret_key))
     }
 
-    fn open_with(force_full: bool) -> Res<(Session, Key, Option<Credentials>)> {
+    fn open_with(ui: Box<dyn Ui>, force_full: bool) -> Res<(Session, Key, Option<Credentials>)> {
         let cfg = config::load()?;
         let store = crate::store::open(&cfg.store)?;
         let vault_json = read_vault_json(store.as_ref())?;
@@ -129,21 +159,23 @@ impl Session {
 
         let mut quick_unlocked = None;
         if !force_full {
-            match quick.fetch_or_full(&vault_id, now / 1000) {
+            match quick.fetch_or_full(&vault_id, now / 1000, ui.as_ref()) {
                 quick::Fetch::Key(auk) => match unlock(&auk)? {
                     Ok(done) => quick_unlocked = Some((done, auk)),
                     Err(_) => {
                         // The kept key no longer opens the vault: the password or Secret Key changed.
                         match quick.forget(&vault_id) {
                             Ok(()) => {
-                                eprintln!("quick unlock is off because the vault's keys changed")
+                                ui.notice("quick unlock is off because the vault's keys changed")
                             }
-                            Err(e) => eprintln!("warning: quick unlock key was not removed: {e}"),
+                            Err(e) => {
+                                ui.warn(&format!("quick unlock key was not removed: {e}"));
+                            }
                         }
                     }
                 },
                 quick::Fetch::Full(quick::Fallback::Expired(why)) => {
-                    eprintln!("{why}; enter the master password");
+                    ui.notice(&format!("{why}; enter the master password"));
                 }
                 quick::Fetch::Full(_) => {}
             }
@@ -152,13 +184,13 @@ impl Session {
         let ((vault, new_record), auk) = match quick_unlocked {
             Some(done) => done,
             None => {
-                let password = prompt::password()?;
-                let secret_key = prompt::secret_key()?;
+                let password = ui.password()?;
+                let secret_key = ui.secret_key()?;
                 let auk = Vault::unlock_key(&vault_json, &password, &secret_key)
                     .map_err(|_| wrong_credentials())?;
                 let done = unlock(&auk)?.map_err(|_| wrong_credentials())?;
                 if let Err(e) = quick.remember(&vault_id, &auk, now / 1000) {
-                    eprintln!("warning: quick unlock was not refreshed: {e}");
+                    ui.warn(&format!("quick unlock was not refreshed: {e}"));
                 }
                 creds = Some((password, secret_key));
                 (done, auk)
@@ -171,7 +203,7 @@ impl Session {
                 Err(e) => return Err(e.into()),
             }
         }
-        let mut session = Session { vault, store };
+        let mut session = Session { vault, store, ui };
         session.load_log(now)?;
         Ok((session, auk, creds))
     }
@@ -197,17 +229,17 @@ impl Session {
                     None
                 };
                 let Some(bytes) = bytes else {
-                    eprintln!(
-                        "warning: op {seq} from device {} is not available yet; later changes from it wait",
+                    self.ui.warn(&format!(
+                        "op {seq} from device {} is not available yet; later changes from it wait",
                         short(&device)
-                    );
+                    ));
                     break;
                 };
                 if self.vault.apply_file(&bytes, &device, seq, now).is_err() {
-                    eprintln!(
-                        "warning: ignoring changes from device {} from op {seq} on: the file failed verification or is out of order",
+                    self.ui.warn(&format!(
+                        "ignoring changes from device {} from op {seq} on: the file failed verification or is out of order",
                         short(&device)
-                    );
+                    ));
                     break;
                 }
             }
@@ -258,10 +290,10 @@ impl Session {
     pub fn items(&mut self, include_deleted: bool) -> Vec<ItemView> {
         let (items, corrupt) = self.vault.items(include_deleted);
         if !corrupt.is_empty() {
-            eprintln!(
-                "warning: {} item(s) could not be read and are hidden",
+            self.ui.warn(&format!(
+                "{} item(s) could not be read and are hidden",
                 corrupt.len()
-            );
+            ));
         }
         items
     }
@@ -293,7 +325,7 @@ impl Session {
                         msg.push_str(&format!(
                             "\n  {}  {}",
                             &id_hex(&i.id)[..8],
-                            crate::render::clean(title_of(i))
+                            clean(title_of(i))
                         ));
                     }
                 }

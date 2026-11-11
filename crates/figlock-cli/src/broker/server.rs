@@ -13,8 +13,8 @@ use std::time::Duration;
 use super::Broker;
 use super::peer;
 use super::proto::{Code, MAX_LINE, err};
-use crate::config;
-use crate::error::{Fail, Res};
+use figlock_session::config;
+use figlock_session::error::{Fail, Res};
 
 const MAX_CONNECTIONS: usize = 8;
 const IDLE: Duration = Duration::from_secs(30);

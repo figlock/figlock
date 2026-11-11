@@ -1,5 +1,6 @@
 //! The `figlock broker ...` and `figlock audit` commands.
 
+use crate::prompt;
 use std::fs;
 use std::sync::Arc;
 
@@ -10,8 +11,8 @@ use super::audit::{self, AuditWriter};
 use super::client::{call, expect_ok};
 use super::peer::{SystemEnv, my_uid};
 use super::{Broker, server};
-use crate::error::{Fail, Res};
-use crate::session::Session;
+use figlock_session::error::{Fail, Res};
+use figlock_session::session::Session;
 
 fn print_json(v: &Value) -> Res<()> {
     println!(
@@ -23,7 +24,7 @@ fn print_json(v: &Value) -> Res<()> {
 
 /// Unlock the vault once, then serve until someone runs `figlock broker lock`.
 pub fn start(deny_all: bool) -> Res<()> {
-    let Session { vault, .. } = Session::open()?;
+    let Session { vault, .. } = Session::open(prompt::terminal())?;
     let log = audit::path_for(&vault)?;
     let writer = AuditWriter::open(&log, &vault)?;
     let socket = server::socket_path()?;
@@ -151,7 +152,7 @@ fn when(ms: u64) -> String {
 
 /// Verify and print the audit log. Stops at the first record that fails, and says so.
 pub fn show_audit(tail: Option<usize>, json_out: bool) -> Res<()> {
-    let Session { vault, .. } = Session::open()?;
+    let Session { vault, .. } = Session::open(prompt::terminal())?;
     let path = audit::path_for(&vault)?;
     let bytes = match fs::read(&path) {
         Ok(b) => b,

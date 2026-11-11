@@ -1,0 +1,30 @@
+[package]
+name = "figlock-session"
+description = "An unlocked vault on this device: config, device keys, quick unlock and the op-log session, shared by the CLI and the desktop app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+figlock-core = { version = "0.2.0", path = "../figlock-core" }
+figlock-store = { version = "0.2.0", path = "../figlock-store", features = ["gdrive"] }
+figlock-biometric = { version = "0.2.0", path = "../figlock-biometric" }
+getrandom.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+p256.workspace = true
+
+[lints]
+workspace = true

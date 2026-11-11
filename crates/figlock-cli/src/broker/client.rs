@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use super::server::{Line, read_line};
-use crate::error::{Fail, Res};
+use figlock_session::error::{Fail, Res};
 
 /// Most responses are small; the largest is an `http.request` answer (a 4 MiB body in base64, plus headers).
 /// This only bounds a broken or hostile peer.

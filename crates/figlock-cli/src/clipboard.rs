@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 
 use zeroize::Zeroizing;
 
-use crate::error::{Fail, Res};
+use figlock_session::error::{Fail, Res};
 
 fn candidates(var: &str, defaults: &[&str]) -> Vec<Vec<String>> {
     let split = |s: &str| s.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
