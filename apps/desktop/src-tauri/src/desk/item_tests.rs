@@ -484,7 +484,7 @@ fn lock_inner() {
 }
 
 #[test]
-fn an_edit_the_vault_refuses_halfway_is_not_kept() {
+fn an_edit_the_vault_refuses_halfway_is_taken_back_and_the_vault_stays_open() {
     scenario("atomic_inner");
 }
 
@@ -492,7 +492,7 @@ fn an_edit_the_vault_refuses_halfway_is_not_kept() {
 #[ignore = "runs as a child of the test above"]
 fn atomic_inner() {
     let d = desk();
-    let (pw, key) = unlocked(&d);
+    let _ = unlocked(&d);
     let secret = password();
     let id = d
         .add_item("login", draft(&[("title", "Site"), ("password", &secret)]))
@@ -514,10 +514,13 @@ fn atomic_inner() {
         .unwrap_err()
     };
     assert_eq!(code_of(err), "save_failed");
-    assert_eq!(code_of(d.list_items("").unwrap_err()), "locked");
+    assert_eq!(
+        titles(&d, ""),
+        ["Site"],
+        "the half-applied title was taken back"
+    );
 
-    // Another change after unlocking does not carry the half-applied title.
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    // The vault stayed unlocked, and another change does not carry the half-applied title.
     d.add_item("login", draft(&[("title", "Other"), ("password", &secret)]))
         .unwrap();
     let mut all = titles(&d, "");
@@ -526,7 +529,7 @@ fn atomic_inner() {
 }
 
 #[test]
-fn a_failed_write_locks_the_vault_and_nothing_half_saved_survives() {
+fn a_failed_write_keeps_the_vault_open_and_lets_the_person_save_again() {
     scenario("write_failure_inner");
 }
 
@@ -548,49 +551,46 @@ fn write_failure_inner() {
         .unwrap()
         .path();
     let mode = |m| std::fs::set_permissions(&log, std::fs::Permissions::from_mode(m)).unwrap();
-    let relock = || {
-        assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
-    };
 
-    // An edit, an add, a delete: each one that cannot be written locks the vault.
+    // An edit, an add, a delete: each one that cannot be written reports it, changes nothing and leaves
+    // the vault unlocked.
     mode(0o500);
     d.copy_field(&id, "password").unwrap();
-    assert_eq!(clipboard_now(), secret);
     let err = d
         .update_item(&id, draft(&[("title", "Renamed")]))
         .unwrap_err();
     assert_eq!(code_of(err), "save_failed");
     assert_eq!(
         clipboard_now(),
-        "",
-        "a failed save locked the vault and left the secret on the clipboard"
+        secret,
+        "the vault is still open, so the clipboard is left to its own timer"
     );
-    assert_eq!(code_of(d.list_items("").unwrap_err()), "locked");
-    mode(0o700);
-    relock();
     assert_eq!(titles(&d, ""), ["Site"]);
 
-    mode(0o500);
     let err = d
         .add_item("login", draft(&[("title", "Ghost"), ("password", &secret)]))
         .unwrap_err();
     assert_eq!(code_of(err), "save_failed");
-    mode(0o700);
-    relock();
     assert_eq!(titles(&d, ""), ["Site"]);
 
-    mode(0o500);
     assert_eq!(code_of(d.delete_item(&id).unwrap_err()), "save_failed");
-    mode(0o700);
-    relock();
+    assert_eq!(titles(&d, ""), ["Site"]);
 
-    // Another save does not write any of the failed ones.
+    // Once the problem is gone the same save works, and none of the failed ones was written.
+    mode(0o700);
+    d.update_item(&id, draft(&[("title", "Renamed")])).unwrap();
     d.add_item("login", draft(&[("title", "Next"), ("password", &secret)]))
         .unwrap();
+    let sorted = |d: &Desk| {
+        let mut t = titles(d, "");
+        t.sort();
+        t
+    };
+    assert_eq!(sorted(&d), ["Next", "Renamed"]);
+
+    // What was written is what a fresh unlock sees.
     d.lock();
-    relock();
-    let mut all = titles(&d, "");
-    all.sort();
-    assert_eq!(all, ["Next", "Site"]);
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert_eq!(sorted(&d), ["Next", "Renamed"]);
     assert_eq!(d.reveal_field(&id, "password").unwrap(), secret);
 }

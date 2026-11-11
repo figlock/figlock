@@ -92,6 +92,31 @@ impl<I: Ord + Clone, F: Ord + Clone, V: Clone + PartialEq> State<I, F, V> {
         }
     }
 
+    /// Put one register back exactly as it was (`None`: remove it). For undoing a local write that was never
+    /// published; it bypasses the last-writer-wins rule on purpose.
+    pub fn restore(&mut self, item: &I, field: &F, previous: Option<Register<V>>) {
+        let Some(fields) = self.items.get_mut(item) else {
+            if let Some(reg) = previous {
+                self.items
+                    .entry(item.clone())
+                    .or_default()
+                    .insert(field.clone(), reg);
+            }
+            return;
+        };
+        match previous {
+            Some(reg) => {
+                fields.insert(field.clone(), reg);
+            }
+            None => {
+                fields.remove(field);
+                if fields.is_empty() {
+                    self.items.remove(item);
+                }
+            }
+        }
+    }
+
     pub fn apply_all(&mut self, writes: impl IntoIterator<Item = Write<I, F, V>>) {
         for w in writes {
             self.apply(w);

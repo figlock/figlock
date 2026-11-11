@@ -604,9 +604,9 @@ impl Desk {
         Ok(())
     }
 
-    /// Change the vault and commit, as one step. The core cannot discard changes it has not written, so if
-    /// either part fails the session is dropped rather than left holding a half-applied change that the next
-    /// commit would write. FIG-88 revisits this once the core can discard pending ops.
+    /// Change the vault and commit, as one step. If either part fails, the changes that were not written are
+    /// discarded and the session stays open, so the person can fix the problem (a full disk, a Drive error that
+    /// goes away) and save again without a half-applied change riding along.
     pub(super) fn save<T>(
         inner: &mut Inner,
         change: impl FnOnce(&mut figlock_session::Session) -> Result<T, Fail>,
@@ -618,10 +618,11 @@ impl Desk {
                 Ok(v)
             }
             Err(_) => {
-                inner.drop_session();
+                session.discard_pending();
+                inner.cache = None;
                 Err(CmdError::new(
                     "save_failed",
-                    "Could not save. Unlock to try again.",
+                    "Could not save. Nothing was changed; try again.",
                 ))
             }
         }

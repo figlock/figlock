@@ -18,12 +18,11 @@ export const setWorkspace = (w: Workspace) => setContext(KEY, w);
 export const getWorkspace = () => getContext<Workspace>(KEY);
 
 /**
- * The message to show for a failed command. A locked vault, and a save that failed and locked it, send the
- * person to the unlock screen.
+ * The message to show for a failed command. A locked vault sends the person to the unlock screen. A save that
+ * failed leaves the vault unlocked and unchanged, so the person can try again.
  */
 export const failure = (w: Workspace, e: unknown) => {
   const err = errorOf(e);
   if (err.code === "locked") w.relock();
-  if (err.code === "save_failed") w.relock(err.message);
   return err.message;
 };

@@ -276,18 +276,29 @@ impl Session {
         Ok(())
     }
 
-    /// Write pending changes as one op file.
+    /// Write pending changes as one op file. If the file cannot be written the commit is taken back, so the
+    /// changes are pending again: call `commit` to retry or `discard_pending` to give them up.
     pub fn commit(&mut self) -> Res<()> {
         let Some(c) = self.vault.commit()? else {
             return Ok(());
         };
         match self.store.put_new(&c.path, &c.bytes) {
             Ok(()) => Ok(()),
-            Err(StoreError::Exists) => Err(Fail::new(
-                "another change was written at the same moment; run the command again",
-            )),
-            Err(e) => Err(e.into()),
+            Err(e) => {
+                self.vault.rollback_commit();
+                match e {
+                    StoreError::Exists => Err(Fail::new(
+                        "another change was written at the same moment; run the command again",
+                    )),
+                    e => Err(e.into()),
+                }
+            }
         }
+    }
+
+    /// Give up every change that has not been written, as if it had not been made.
+    pub fn discard_pending(&mut self) {
+        self.vault.discard_pending();
     }
 
     pub fn items(&mut self, include_deleted: bool) -> Vec<ItemView> {

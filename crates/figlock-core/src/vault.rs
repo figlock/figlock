@@ -17,7 +17,7 @@ use crate::invite::{Invite, JoinRequest, device_fingerprint};
 use crate::keys::{
     VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, unwrap_vk, wrap_vk,
 };
-use crate::merge::{DeviceId, State, Write};
+use crate::merge::{DeviceId, Register, State, Write};
 use crate::payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem};
 use crate::reader::accept_from_revoked;
 use crate::schema::{
@@ -171,6 +171,23 @@ pub struct Rotated {
     pub secret_key: Option<SecretKey>,
 }
 
+/// A local write that has not been committed: the register it replaced, and the stamp it wrote.
+struct Undo {
+    item: ItemId,
+    field: String,
+    written: Stamp,
+    previous: Option<Register<FieldValue>>,
+}
+
+/// What it takes to put the vault back as it was before a commit.
+struct Rollback {
+    seq: u64,
+    prev: [u8; 32],
+    ops: Vec<Op>,
+    undo: Vec<Undo>,
+    new_keys: Vec<ItemId>,
+}
+
 /// A committed op file ready to be written with `put_new`.
 #[derive(Clone, Debug)]
 pub struct Committed {
@@ -207,6 +224,12 @@ pub struct Vault {
     state: State<ItemId, String, FieldValue>,
     item_keys: BTreeMap<ItemId, Key>,
     pending: Vec<Op>,
+    /// What each uncommitted local write replaced, so [`Vault::discard_pending`] can take it back.
+    undo: Vec<Undo>,
+    /// Item keys created by uncommitted `add_item` calls.
+    new_keys: Vec<ItemId>,
+    /// The most recent commit, kept until the next one so a failed upload can be taken back.
+    last_commit: Option<Rollback>,
     own_seq: u64,
     own_prev: [u8; 32],
     applied: BTreeMap<DeviceId, (u64, [u8; 32])>,
@@ -593,6 +616,9 @@ impl Vault {
             state: State::new(),
             item_keys: BTreeMap::new(),
             pending: Vec::new(),
+            undo: Vec::new(),
+            new_keys: Vec::new(),
+            last_commit: None,
             own_seq: 0,
             own_prev: [0; 32],
             applied: BTreeMap::new(),
@@ -1165,6 +1191,12 @@ impl Vault {
     // ---- writing ----
     fn write(&mut self, item: ItemId, field: &str, stamp: Stamp, value: FieldValue) {
         let device = self.device.device_id;
+        self.undo.push(Undo {
+            item,
+            field: field.to_owned(),
+            written: stamp,
+            previous: self.state.get(&item, &field.to_owned()).cloned(),
+        });
         self.state.apply(Write {
             item,
             field: field.to_owned(),
@@ -1261,6 +1293,7 @@ impl Vault {
             wrapped_ik: wrapped,
         });
         self.item_keys.insert(id, ik);
+        self.new_keys.push(id);
         self.set_text(id, FIELD_TYPE, Some(t.as_str()), now_ms)?;
         self.set_text(id, FIELD_VAULT, Some(vault_name), now_ms)?;
         for (f, v) in fields {
@@ -1309,6 +1342,49 @@ impl Vault {
         Ok(())
     }
 
+    /// Throw away every change made since the last commit, as if it had not been made. For a save that
+    /// failed: the person can edit and save again without the half-applied change riding along. A field that
+    /// another device has overwritten since keeps the other device's value.
+    pub fn discard_pending(&mut self) {
+        let undo = std::mem::take(&mut self.undo);
+        self.unwind(undo);
+        for id in std::mem::take(&mut self.new_keys) {
+            self.item_keys.remove(&id);
+        }
+        self.pending.clear();
+    }
+
+    /// Take back the last `commit` because its op file could not be written. The vault is then exactly as it
+    /// was before the commit (the changes pending again, the chain head and sequence unchanged), so the
+    /// caller can retry the commit or call `discard_pending`. Does nothing if there is no commit to take back, or
+    /// if something was changed since it.
+    pub fn rollback_commit(&mut self) {
+        if !self.pending.is_empty() || !self.undo.is_empty() {
+            return;
+        }
+        let Some(r) = self.last_commit.take() else {
+            return;
+        };
+        self.own_seq = r.seq;
+        self.own_prev = r.prev;
+        self.pending = r.ops;
+        self.undo = r.undo;
+        self.new_keys = r.new_keys;
+    }
+
+    fn unwind(&mut self, undo: Vec<Undo>) {
+        let device = self.device.device_id;
+        for u in undo.into_iter().rev() {
+            let ours = self
+                .state
+                .get(&u.item, &u.field)
+                .is_some_and(|r| r.stamp == u.written && r.device == device);
+            if ours {
+                self.state.restore(&u.item, &u.field, u.previous);
+            }
+        }
+    }
+
     /// Turn pending ops into one signed, encrypted op file. `None` if there is nothing to write.
     pub fn commit(&mut self) -> Result<Option<Committed>> {
         if self.pending.is_empty() {
@@ -1334,9 +1410,15 @@ impl Vault {
             self.epoch,
             &batch.encode(),
         )?;
+        self.last_commit = Some(Rollback {
+            seq: self.own_seq,
+            prev: self.own_prev,
+            ops: std::mem::take(&mut self.pending),
+            undo: std::mem::take(&mut self.undo),
+            new_keys: std::mem::take(&mut self.new_keys),
+        });
         self.own_prev = Sha256::digest(&bytes).into();
         self.own_seq = seq;
-        self.pending.clear();
         Ok(Some(Committed {
             path: format!("log/{}/{seq:08}.op", hexs(&self.device.device_id)),
             bytes,
