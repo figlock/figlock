@@ -567,3 +567,77 @@ fn write_retry_inner() {
     assert_eq!(all, ["Next", "Renamed"]);
     assert_eq!(d.reveal_field(&id, "password").unwrap(), secret);
 }
+
+#[test]
+fn saving_again_after_a_failed_write_adds_one_item_and_one_copy_of_each_file() {
+    scenario("write_retry_files_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn write_retry_files_inner() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    let dir = test_dir();
+    let write = |name: &str, bytes: &[u8]| {
+        let p = dir.join(name);
+        std::fs::write(&p, bytes).unwrap();
+        p.display().to_string()
+    };
+    let secret = password();
+    let first = d
+        .add_item("login", draft(&[("title", "Seed"), ("password", &secret)]))
+        .unwrap();
+    let log = std::fs::read_dir(PathBuf::from(vault_dir()).join("log"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let mode = |m| std::fs::set_permissions(&log, std::fs::Permissions::from_mode(m)).unwrap();
+
+    // A new document whose write fails, then the same Save again.
+    let staged = d.stage_files(&[write("a.txt", b"one")]).unwrap();
+    let doc = || {
+        let mut x = draft(&[("title", "Papers")]);
+        x.add_files = staged.files.iter().map(|f| f.token.clone()).collect();
+        x
+    };
+    mode(0o500);
+    assert_ne!(code_of(d.add_item("doc", doc()).unwrap_err()), "locked");
+    mode(0o700);
+    let id = d.add_item("doc", doc()).unwrap();
+    assert_eq!(titles(&d, "Papers"), ["Papers"]);
+    assert_eq!(d.item_detail(&id).unwrap().files.len(), 1);
+
+    // An edit that attaches a file, whose write fails, then the same Save again.
+    let more = d.stage_files(&[write("b.txt", b"two")]).unwrap();
+    let edit = || {
+        let mut x = draft(&[("title", "Papers")]);
+        x.add_files = more.files.iter().map(|f| f.token.clone()).collect();
+        x
+    };
+    mode(0o500);
+    assert_ne!(code_of(d.update_item(&id, edit()).unwrap_err()), "locked");
+    mode(0o700);
+    d.update_item(&id, edit()).unwrap();
+    let mut names: Vec<String> = d
+        .item_detail(&id)
+        .unwrap()
+        .files
+        .into_iter()
+        .map(|f| f.name)
+        .collect();
+    names.sort();
+    assert_eq!(names, ["a.txt", "b.txt"]);
+
+    d.lock();
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    let mut all = titles(&d, "");
+    all.sort();
+    assert_eq!(all, ["Papers", "Seed"]);
+    assert_eq!(d.item_detail(&id).unwrap().files.len(), 2);
+    assert_eq!(d.reveal_field(&first, "password").unwrap(), secret);
+}

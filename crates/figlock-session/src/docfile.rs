@@ -66,15 +66,19 @@ pub fn fields_for(path: &Path) -> Res<Vec<(String, Zeroizing<String>)>> {
 
 /// The three fields for a loaded file.
 pub fn fields_of(file: Loaded) -> Res<Vec<(String, Zeroizing<String>)>> {
-    let id = random_id()?;
-    Ok(vec![
+    Ok(fields_with_id(&random_id()?, file))
+}
+
+/// The same fields under a chosen file id, so writing them again replaces them instead of adding a copy.
+pub fn fields_with_id(id: &str, file: Loaded) -> Vec<(String, Zeroizing<String>)> {
+    vec![
         (format!("file/{id}/name"), Zeroizing::new(file.name)),
         (
             format!("file/{id}/mime"),
             Zeroizing::new(file.mime.to_owned()),
         ),
         (format!("file/{id}/data"), file.data),
-    ])
+    ]
 }
 
 fn random_id() -> Res<String> {

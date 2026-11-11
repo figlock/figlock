@@ -438,8 +438,10 @@ impl Desk {
         Ok(out)
     }
 
-    /// Take the staged files a save names, refusing a token that is not staged.
-    fn take_staged(inner: &mut Inner, tokens: &[String]) -> CmdRes<Vec<docfile::Loaded>> {
+    /// The fields of the staged files a save names, refusing a token that is not staged. The files stay staged
+    /// until the save is committed, and a file's id comes from its token, so saving again after a failed
+    /// write replaces the file instead of adding a copy.
+    fn staged_fields(inner: &Inner, tokens: &[String]) -> CmdRes<Vec<(String, Zeroizing<String>)>> {
         let unique: BTreeSet<&String> = tokens.iter().collect();
         if unique.len() != tokens.len() || tokens.iter().any(|t| !inner.staged.contains_key(t)) {
             return Err(CmdError::new(
@@ -449,9 +451,28 @@ impl Desk {
         }
         Ok(tokens
             .iter()
-            .filter_map(|t| inner.staged.remove(t))
-            .map(|s| s.file)
+            .filter_map(|t| inner.staged.get(t).map(|s| (t, &s.file)))
+            .flat_map(|(t, f)| {
+                docfile::fields_with_id(
+                    &t[..8],
+                    docfile::Loaded {
+                        name: f.name.clone(),
+                        mime: f.mime,
+                        data: f.data.clone(),
+                        size: f.size,
+                    },
+                )
+            })
             .collect())
+    }
+
+    fn fingerprint(t: ItemType, draft: &ItemDraft) -> u64 {
+        use std::hash::{DefaultHasher, Hash, Hasher};
+        let mut h = DefaultHasher::new();
+        kind_of(t).hash(&mut h);
+        draft.fields.hash(&mut h);
+        draft.add_files.hash(&mut h);
+        h.finish()
     }
 
     pub fn add_item(&self, kind: &str, draft: ItemDraft) -> CmdRes<String> {
@@ -463,8 +484,13 @@ impl Desk {
                     .into_iter()
                     .map(|(f, v)| (f, Zeroizing::new(v)))
                     .collect();
-            for file in Self::take_staged(inner, &draft.add_files)? {
-                fields.extend(docfile::fields_of(file)?);
+            fields.extend(Self::staged_fields(inner, &draft.add_files)?);
+            let key = Self::fingerprint(t, &draft);
+            if let Some((id, k)) = &inner.unsaved_add {
+                if *k == key {
+                    let id = *id;
+                    return Self::finish(inner).map(|()| id_hex(&id));
+                }
             }
             let refs: Vec<(&str, &str)> = fields
                 .iter()
@@ -475,9 +501,8 @@ impl Desk {
                 .vault
                 .add_item(t, VAULT_NAME, &refs, now_ms())
                 .map_err(Fail::from)?;
-            session.commit()?;
-            inner.cache = None;
-            inner.staged.clear();
+            inner.unsaved_add = Some((id, key));
+            Self::finish(inner)?;
             Ok(id_hex(&id))
         })
     }
@@ -536,10 +561,7 @@ impl Desk {
                 })
                 .count();
             let wanted = Self::check_draft(t, &draft, kept, draft.add_files.len(), retained)?;
-            let mut new_files = Vec::new();
-            for file in Self::take_staged(inner, &draft.add_files)? {
-                new_files.extend(docfile::fields_of(file)?);
-            }
+            let new_files = Self::staged_fields(inner, &draft.add_files)?;
             let mut ops: Vec<(String, Option<Zeroizing<String>>)> = Vec::new();
             for (f, value) in &wanted {
                 if current.fields.get(f).map(|v| v.as_str()) != Some(value.as_str()) {
@@ -597,10 +619,18 @@ impl Desk {
                 ),
             ));
         }
+        Self::finish(inner)
+    }
+
+    /// Commit what is pending. The list is rebuilt either way, since pending changes are already in the vault.
+    /// Only a commit that went through lets go of the staged files and the pending new item.
+    fn finish(inner: &mut Inner) -> CmdRes<()> {
+        let session = inner.session.as_mut().ok_or_else(locked)?;
         let committed = session.commit();
         inner.cache = None;
         committed?;
         inner.staged.clear();
+        inner.unsaved_add = None;
         Ok(())
     }
 
@@ -625,9 +655,7 @@ impl Desk {
         self.with_session(|inner| {
             let session = inner.session.as_mut().ok_or_else(locked)?;
             f(session, &item, now_ms())?;
-            session.commit()?;
-            inner.cache = None;
-            Ok(())
+            Self::finish(inner)
         })
     }
 
