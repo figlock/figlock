@@ -357,6 +357,19 @@ impl Desk {
         })
     }
 
+    /// Copies a value the window just generated, with the same timed clear as a stored field. Resolves the
+    /// seconds until it is cleared.
+    pub fn copy_text(&self, value: &str) -> CmdRes<u64> {
+        self.with_session(|inner| {
+            clipboard::copy(value).map_err(CmdError::from)?;
+            inner.copied = Some(Copied {
+                value: Zeroizing::new(value.to_string()),
+                clear_at: Instant::now() + self.clipboard_clear,
+            });
+            Ok(self.clipboard_clear.as_secs())
+        })
+    }
+
     /// Clear what a copy left on the clipboard once its time is up, or at once when `now`. Whatever else was
     /// copied since is left alone.
     pub(super) fn clear_clipboard(&self, now: bool) {

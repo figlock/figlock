@@ -5,6 +5,7 @@ mod desk;
 
 use std::time::Duration;
 
+use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
 use desk::{CmdError, CmdRes, CreatedVault, Desk, VaultState};
 use tauri::{AppHandle, Emitter, State};
@@ -141,6 +142,23 @@ async fn activity(desk: State<'_, Desk>) -> CmdRes<()> {
     Ok(())
 }
 
+/// A fresh password. Needs no vault, so it also works on the lock screen.
+#[tauri::command]
+async fn generate_password(spec: PasswordSpec) -> CmdRes<Generated> {
+    desk::generate::password(&spec)
+}
+
+#[tauri::command]
+async fn generate_passphrase(spec: PassphraseSpec) -> CmdRes<Generated> {
+    desk::generate::passphrase(&spec)
+}
+
+/// How strong a typed password is, by the same rules the generator's own meter uses.
+#[tauri::command]
+async fn password_strength(value: String) -> StrengthView {
+    desk::generate::strength(&value)
+}
+
 #[tauri::command]
 async fn list_items(desk: State<'_, Desk>, query: String) -> CmdRes<Vec<ItemSummary>> {
     desk.list_items(&query)
@@ -166,6 +184,12 @@ async fn reveal_field(desk: State<'_, Desk>, id: String, field: String) -> CmdRe
 #[tauri::command]
 async fn copy_field(desk: State<'_, Desk>, id: String, field: String) -> CmdRes<u64> {
     desk.copy_field(&id, &field)
+}
+
+/// Copies a generated value in the app core; resolves the seconds until it is cleared.
+#[tauri::command]
+async fn copy_text(desk: State<'_, Desk>, value: String) -> CmdRes<u64> {
+    desk.copy_text(&value)
 }
 
 #[tauri::command]
@@ -285,11 +309,15 @@ pub fn run() {
             quick_unlock,
             lock,
             activity,
+            generate_password,
+            generate_passphrase,
+            password_strength,
             list_items,
             list_deleted,
             item_detail,
             reveal_field,
             copy_field,
+            copy_text,
             add_item,
             item_for_edit,
             update_item,

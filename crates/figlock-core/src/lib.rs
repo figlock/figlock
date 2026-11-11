@@ -16,6 +16,7 @@ mod audit;
 mod document;
 mod error;
 mod file;
+pub mod generate;
 mod hlc;
 mod import;
 mod invite;
