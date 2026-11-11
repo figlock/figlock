@@ -26,6 +26,12 @@ vi.mock("./vault", () => ({
   errorOf: (e: unknown) => e,
 }));
 
+vi.mock("./items", async (original) => ({
+  ...(await original<typeof import("./items")>()),
+  listItems: () => Promise.resolve([]),
+  listDeleted: () => Promise.resolve([]),
+}));
+
 import App from "./App.svelte";
 
 const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
@@ -125,7 +131,7 @@ test("unlocking moves to the vault and locking comes back to the unlock form", a
   await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   await user.click(screen.getByRole("button", { name: "Unlock" }));
-  expect(await screen.findByText("Your vault is unlocked")).toBeTruthy();
+  expect(await screen.findByText("Your vault is empty")).toBeTruthy();
 
   state.current = { ...state.current, phase: "locked" };
   await user.click(screen.getByRole("button", { name: "Lock" }));

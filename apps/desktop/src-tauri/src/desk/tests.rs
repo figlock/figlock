@@ -7,18 +7,34 @@ use std::process::Command;
 
 use super::*;
 
-fn scenario(name: &str) {
+pub(super) fn scenario_in(module: &str, name: &str) {
     let dir = tempfile::tempdir().unwrap();
+    // A clipboard that is a file, so a scenario can see what a copy left and what a clear did.
+    let clip = dir.path().join("clipboard");
+    std::fs::write(&clip, "").unwrap();
+    for (script, body) in [
+        ("copy.sh", "#!/bin/sh\ncat > \"$FIGLOCK_TEST_CLIP\"\n"),
+        ("paste.sh", "#!/bin/sh\ncat \"$FIGLOCK_TEST_CLIP\"\n"),
+    ] {
+        let path = dir.path().join(script);
+        std::fs::write(&path, body).unwrap();
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o755))
+            .unwrap();
+    }
     let out = Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
-            &format!("desk::tests::{name}"),
+            &format!("desk::{module}::{name}"),
             "--ignored",
             "--nocapture",
         ])
         .env("FIGLOCK_HOME", dir.path().join("home"))
         .env("FIGLOCK_DEVICE_KEYS", "file")
         .env("FIGLOCK_TEST_VAULT", dir.path().join("vault"))
+        .env("FIGLOCK_TEST_CLIP", &clip)
+        .env("FIGLOCK_CLIPBOARD_COPY", dir.path().join("copy.sh"))
+        .env("FIGLOCK_CLIPBOARD_PASTE", dir.path().join("paste.sh"))
+        .env("FIGLOCK_TEST_DIR", dir.path())
         .output()
         .unwrap();
     assert!(
@@ -29,25 +45,33 @@ fn scenario(name: &str) {
     );
 }
 
+fn scenario(name: &str) {
+    scenario_in("tests", name);
+}
+
 /// A fresh master password for one scenario: generated, never a literal.
-fn password() -> String {
+pub(super) fn password() -> String {
     SecretKey::random().unwrap().format().to_string()
 }
 
-fn desk() -> Desk {
-    Desk::with(KdfParams::FLOOR, Duration::from_secs(300))
+pub(super) fn desk() -> Desk {
+    Desk::with(
+        KdfParams::FLOOR,
+        Duration::from_secs(300),
+        Duration::from_secs(30),
+    )
 }
 
-fn vault_dir() -> String {
+pub(super) fn vault_dir() -> String {
     std::env::var("FIGLOCK_TEST_VAULT").unwrap()
 }
 
 /// The Secret Key of a vault being created, as the person would type it.
-fn created_key(d: &Desk, password: &str) -> String {
+pub(super) fn created_key(d: &Desk, password: &str) -> String {
     d.create(&vault_dir(), password).unwrap().secret_key
 }
 
-fn code_of(e: CmdError) -> &'static str {
+pub(super) fn code_of(e: CmdError) -> &'static str {
     e.code
 }
 

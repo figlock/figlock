@@ -20,6 +20,8 @@ use zeroize::Zeroizing;
 pub const DEFAULT_AUTOLOCK: Duration = Duration::from_secs(5 * 60);
 /// The shortest master password a new vault accepts; the Secret Key carries the rest of the strength.
 pub const MIN_PASSWORD_CHARS: usize = 8;
+/// How long a copied field stays on the clipboard before it is cleared.
+pub const CLIPBOARD_CLEAR: Duration = Duration::from_secs(30);
 /// A gap this long between two ticks of the lock timer means the Mac slept: lock as it wakes.
 pub const SLEEP_GAP: Duration = Duration::from_secs(20);
 
@@ -80,6 +82,12 @@ struct Creating {
 
 struct Inner {
     session: Option<Session>,
+    /// List rows and the search index of the unlocked vault; rebuilt after any change.
+    cache: Option<items::Cache>,
+    /// Files chosen for a document item, until it is saved or the editor closes.
+    staged: std::collections::HashMap<String, items::StagedData>,
+    /// What the last copy left on the clipboard.
+    copied: Option<items::Copied>,
     creating: Option<Creating>,
     joining: Option<join::Join>,
     active_at: Instant,
@@ -90,6 +98,20 @@ pub struct Desk {
     inner: Mutex<Inner>,
     kdf: KdfParams,
     autolock: Duration,
+    clipboard_clear: Duration,
+}
+
+impl Inner {
+    /// Drop the unlocked vault and everything read from it, a copied secret included. Keys and secret values
+    /// are zeroed as they drop.
+    fn drop_session(&mut self) {
+        if let Some(c) = self.copied.take() {
+            c.clear();
+        }
+        self.session = None;
+        self.cache = None;
+        self.staged.clear();
+    }
 }
 
 /// Answers a full unlock with what the person typed.
@@ -173,14 +195,23 @@ impl Desk {
             .map_or(DEFAULT_AUTOLOCK, |s| {
                 Duration::from_secs(s).min(DEFAULT_AUTOLOCK)
             });
-        Self::with(KdfParams::DEFAULT, autolock)
+        let clipboard_clear = std::env::var("FIGLOCK_CLIPBOARD_CLEAR_SECS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .map_or(CLIPBOARD_CLEAR, |s| {
+                Duration::from_secs(s).min(CLIPBOARD_CLEAR)
+            });
+        Self::with(KdfParams::DEFAULT, autolock, clipboard_clear)
     }
 
-    pub fn with(kdf: KdfParams, autolock: Duration) -> Self {
+    pub fn with(kdf: KdfParams, autolock: Duration, clipboard_clear: Duration) -> Self {
         let now = Instant::now();
         Desk {
             inner: Mutex::new(Inner {
                 session: None,
+                cache: None,
+                staged: std::collections::HashMap::new(),
+                copied: None,
                 creating: None,
                 joining: None,
                 active_at: now,
@@ -188,6 +219,7 @@ impl Desk {
             }),
             kdf,
             autolock,
+            clipboard_clear,
         }
     }
 
@@ -532,6 +564,7 @@ impl Desk {
 
     fn install(&self, session: Session) {
         let mut inner = self.inner();
+        inner.drop_session();
         inner.session = Some(session);
         inner.active_at = Instant::now();
         inner.ticked_at = Instant::now();
@@ -539,7 +572,8 @@ impl Desk {
 
     /// Drop the unlocked vault. Its keys are zeroed as it drops.
     pub fn lock(&self) {
-        self.inner().session = None;
+        self.inner().drop_session();
+        self.clear_clipboard(true);
     }
 
     /// The window saw the person do something.
@@ -552,17 +586,21 @@ impl Desk {
 
     /// Called every second by the lock timer. Returns true when it just locked the vault.
     pub fn tick(&self) -> bool {
-        let mut inner = self.inner();
-        let now = Instant::now();
-        let gap = now.duration_since(inner.ticked_at);
-        inner.ticked_at = now;
-        if inner.session.is_some()
-            && should_lock(now.duration_since(inner.active_at), gap, self.autolock)
-        {
-            inner.session = None;
-            return true;
-        }
-        false
+        let locked = {
+            let mut inner = self.inner();
+            let now = Instant::now();
+            let gap = now.duration_since(inner.ticked_at);
+            inner.ticked_at = now;
+            let lock = inner.session.is_some()
+                && should_lock(now.duration_since(inner.active_at), gap, self.autolock);
+            if lock {
+                inner.drop_session();
+            }
+            lock
+        };
+        // A copied secret leaves the clipboard when its time is up, and at once when the vault locks.
+        self.clear_clipboard(locked);
+        locked
     }
 }
 
@@ -591,5 +629,9 @@ fn folder_spec(folder: &str, create: bool) -> CmdRes<StoreSpec> {
     Ok(StoreSpec::Folder(canonical))
 }
 
+pub mod items;
+
+#[cfg(test)]
+mod item_tests;
 #[cfg(test)]
 mod tests;

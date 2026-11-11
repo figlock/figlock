@@ -5,12 +5,13 @@
   import Join from "./Join.svelte";
   import OpenExisting from "./OpenExisting.svelte";
   import Unlock from "./Unlock.svelte";
-  import Unlocked from "./Unlocked.svelte";
   import Welcome from "./Welcome.svelte";
+  import Workspace from "./Workspace.svelte";
   import { activity, lock, onAutoLock, vaultState, type VaultState } from "./vault";
 
   let vault = $state<VaultState | null>(null);
   let failed = $state(false);
+  let notice = $state("");
   let view = $state<"welcome" | "create" | "open" | "join">("welcome");
 
   const refresh = () =>
@@ -20,6 +21,7 @@
     );
   const enter = (s: VaultState) => {
     vault = s;
+    notice = "";
     view = "welcome";
   };
 
@@ -58,9 +60,15 @@
     <p class="text-text-secondary">Starting...</p>
   </main>
 {:else if vault.phase === "unlocked"}
-  <Unlocked onlock={lockNow} />
+  <Workspace
+    onlock={lockNow}
+    onlocked={(message) => {
+      notice = message ?? "";
+      void refresh();
+    }}
+  />
 {:else if vault.phase === "locked"}
-  <Unlock {vault} ondone={enter} />
+  <Unlock {vault} {notice} ondone={enter} />
 {:else if view === "create"}
   <Create touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
 {:else if view === "open"}

@@ -7,6 +7,8 @@
     disabled?: boolean;
     /** Fill the width of the container. */
     block?: boolean;
+    /** The name a screen reader announces, when the visible text alone is not enough. */
+    label?: string;
     onclick?: (event: MouseEvent) => void;
     children: Snippet;
   };
@@ -16,6 +18,7 @@
     type = "button",
     disabled = false,
     block = false,
+    label,
     onclick,
     children,
   }: Props = $props();
@@ -30,6 +33,7 @@
 <button
   {type}
   {disabled}
+  aria-label={label}
   {onclick}
   class="inline-flex h-(--control-height-md) items-center justify-center gap-2 rounded-(--radius-sm) px-4 text-(length:--text-sm) font-medium transition-colors duration-(--duration-fast) disabled:opacity-50 {block
     ? 'w-full'

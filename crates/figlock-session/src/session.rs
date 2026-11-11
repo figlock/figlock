@@ -31,6 +31,9 @@ pub struct Session {
     ui: Box<dyn Ui>,
 }
 
+/// The vault name every item is added under, until a device holds more than one vault.
+pub const VAULT_NAME: &str = "personal";
+
 /// Replace control characters (escape sequences, bells, carriage returns) except newline and tab.
 pub fn clean(s: &str) -> Cow<'_, str> {
     if s.chars().any(|c| c.is_control() && c != '\n' && c != '\t') {

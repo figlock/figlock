@@ -1,5 +1,11 @@
 export { default as Alert } from "./Alert.svelte";
+export { default as Badge } from "./Badge.svelte";
 export { default as Button } from "./Button.svelte";
+export { default as ConfirmDialog } from "./ConfirmDialog.svelte";
+export { default as Icon } from "./Icon.svelte";
+export type { IconName } from "./icons";
 export { default as Logo } from "./Logo.svelte";
 export { default as SecretKeyField } from "./SecretKeyField.svelte";
+export { default as SelectField } from "./SelectField.svelte";
+export { default as TextArea } from "./TextArea.svelte";
 export { default as TextField } from "./TextField.svelte";
