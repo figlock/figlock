@@ -554,10 +554,17 @@ fn write_failure_inner() {
 
     // An edit, an add, a delete: each one that cannot be written locks the vault.
     mode(0o500);
+    d.copy_field(&id, "password").unwrap();
+    assert_eq!(clipboard_now(), secret);
     let err = d
         .update_item(&id, draft(&[("title", "Renamed")]))
         .unwrap_err();
     assert_eq!(code_of(err), "save_failed");
+    assert_eq!(
+        clipboard_now(),
+        "",
+        "a failed save locked the vault and left the secret on the clipboard"
+    );
     assert_eq!(code_of(d.list_items("").unwrap_err()), "locked");
     mode(0o700);
     relock();

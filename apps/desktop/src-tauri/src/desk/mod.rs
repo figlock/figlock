@@ -102,8 +102,12 @@ pub struct Desk {
 }
 
 impl Inner {
-    /// Drop the unlocked vault and everything read from it. Keys and secret values are zeroed as they drop.
+    /// Drop the unlocked vault and everything read from it, a copied secret included. Keys and secret values
+    /// are zeroed as they drop.
     fn drop_session(&mut self) {
+        if let Some(c) = self.copied.take() {
+            c.clear();
+        }
         self.session = None;
         self.cache = None;
         self.staged.clear();

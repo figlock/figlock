@@ -127,6 +127,13 @@ pub(super) struct Copied {
     clear_at: Instant,
 }
 
+impl Copied {
+    /// Take the value off the clipboard, unless something else has been copied since.
+    pub(super) fn clear(self) {
+        let _ = clipboard::clear_if_unchanged(&self.value);
+    }
+}
+
 /// The list rows and the search index, built once per change to the vault.
 pub(super) struct Cache {
     live: Vec<ItemSummary>,
