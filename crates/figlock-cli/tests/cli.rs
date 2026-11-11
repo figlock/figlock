@@ -879,3 +879,67 @@ fn init_quick_unlock_flags_conflict_and_no_flag_turns_it_off() {
     assert!(!text(&out.stderr).to_lowercase().contains("quick unlock"));
     assert!(!home.path().join("quick-unlock.json").exists());
 }
+
+const NEW_PW: &str = "a-different-generated-passphrase-for-tests";
+
+#[test]
+fn password_change_locks_out_the_old_password_and_keeps_the_items() {
+    let mut e = Env::init();
+    e.add_login("Kept", &[]);
+    e.extra
+        .push(("FIGLOCK_NEW_PASSWORD".to_owned(), NEW_PW.to_owned()));
+    let out = e.run(&["password", "change"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(text(&out.stdout).contains("full unlock"));
+
+    let old = e.run(&["find"]);
+    assert!(!old.status.success());
+    assert!(text(&old.stderr).contains("could not unlock"));
+    let new = e.run_with(&["find"], None, NEW_PW, Some(&e.secret_key));
+    assert!(new.status.success(), "{}", text(&new.stderr));
+    assert!(text(&new.stdout).contains("Kept"));
+    assert_no_secret("password change", &out);
+}
+
+#[test]
+fn password_change_with_the_wrong_current_password_changes_nothing() {
+    let mut e = Env::init();
+    e.extra
+        .push(("FIGLOCK_NEW_PASSWORD".to_owned(), NEW_PW.to_owned()));
+    let out = e.run_with(&["password", "change"], None, "wrong", Some(&e.secret_key));
+    assert!(!out.status.success());
+    assert!(e.run(&["find"]).status.success());
+}
+
+#[test]
+fn secret_key_rotation_replaces_the_old_key_and_shows_the_new_one_once() {
+    let e = Env::init();
+    e.add_login("Kept", &[]);
+    let out = e.run(&["secret-key", "rotate"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    let new_sk = text(&out.stdout)
+        .lines()
+        .find_map(|l| l.strip_prefix("Secret Key: "))
+        .expect("new Secret Key printed")
+        .to_owned();
+    assert_ne!(new_sk, e.secret_key);
+
+    let old = e.run(&["find"]);
+    assert!(!old.status.success());
+    let new = e.run_with(&["find"], None, PW, Some(&new_sk));
+    assert!(new.status.success(), "{}", text(&new.stderr));
+    assert!(text(&new.stdout).contains("Kept"));
+}
+
+#[test]
+fn device_list_marks_this_device_and_it_cannot_revoke_itself() {
+    let e = Env::init();
+    let list = e.ok(&["device", "list"]);
+    assert!(list.contains("(this device)"), "{list}");
+    let id = list.split_whitespace().next().unwrap().to_owned();
+    let out = e.run(&["device", "revoke", &id]);
+    assert!(!out.status.success());
+    assert!(text(&out.stderr).contains("device you are using"));
+    let bad = e.run(&["device", "revoke", "zz"]);
+    assert!(text(&bad.stderr).contains("hex digits"));
+}

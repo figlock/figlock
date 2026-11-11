@@ -10,6 +10,7 @@ mod broker;
 mod clipboard;
 mod commands;
 mod config;
+mod credentials;
 mod docfile;
 mod drive;
 mod error;
@@ -106,6 +107,21 @@ enum Command {
         #[command(subcommand)]
         action: QuickCmd,
     },
+    /// Change the master password.
+    Password {
+        #[command(subcommand)]
+        action: PasswordCmd,
+    },
+    /// Replace the Secret Key and get a new Emergency Kit.
+    SecretKey {
+        #[command(subcommand)]
+        action: SecretKeyCmd,
+    },
+    /// See and revoke the devices that can open this vault.
+    Device {
+        #[command(subcommand)]
+        action: DeviceCmd,
+    },
     /// Lock the vault: the next command asks for the full unlock (or Touch ID again if quick unlock is on).
     Lock,
     /// Sign this device in to Google Drive, where a vault can be stored.
@@ -118,6 +134,38 @@ enum Command {
         #[command(subcommand)]
         action: SkillCmd,
     },
+}
+
+#[derive(Subcommand)]
+enum PasswordCmd {
+    /// Ask for the current master password and Secret Key, then for a new master password.
+    Change,
+}
+
+#[derive(Subcommand)]
+enum SecretKeyCmd {
+    /// Make a new Secret Key and show it once. The old one stops working everywhere.
+    Rotate,
+}
+
+#[derive(Subcommand)]
+enum DeviceCmd {
+    /// List the devices, newest records included, and mark this one.
+    List,
+    /// Stop a device from opening anything written from now on.
+    Revoke(RevokeArgs),
+}
+
+#[derive(Args)]
+pub struct RevokeArgs {
+    /// The device id (4 or more hex digits) from `figlock device list`.
+    pub device: String,
+    /// Also set a new master password, in the same step. Use this if the device may have been compromised.
+    #[arg(long)]
+    pub change_password: bool,
+    /// Also replace the Secret Key, in the same step. Use this if the device may have been compromised.
+    #[arg(long)]
+    pub rotate_secret_key: bool,
 }
 
 #[derive(Subcommand)]
@@ -605,6 +653,18 @@ fn main() -> ExitCode {
         Command::Run(a) => run_command(a),
         Command::Http(a) => http_command(a),
         Command::QuickUnlock { action } => ok(quick_command(&action, json)),
+        Command::Password { action } => ok(match action {
+            PasswordCmd::Change => credentials::password_change(json),
+        }),
+        Command::SecretKey { action } => ok(match action {
+            SecretKeyCmd::Rotate => credentials::secret_key_rotate(json),
+        }),
+        Command::Device { action } => ok(match action {
+            DeviceCmd::List => credentials::device_list(json),
+            DeviceCmd::Revoke(a) => {
+                credentials::device_revoke(&a.device, a.change_password, a.rotate_secret_key, json)
+            }
+        }),
         Command::Lock => ok(quick::lock(json)),
         Command::Drive { action } => ok(match action {
             DriveCmd::Login => drive::login(json),

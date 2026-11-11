@@ -50,6 +50,23 @@ pub fn new_password() -> Res<Zeroizing<String>> {
     Ok(first)
 }
 
+/// The replacement for a master password that is being changed, typed twice. `FIGLOCK_NEW_PASSWORD` is for
+/// scripts and tests.
+pub fn changed_password() -> Res<Zeroizing<String>> {
+    if let Some(p) = from_env("FIGLOCK_NEW_PASSWORD") {
+        return Ok(p);
+    }
+    let first = hidden("New master password: ")?;
+    if first.is_empty() {
+        return Err(Fail::new("the master password cannot be empty"));
+    }
+    let again = hidden("Repeat new master password: ")?;
+    if *first != *again {
+        return Err(Fail::new("the passwords do not match"));
+    }
+    Ok(first)
+}
+
 pub fn secret_key() -> Res<SecretKey> {
     let text = match from_env("FIGLOCK_SECRET_KEY") {
         Some(t) => t,

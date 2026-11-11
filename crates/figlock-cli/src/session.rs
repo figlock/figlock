@@ -3,13 +3,17 @@
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use figlock_core::{DeviceId, Index, ItemId, ItemView, Key, Vault};
+use figlock_core::{DeviceId, Index, ItemId, ItemView, Key, Revocation, SecretKey, Vault};
 use figlock_store::{BlobStore, StoreError};
+use zeroize::Zeroizing;
 
 use crate::config;
 use crate::error::{Fail, Res};
 use crate::prompt;
 use crate::quick;
+
+/// The master password and Secret Key a full unlock was given.
+type Credentials = (Zeroizing<String>, SecretKey);
 
 pub struct Session {
     pub vault: Vault,
@@ -78,16 +82,25 @@ impl Session {
     /// Unlock with quick unlock when it is on and still valid, otherwise with the master password and
     /// Secret Key.
     pub fn open() -> Res<Session> {
-        Self::open_with(false).map(|(s, _)| s)
+        Self::open_with(false).map(|(s, _, _)| s)
     }
 
     /// Always asks for the master password and Secret Key, and hands back the Account Unlock Key for
     /// `figlock quick-unlock enable`.
     pub fn open_full() -> Res<(Session, Key)> {
-        Self::open_with(true)
+        Self::open_with(true).map(|(s, auk, _)| (s, auk))
     }
 
-    fn open_with(force_full: bool) -> Res<(Session, Key)> {
+    /// Always asks for the master password and Secret Key and hands them back, for the commands that change
+    /// the credentials (`Vault::change_credentials` checks them again against the wrapped `VK`).
+    pub fn open_for_change() -> Res<(Session, Zeroizing<String>, SecretKey)> {
+        let (session, _, creds) = Self::open_with(true)?;
+        let (password, secret_key) =
+            creds.ok_or_else(|| Fail::new("the unlock did not ask for credentials"))?;
+        Ok((session, password, secret_key))
+    }
+
+    fn open_with(force_full: bool) -> Res<(Session, Key, Option<Credentials>)> {
         let cfg = config::load()?;
         let store = crate::store::open(&cfg.store)?;
         let vault_json = read_vault_json(store.as_ref())?;
@@ -135,6 +148,7 @@ impl Session {
                 quick::Fetch::Full(_) => {}
             }
         }
+        let mut creds = None;
         let ((vault, new_record), auk) = match quick_unlocked {
             Some(done) => done,
             None => {
@@ -146,6 +160,7 @@ impl Session {
                 if let Err(e) = quick.remember(&vault_id, &auk, now / 1000) {
                     eprintln!("warning: quick unlock was not refreshed: {e}");
                 }
+                creds = Some((password, secret_key));
                 (done, auk)
             }
         };
@@ -158,7 +173,7 @@ impl Session {
         }
         let mut session = Session { vault, store };
         session.load_log(now)?;
-        Ok((session, auk))
+        Ok((session, auk, creds))
     }
 
     /// Apply every op file, per device in order. A file that does not verify, or a gap, stops that device
@@ -197,6 +212,32 @@ impl Session {
                 }
             }
         }
+        Ok(())
+    }
+
+    /// Replace `vault.json` (a credential change).
+    pub fn replace_vault_json(&self, bytes: &[u8]) -> Res<()> {
+        self.store.put_replace("vault.json", bytes)?;
+        Ok(())
+    }
+
+    /// Store what a revocation produced, `vault.json` last so a device that sees the new epoch finds the
+    /// snapshot and its record already there.
+    pub fn write_revocation(&self, r: &Revocation) -> Res<()> {
+        match self.store.put_new(&r.snapshot.path, &r.snapshot.bytes) {
+            Ok(()) | Err(StoreError::Exists) => {}
+            Err(e) => return Err(e.into()),
+        }
+        for record in &r.records {
+            self.store.put_replace(&record.path, &record.bytes)?;
+        }
+        for path in &r.remove {
+            match self.store.delete(path) {
+                Ok(()) | Err(StoreError::NotFound) => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        self.store.put_replace("vault.json", &r.vault_json)?;
         Ok(())
     }
 
