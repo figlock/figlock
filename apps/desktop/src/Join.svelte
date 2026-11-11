@@ -2,8 +2,9 @@
   import { Alert, Button, TextField } from "@figlock/ui";
   import { onDestroy } from "svelte";
 
-  import FolderField from "./FolderField.svelte";
   import Shell from "./Shell.svelte";
+  import { StorageChoice } from "./storage.svelte";
+  import StoragePicker from "./StoragePicker.svelte";
   import TouchIdOption from "./TouchIdOption.svelte";
   import {
     errorOf,
@@ -20,7 +21,7 @@
   const POLL_MS = 2000;
 
   let step = $state<"code" | "waiting" | "password">("code");
-  let folder = $state("");
+  const storage = new StorageChoice();
   let code = $state("");
   let fingerprint = $state("");
   let password = $state("");
@@ -40,12 +41,15 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!folder) fieldError.folder = "Choose the folder that holds the vault.";
+    if (storage.kind === "folder" && !storage.folder) {
+      fieldError.folder = "Choose the folder that holds the vault.";
+    }
+    if (storage.kind === "drive" && !storage.ready) error = "Sign in to Google first.";
     if (!code.trim()) fieldError.code = "Enter the invite code shown on your other device.";
-    if (fieldError.folder || fieldError.code) return;
+    if (error || fieldError.folder || fieldError.code) return;
     busy = true;
     try {
-      fingerprint = await joinStart(folder, code);
+      fingerprint = await joinStart(storage.value, code);
       step = "waiting";
       timer = setInterval(async () => {
         try {
@@ -100,10 +104,10 @@
   >
     <form class="flex flex-col gap-4" onsubmit={request}>
       {#if error}<Alert>{error}</Alert>{/if}
-      <FolderField
-        bind:value={folder}
-        error={fieldError.folder}
-        help="The same storage your vault uses."
+      <StoragePicker
+        {storage}
+        folderError={fieldError.folder}
+        folderHelp="The same storage your vault uses."
       />
       <TextField
         label="Invite code"

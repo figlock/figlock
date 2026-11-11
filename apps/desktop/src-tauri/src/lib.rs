@@ -5,9 +5,10 @@ mod desk;
 
 use std::time::Duration;
 
+use desk::drive::{DriveView, SignedOut};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
-use desk::{CmdError, CmdRes, CreatedVault, Desk, VaultState};
+use desk::{CmdError, CmdRes, CreatedVault, Desk, Storage, VaultState};
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
 
@@ -38,10 +39,10 @@ async fn choose_folder(app: AppHandle) -> Option<String> {
 #[tauri::command]
 async fn create_vault(
     desk: State<'_, Desk>,
-    folder: String,
+    storage: Storage,
     password: String,
 ) -> CmdRes<CreatedVault> {
-    desk.create(&folder, &password)
+    desk.create(&storage, &password)
 }
 
 /// Ask where to save the Emergency Kit and write it there. `false` when the person cancels.
@@ -85,18 +86,37 @@ async fn cancel_create(desk: State<'_, Desk>) -> CmdRes<()> {
 #[tauri::command]
 async fn open_existing(
     desk: State<'_, Desk>,
-    folder: String,
+    storage: Storage,
     password: String,
     secret_key: String,
     touch_id: bool,
 ) -> CmdRes<VaultState> {
-    desk.open_existing(&folder, &password, &secret_key, touch_id)
+    desk.open_existing(&storage, &password, &secret_key, touch_id)
 }
 
 /// Returns the fingerprint to compare with the trusted device.
 #[tauri::command]
-async fn join_start(desk: State<'_, Desk>, folder: String, code: String) -> CmdRes<String> {
-    desk.join_start(&folder, &code)
+async fn join_start(desk: State<'_, Desk>, storage: Storage, code: String) -> CmdRes<String> {
+    desk.join_start(&storage, &code)
+}
+
+/// Whether Google sign-in is possible in this build, and whether this device is signed in.
+#[tauri::command]
+async fn drive_status() -> CmdRes<DriveView> {
+    desk::drive::status()
+}
+
+/// Opens the browser to sign in to Google and resolves when the person finishes (or the sign-in times out).
+#[tauri::command]
+async fn drive_sign_in() -> CmdRes<DriveView> {
+    tauri::async_runtime::spawn_blocking(desk::drive::sign_in)
+        .await
+        .map_err(|_| CmdError::new("failed", "Sign-in stopped unexpectedly. Try again."))?
+}
+
+#[tauri::command]
+async fn drive_sign_out() -> CmdRes<SignedOut> {
+    desk::drive::sign_out()
 }
 
 #[tauri::command]
@@ -302,6 +322,9 @@ pub fn run() {
             cancel_create,
             open_existing,
             join_start,
+            drive_status,
+            drive_sign_in,
+            drive_sign_out,
             join_answered,
             join_cancel,
             join_finish,

@@ -2,8 +2,9 @@
   import { Alert, Button, TextField } from "@figlock/ui";
   import { onMount } from "svelte";
 
-  import FolderField from "./FolderField.svelte";
   import Shell from "./Shell.svelte";
+  import { StorageChoice } from "./storage.svelte";
+  import StoragePicker from "./StoragePicker.svelte";
   import TouchIdOption from "./TouchIdOption.svelte";
   import {
     cancelCreate,
@@ -20,7 +21,7 @@
   let { touchAvailable, onback, ondone }: Props = $props();
 
   let step = $state<"form" | "key">("form");
-  let folder = $state("");
+  const storage = new StorageChoice();
   let password = $state("");
   let again = $state("");
   let secretKey = $state("");
@@ -33,7 +34,7 @@
   let fieldError = $state<{ password?: string; again?: string; typed?: string }>({});
 
   onMount(async () => {
-    folder = (await suggestedFolder()) ?? "";
+    storage.folder = (await suggestedFolder()) ?? "";
   });
 
   async function next(e: Event) {
@@ -50,7 +51,7 @@
     }
     busy = true;
     try {
-      secretKey = (await createVault(folder, password)).secretKey;
+      secretKey = (await createVault(storage.value, password)).secretKey;
       step = "key";
     } catch (e) {
       error = errorOf(e).message;
@@ -102,9 +103,9 @@
   <Shell title="Create your vault" subtitle="Choose where it lives and a master password.">
     <form class="flex flex-col gap-4" onsubmit={next}>
       {#if error}<Alert>{error}</Alert>{/if}
-      <FolderField
-        bind:value={folder}
-        help="Only encrypted files are kept here. A folder synced by iCloud Drive works well."
+      <StoragePicker
+        {storage}
+        folderHelp="Only encrypted files are kept here. A folder synced by iCloud Drive works well."
       />
       <TextField
         label="Master password"
@@ -125,7 +126,7 @@
       <div class="flex gap-2">
         <Button onclick={onback}>Back</Button>
         <div class="flex-1"></div>
-        <Button variant="primary" type="submit" disabled={busy || !folder}>
+        <Button variant="primary" type="submit" disabled={busy || !storage.ready}>
           {busy ? "Creating..." : "Continue"}
         </Button>
       </div>

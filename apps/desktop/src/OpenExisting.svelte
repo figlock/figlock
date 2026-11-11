@@ -1,15 +1,16 @@
 <script lang="ts">
   import { Alert, Button, SecretKeyField, TextField } from "@figlock/ui";
 
-  import FolderField from "./FolderField.svelte";
   import Shell from "./Shell.svelte";
+  import { StorageChoice } from "./storage.svelte";
+  import StoragePicker from "./StoragePicker.svelte";
   import TouchIdOption from "./TouchIdOption.svelte";
   import { errorOf, openExisting, type VaultState } from "./vault";
 
   type Props = { touchAvailable: boolean; onback: () => void; ondone: (s: VaultState) => void };
   let { touchAvailable, onback, ondone }: Props = $props();
 
-  let folder = $state("");
+  const storage = new StorageChoice();
   let password = $state("");
   let secretKey = $state("");
   let touchId = $state(true);
@@ -21,15 +22,18 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!folder) fieldError.folder = "Choose the folder that holds your vault.";
+    if (storage.kind === "folder" && !storage.folder) {
+      fieldError.folder = "Choose the folder that holds your vault.";
+    }
+    if (storage.kind === "drive" && !storage.ready) error = "Sign in to Google first.";
     if (!password) fieldError.password = "Enter your master password.";
     if (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0)) {
       fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
-    if (fieldError.folder || fieldError.password || fieldError.key) return;
+    if (error || fieldError.folder || fieldError.password || fieldError.key) return;
     busy = true;
     try {
-      ondone(await openExisting(folder, password, secretKey, touchAvailable && touchId));
+      ondone(await openExisting(storage.value, password, secretKey, touchAvailable && touchId));
     } catch (e) {
       const err = errorOf(e);
       if (err.code === "bad_secret_key") fieldError.key = err.message;
@@ -42,11 +46,11 @@
 
 <Shell
   title="Open your vault"
-  subtitle="Pick the folder that holds it, then enter your master password and Secret Key."
+  subtitle="Pick where it is kept, then enter your master password and Secret Key."
 >
   <form class="flex flex-col gap-4" onsubmit={submit}>
     {#if error}<Alert>{error}</Alert>{/if}
-    <FolderField bind:value={folder} error={fieldError.folder} />
+    <StoragePicker {storage} folderError={fieldError.folder} />
     <TextField
       label="Master password"
       type="password"

@@ -3,6 +3,7 @@
 use figlock_store::{BlobStore, GoogleDrive, GoogleOAuth, LocalFolder};
 
 use crate::config::{self, StoreSpec};
+use crate::drive::no_client;
 use crate::error::{Fail, Res};
 
 pub fn open(spec: &StoreSpec) -> Res<Box<dyn BlobStore>> {
@@ -27,12 +28,4 @@ pub fn open_drive() -> Res<Box<dyn BlobStore>> {
         refresh_token: token.to_string(),
     });
     Ok(Box::new(GoogleDrive::new(source)))
-}
-
-/// Source builds carry no Google client secret (ADR-0021); say how to get sign-in anyway.
-pub fn no_client() -> Fail {
-    Fail::new(
-        "this build has no Google client secret (only official release builds do); install a release build, \
-         or set FIGLOCK_GOOGLE_CLIENT_SECRET (and FIGLOCK_GOOGLE_CLIENT_ID for your own client)",
-    )
 }

@@ -13,7 +13,7 @@ use figlock_session::config::{self, Config, StoreSpec};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::{Session, Ui, now_ms};
 use figlock_session::{join, quick};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 /// The idle time before the vault locks, until Settings (a later task) lets the person change it.
@@ -33,7 +33,7 @@ pub struct CmdError {
 }
 
 impl CmdError {
-    fn new(code: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(code: &'static str, message: impl Into<String>) -> Self {
         CmdError {
             code,
             message: message.into(),
@@ -281,7 +281,7 @@ impl Desk {
     // ---- create ----
 
     /// Make a vault in memory. Nothing is written until [`Desk::finish_create`].
-    pub fn create(&self, folder: &str, password: &str) -> CmdRes<CreatedVault> {
+    pub fn create(&self, storage: &Storage, password: &str) -> CmdRes<CreatedVault> {
         if config::is_initialised()? {
             return Err(CmdError::new(
                 "failed",
@@ -294,7 +294,7 @@ impl Desk {
                 "Use at least 8 characters for the master password.",
             ));
         }
-        let spec = folder_spec(folder, true)?;
+        let spec = storage_spec(storage, true)?;
         let store = figlock_session::store::open(&spec)?;
         // Only a definite "not there" lets this continue: an unreachable folder must not look empty.
         match store.get("vault.json") {
@@ -302,7 +302,10 @@ impl Desk {
             Ok(_) => {
                 return Err(CmdError::new(
                     "vault_exists",
-                    "A vault already exists in that folder. Open it instead.",
+                    format!(
+                        "A vault already exists in {}. Open it instead.",
+                        storage.there()
+                    ),
                 ));
             }
             Err(e) => return Err(Fail::from(e).into()),
@@ -408,11 +411,11 @@ impl Desk {
 
     // ---- open an existing vault on this device ----
 
-    /// Open a vault that already exists in `folder` with the master password and Secret Key, on a device that
+    /// Open a vault that already exists in `storage` with the master password and Secret Key, on a device that
     /// has not been set up (the recovery path of `pairing-recovery.md` 3.5).
     pub fn open_existing(
         &self,
-        folder: &str,
+        storage: &Storage,
         password: &str,
         secret_key: &str,
         touch_id: bool,
@@ -424,12 +427,13 @@ impl Desk {
             ));
         }
         let key = parse_secret_key(secret_key)?;
-        let spec = folder_spec(folder, false)?;
+        let spec = storage_spec(storage, false)?;
         let store = figlock_session::store::open(&spec)?;
         let vault_json = store.get("vault.json").map_err(|e| match e {
-            figlock_store::StoreError::NotFound => {
-                CmdError::new("no_vault", "There is no FigLock vault in that folder.")
-            }
+            figlock_store::StoreError::NotFound => CmdError::new(
+                "no_vault",
+                format!("There is no FigLock vault in {}.", storage.there()),
+            ),
             e => Fail::from(e).into(),
         })?;
         Vault::unlock_key(&vault_json, password, &key).map_err(|_| wrong_credentials())?;
@@ -451,14 +455,14 @@ impl Desk {
 
     // ---- join through pairing ----
 
-    pub fn join_start(&self, folder: &str, code: &str) -> CmdRes<String> {
+    pub fn join_start(&self, storage: &Storage, code: &str) -> CmdRes<String> {
         if config::is_initialised()? {
             return Err(CmdError::new(
                 "failed",
                 "This device already has a vault set up.",
             ));
         }
-        let spec = folder_spec(folder, false)?;
+        let spec = storage_spec(storage, false)?;
         let j = join::begin(spec, code, &Self::device_name(), now_ms())
             .map_err(|f| CmdError::new("invite", f.0))?;
         let fingerprint = j.fingerprint().to_owned();
@@ -615,6 +619,36 @@ fn capitalise(s: &str) -> String {
     })
 }
 
+/// Where the person put the vault: a folder they chose, or the hidden app folder in their Google Drive.
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Storage {
+    Folder { path: String },
+    Drive,
+}
+
+impl Storage {
+    /// "that folder" or "this Google Drive", for messages.
+    fn there(&self) -> &'static str {
+        match self {
+            Storage::Folder { .. } => "that folder",
+            Storage::Drive => "this Google Drive",
+        }
+    }
+}
+
+fn storage_spec(storage: &Storage, create: bool) -> CmdRes<StoreSpec> {
+    match storage {
+        Storage::Folder { path } => folder_spec(path, create),
+        Storage::Drive => {
+            if config::load_drive_token()?.is_none() {
+                return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
+            }
+            Ok(StoreSpec::Drive)
+        }
+    }
+}
+
 /// A vault folder the person chose; a new vault's folder is made if it does not exist yet.
 fn folder_spec(folder: &str, create: bool) -> CmdRes<StoreSpec> {
     let path = Path::new(folder.trim());
@@ -629,6 +663,7 @@ fn folder_spec(folder: &str, create: bool) -> CmdRes<StoreSpec> {
     Ok(StoreSpec::Folder(canonical))
 }
 
+pub mod drive;
 pub mod generate;
 pub mod items;
 
