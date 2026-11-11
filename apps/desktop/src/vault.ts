@@ -25,8 +25,20 @@ export const vaultState = () => invoke<VaultState>("vault_state");
 export const suggestedFolder = () => invoke<string | null>("suggested_folder");
 export const chooseFolder = () => invoke<string | null>("choose_folder");
 
-export const createVault = (folder: string, password: string) =>
-  invoke<{ secretKey: string }>("create_vault", { folder, password });
+/** Where a vault is kept: a folder the person chose, or the hidden app folder in their Google Drive. */
+export type Storage = { kind: "folder"; path: string } | { kind: "drive" };
+
+/** `canSignIn` is false in a build without a Google client (source builds, ADR-0021). */
+export type DriveStatus = { canSignIn: boolean; signedIn: boolean };
+
+export const driveStatus = () => invoke<DriveStatus>("drive_status");
+/** Opens the browser and resolves when the person finishes signing in, or the sign-in times out. */
+export const driveSignIn = () => invoke<DriveStatus>("drive_sign_in");
+/** `revoked` is false when Google could not be reached, so access may still be there. */
+export const driveSignOut = () => invoke<{ revoked: boolean }>("drive_sign_out");
+
+export const createVault = (storage: Storage, password: string) =>
+  invoke<{ secretKey: string }>("create_vault", { storage, password });
 /** Resolves `false` when the person cancels the save dialog. */
 export const saveEmergencyKit = () => invoke<boolean>("save_emergency_kit");
 export const checkKitKey = (typed: string) => invoke<boolean>("check_kit_key", { typed });
@@ -34,15 +46,15 @@ export const finishCreate = (touchId: boolean) => invoke<VaultState>("finish_cre
 export const cancelCreate = () => invoke<void>("cancel_create");
 
 export const openExisting = (
-  folder: string,
+  storage: Storage,
   password: string,
   secretKey: string,
   touchId: boolean,
-) => invoke<VaultState>("open_existing", { folder, password, secretKey, touchId });
+) => invoke<VaultState>("open_existing", { storage, password, secretKey, touchId });
 
 /** Resolves the fingerprint to compare with the trusted device. */
-export const joinStart = (folder: string, code: string) =>
-  invoke<string>("join_start", { folder, code });
+export const joinStart = (storage: Storage, code: string) =>
+  invoke<string>("join_start", { storage, code });
 export const joinAnswered = () => invoke<boolean>("join_answered");
 export const joinCancel = () => invoke<void>("join_cancel");
 export const joinFinish = (password: string, touchId: boolean) =>
