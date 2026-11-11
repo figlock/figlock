@@ -24,8 +24,20 @@ const core = vi.hoisted(() => {
     updateItem: vi.fn(),
     chooseFiles: vi.fn(),
     clearStaged: vi.fn(),
+    generatePassword: vi.fn(),
+    generatePassphrase: vi.fn(),
+    passwordStrength: vi.fn(),
+    copyText: vi.fn(),
   };
 });
+
+vi.mock("./generator", async (original) => ({
+  ...(await original<typeof import("./generator")>()),
+  generatePassword: core.generatePassword,
+  generatePassphrase: core.generatePassphrase,
+  passwordStrength: core.passwordStrength,
+  copyText: core.copyText,
+}));
 
 vi.mock("./items", async (original) => ({
   ...(await original<typeof import("./items")>()),
@@ -118,6 +130,16 @@ beforeEach(() => {
   core.restoreItem.mockResolvedValue(undefined);
   core.addItem.mockResolvedValue("new1");
   core.updateItem.mockResolvedValue(undefined);
+  core.generatePassword.mockResolvedValue({
+    value: "Gen-erated-pass-1",
+    strength: { level: "strong", bits: 110 },
+  });
+  core.generatePassphrase.mockResolvedValue({
+    value: "alpha-bravo-charlie",
+    strength: { level: "weak", bits: 39 },
+  });
+  core.passwordStrength.mockResolvedValue({ level: "fair", bits: 50 });
+  core.copyText.mockResolvedValue(30);
 });
 
 const open = () => render(Workspace, { onlock: vi.fn(), onlocked: vi.fn() });
@@ -331,4 +353,77 @@ test("a save that failed and locked the vault sends the person to unlock with th
   await waitFor(() =>
     expect(onlocked).toHaveBeenCalledWith("Could not save. Unlock to try again."),
   );
+});
+
+test("the generator page makes a password, remakes it when options change, and copies it", async () => {
+  const user = userEvent.setup();
+  open();
+  await user.click(await screen.findByRole("button", { name: "Generator" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("generated").textContent).toContain("Gen-erated-pass-1"),
+  );
+  expect(screen.getByText("Strong")).toBeTruthy();
+  expect(core.generatePassword).toHaveBeenLastCalledWith(
+    expect.objectContaining({ length: 20, lower: true, symbols: true }),
+  );
+
+  await user.click(screen.getByRole("checkbox", { name: /Symbols/ }));
+  await waitFor(() =>
+    expect(core.generatePassword).toHaveBeenLastCalledWith(
+      expect.objectContaining({ symbols: false }),
+    ),
+  );
+
+  await user.click(screen.getByRole("button", { name: "Copy" }));
+  await waitFor(() => expect(core.copyText).toHaveBeenCalledWith("Gen-erated-pass-1"));
+});
+
+test("turning every character type off says so instead of asking the core", async () => {
+  const user = userEvent.setup();
+  open();
+  await user.click(await screen.findByRole("button", { name: "Generator" }));
+  await screen.findByTestId("generated");
+  for (const name of [/Lowercase/, /Uppercase/, /Numbers/, /Symbols/]) {
+    await user.click(screen.getByRole("checkbox", { name }));
+  }
+  expect(await screen.findByText("Turn on at least one character type.")).toBeTruthy();
+  const calls = core.generatePassword.mock.calls.length;
+  await user.click(screen.getByRole("button", { name: "Generate another" }));
+  expect(core.generatePassword.mock.calls.length).toBe(calls);
+});
+
+test("passphrase mode asks for words and suggests more when the phrase is weak", async () => {
+  const user = userEvent.setup();
+  open();
+  await user.click(await screen.findByRole("button", { name: "Generator" }));
+  await user.click(await screen.findByRole("radio", { name: "Passphrase" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("generated").textContent).toContain("alpha-bravo-charlie"),
+  );
+  expect(core.generatePassphrase).toHaveBeenLastCalledWith({
+    words: 6,
+    separator: "hyphen",
+    capitalize: false,
+    addNumber: false,
+  });
+  expect(screen.getByText("Add more words to make this passphrase stronger.")).toBeTruthy();
+});
+
+test("the item editor generates a password inline and saves the one it used", async () => {
+  const user = userEvent.setup();
+  open();
+  await user.click(await screen.findByRole("button", { name: /New item/ }));
+  await user.click(await screen.findByRole("button", { name: /^Login\./ }));
+
+  await user.click(screen.getByRole("button", { name: "Generate a password" }));
+  await user.click(await screen.findByRole("button", { name: "Use this password" }));
+  expect(screen.queryByTestId("generator")).toBeNull();
+  expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe("Gen-erated-pass-1");
+  expect(await screen.findByText("Fair")).toBeTruthy();
+
+  await user.type(screen.getByLabelText(/^Title/), "Linear");
+  core.state.detail.new1 = { ...core.state.detail.a1, id: "new1", fields: { title: "Linear" } };
+  await user.click(screen.getByRole("button", { name: "Add item" }));
+  await waitFor(() => expect(core.addItem).toHaveBeenCalledTimes(1));
+  expect(core.addItem.mock.calls[0][1].fields.password).toBe("Gen-erated-pass-1");
 });

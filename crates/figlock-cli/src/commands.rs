@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
 
+use figlock_core::generate;
 use figlock_core::{Index, ItemType, ItemView, KdfParams, Vault, is_secret_field, validate_field};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
@@ -13,7 +14,7 @@ use zeroize::Zeroizing;
 use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
 use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
-    generate, prompt, quick,
+    prompt, quick,
 };
 use figlock_session::config::{self, Config, StoreSpec};
 use figlock_session::error::{Fail, Res};
@@ -403,7 +404,16 @@ pub fn copy(a: CopyArgs, json: bool) -> Res<()> {
 }
 
 pub fn generate(a: GenerateArgs, json: bool) -> Res<()> {
-    let p = generate::password(a.length, !a.no_symbols)?;
+    let (min, max) = (generate::MIN_LEN, generate::MAX_LEN);
+    if !(min..=max).contains(&a.length) {
+        return Err(Fail::new(format!("length must be between {min} and {max}")));
+    }
+    let p = generate::password(&generate::PasswordOptions {
+        length: a.length,
+        symbols: !a.no_symbols,
+        ..Default::default()
+    })
+    .map_err(|_| Fail::new("could not generate a password"))?;
     if json {
         print_json(&json!({ "password": p.as_str() }))
     } else {

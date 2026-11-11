@@ -629,6 +629,7 @@ fn folder_spec(folder: &str, create: bool) -> CmdRes<StoreSpec> {
     Ok(StoreSpec::Folder(canonical))
 }
 
+pub mod generate;
 pub mod items;
 
 #[cfg(test)]

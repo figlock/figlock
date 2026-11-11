@@ -211,6 +211,7 @@
             bind:value={draft.scalars.password}
             held={keeps(draft, "password")}
             required
+            generate
             maxlength={4096}
             help="Up to 4 KB."
             error={errors.password}

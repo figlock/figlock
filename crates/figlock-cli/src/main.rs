@@ -10,7 +10,6 @@ mod broker;
 mod commands;
 mod credentials;
 mod drive;
-mod generate;
 #[cfg(unix)]
 mod http;
 mod import;

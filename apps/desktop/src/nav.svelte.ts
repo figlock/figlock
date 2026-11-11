@@ -7,6 +7,7 @@ export type Route =
   | { p: "list"; f: Filter }
   | { p: "item"; id: string; from: Filter }
   | { p: "pick"; from: Filter }
+  | { p: "generator" }
   | { p: "edit"; id?: string; kind?: Kind; from: Filter };
 
 /** The page history behind the back and forward buttons, and a guard for unsaved edits. */

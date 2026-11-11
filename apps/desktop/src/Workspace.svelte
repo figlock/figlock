@@ -2,6 +2,7 @@
   import { ConfirmDialog, Icon, Logo, Button, type IconName } from "@figlock/ui";
   import { onMount, tick } from "svelte";
 
+  import GeneratorPage from "./GeneratorPage.svelte";
   import ItemEditor from "./ItemEditor.svelte";
   import ItemList from "./ItemList.svelte";
   import ItemPage from "./ItemPage.svelte";
@@ -29,16 +30,20 @@
   let query = $state("");
 
   const route = $derived(nav.current);
-  const section = $derived<Filter>(route.p === "list" ? route.f : route.from);
+  const section = $derived<Filter | null>(
+    route.p === "list" ? route.f : route.p === "generator" ? null : route.from,
+  );
 
   const NAMES: Record<string, string> = { all: "All items", deleted: "Recently deleted" };
   const nameOf = (f: Filter) => NAMES[f] ?? kindInfo(f).plural;
   const title = $derived(
-    route.p === "pick" || (route.p === "edit" && !route.id)
-      ? "New item"
-      : route.p === "edit"
-        ? "Edit item"
-        : nameOf(section),
+    route.p === "generator"
+      ? "Generator"
+      : route.p === "pick" || (route.p === "edit" && !route.id)
+        ? "New item"
+        : route.p === "edit"
+          ? "Edit item"
+          : nameOf(section ?? "all"),
   );
 
   const count = (f: Filter) =>
@@ -87,11 +92,9 @@
   }
 
   const add = () =>
-    nav.go(
-      section !== "all" && section !== "deleted"
-        ? { p: "edit", kind: section, from: section }
-        : { p: "pick", from: section },
-    );
+    section !== null && section !== "all" && section !== "deleted"
+      ? nav.go({ p: "edit", kind: section, from: section })
+      : nav.go({ p: "pick", from: section ?? "all" });
 
   function keys(e: KeyboardEvent) {
     if (!e.metaKey || e.altKey || e.ctrlKey) return;
@@ -148,6 +151,25 @@
           </span>
         </button>
       {/each}
+      <h2
+        class="px-2 pt-4 pb-1 text-(length:--text-xs) leading-4 font-medium text-text-tertiary max-[860px]:sr-only"
+      >
+        Tools
+      </h2>
+      <button
+        type="button"
+        onclick={() => nav.go({ p: "generator" })}
+        aria-current={route.p === "generator" ? "page" : undefined}
+        aria-label="Generator"
+        title="Generator"
+        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {route.p ===
+        'generator'
+          ? 'bg-border text-primary'
+          : 'text-text'}"
+      >
+        <Icon name="dices" />
+        <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Generator</span>
+      </button>
     </nav>
     <div class="border-t border-border p-3 max-[860px]:p-2">
       <button
@@ -214,6 +236,8 @@
             <ItemList filter={route.f} />
           {:else if route.p === "item"}
             <ItemPage id={route.id} from={route.from} />
+          {:else if route.p === "generator"}
+            <GeneratorPage />
           {:else if route.p === "pick"}
             <NewItem from={route.from} />
           {:else}
