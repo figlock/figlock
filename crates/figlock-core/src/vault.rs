@@ -151,6 +151,9 @@ pub struct Revocation {
     /// Paths to delete: the revoked device's record, which no longer verifies.
     pub remove: Vec<String>,
     pub snapshot: Committed,
+    /// The new Secret Key when the credentials changed with the revocation and it was rotated: give the
+    /// person a new Emergency Kit (`pairing-recovery.md` 5).
+    pub secret_key: Option<SecretKey>,
 }
 
 /// What [`Vault::change_credentials`] changes. Anything left out stays as it is.
@@ -735,6 +738,32 @@ impl Vault {
         target: &DeviceId,
         now_ms: u64,
     ) -> Result<Revocation> {
+        self.revoke_with(password, secret_key, target, now_ms, None)
+    }
+
+    /// [`Vault::revoke_device`] and [`Vault::change_credentials`] in one write (ADR-0022 amendment). The new
+    /// `VK` is wrapped straight under the new `AUK`, so no `vault.json` that the old password and Secret Key
+    /// open is ever stored at the new epoch, and `revision` goes up once. A copy of the `vault.json` from
+    /// before the revocation still opens the old epoch.
+    pub fn revoke_device_and_change_credentials(
+        &mut self,
+        password: &str,
+        secret_key: &SecretKey,
+        target: &DeviceId,
+        change: CredentialChange<'_>,
+        now_ms: u64,
+    ) -> Result<Revocation> {
+        self.revoke_with(password, secret_key, target, now_ms, Some(change))
+    }
+
+    fn revoke_with(
+        &mut self,
+        password: &str,
+        secret_key: &SecretKey,
+        target: &DeviceId,
+        now_ms: u64,
+        change: Option<CredentialChange<'_>>,
+    ) -> Result<Revocation> {
         if *target == self.device.device_id
             || !self.devices.contains_key(target)
             || !self.pending.is_empty()
@@ -760,7 +789,35 @@ impl Vault {
         let new_epoch = self.epoch.checked_add(1).ok_or(Error)?;
         let new_vk = Key::random()?;
         let new_keys = derive_vault_keys(&new_vk)?;
-        let wrapped_vk = wrap_vk(&auk, &new_vk, &self.vault_id, new_epoch, &params_bytes)?;
+        // The `AUK` that wraps the new `VK`: the current one, or a fresh one when the credentials change.
+        let (wrap_auk, salt, params, new_secret_key) = match change {
+            None => (auk, self.salt, self.params, None),
+            Some(c) => {
+                let params = c.params.unwrap_or(self.params);
+                params.check()?;
+                let salt = random::<16>()?;
+                let new_secret_key = if c.rotate_secret_key {
+                    Some(SecretKey::random()?)
+                } else {
+                    None
+                };
+                let wrap_auk = derive_auk(
+                    c.new_password.unwrap_or(password),
+                    new_secret_key.as_ref().unwrap_or(secret_key),
+                    &self.vault_id,
+                    &salt,
+                    &params,
+                )?;
+                (wrap_auk, salt, params, new_secret_key)
+            }
+        };
+        let wrapped_vk = wrap_vk(
+            &wrap_auk,
+            &new_vk,
+            &self.vault_id,
+            new_epoch,
+            &params.bytes_with_salt(&salt),
+        )?;
         let mut epoch_keys = self.epoch_keys.clone();
         epoch_keys.push(EpochKeyEntry {
             from: self.epoch,
@@ -780,13 +837,17 @@ impl Vault {
         );
 
         let revision = self.revision + 1;
-        let body = vault_json_body_with(
+        let mut body = vault_json_body_with(
             self,
-            &self.salt,
+            &salt,
             &wrapped_vk,
             (new_epoch, revision, &new_keys.authority_public()),
             (&revoked, &epoch_keys),
         );
+        // `vault_json_body_with` reads the KDF parameters from `self`; changed ones replace them.
+        body["kdf"] = json!({
+            "m_kib": params.m_kib, "t": params.t, "p": params.p, "salt": hexs(&salt),
+        });
         let vault_json = with_signature(
             body.clone(),
             sign_json(&new_keys.authority_seed, "vault-json", &body)?,
@@ -823,11 +884,14 @@ impl Vault {
         self.epoch = new_epoch;
         self.revision = revision;
         self.wrapped_vk = wrapped_vk;
+        self.salt = salt;
+        self.params = params;
         Ok(Revocation {
             vault_json,
             records,
             remove: vec![record_path(target)],
             snapshot,
+            secret_key: new_secret_key,
         })
     }
 
@@ -984,9 +1048,10 @@ impl Vault {
         };
         Ok(Committed {
             path: format!(
-                "snap/{}-{:08}.snap",
+                "snap/{}-{:08}-{:08}.snap",
                 hexs(&self.device.device_id),
-                self.own_seq
+                self.own_seq,
+                epoch
             ),
             bytes: build_file(
                 Kind::Snapshot,

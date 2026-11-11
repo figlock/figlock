@@ -38,3 +38,27 @@ the current `vault.json`. `crypto.md` 9 already lists password change and Secret
   and an epoch per password change.
 - One combined revoke-and-change call: fewer ways to forget the second step, but a larger API to test and
   specify; it can be added on top later.
+
+## Amendment (FIG-72): revoke and change credentials in one write
+
+Revocation already rotates `VK` (ADR-0018), so the open question was whether a credential change after a
+compromise must rotate it again. It does not. The window is only that `revoke_device` wraps the new `VK'`
+under the *old* `AUK` and writes that `vault.json`; a revoked device with the old credentials can unwrap
+`VK'` from it. Closing the window needs no second rotation, only that `VK'` is never wrapped under the old
+`AUK`.
+
+- **`Vault::revoke_device_and_change_credentials`** takes the same arguments as `revoke_device` plus a
+  `CredentialChange`. It derives the new `AUK` (fresh salt, optional new password, Secret Key and Argon2
+  parameters) first and wraps `VK'` under it. One `vault.json` is written, `revision + 1` once. Nothing that
+  the old `AUK` opens is stored at the new epoch. `revoke_device` stays for callers that do not change the
+  credentials; a plain `change_credentials` still does not rotate `VK`.
+- **What it cannot do** is unchanged and stays in the UI text: a copy of the `vault.json` from before the
+  revocation still opens the old epoch, and data the device already copied stays copied.
+- **Snapshot names carry the epoch**: `snap/<device_id>-<seq>-<epoch>.snap`, `<epoch>` 8 decimal digits. Two
+  revocations with no op file in between no longer collide. Readers never parse the name (the file header
+  decides), so nothing else changes. `sync.md` 3 and ADR-0018 are updated.
+- **CLI**: `figlock password change` and `figlock secret-key rotate` (each calls `Quick::forget`, the second
+  offers a new Emergency Kit), and the combined flow behind `figlock device revoke <id>` with
+  `--change-password` and `--rotate-secret-key`. Other devices are told at their next unlock that a full
+  unlock is needed. `device revoke` needs a device list, which the CLI does not have yet, so `device list` is
+  added with it. Pairing from the CLI is a separate task.

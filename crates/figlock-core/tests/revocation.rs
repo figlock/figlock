@@ -432,3 +432,15 @@ fn unlock_skips_stale_records_and_never_trusts_them() {
     let v = unlock_with_records(&r, &f.sk, &[forged]);
     assert!(trusted(&v, &b_id));
 }
+
+#[test]
+fn back_to_back_revocations_write_different_snapshot_names() {
+    let mut f = fleet();
+    let (b_id, c_id) = (*f.b.device_id(), *f.c.device_id());
+    // No op file in between: the same writer sequence number covers both snapshots.
+    let first = f.a.revoke_device(pw(), &f.sk, &c_id, T0 + 400).unwrap();
+    let second = f.a.revoke_device(pw(), &f.sk, &b_id, T0 + 500).unwrap();
+    assert_ne!(first.snapshot.path, second.snapshot.path);
+    assert!(first.snapshot.path.ends_with("-00000002.snap"));
+    assert!(second.snapshot.path.ends_with("-00000003.snap"));
+}
