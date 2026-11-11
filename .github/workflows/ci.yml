@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
       - uses: Swatinem/rust-cache@v2
       - name: System libraries for the Tauri desktop app
         # A mirror that does not resolve must fail in minutes, not stall the job for a quarter of an hour.
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
       - name: Design tokens meet WCAG AA
         run: just design-check
       - name: Install, lint and test
@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: jdx/mise-action@v5
       - name: Test vectors have not drifted and all cases verify
         run: just vectors-check
 
