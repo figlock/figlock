@@ -567,9 +567,10 @@ impl Desk {
         })
     }
 
-    /// Write the field changes of one item and commit them together. If any one is refused, the vault in memory
+    /// Write the field changes of one item and commit them together. If a change is refused, the vault in memory
     /// holds a half-applied edit the core cannot undo, so the session is dropped: nothing of the edit was
-    /// written, and the next unlock starts from what is stored.
+    /// written, and the next unlock starts from what is stored. If only the write of the commit fails, the
+    /// changes stay pending and the session stays open, so saving again writes them once.
     pub(super) fn apply(
         inner: &mut Inner,
         item: &ItemId,
@@ -577,32 +578,30 @@ impl Desk {
     ) -> CmdRes<()> {
         let now = now_ms();
         let session = inner.session.as_mut().ok_or_else(locked)?;
-        let done = (|| -> Result<(), Fail> {
+        let applied = (|| -> Result<(), Fail> {
             for (f, value) in &ops {
                 session
                     .vault
                     .set_field(item, f, value.as_ref().map(|v| v.as_str()), now)
                     .map_err(Fail::from)?;
             }
-            session.commit()
+            Ok(())
         })();
-        match done {
-            Ok(()) => {
-                inner.cache = None;
-                inner.staged.clear();
-                Ok(())
-            }
-            Err(f) => {
-                inner.drop_session();
-                Err(CmdError::new(
-                    "locked",
-                    format!(
-                        "{} The vault was locked so nothing half-saved is kept. Unlock it and try again.",
-                        f.0
-                    ),
-                ))
-            }
+        if let Err(f) = applied {
+            inner.drop_session();
+            return Err(CmdError::new(
+                "locked",
+                format!(
+                    "{} The vault was locked so nothing half-saved is kept. Unlock it and try again.",
+                    f.0
+                ),
+            ));
         }
+        let committed = session.commit();
+        inner.cache = None;
+        committed?;
+        inner.staged.clear();
+        Ok(())
     }
 
     pub fn delete_item(&self, id: &str) -> CmdRes<()> {

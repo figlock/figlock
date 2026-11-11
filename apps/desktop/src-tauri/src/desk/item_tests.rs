@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use super::items::ItemDraft;
-use super::tests::{code_of, created_key, desk, password, scenario_in};
+use super::tests::{code_of, created_key, desk, password, scenario_in, vault_dir};
 use super::*;
 
 fn scenario(name: &str) {
@@ -523,4 +523,47 @@ fn atomic_inner() {
     let mut all = titles(&d, "");
     all.sort();
     assert_eq!(all, ["Other", "Site"]);
+}
+
+#[test]
+fn a_failed_write_keeps_the_session_and_saving_again_writes_the_edit_once() {
+    scenario("write_retry_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn write_retry_inner() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    let secret = password();
+    let id = d
+        .add_item("login", draft(&[("title", "Site"), ("password", &secret)]))
+        .unwrap();
+    let log = std::fs::read_dir(PathBuf::from(vault_dir()).join("log"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    let mode = |m| std::fs::set_permissions(&log, std::fs::Permissions::from_mode(m)).unwrap();
+
+    mode(0o500);
+    let edit = draft(&[("title", "Renamed")]);
+    let err = d.update_item(&id, edit).unwrap_err();
+    assert_ne!(code_of(err), "locked", "a failed write locked the vault");
+    assert_eq!(titles(&d, ""), ["Renamed"]);
+
+    mode(0o700);
+    d.update_item(&id, draft(&[("title", "Renamed")])).unwrap();
+    d.add_item("login", draft(&[("title", "Next"), ("password", &secret)]))
+        .unwrap();
+
+    d.lock();
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    let mut all = titles(&d, "");
+    all.sort();
+    assert_eq!(all, ["Next", "Renamed"]);
+    assert_eq!(d.reveal_field(&id, "password").unwrap(), secret);
 }
