@@ -163,7 +163,7 @@ crates/figlock-store/    BlobStore adapters: local folder, Google Drive, later G
 crates/figlock-session/  device config and keys, quick unlock, the unlocked vault session (CLI and desktop)
 crates/figlock-cli/      the figlock binary, including the broker daemon
 crates/figlock-ffi/      UniFFI (Swift, Kotlin) and wasm-bindgen exports
-apps/desktop/            Tauri 2
+apps/desktop/            Tauri 2 (src-tauri) and its Svelte 5 front end
 apps/extension/          WXT browser extension
 apps/ios/  apps/android/ native shells
 packages/ui/             shared Svelte 5 components

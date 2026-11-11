@@ -43,6 +43,19 @@ git config core.hooksPath .githooks   # pre-commit hook: format check and lint
 
 Recipes skip a language until its workspace exists (`Cargo.toml`, `pnpm-workspace.yaml`).
 
+## Desktop app
+
+`apps/desktop` is the Tauri 2 shell and `packages/ui` the shared Svelte 5 components. After `mise install`:
+
+```sh
+pnpm install
+cd apps/desktop && pnpm tauri dev    # window with hot reload
+```
+
+`just check` builds and lints the Tauri crate with the rest of the workspace; the first run compiles Tauri and
+takes a few minutes. On Linux, install the WebKitGTK build libraries first (the same list CI uses):
+`libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev librsvg2-dev libayatana-appindicator3-dev`.
+
 ## Google Drive sign-in in a local build
 
 Source builds have no Google client secret (ADR-0021). To try `figlock drive login` locally, set it for the run

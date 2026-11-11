@@ -1,0 +1,49 @@
+/* The brand contract is design/tokens.css. Components use the semantic tokens only (DESIGN.md section 3). */
+@import "tailwindcss";
+@import "@fontsource-variable/figtree";
+@import "@fontsource-variable/jetbrains-mono";
+@import "../../../design/tokens.css";
+
+/* Tailwind utilities read the semantic tokens, so light, dark and the user override all follow tokens.css. */
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-sunken: var(--color-surface-sunken);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-text: var(--color-text);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary: var(--color-text-tertiary);
+  --color-text-on-primary: var(--color-text-on-primary);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-subtle: var(--color-primary-subtle);
+  --color-agent: var(--color-agent);
+  --color-agent-subtle: var(--color-agent-subtle);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
+  --color-focus: var(--color-focus);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+html {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+body {
+  margin: 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+}
+
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus);
+  outline-offset: var(--focus-ring-offset);
+}
