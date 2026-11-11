@@ -1352,6 +1352,12 @@ impl Vault {
             self.item_keys.remove(&id);
         }
         self.pending.clear();
+        self.last_commit = None;
+    }
+
+    /// Record that the last `commit` is known to be written, so `rollback_commit` can no longer take it back.
+    pub fn confirm_commit(&mut self) {
+        self.last_commit = None;
     }
 
     /// Take back the last `commit` because its op file could not be written. The vault is then exactly as it

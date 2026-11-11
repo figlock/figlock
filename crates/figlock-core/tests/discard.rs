@@ -165,3 +165,17 @@ fn discarding_keeps_a_value_another_device_wrote_in_the_meantime() {
     a.discard_pending();
     assert_eq!(title(&mut a, &id).as_deref(), Some("From the phone"));
 }
+
+#[test]
+fn rollback_does_nothing_after_a_confirmed_commit() {
+    let (mut v, _) = new_vault();
+    add_login(&mut v, "One", T0 + 1);
+    v.commit().unwrap().unwrap();
+    v.confirm_commit();
+
+    v.rollback_commit();
+    assert!(!v.has_pending());
+    add_login(&mut v, "Two", T0 + 2);
+    let f = v.commit().unwrap().unwrap();
+    assert!(f.path.ends_with("/00000002.op"));
+}

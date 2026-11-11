@@ -617,6 +617,13 @@ impl Desk {
                 inner.cache = None;
                 Ok(v)
             }
+            Err(_) if session.is_uncertain() => {
+                inner.drop_session();
+                Err(CmdError::new(
+                    "save_uncertain",
+                    "The last save may or may not have been written, so the vault was locked. Unlock it again to see what was saved.",
+                ))
+            }
             Err(_) => {
                 session.discard_pending();
                 inner.cache = None;
