@@ -3,7 +3,7 @@
 
 use zeroize::Zeroizing;
 
-use crate::error::{Fail, Res};
+use figlock_session::error::{Fail, Res};
 
 pub const MIN_LEN: usize = 8;
 pub const MAX_LEN: usize = 128;

@@ -10,14 +10,15 @@ use figlock_core::{Index, ItemType, ItemView, KdfParams, Vault, is_secret_field,
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use crate::config::{self, Config, StoreSpec};
-use crate::error::{Fail, Res};
 use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
-use crate::session::{Session, id_hex, now_ms, title_of};
 use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
-    clipboard, docfile, generate, prompt, quick, session,
+    clipboard, docfile, generate, prompt, quick,
 };
+use figlock_session::config::{self, Config, StoreSpec};
+use figlock_session::error::{Fail, Res};
+use figlock_session::session;
+use figlock_session::session::{Session, id_hex, now_ms, title_of};
 
 pub(crate) const VAULT_NAME: &str = "personal";
 
@@ -40,7 +41,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         }
         None => StoreSpec::Drive,
     };
-    let store = crate::store::open(&spec)?;
+    let store = figlock_session::store::open(&spec)?;
     // Only a definite "not there" lets init continue: an unreachable or signed-out store must not look like
     // an empty one, or a second vault could be created next to the first.
     match store.get("vault.json") {
@@ -200,7 +201,7 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
         return Err(Fail::new("use --title for the title"));
     }
     fields.push(("title".to_owned(), Zeroizing::new(a.title)));
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let refs: Vec<(&str, &str)> = fields
         .iter()
         .map(|(n, v)| (n.as_str(), v.as_str()))
@@ -228,7 +229,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
             "nothing to do: give --set, --secret, --unset, --file, --remove-file, --delete or --restore",
         ));
     }
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let item = s.resolve(&a.item, a.restore)?;
     let id = item.id;
     let mut fields = collect_fields(item.item_type, a.set, a.secret)?;
@@ -272,7 +273,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
 }
 
 pub fn find(a: FindArgs, json: bool) -> Res<()> {
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let mut items = s.items(false);
     if let Some(t) = a.item_type {
         items.retain(|i| i.item_type == t);
@@ -299,7 +300,7 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
 }
 
 pub fn get(a: GetArgs, json: bool) -> Res<()> {
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let item = s.resolve(&a.item, false)?;
     if let (Some(name), Some(out)) = (&a.file, &a.out) {
         let id = docfile::find(&item, name)?;
@@ -363,7 +364,7 @@ fn default_secret_field(t: ItemType) -> Option<&'static str> {
 }
 
 pub fn copy(a: CopyArgs, json: bool) -> Res<()> {
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let item = s.resolve(&a.item, false)?;
     let field = match a.field {
         Some(f) => f,
@@ -407,7 +408,7 @@ pub fn generate(a: GenerateArgs, json: bool) -> Res<()> {
 }
 
 pub fn export(a: ExportArgs) -> Res<()> {
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let items = s.items(a.include_deleted);
     let list: Vec<Value> = items
         .iter()

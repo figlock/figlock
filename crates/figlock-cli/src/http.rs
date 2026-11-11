@@ -10,7 +10,7 @@ use serde_json::json;
 use crate::b64;
 use crate::broker::client::{call, expect_ok};
 use crate::broker::server;
-use crate::error::{Fail, Res};
+use figlock_session::error::{Fail, Res};
 
 pub struct HttpSpec {
     /// The item's title.

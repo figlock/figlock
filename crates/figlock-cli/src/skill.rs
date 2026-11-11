@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use serde_json::json;
 
 use crate::SkillInstallArgs;
-use crate::error::{Fail, Res};
+use figlock_session::error::{Fail, Res};
 
 /// The skill, exactly as shipped.
 pub const TEXT: &str = include_str!("../../../skill/SKILL.md");

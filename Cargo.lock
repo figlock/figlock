@@ -589,13 +589,13 @@ dependencies = [
  "clap",
  "figlock-biometric",
  "figlock-core",
+ "figlock-session",
  "figlock-store",
  "getrandom 0.4.3",
  "hex",
  "nix",
  "p256",
  "rpassword",
- "security-framework",
  "serde_json",
  "sha2",
  "subtle",
@@ -636,6 +636,23 @@ dependencies = [
  "figlock-core",
  "tempfile",
  "uniffi",
+ "zeroize",
+]
+
+[[package]]
+name = "figlock-session"
+version = "0.2.0"
+dependencies = [
+ "figlock-biometric",
+ "figlock-core",
+ "figlock-store",
+ "getrandom 0.4.3",
+ "hex",
+ "nix",
+ "p256",
+ "security-framework",
+ "serde_json",
+ "tempfile",
  "zeroize",
 ]
 

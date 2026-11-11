@@ -8,7 +8,7 @@ use std::io::{self, BufRead, IsTerminal, Write};
 use figlock_core::SecretKey;
 use zeroize::Zeroizing;
 
-use crate::error::{Fail, Res};
+use figlock_session::error::{Fail, Res};
 
 fn hidden(label: &str) -> Res<Zeroizing<String>> {
     let mut err = io::stderr();
@@ -103,4 +103,26 @@ pub fn confirm_default_yes(question: &str) -> Res<bool> {
     }
     let answer = line.trim().to_ascii_lowercase();
     Ok(answer.is_empty() || answer == "y" || answer == "yes")
+}
+
+/// The terminal as the session's way of asking and reporting.
+struct Terminal;
+
+impl figlock_session::Ui for Terminal {
+    fn password(&self) -> Res<Zeroizing<String>> {
+        password()
+    }
+    fn secret_key(&self) -> Res<SecretKey> {
+        secret_key()
+    }
+    fn notice(&self, message: &str) {
+        eprintln!("{message}");
+    }
+    fn warn(&self, message: &str) {
+        eprintln!("warning: {message}");
+    }
+}
+
+pub fn terminal() -> Box<dyn figlock_session::Ui> {
+    Box::new(Terminal)
 }

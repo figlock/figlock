@@ -15,6 +15,7 @@ path = "src/main.rs"
 figlock-core = { version = "0.2.0", path = "../figlock-core" }
 figlock-store = { version = "0.2.0", path = "../figlock-store", features = ["gdrive"] }
 figlock-biometric = { version = "0.2.0", path = "../figlock-biometric" }
+figlock-session = { version = "0.2.0", path = "../figlock-session" }
 clap.workspace = true
 rpassword.workspace = true
 getrandom.workspace = true
@@ -25,9 +26,6 @@ sha2.workspace = true
 subtle.workspace = true
 ureq.workspace = true
 url.workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies]
-security-framework = "3"
 
 [target.'cfg(unix)'.dependencies]
 nix.workspace = true

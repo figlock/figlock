@@ -9,33 +9,28 @@ mod b64;
 mod broker;
 mod clipboard;
 mod commands;
-mod config;
 mod credentials;
 mod docfile;
 mod drive;
-mod error;
 mod generate;
 #[cfg(unix)]
 mod http;
 mod import;
-mod keystore;
 mod prompt;
 mod quick;
-mod quick_se;
 mod render;
 #[cfg(unix)]
 mod run;
 #[cfg(unix)]
 mod scrub;
-mod session;
 mod skill;
-mod store;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use figlock_core::{ItemType, Source};
+use figlock_session::error;
 
 const TOP_HELP: &str = "\
 Getting started:

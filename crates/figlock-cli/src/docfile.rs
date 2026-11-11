@@ -9,8 +9,8 @@ use std::path::Path;
 use figlock_core::{ItemView, MAX_FILE_BYTES, decode_file, encode_file};
 use zeroize::Zeroizing;
 
-use crate::config::create_private_file;
-use crate::error::{Fail, Res};
+use figlock_session::config::create_private_file;
+use figlock_session::error::{Fail, Res};
 
 const MAX_NAME_CHARS: usize = 200;
 

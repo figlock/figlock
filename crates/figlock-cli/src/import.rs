@@ -4,6 +4,7 @@
 //! the file, shows what was found, and writes the items. `--dry-run` stops after the summary and never asks for
 //! the master password.
 
+use crate::prompt;
 use std::fs::File;
 use std::io::Read;
 
@@ -13,8 +14,8 @@ use zeroize::Zeroizing;
 
 use crate::ImportArgs;
 use crate::commands::VAULT_NAME;
-use crate::error::{Fail, Res};
-use crate::session::{Session, now_ms};
+use figlock_session::error::{Fail, Res};
+use figlock_session::session::{Session, now_ms};
 
 /// Items per op file, so one file stays well under the store's blob limit.
 const COMMIT_EVERY: usize = 100;
@@ -99,7 +100,7 @@ pub fn import(a: ImportArgs, json: bool) -> Res<()> {
         }
         return Err(Fail::new("nothing to import"));
     }
-    let mut s = Session::open()?;
+    let mut s = Session::open(prompt::terminal())?;
     let now = now_ms();
     for (n, chunk) in report.items.chunks(COMMIT_EVERY).enumerate() {
         for d in chunk {
