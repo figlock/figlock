@@ -4,6 +4,9 @@
 @import "@fontsource-variable/jetbrains-mono";
 @import "../../../design/tokens.css";
 
+/* Tailwind only scans the importing app by default; the components live here. */
+@source "./";
+
 /* Tailwind utilities read the semantic tokens, so light, dark and the user override all follow tokens.css. */
 @theme inline {
   --color-*: initial;
