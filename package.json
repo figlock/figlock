@@ -1,0 +1,10 @@
+{
+  "name": "figlock",
+  "private": true,
+  "packageManager": "pnpm@12.17.0",
+  "description": "FigLock JS workspace: shared UI and the desktop and extension front ends",
+  "devDependencies": {
+    "prettier": "^3",
+    "prettier-plugin-svelte": "^3"
+  }
+}
