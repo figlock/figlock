@@ -215,12 +215,18 @@
                 Store the setup key from a site that offers two-step sign-in.
               </span>
             </span>
-            <input
-              type="checkbox"
-              role="switch"
-              bind:checked={draft.totpOn}
-              class="size-5 accent-primary"
-            />
+            <span class="relative inline-flex flex-none">
+              <input
+                type="checkbox"
+                role="switch"
+                bind:checked={draft.totpOn}
+                class="peer absolute inset-0 z-10 m-0 size-full cursor-pointer opacity-0"
+              />
+              <span
+                aria-hidden="true"
+                class="h-5.5 w-9.5 rounded-full bg-border-strong transition-colors duration-(--duration-fast) peer-checked:bg-success peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-focus after:absolute after:top-0.5 after:left-0.5 after:size-4.5 after:rounded-full after:bg-[#fff] after:shadow after:transition-transform after:duration-(--duration-fast) after:content-[''] peer-checked:after:translate-x-4"
+              ></span>
+            </span>
           </label>
           {#if draft.totpOn}
             <div data-field="totp">

@@ -33,7 +33,13 @@
 
   const NAMES: Record<string, string> = { all: "All items", deleted: "Recently deleted" };
   const nameOf = (f: Filter) => NAMES[f] ?? kindInfo(f).plural;
-  const title = $derived(route.p === "pick" ? "New item" : nameOf(section));
+  const title = $derived(
+    route.p === "pick" || (route.p === "edit" && !route.id)
+      ? "New item"
+      : route.p === "edit"
+        ? "Edit item"
+        : nameOf(section),
+  );
 
   const count = (f: Filter) =>
     f === "all"
@@ -111,7 +117,7 @@
 >
   <aside class="flex min-h-0 flex-col border-r border-border bg-surface-sunken">
     <div class="flex items-center gap-2 px-4 pt-4 pb-2 max-[860px]:justify-center max-[860px]:px-0">
-      <Logo />
+      <Logo size={28} />
       <span class="font-semibold max-[860px]:hidden">FigLock</span>
     </div>
     <nav

@@ -35,7 +35,7 @@
     <div class="text-(length:--text-sm) leading-5 font-medium text-text-secondary">{label}</div>
     <div class="flex items-center gap-2">
       <div
-        class="min-w-0 flex-1 wrap-anywhere whitespace-pre-wrap {mono
+        class="flex min-h-(--control-height-md) min-w-0 flex-1 items-center wrap-anywhere whitespace-pre-wrap {mono
           ? 'font-mono text-(length:--text-sm)'
           : ''}"
       >
