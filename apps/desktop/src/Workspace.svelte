@@ -16,7 +16,7 @@
   type Props = {
     /** The person pressed Lock. */
     onlock: () => void;
-    /** A command found the vault locked, or a failed save locked it. */
+    /** A command found the vault locked. */
     onlocked: (notice?: string) => void;
   };
   let { onlock, onlocked }: Props = $props();
