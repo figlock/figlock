@@ -104,13 +104,21 @@ mod tests {
 
     const T0: u64 = 1_700_000_000_000;
 
+    /// A fresh master password for one test: generated, never a literal.
+    fn password() -> String {
+        figlock_core::SecretKey::random()
+            .unwrap()
+            .format()
+            .to_string()
+    }
+
     /// A vault in a folder, and the trusted device's side of pairing played by the test.
     #[test]
     fn a_new_device_joins_after_the_trusted_one_approves() {
         let dir = tempfile::tempdir().unwrap();
         let store = LocalFolder::open(dir.path()).unwrap();
-        let (mut vault, created) =
-            Vault::create("pw-for-test", "first", KdfParams::FLOOR, T0).unwrap();
+        let pw = password();
+        let (mut vault, created) = Vault::create(&pw, "first", KdfParams::FLOOR, T0).unwrap();
         store.put_new("vault.json", &created.vault_json).unwrap();
         let own = format!("devices/{}.json", hex::encode(vault.device_id()));
         store.put_new(&own, &created.device_record).unwrap();
@@ -143,7 +151,7 @@ mod tests {
         assert!(join.answered().unwrap());
 
         assert_eq!(join.fingerprint().len(), 19);
-        let (joined, cfg) = join.finish("pw-for-test", T0 + 4).unwrap();
+        let (joined, cfg) = join.finish(&pw, T0 + 4).unwrap();
         assert_eq!(joined.vault.vault_id(), vault.vault_id());
         assert_eq!(cfg.device_name, "second");
     }
@@ -152,8 +160,8 @@ mod tests {
     fn a_wrong_master_password_does_not_join() {
         let dir = tempfile::tempdir().unwrap();
         let store = LocalFolder::open(dir.path()).unwrap();
-        let (mut vault, created) =
-            Vault::create("right-pw", "first", KdfParams::FLOOR, T0).unwrap();
+        let (right, wrong) = (password(), password());
+        let (mut vault, created) = Vault::create(&right, "first", KdfParams::FLOOR, T0).unwrap();
         store.put_new("vault.json", &created.vault_json).unwrap();
         let (mut invite, offer) = Invite::create(vault.vault_id(), T0).unwrap();
         store.put_new(&offer.inv_path, &offer.inv).unwrap();
@@ -176,8 +184,8 @@ mod tests {
         store
             .put_new(&approval.response.path, &approval.response.bytes)
             .unwrap();
-        assert!(join.finish("wrong-pw", T0 + 4).is_err());
-        let (joined, _) = join.finish("right-pw", T0 + 5).unwrap();
+        assert!(join.finish(&wrong, T0 + 4).is_err());
+        let (joined, _) = join.finish(&right, T0 + 5).unwrap();
         assert_eq!(joined.vault.vault_id(), vault.vault_id());
     }
 
@@ -185,7 +193,7 @@ mod tests {
     fn a_wrong_or_missing_invite_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let store = LocalFolder::open(dir.path()).unwrap();
-        let (vault, created) = Vault::create("pw", "first", KdfParams::FLOOR, T0).unwrap();
+        let (vault, created) = Vault::create(&password(), "first", KdfParams::FLOOR, T0).unwrap();
         store.put_new("vault.json", &created.vault_json).unwrap();
         let (_, offer) = Invite::create(vault.vault_id(), T0).unwrap();
         // The invite was never stored.

@@ -29,6 +29,11 @@ fn scenario(name: &str) {
     );
 }
 
+/// A fresh master password for one scenario: generated, never a literal.
+fn password() -> String {
+    SecretKey::random().unwrap().format().to_string()
+}
+
 fn desk() -> Desk {
     Desk::with(KdfParams::FLOOR, Duration::from_secs(300))
 }
@@ -55,13 +60,26 @@ fn create_lock_and_unlock_with_wrong_and_right_credentials() {
 #[ignore = "runs as a child of the test above"]
 fn create_lock_and_unlock_inner() {
     let d = desk();
+    let (pw, wrong) = (password(), password());
     assert_eq!(d.state().unwrap().phase, "none");
     assert_eq!(
-        code_of(d.create(&vault_dir(), "short").unwrap_err()),
+        code_of(d.create(&vault_dir(), &pw[..4]).unwrap_err()),
         "weak_password"
     );
-    let key = created_key(&d, "correct horse");
+    let key = created_key(&d, &pw);
     // Nothing is on disk until the Secret Key has been confirmed.
+    assert!(
+        !std::path::Path::new(&vault_dir())
+            .join("vault.json")
+            .exists()
+    );
+    assert_eq!(d.state().unwrap().phase, "none");
+
+    // Storage is never written before the Secret Key check has passed, whatever the window does.
+    assert_eq!(
+        code_of(d.finish_create(false).unwrap_err()),
+        "key_not_confirmed"
+    );
     assert!(
         !std::path::Path::new(&vault_dir())
             .join("vault.json")
@@ -90,27 +108,27 @@ fn create_lock_and_unlock_inner() {
 
     let other = SecretKey::random().unwrap().format().to_string();
     assert_eq!(
-        code_of(d.unlock("not the password", &key).unwrap_err()),
+        code_of(d.unlock(&wrong, &key).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.unlock("correct horse", &other).unwrap_err()),
+        code_of(d.unlock(&pw, &other).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.unlock("correct horse", "FL1-nope").unwrap_err()),
+        code_of(d.unlock(&pw, "FL1-nope").unwrap_err()),
         "bad_secret_key"
     );
     assert_eq!(code_of(d.unlock("", &key).unwrap_err()), "empty_password");
     assert_eq!(d.state().unwrap().phase, "locked");
 
-    assert_eq!(d.unlock("correct horse", &key).unwrap().phase, "unlocked");
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
     // Touch ID was never turned on, so it cannot unlock, and says to type the credentials.
     d.lock();
     assert_eq!(code_of(d.quick_unlock().unwrap_err()), "quick_unavailable");
     assert_eq!(d.state().unwrap().phase, "locked");
     // A second vault cannot be made over the first.
-    assert!(d.create(&vault_dir(), "long enough pw").is_err());
+    assert!(d.create(&vault_dir(), &password()).is_err());
 }
 
 #[test]
@@ -122,7 +140,7 @@ fn an_abandoned_create_leaves_nothing_behind() {
 #[ignore = "runs as a child of the test above"]
 fn abandoned_create_inner() {
     let d = desk();
-    created_key(&d, "long enough pw");
+    created_key(&d, &password());
     d.cancel_create();
     assert_eq!(code_of(d.finish_create(false).unwrap_err()), "failed");
     assert_eq!(d.state().unwrap().phase, "none");
@@ -141,9 +159,15 @@ fn an_existing_vault_opens_on_a_new_device_only_with_both_credentials() {
 #[test]
 #[ignore = "runs as a child of the test above"]
 fn open_existing_inner() {
+    let (pw, wrong) = (password(), password());
     // Make a vault, then forget this device so the same folder is "someone else's" vault.
     let d = desk();
-    let key = created_key(&d, "open sesame");
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    assert!(
+        d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+            .unwrap()
+    );
     d.finish_create(false).unwrap();
     d.lock();
     config::forget();
@@ -153,26 +177,20 @@ fn open_existing_inner() {
     let folder = vault_dir();
     std::fs::create_dir_all(format!("{folder}/../empty")).unwrap();
     assert_eq!(
-        code_of(d.open_existing(&folder, "wrong", &key, false).unwrap_err()),
+        code_of(d.open_existing(&folder, &wrong, &key, false).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(
-            d.open_existing(&folder, "open sesame", &other, false)
-                .unwrap_err()
-        ),
+        code_of(d.open_existing(&folder, &pw, &other, false).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(
-            d.open_existing(&folder, "open sesame", "garbage", false)
-                .unwrap_err()
-        ),
+        code_of(d.open_existing(&folder, &pw, "garbage", false).unwrap_err()),
         "bad_secret_key"
     );
     assert_eq!(
         code_of(
-            d.open_existing(&format!("{folder}/../empty"), "p", &key, false)
+            d.open_existing(&format!("{folder}/../empty"), &pw, &key, false)
                 .unwrap_err()
         ),
         "no_vault"
@@ -181,9 +199,7 @@ fn open_existing_inner() {
     assert_eq!(d.state().unwrap().phase, "none");
 
     assert_eq!(
-        d.open_existing(&folder, "open sesame", &key, false)
-            .unwrap()
-            .phase,
+        d.open_existing(&folder, &pw, &key, false).unwrap().phase,
         "unlocked"
     );
 }

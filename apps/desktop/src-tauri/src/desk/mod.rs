@@ -74,6 +74,8 @@ struct Creating {
     password: Zeroizing<String>,
     spec: StoreSpec,
     device_name: String,
+    /// The person typed the end of the Secret Key back correctly, so it was seen and saved.
+    key_confirmed: bool,
 }
 
 struct Inner {
@@ -283,6 +285,7 @@ impl Desk {
             password: Zeroizing::new(password.to_owned()),
             spec,
             device_name,
+            key_confirmed: false,
         });
         Ok(CreatedVault { secret_key })
     }
@@ -312,9 +315,11 @@ impl Desk {
 
     /// The forced check that the Secret Key was really saved: the last two groups, typed back.
     pub fn check_kit_key(&self, typed: &str) -> CmdRes<bool> {
-        let inner = self.inner();
-        let c = inner.creating.as_ref().ok_or_else(nothing_to_do)?;
-        Ok(verify_kit_groups(&c.created.secret_key, typed))
+        let mut inner = self.inner();
+        let c = inner.creating.as_mut().ok_or_else(nothing_to_do)?;
+        let ok = verify_kit_groups(&c.created.secret_key, typed);
+        c.key_confirmed |= ok;
+        Ok(ok)
     }
 
     pub fn cancel_create(&self) {
@@ -323,7 +328,21 @@ impl Desk {
 
     /// Write the vault to storage, remember this device and unlock.
     pub fn finish_create(&self, touch_id: bool) -> CmdRes<VaultState> {
-        let c = self.inner().creating.take().ok_or_else(nothing_to_do)?;
+        let mut inner = self.inner();
+        // Held here, not only by the window: no vault is written until the Secret Key check has passed.
+        if !inner
+            .creating
+            .as_ref()
+            .ok_or_else(nothing_to_do)?
+            .key_confirmed
+        {
+            return Err(CmdError::new(
+                "key_not_confirmed",
+                "Confirm your Secret Key before the vault is created.",
+            ));
+        }
+        let c = inner.creating.take().ok_or_else(nothing_to_do)?;
+        drop(inner);
         let store = figlock_session::store::open(&c.spec)?;
         let cfg = Config {
             store: c.spec.clone(),
