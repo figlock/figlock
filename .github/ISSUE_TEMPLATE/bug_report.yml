@@ -23,4 +23,4 @@ body:
     id: version
     attributes:
       label: Version and platform
-      placeholder: figlock 0.1.0, macOS 15
+      placeholder: figlock 0.2.0, macOS 15
