@@ -29,6 +29,23 @@ const MAX_AGE_SECS: u64 = 7 * 24 * 60 * 60;
 /// Declined prompts in a row before quick unlock switches itself off.
 const MAX_FAILURES: u64 = 5;
 
+/// What the person asked for at `figlock init`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum InitChoice {
+    /// No flag: ask on a terminal, default Yes.
+    Ask,
+    Yes,
+    No,
+}
+
+pub enum InitOutcome {
+    On,
+    Off,
+    /// This machine cannot ask for Touch ID or the device password.
+    Unavailable,
+    Failed(Fail),
+}
+
 /// What the platform gives quick unlock. Injected so tests need no keychain and no screen.
 pub trait Backend {
     fn available(&self) -> bool;
@@ -137,6 +154,37 @@ impl<B: Backend> Quick<B> {
         }
         self.backend.put_key(vault, auk.expose())?;
         self.write_state(&self.fresh_state(vault, now))
+    }
+
+    /// What `figlock init` does about quick unlock once the vault exists. `ask` is only called when
+    /// `interactive` and the choice is left open; a failed question counts as No.
+    pub fn offer_at_init(
+        &self,
+        choice: InitChoice,
+        interactive: bool,
+        ask: impl FnOnce() -> Res<bool>,
+        vault: &str,
+        auk: &Key,
+        now: u64,
+    ) -> InitOutcome {
+        if choice == InitChoice::No {
+            return InitOutcome::Off;
+        }
+        if !self.backend.available() {
+            return InitOutcome::Unavailable;
+        }
+        let yes = match choice {
+            InitChoice::Yes => true,
+            _ if !interactive => false,
+            _ => ask().unwrap_or(false),
+        };
+        if !yes {
+            return InitOutcome::Off;
+        }
+        match self.enable(vault, auk, now) {
+            Ok(()) => InitOutcome::On,
+            Err(e) => InitOutcome::Failed(e),
+        }
     }
 
     /// After a full unlock: refresh the kept key when quick unlock is on.
@@ -655,5 +703,121 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o077, 0);
         }
+    }
+
+    #[test]
+    fn init_offer_on_a_terminal_defaults_to_yes_when_asked() {
+        let (_d, fake, q) = setup();
+        let out = q.offer_at_init(InitChoice::Ask, true, || Ok(true), VAULT, &key(), T0);
+        assert!(matches!(out, InitOutcome::On));
+        assert!(fake.0.key.borrow().is_some());
+        assert!(q.status(VAULT).0);
+    }
+
+    #[test]
+    fn init_offer_declined_keeps_nothing() {
+        let (_d, fake, q) = setup();
+        let out = q.offer_at_init(InitChoice::Ask, true, || Ok(false), VAULT, &key(), T0);
+        assert!(matches!(out, InitOutcome::Off));
+        assert!(fake.0.key.borrow().is_none());
+        assert!(!q.status(VAULT).0);
+    }
+
+    #[test]
+    fn init_offer_never_asks_or_enables_without_a_terminal() {
+        let (_d, fake, q) = setup();
+        let out = q.offer_at_init(
+            InitChoice::Ask,
+            false,
+            || panic!("must not ask"),
+            VAULT,
+            &key(),
+            T0,
+        );
+        assert!(matches!(out, InitOutcome::Off));
+        assert!(fake.0.key.borrow().is_none());
+    }
+
+    #[test]
+    fn init_flags_skip_the_question() {
+        let (_d, fake, q) = setup();
+        let no = q.offer_at_init(
+            InitChoice::No,
+            true,
+            || panic!("must not ask"),
+            VAULT,
+            &key(),
+            T0,
+        );
+        assert!(matches!(no, InitOutcome::Off));
+        assert!(fake.0.key.borrow().is_none());
+        let yes = q.offer_at_init(
+            InitChoice::Yes,
+            false,
+            || panic!("must not ask"),
+            VAULT,
+            &key(),
+            T0,
+        );
+        assert!(matches!(yes, InitOutcome::On));
+        assert!(fake.0.key.borrow().is_some());
+    }
+
+    #[test]
+    fn init_offer_that_cannot_be_answered_counts_as_no() {
+        let (_d, fake, q) = setup();
+        let out = q.offer_at_init(
+            InitChoice::Ask,
+            true,
+            || Err(Fail::new("no terminal")),
+            VAULT,
+            &key(),
+            T0,
+        );
+        assert!(matches!(out, InitOutcome::Off));
+        assert!(fake.0.key.borrow().is_none());
+    }
+
+    #[test]
+    fn init_offer_reports_a_failed_enrolment_and_leaves_it_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let q = Quick::new(dir.path().to_path_buf(), Broken, 3600);
+        let out = q.offer_at_init(InitChoice::Yes, true, || Ok(true), VAULT, &key(), T0);
+        assert!(matches!(out, InitOutcome::Failed(_)));
+        assert!(!q.status(VAULT).0);
+    }
+
+    #[test]
+    fn init_offer_on_a_machine_without_the_hardware_says_so() {
+        struct NoHardware(Fake);
+        impl Backend for NoHardware {
+            fn available(&self) -> bool {
+                false
+            }
+            fn confirm(&self, v: &str, r: &str) -> Outcome {
+                self.0.confirm(v, r)
+            }
+            fn put_key(&self, v: &str, k: &[u8; 32]) -> Res<()> {
+                self.0.put_key(v, k)
+            }
+            fn get_key(&self, v: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
+                self.0.get_key(v)
+            }
+            fn has_key(&self, v: &str) -> Res<bool> {
+                self.0.has_key(v)
+            }
+            fn delete_key(&self, v: &str) -> Res<()> {
+                self.0.delete_key(v)
+            }
+            fn boot_id(&self) -> String {
+                self.0.boot_id()
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Fake::default();
+        let q = Quick::new(dir.path().to_path_buf(), NoHardware(fake.clone()), 3600);
+        let out = q.offer_at_init(InitChoice::Yes, true, || Ok(true), VAULT, &key(), T0);
+        assert!(matches!(out, InitOutcome::Unavailable));
+        assert!(fake.0.key.borrow().is_none());
     }
 }

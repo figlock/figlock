@@ -67,7 +67,7 @@ fn wrong_credentials() -> Fail {
 }
 
 /// `vault_id` from `vault.json`, which names this vault's quick-unlock entry.
-fn vault_id_of(vault_json: &[u8]) -> Res<String> {
+pub(crate) fn vault_id_of(vault_json: &[u8]) -> Res<String> {
     serde_json::from_slice::<serde_json::Value>(vault_json)
         .ok()
         .and_then(|v| v["vault_id"].as_str().map(str::to_owned))
