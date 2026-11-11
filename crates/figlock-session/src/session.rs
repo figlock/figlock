@@ -16,7 +16,7 @@ use crate::quick;
 type Credentials = (Zeroizing<String>, SecretKey);
 
 /// How a front end asks for the credentials and reports what it noticed. Nothing here is a secret.
-pub trait Ui {
+pub trait Ui: Send {
     fn password(&self) -> Res<Zeroizing<String>>;
     fn secret_key(&self) -> Res<SecretKey>;
     /// Something worth knowing that is not a problem.

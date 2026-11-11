@@ -26,6 +26,9 @@
   --color-agent: var(--color-agent);
   --color-agent-subtle: var(--color-agent-subtle);
   --color-success: var(--color-success);
+  --color-success-subtle: var(--color-success-subtle);
+  --color-warning-subtle: var(--color-warning-subtle);
+  --color-danger-subtle: var(--color-danger-subtle);
   --color-warning: var(--color-warning);
   --color-danger: var(--color-danger);
   --color-focus: var(--color-focus);
