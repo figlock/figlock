@@ -1,0 +1,1634 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>FigLock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* OD-LAYOUT-PRIMITIVES v1 - structure only: display, flex/grid, overflow, wrapping, ratio, geometry.
+   Put this @layer first; product CSS outside the layer wins ordinary layout rules.
+   Native hidden and closed-dialog states take precedence over component display rules. */
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+/* /OD-LAYOUT-PRIMITIVES v1 */
+
+/* ============ Tokens ============ */
+:root {
+  --font-ui: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+  --r-badge: 6px; --r-ctl: 10px; --r-card: 14px; --r-dlg: 20px;
+  --ctl: 36px;
+
+  --bg: #faf9f9; --surface: #ffffff; --surface-raised: #ffffff; --surface-sunken: #f2f0f1;
+  --text: #1b191d; --text-2: #5a555c; --text-3: #6b656d;
+  --border: #e5e2e4; --border-strong: #8d878f;
+  --primary: #3b5afe; --primary-hover: #2c46d6; --primary-subtle: #eef1ff; --on-primary: #ffffff;
+  --agent: #0f6e7a; --agent-subtle: #e6f3f5; --on-agent: #ffffff;
+  --success: #1e7a4d; --success-subtle: #e8f5ee; --on-success: #ffffff;
+  --warning: #8a5a00; --warning-subtle: #fbf1dc;
+  --danger: #b3261e; --danger-subtle: #fdecea; --on-danger: #ffffff;
+  --focus: #3b5afe;
+  --scrim: rgba(27, 25, 29, .4);
+  --shadow-pop: 0 8px 24px rgba(27, 25, 29, .14), 0 1px 3px rgba(27, 25, 29, .1);
+  --fill: color-mix(in srgb, var(--text) 7%, transparent);
+  --fill-h: color-mix(in srgb, var(--text) 12%, transparent);
+  --od-icon-size: 16px;
+}
+:root[data-theme="dark"] {
+  --bg: #121114; --surface: #1b191d; --surface-raised: #242127; --surface-sunken: #0d0c0e;
+  --text: #f2f0f1; --text-2: #c4bfc3; --text-3: #a29ca0;
+  --border: #2a272c; --border-strong: #6f6972;
+  --primary: #9fb0ff; --primary-hover: #b8c4ff; --primary-subtle: #161d4a; --on-primary: #121114;
+  --agent: #5cc8d6; --agent-subtle: #0f2b30; --on-agent: #0d0c0e;
+  --success: #5cd08f; --success-subtle: #12301f; --on-success: #0d0c0e;
+  --warning: #e8b04a; --warning-subtle: #35290f;
+  --danger: #ff8a80; --danger-subtle: #3a1a18; --on-danger: #121114;
+  --focus: #9fb0ff;
+  --scrim: rgba(0, 0, 0, .6);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .4);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --bg: #121114; --surface: #1b191d; --surface-raised: #242127; --surface-sunken: #0d0c0e;
+    --text: #f2f0f1; --text-2: #c4bfc3; --text-3: #a29ca0;
+    --border: #2a272c; --border-strong: #6f6972;
+    --primary: #9fb0ff; --primary-hover: #b8c4ff; --primary-subtle: #161d4a; --on-primary: #121114;
+    --agent: #5cc8d6; --agent-subtle: #0f2b30; --on-agent: #0d0c0e;
+    --success: #5cd08f; --success-subtle: #12301f; --on-success: #0d0c0e;
+    --warning: #e8b04a; --warning-subtle: #35290f;
+    --danger: #ff8a80; --danger-subtle: #3a1a18; --on-danger: #121114;
+    --focus: #9fb0ff;
+    --scrim: rgba(0, 0, 0, .6);
+    --shadow-pop: 0 8px 24px rgba(0, 0, 0, .5), 0 1px 3px rgba(0, 0, 0, .4);
+    color-scheme: dark;
+  }
+}
+
+/* ============ Base ============ */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 14px/20px var(--font-ui); -webkit-font-smoothing: antialiased; overflow: hidden; }
+h1, h2, h3, p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.mono { font-family: var(--font-mono); font-size: 13px; letter-spacing: 0; }
+.cap { font-size: 12px; line-height: 16px; color: var(--text-3); }
+.sec { color: var(--text-2); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.i12 { --od-icon-size: 12px; } .i14 { --od-icon-size: 14px; } .i18 { --od-icon-size: 18px; } .i20 { --od-icon-size: 20px; } .i24 { --od-icon-size: 24px; } .i28 { --od-icon-size: 28px; }
+.spin { animation: spin 900ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+[tabindex="-1"]:focus { outline: none; }
+.anchor { position: relative; }
+.logo { display: block; flex: none; }
+.c-agent { color: var(--agent); } .c-success { color: var(--success); } .c-warning { color: var(--warning); } .c-danger { color: var(--danger); } .c-primary { color: var(--primary); } .c-3 { color: var(--text-3); }
+
+[data-tip] { position: relative; }
+[data-tip]:is(:hover, :focus-visible)::after { content: attr(data-tip); position: absolute; z-index: 60; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); padding: 4px 8px; border-radius: var(--r-badge); background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-pop); font: 500 12px/16px var(--font-ui); white-space: nowrap; pointer-events: none; }
+
+/* ============ Controls ============ */
+.btn { height: var(--ctl); padding: 0 var(--s3); border-radius: var(--r-ctl); border: 1px solid transparent; background: var(--fill); color: var(--text); font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: var(--s2); white-space: nowrap; transition: background 100ms; }
+.btn:hover { background: var(--fill-h); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-agent { background: var(--agent); color: var(--on-agent); }
+.btn-agent:hover { background: var(--agent); filter: brightness(.92); }
+.btn-agent-quiet { color: var(--agent); background: var(--agent-subtle); }
+.btn-agent-quiet:hover { background: var(--agent-subtle); filter: brightness(.95); }
+.btn-danger { background: var(--danger); color: var(--on-danger); }
+.btn-danger:hover { background: var(--danger); filter: brightness(.92); }
+.btn-danger-quiet { color: var(--danger); }
+.btn-warn { background: var(--warning-subtle); color: var(--warning); border-color: var(--warning); }
+.btn-ghost { background: transparent; }
+.btn-ghost:hover { background: var(--fill); }
+.btn-icon { width: var(--ctl); padding: 0; }
+.btn-block { width: 100%; }
+.btn-sm { height: 28px; padding: 0 var(--s3); font-size: 13px; }
+
+.input { width: 100%; height: var(--ctl); padding: 0 var(--s3); border-radius: var(--r-ctl); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+.input::placeholder { color: var(--text-3); opacity: 1; }
+.input:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+textarea.input { height: auto; min-height: 96px; padding: var(--s2) var(--s3); resize: vertical; }
+.select { appearance: none; height: var(--ctl); padding: 0 32px 0 var(--s3); border-radius: var(--r-ctl); border: 1px solid transparent; background-color: var(--fill); color: var(--text); font-weight: 500; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b656d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+.select:hover { background-color: var(--fill-h); }
+.input.is-error { border-color: var(--danger); }
+.field-wrap { position: relative; display: flex; gap: var(--s2); align-items: center; }
+.field-wrap .pre { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; display: flex; }
+.field-wrap .input.has-pre { padding-left: 34px; }
+.label { display: block; font-size: 13px; line-height: 20px; font-weight: 500; margin-bottom: var(--s1); }
+.req { color: var(--danger); }
+.help { font-size: 12px; line-height: 16px; color: var(--text-3); margin-top: var(--s1); }
+.err { display: flex; gap: var(--s1); align-items: flex-start; font-size: 12px; line-height: 16px; color: var(--danger); margin-top: var(--s1); }
+.err[hidden] { display: none; }
+.alert { display: flex; gap: var(--s3); align-items: flex-start; padding: var(--s3); border-radius: var(--r-ctl); background: var(--danger-subtle); font-size: 13px; line-height: 20px; }
+.alert .alert-ic { color: var(--danger); }
+.badge { display: inline-flex; align-items: center; gap: var(--s1); height: 24px; padding: 0 var(--s2); border-radius: var(--r-badge); font-size: 12px; font-weight: 500; background: var(--fill); color: var(--text); white-space: nowrap; }
+.badge.primary { background: var(--primary-subtle); }
+.badge.warning { background: var(--warning-subtle); color: var(--warning); }
+.badge.danger { background: var(--danger-subtle); color: var(--danger); }
+.badge.success { background: var(--success-subtle); color: var(--success); }
+.badge.agent { background: var(--agent-subtle); color: var(--agent); }
+
+.switch { width: 38px; height: 22px; border-radius: 11px; border: 0; background: color-mix(in srgb, var(--text) 22%, transparent); position: relative; padding: 0; flex: none; transition: background 120ms; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform 120ms; }
+.switch[aria-checked="true"] { background: var(--success); }
+.switch[aria-checked="true"]::after { transform: translateX(16px); }
+.seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--r-ctl); background: var(--fill); height: var(--ctl); }
+.seg button { border: 0; background: transparent; border-radius: 8px; padding: 0 var(--s3); font-weight: 500; display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); }
+.seg button:hover { color: var(--text); }
+.seg button[aria-checked="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+
+.menu { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; min-width: 240px; background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--r-card); box-shadow: var(--shadow-pop); padding: var(--s1); }
+.menu.right { left: auto; right: 0; }
+.menu.up { top: auto; bottom: calc(100% + 4px); }
+.menu-item { display: flex; align-items: center; gap: var(--s2); width: 100%; min-height: var(--ctl); padding: 0 var(--s3); border: 0; border-radius: var(--r-ctl); background: transparent; text-align: left; color: var(--text); }
+.menu-item:hover { background: var(--fill); }
+.menu-item:disabled { opacity: .45; }
+.menu-sep { height: 1px; background: var(--border); margin: var(--s1) 0; }
+.menu-cap { padding: var(--s2) var(--s3) var(--s1); font-size: 12px; line-height: 16px; color: var(--text-3); }
+
+.meter { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+.meter.m-danger { --mc: var(--danger); } .meter.m-warning { --mc: var(--warning); } .meter.m-success { --mc: var(--success); }
+.meter-bar { display: inline-grid; grid-template-columns: repeat(3, 28px); gap: var(--s1); }
+.meter-bar i { display: block; height: 6px; border-radius: 3px; background: var(--border); }
+.meter-bar i.on { background: var(--mc); }
+.meter-text { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--mc); }
+.meter-bits { font-size: 12px; color: var(--text-3); }
+.bar { height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--primary); transform-origin: left center; }
+.timer { display: grid; gap: 6px; margin-top: var(--s2); font-size: 12px; line-height: 16px; color: var(--text-2); }
+.timer > span { display: flex; align-items: center; gap: 6px; }
+
+/* ============ Window ============ */
+.lights { display: flex; gap: 8px; padding: 14px 16px 6px; }
+.lights i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18); }
+.lights i:nth-child(1) { background: #ff5f57; } .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+
+#unlock { position: fixed; inset: 0; display: grid; place-items: center; padding: var(--s6); overflow: auto; background: var(--bg); }
+#unlock > .lights { position: absolute; top: 0; left: 0; }
+.ul-card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); padding: var(--s8); display: flex; flex-direction: column; gap: var(--s4); }
+.ul-head { display: flex; flex-direction: column; align-items: center; gap: var(--s3); text-align: center; }
+.ul-head h1 { font-size: 20px; line-height: 28px; font-weight: 600; }
+.ul-status { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+.or { display: flex; align-items: center; gap: var(--s3); color: var(--text-3); font-size: 12px; }
+.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.note { display: flex; gap: var(--s2); align-items: flex-start; font-size: 12px; line-height: 16px; color: var(--text-3); }
+.keyblocks { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.kb { text-align: center; padding: 0 4px; text-transform: uppercase; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--primary); font-weight: 500; text-decoration: underline; text-underline-offset: 2px; }
+
+#app { position: fixed; inset: 0; display: grid; grid-template-columns: 248px minmax(0, 1fr); background: var(--bg); }
+#sidebar { display: flex; flex-direction: column; min-height: 0; background: color-mix(in srgb, var(--surface-sunken) 80%, transparent); -webkit-backdrop-filter: blur(24px) saturate(1.4); backdrop-filter: blur(24px) saturate(1.4); border-right: 1px solid var(--border); }
+.nav { flex: 1; min-height: 0; overflow: auto; padding: var(--s2) var(--s3); display: flex; flex-direction: column; gap: 2px; }
+.nav-sec { padding: var(--s4) var(--s2) var(--s1); font-size: 12px; line-height: 16px; font-weight: 500; color: var(--text-3); }
+.nav-sec:first-child { padding-top: var(--s2); }
+.nav-item { display: flex; align-items: center; gap: var(--s2); width: 100%; height: 32px; padding: 0 var(--s2); border: 0; border-radius: var(--r-ctl); background: transparent; color: var(--text); text-align: left; font-weight: 500; }
+.nav-item:hover { background: var(--fill); }
+.nav-item[aria-current="page"] { background: var(--fill-h); color: var(--primary); }
+.nav-item .lbl { flex: 1 1 0; min-width: 0; }
+.nav-count { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.nav-item[aria-current="page"] .nav-count { color: var(--primary); }
+.nav-item .badge { height: 20px; }
+.side-foot { padding: var(--s3); display: flex; flex-direction: column; gap: var(--s3); border-top: 1px solid var(--border); }
+.sync-badge { display: flex; align-items: center; gap: var(--s2); width: 100%; min-height: 28px; padding: 4px var(--s2); border: 0; border-radius: var(--r-badge); font-size: 12px; line-height: 16px; font-weight: 500; text-align: left; }
+.sync-badge.ok { background: var(--success-subtle); color: var(--success); }
+.sync-badge.busy { background: var(--primary-subtle); color: var(--primary); }
+.sync-badge.off { background: var(--warning-subtle); color: var(--warning); }
+.who { display: flex; align-items: center; gap: var(--s3); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--primary-subtle); color: var(--primary); display: grid; place-items: center; font-weight: 600; font-size: 13px; flex: none; }
+.who .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.who-name { font-weight: 500; }
+
+#main { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; }
+.toolbar { display: flex; align-items: center; gap: var(--s3); height: 52px; padding: 0 var(--s4); background: var(--surface); border-bottom: 1px solid var(--border); }
+.navpill { display: inline-flex; border-radius: var(--r-ctl); background: var(--fill); flex: none; }
+.navpill button { width: 32px; height: 28px; border: 0; background: transparent; display: grid; place-items: center; border-radius: var(--r-ctl); color: var(--text); }
+.navpill button:hover:not(:disabled) { background: var(--fill-h); }
+.navpill button:disabled { color: var(--text-3); opacity: .55; cursor: default; }
+.navpill .div { width: 1px; background: var(--border); margin: 6px 0; }
+.tb-title { font-size: 16px; line-height: 24px; font-weight: 600; flex: 1 1 0; min-width: 0; }
+.tb-search { width: 220px; flex: none; }
+.tb-search .input { height: 32px; }
+.agent-badge { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 var(--s2); border: 0; border-radius: var(--r-badge); background: var(--agent-subtle); color: var(--agent); font-weight: 600; font-size: 13px; }
+#scroll { overflow: auto; min-height: 0; background: var(--bg); }
+#page { max-width: 760px; margin: 0 auto; padding: var(--s6) var(--s8) 48px; display: flex; flex-direction: column; gap: var(--s5); }
+
+.group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-card); overflow: hidden; }
+.gtitle { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text-2); margin: 0 var(--s2) var(--s2); }
+.gfoot { font-size: 12px; line-height: 16px; color: var(--text-3); margin: var(--s2) var(--s2) 0; }
+.lrow { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; gap: var(--s3); align-items: center; min-height: 56px; width: 100%; padding: var(--s2) var(--s3) var(--s2) var(--s4); border: 0; background: transparent; text-align: left; color: var(--text); }
+.lrow + .lrow::before { content: ""; position: absolute; top: 0; left: 60px; right: 0; height: 1px; background: var(--border); }
+.lrow:hover { background: var(--fill); }
+.lrow:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.lrow-text { display: grid; gap: 0; }
+.lrow-title { font-weight: 600; }
+.lrow-sub { font-size: 13px; line-height: 20px; color: var(--text-2); }
+.lrow-why { font-size: 12px; line-height: 16px; color: var(--text-2); display: flex; align-items: center; gap: 4px; }
+.lrow-why span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile { width: 32px; height: 32px; border-radius: var(--r-ctl); background: var(--fill); display: grid; place-items: center; color: var(--text-2); flex: none; }
+.tile.lg { width: 56px; height: 56px; border-radius: var(--r-card); }
+.fav { color: var(--warning); display: flex; }
+.chev { color: var(--text-3); display: flex; }
+.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--s3); padding: 64px var(--s6); color: var(--text-2); }
+.empty h2 { color: var(--text); font-size: 16px; line-height: 24px; font-weight: 600; }
+.empty p { max-width: 380px; }
+.ring { width: 48px; height: 48px; border-radius: 50%; background: var(--fill); display: grid; place-items: center; color: var(--text-2); }
+
+.ihead { display: flex; align-items: center; gap: var(--s4); }
+.ihead .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.ihead h1 { font-size: 22px; line-height: 28px; font-weight: 600; overflow-wrap: anywhere; }
+.actions { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.banner { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); border-radius: var(--r-card); background: var(--agent-subtle); color: var(--text); }
+.banner > .od-icon { color: var(--agent); }
+.banner .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.frow { display: grid; gap: 4px; padding: var(--s3) var(--s4); }
+.frow + .frow { border-top: 1px solid var(--border); }
+.frow-label { font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text-2); }
+.frow-val { overflow-wrap: anywhere; white-space: pre-wrap; }
+.frow-line { display: flex; align-items: center; gap: var(--s2); }
+.frow-line .grow { flex: 1 1 0; min-width: 0; }
+.secret-val { flex: 1 1 0; min-width: 0; min-height: var(--ctl); display: flex; align-items: center; padding: 0 var(--s3); border-radius: var(--r-ctl); background: var(--surface-sunken); word-break: break-all; }
+.chips { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.grant { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); }
+.grant + .grant { border-top: 1px solid var(--border); }
+.grant .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.editor-card { padding: var(--s4); display: flex; flex-direction: column; gap: var(--s4); }
+
+.srow { display: flex; align-items: center; gap: var(--s4); min-height: 48px; padding: var(--s2) var(--s4); }
+.srow + .srow { border-top: 1px solid var(--border); }
+.srow .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.srow-t { font-weight: 500; }
+.checkrow { cursor: pointer; width: 100%; border: 0; background: transparent; text-align: left; }
+.checkrow:hover { background: var(--fill); }
+.hh { display: flex; align-items: center; gap: var(--s3); padding: var(--s3) var(--s4); }
+.hh .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.hh + .lrow::before { display: none; }
+.hh + .lrow { border-top: 1px solid var(--border); }
+.skel { height: 20px; margin: var(--s3) var(--s4); border-radius: var(--r-badge); background: var(--fill); }
+.gen-out { font-family: var(--font-mono); font-size: 20px; line-height: 28px; padding: var(--s4); border-radius: var(--r-ctl); background: var(--surface-sunken); word-break: break-all; min-height: 76px; }
+.range { width: 100%; accent-color: var(--primary); height: 24px; }
+.kit { padding: var(--s6); display: flex; flex-direction: column; gap: var(--s5); }
+.kit-top { display: flex; align-items: center; gap: var(--s4); }
+.kit-key { padding: var(--s4); border-radius: var(--r-ctl); background: var(--surface-sunken); }
+.kit-key .blocks { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
+.kit-key .blk { font-family: var(--font-mono); font-size: 18px; line-height: 28px; padding: 4px 10px; border-radius: var(--r-badge); background: var(--surface); }
+
+.rows { display: flex; flex-direction: column; gap: var(--s2); }
+.rowline { display: flex; gap: var(--s2); align-items: center; }
+.rowline > .input { flex: 1 1 0; min-width: 0; }
+.varhead, .cfhead { display: grid; gap: var(--s2); font-size: 13px; line-height: 20px; font-weight: 500; color: var(--text-2); margin-bottom: var(--s1); }
+.varhead { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 36px; }
+.cfhead { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) 36px 36px; }
+.varrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto; gap: var(--s2); align-items: start; }
+.cfrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto auto; gap: var(--s2); align-items: start; }
+.varrow .err, .cfrow .err { grid-column: 1 / -1; margin-top: 0; }
+.varval { display: flex; gap: var(--s2); min-width: 0; }
+.varval .input { min-width: 0; }
+.tagfield { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: var(--ctl); padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: var(--r-ctl); background: var(--surface); }
+.tagfield:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+.chip { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 2px 0 8px; border-radius: var(--r-badge); background: var(--fill); font-size: 12px; font-weight: 500; }
+.chip button { border: 0; background: transparent; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 4px; color: var(--text-2); padding: 0; }
+.chip button:hover { background: var(--fill-h); }
+.tag-in { flex: 1 1 96px; min-width: 96px; border: 0; outline: 0; background: transparent; height: 24px; padding: 0; }
+.drop { border: 1.5px dashed var(--border-strong); border-radius: var(--r-card); padding: var(--s6) var(--s4); display: flex; flex-direction: column; align-items: center; gap: var(--s2); text-align: center; color: var(--text-2); background: var(--surface); transition: background 100ms, border-color 100ms; }
+.drop.over { border-color: var(--primary); background: var(--primary-subtle); color: var(--text); }
+.drop-t { font-weight: 500; color: var(--text); }
+.filelist { display: flex; flex-direction: column; }
+.filerow { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) 0; }
+.filerow + .filerow { border-top: 1px solid var(--border); }
+.filerow .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+textarea.masked { -webkit-text-security: disc; }
+.secret-val.multi { white-space: pre-wrap; max-height: 180px; overflow: auto; align-items: flex-start; padding: var(--s2) var(--s3); }
+.prow { min-height: 72px; grid-template-columns: 44px minmax(0, 1fr) auto auto; }
+.prow .tile { width: 44px; height: 44px; border-radius: var(--r-card); }
+.prow + .prow::before { left: 76px; }
+.opt { display: flex; align-items: center; gap: var(--s4); }
+.opt .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.frow-val.mono { overflow-wrap: anywhere; }
+.nav-sec { padding-top: var(--s3); }
+.nav { gap: 1px; }
+@media (max-width: 720px) {
+  .varrow, .cfrow { grid-template-columns: minmax(0, 1fr) auto; }
+  .varrow > .input, .cfrow > .input:first-child { grid-column: 1 / -1; }
+  .varhead, .cfhead { display: none; }
+}
+
+/* Dialogs, sheets, toast */
+dialog { border: 1px solid var(--border); border-radius: var(--r-dlg); background: var(--surface-raised); color: var(--text); padding: 0; width: calc(100vw - 32px); max-width: 420px; box-shadow: var(--shadow-pop); animation: pop 160ms ease-out; }
+dialog::backdrop { background: var(--scrim); }
+dialog.sheet { margin: 0 auto auto; max-width: 540px; border-top: 0; border-radius: 0 0 var(--r-dlg) var(--r-dlg); animation: slide 200ms ease-out; max-height: calc(100vh - 16px); overflow: auto; }
+@keyframes pop { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes slide { from { opacity: 0; transform: translateY(-24px); } to { opacity: 1; transform: none; } }
+.dlg-body { padding: var(--s6) var(--s6) var(--s4); }
+.dlg-foot { display: flex; justify-content: flex-end; gap: var(--s2); padding: var(--s3) var(--s6) var(--s6); flex-wrap: wrap; }
+.alertbox { text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--s3); }
+.alertbox h2 { font-size: 16px; line-height: 24px; font-weight: 600; }
+.alertfoot { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); padding: var(--s2) var(--s6) var(--s6); }
+.dlg-title { display: flex; align-items: center; gap: var(--s3); }
+.dlg-title h2 { font-size: 16px; line-height: 24px; font-weight: 600; }
+.ag-ic { width: 40px; height: 40px; border-radius: var(--r-card); background: var(--agent-subtle); color: var(--agent); display: grid; place-items: center; flex: none; }
+.ag-rows { border: 1px solid var(--border); border-radius: var(--r-card); margin-top: var(--s4); }
+.ag-row { display: flex; align-items: flex-start; gap: var(--s3); padding: var(--s3) var(--s4); }
+.ag-row + .ag-row { border-top: 1px solid var(--border); }
+.ag-row > .od-icon { color: var(--agent); margin-top: 2px; }
+.ag-row .od-field { flex: 1 1 0; min-width: 0; gap: 0; }
+.ag-k { font-size: 12px; line-height: 16px; color: var(--text-3); font-weight: 500; }
+.ag-v { font-weight: 600; }
+.ag-reveal { display: flex; align-items: flex-start; gap: var(--s3); margin-top: var(--s3); padding: var(--s3) var(--s4); border: 1px solid var(--warning); border-radius: var(--r-card); background: var(--warning-subtle); }
+.ag-reveal > .od-icon { color: var(--warning); margin-top: 2px; }
+.ag-reveal .od-field { flex: 1 1 0; min-width: 0; gap: 4px; }
+.ag-reveal .ag-v { color: var(--warning); }
+#toast { position: fixed; left: 50%; bottom: var(--s6); transform: translate(-50%, 8px); z-index: 100; display: flex; align-items: center; gap: var(--s2); max-width: min(560px, calc(100vw - 32px)); padding: var(--s2) var(--s4); min-height: var(--ctl); border-radius: var(--r-ctl); background: var(--text); color: var(--bg); box-shadow: var(--shadow-pop); opacity: 0; pointer-events: none; transition: opacity 160ms, transform 160ms; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Responsive */
+@media (max-width: 860px) {
+  #app { grid-template-columns: 56px minmax(0, 1fr); }
+  .lights { padding: 14px 0 6px; justify-content: center; gap: 6px; }
+  .lights i { width: 10px; height: 10px; }
+  .nav { padding: var(--s2); }
+  .nav-sec { display: block; height: 1px; padding: 0; margin: var(--s2); background: var(--border); font-size: 0; }
+  .nav-item { justify-content: center; padding: 0; }
+  .nav-item .lbl, .nav-item .nav-count { display: none; }
+  .nav-item .badge { position: absolute; top: 0; right: 0; height: 16px; padding: 0 4px; font-size: 11px; }
+  .nav-item { position: relative; }
+  .side-foot { padding: var(--s2); align-items: center; }
+  .sync-badge span:not(.od-icon-wrap), .who .od-field, .lockbtn .lbl { display: none; }
+  .sync-badge { justify-content: center; padding: 4px; }
+  .lockbtn { padding: 0; }
+  #page { padding: var(--s5) var(--s5) 48px; }
+}
+@media (max-width: 720px) {
+  .tb-search { width: 140px; }
+  .newbtn .lbl { display: none; }
+  .newbtn { width: var(--ctl); padding: 0; }
+  #page { padding: var(--s4) var(--s4) 48px; }
+  .alertfoot { grid-template-columns: 1fr; }
+  .ul-card { padding: var(--s5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="logo" viewBox="0 0 64 64">
+    <rect width="64" height="64" rx="15" fill="#3b5afe"/>
+    <path d="M24 29v-5a8 8 0 0 1 16 0v5" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+    <rect x="18" y="28" width="28" height="20" rx="5" fill="#fff"/>
+    <path d="M34.5 44v-6.5a3 3 0 0 1 3-3H39M30 39h8" fill="none" stroke="#3b5afe" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
+</svg>
+
+<!-- Unlock -->
+<section id="unlock" aria-labelledby="ulTitle">
+  <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="ul-card">
+    <div class="ul-head">
+      <svg class="logo" width="56" height="56" role="img" aria-label="FigLock"><use href="#logo"/></svg>
+      <div class="od-stack" style="--od-gap:4px;align-items:center">
+        <h1 id="ulTitle">Unlock your vault</h1>
+        <p class="ul-status" id="ulStatus"></p>
+      </div>
+    </div>
+    <div id="ulError" class="alert" role="alert" hidden></div>
+    <div>
+      <label class="label" for="ulPw">Master password <span class="req" aria-hidden="true">*</span></label>
+      <div class="field-wrap">
+        <input class="input" id="ulPw" type="password" autocomplete="off" spellcheck="false" aria-describedby="ulPwErr">
+        <button type="button" class="btn" id="ulShow" data-act="ulShow" aria-pressed="false">Show</button>
+      </div>
+      <div class="err" id="ulPwErr" hidden></div>
+    </div>
+    <fieldset style="border:0;margin:0;padding:0;min-width:0" aria-describedby="ulKeyHelp ulKeyErr">
+      <legend class="label" style="padding:0">Secret Key <span class="req" aria-hidden="true">*</span></legend>
+      <div class="keyblocks" id="ulKey"></div>
+      <div class="help" id="ulKeyHelp">Saved on this Mac. You only type it when you add a new device.</div>
+      <div class="err" id="ulKeyErr" hidden></div>
+    </fieldset>
+    <button type="button" class="btn btn-primary btn-block" id="ulGo" data-act="unlock">Unlock</button>
+    <div class="or"><span>or</span></div>
+    <button type="button" class="btn btn-block" id="ulTouch" data-act="unlockTouch"></button>
+    <p class="note" id="ulNote"></p>
+  </div>
+</section>
+
+<!-- App -->
+<div id="app" hidden>
+  <aside id="sidebar" aria-label="Sidebar">
+    <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+    <nav class="nav" id="nav" aria-label="Sections"></nav>
+    <div class="side-foot">
+      <div class="anchor"><button type="button" class="sync-badge ok" id="syncBtn" data-act="syncMenu" data-menu="1" aria-haspopup="menu"></button></div>
+      <div class="who"><span class="avatar" aria-hidden="true">MO</span><span class="od-field"><span class="who-name od-truncate">Mira Okafor</span><span class="cap od-truncate">mira@example.test</span></span></div>
+      <button type="button" class="btn btn-block lockbtn" id="lockBtn" data-act="lock" data-tip="Lock vault (Cmd+L)"></button>
+    </div>
+  </aside>
+  <div id="main">
+    <header class="toolbar">
+      <div class="navpill" role="group" aria-label="History">
+        <button type="button" id="bk" data-act="back" aria-label="Back" data-tip="Back (Cmd+[)"></button>
+        <span class="div" aria-hidden="true"></span>
+        <button type="button" id="fw" data-act="fwd" aria-label="Forward" data-tip="Forward (Cmd+])"></button>
+      </div>
+      <div class="tb-title od-truncate" id="tbTitle" role="heading" aria-level="1"></div>
+      <button type="button" class="agent-badge" id="agentBadge" data-act="agentBadge" hidden data-tip="Agent request waiting"></button>
+      <div class="field-wrap tb-search">
+        <span class="pre" id="searchIc"></span>
+        <input class="input has-pre" id="search" type="search" placeholder="Search" aria-label="Search your vault" aria-keyshortcuts="/ Meta+K" autocomplete="off" spellcheck="false">
+      </div>
+      <button type="button" class="btn btn-primary newbtn" id="newBtn" data-act="newItem" aria-label="New item" data-tip="New item (Cmd+N)"></button>
+    </header>
+    <div id="scroll"><div id="page"></div></div>
+  </div>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="dlgAlert" aria-labelledby="dcTitle"></dialog>
+<dialog id="dlgAgent" class="sheet" aria-labelledby="agTitle"></dialog>
+<dialog id="dlgDiscard" class="sheet" aria-labelledby="dsTitle"></dialog>
+
+<script>
+"use strict";
+/* ---------- helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* Lucide icons, inlined (1.5px stroke) */
+const ICONS = {
+  'lock': '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  'key-round': '<path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/>',
+  'fingerprint': '<path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/>',
+  'shield-check': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>',
+  'shield-alert': '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  'bot': '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/>',
+  'search': '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  'star': '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  'star-fill': '<path fill="currentColor" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  'globe': '<circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>',
+  'file-text': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  'sticky-note': '<path d="M16 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/>',
+  'heart-pulse': '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
+  'laptop': '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  'settings': '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  'eye': '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+  'eye-off': '<path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143"/><path d="m2 2 20 20"/>',
+  'copy': '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  'check': '<path d="M20 6 9 17l-5-5"/>',
+  'plus': '<path d="M5 12h14"/><path d="M12 5v14"/>',
+  'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  'trash': '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
+  'refresh': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  'dices': '<rect width="12" height="12" x="2" y="10" rx="2" ry="2"/><path d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"/><path d="M6 18h.01"/><path d="M10 14h.01"/><path d="M15 6h.01"/><path d="M18 9h.01"/>',
+  'triangle-alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  'cloud': '<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>',
+  'cloud-off': '<path d="m2 2 20 20"/><path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193"/><path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7.008 7.008 0 0 0 10 5.07"/>',
+  'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'monitor': '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  'sun': '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  'moon': '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  'smartphone': '<rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'chevron-left': '<path d="m15 18-6-6 6-6"/>',
+  'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  'loader': '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+  'terminal': '<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+  'history': '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 4"/>',
+  'layers': '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/>',
+  'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  'upload': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>',
+  'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+  'life-buoy': '<circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/><circle cx="12" cy="12" r="4"/>',
+  'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'braces': '<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/>',
+  'key': '<path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/>'
+};
+const icon = (n, mod = '', cls = '') => `<svg class="od-icon ${mod} ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[n] || ''}</svg>`;
+
+/* ---------- data (all made up) ---------- */
+const TYPE = {
+  login: { label: 'Login', plural: 'Logins', icon: 'globe', desc: 'A website sign-in with a password and an optional one-time code' },
+  token: { label: 'API token', plural: 'API tokens', icon: 'key-round', desc: 'A token for an API, with the hosts agents may use it for' },
+  note: { label: 'Secure note', plural: 'Notes', icon: 'sticky-note', desc: 'Private text, up to 256 KB' },
+  env: { label: 'Env bundle', plural: 'Env bundles', icon: 'braces', desc: 'NAME and value pairs for a .env file, used by figlock run' },
+  ssh: { label: 'SSH key', plural: 'SSH keys', icon: 'key', desc: 'A private key with its public key and passphrase' },
+  document: { label: 'Document', plural: 'Documents', icon: 'file-text', desc: 'Up to 8 files, encrypted on this device' }
+};
+const SECRET_KEY = 'A3-5KQ7ZM-R2X9P4-HW6TND-Y8CVB3-J4FGUE';
+const KEY_LENS = [2, 6, 6, 6, 6, 6];
+const SHARED_PW = 'Tulip-Orbit-Harbor-42';
+const dateIn = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const PERSONAL = () => [
+  { id: 'gh', type: 'token', title: 'GitHub token', fav: true, tags: ['gh', 'pat', 'release'], custom: [], age: 41, vals: { provider: 'GitHub', token: 'ghp_EXAMPLEexampleEXAMPLE', envName: 'GITHUB_TOKEN', scopes: 'repo, read:org', expires: dateIn(19), hosts: ['api.github.com'], notes: 'Personal access token for release scripts. Rotate it every 90 days.' } },
+  { id: 'cf', type: 'login', title: 'Cloudflare', fav: true, tags: ['cdn', 'dns', 'work'], custom: [{ name: 'Account ID', value: 'EXAMPLE-ACCOUNT-0042' }], age: 12, vals: { username: 'ops@example.test', password: 'Vq7!mT2#rL9@xPe4', totp: 'EXAMPLEKEYEXAMPLE', websites: ['dash.cloudflare.com'], notes: 'Owner account for the example.test zone.' } },
+  { id: 'lin', type: 'login', title: 'Linear', fav: false, tags: ['issues', 'tracker'], custom: [], age: 96, vals: { username: 'mira@example.test', password: SHARED_PW, totp: '', websites: ['linear.app'], notes: '' } },
+  { id: 'fig', type: 'login', title: 'Figma', fav: false, tags: ['design'], custom: [], age: 210, vals: { username: 'mira@example.test', password: SHARED_PW, totp: '', websites: ['figma.com'], notes: '' } },
+  { id: 'vercel', type: 'login', title: 'Vercel', fav: false, tags: ['deploy', 'hosting'], custom: [], age: 30, vals: { username: 'deploy@example.test', password: 'kR8$wN3&zQ1!fYb6vD', totp: '', websites: ['vercel.com'], notes: '' } },
+  { id: 'notion', type: 'login', title: 'Notion', fav: false, tags: ['wiki', 'docs'], custom: [], age: 700, vals: { username: 'notes@example.test', password: 'summer2019', totp: '', websites: ['notion.so'], notes: '' } },
+  { id: 'router', type: 'login', title: 'Router admin', fav: false, tags: ['wifi', 'network'], custom: [], age: 500, vals: { username: 'admin', password: 'welcome1', totp: '', websites: ['192.168.1.1'], notes: 'Local admin page. Only reachable from the office network.' } },
+  { id: 'stripe', type: 'token', title: 'Stripe test key', fav: false, tags: ['payments', 'billing'], custom: [], age: 420, vals: { provider: 'Stripe', token: 'sk_test_EXAMPLEexampleEXAMPLE', envName: 'STRIPE_API_KEY', scopes: 'Read and write', expires: dateIn(-40), hosts: ['api.stripe.com'], notes: 'Test mode only.' } },
+  { id: 'aws', type: 'token', title: 'AWS access key', fav: false, tags: ['s3', 'bucket'], custom: [{ name: 'Secret access key', value: 'EXAMPLEsecretEXAMPLE' }], age: 150, vals: { provider: 'AWS', token: 'AKIAEXAMPLEEXAMPLE12', envName: 'AWS_ACCESS_KEY_ID', scopes: 's3:GetObject, s3:PutObject', expires: dateIn(200), hosts: ['s3.amazonaws.com'], notes: '' } },
+  { id: 'wifi', type: 'note', title: 'Office Wi-Fi', fav: false, tags: ['network'], custom: [], age: 75, vals: { note: 'Network: Example-Guest\nThe password is on the router label.\nReplace the router password in March.' } },
+  { id: 'stg', type: 'env', title: 'Staging environment', fav: false, tags: ['staging', 'run'], custom: [], age: 20, vals: { vars: [{ name: 'DATABASE_URL', value: 'postgres://app:EXAMPLEpassword@db.example.test:5432/app' }, { name: 'REDIS_URL', value: 'redis://cache.example.test:6379' }, { name: 'SECRET_KEY_BASE', value: 'EXAMPLEexampleEXAMPLEexample' }], notes: 'Used by figlock run for the staging stack.' } },
+  { id: 'dkey', type: 'ssh', title: 'Deploy key (production)', fav: false, tags: ['deploy', 'prod'], custom: [], age: 60, vals: { privateKey: '-----BEGIN EXAMPLE PRIVATE KEY-----\nEXAMPLE-PLACEHOLDER-NOT-A-REAL-KEY\n-----END EXAMPLE PRIVATE KEY-----', publicKey: 'ssh-ed25519 AAAAEXAMPLEPLACEHOLDER deploy@example.test', passphrase: 'EXAMPLE passphrase', notes: 'Read-only deploy key for the example.test servers.' } },
+  { id: 'lease', type: 'document', title: 'Studio lease', fav: false, tags: ['rent', 'legal'], custom: [], age: 200, vals: { files: [{ name: 'studio-lease-2025.pdf', size: 652288 }, { name: 'lease-addendum.pdf', size: 217088 }], password: '', websites: [], expires: dateIn(120), notes: '' } },
+  { id: 'gcp', type: 'document', title: 'Service account bundle', fav: false, tags: ['gcp', 'credentials'], custom: [], age: 33, vals: { files: [{ name: 'service-account.json', size: 2410 }, { name: 'signing-key.p12', size: 18432 }], password: 'EXAMPLE-p12-password', websites: ['console.cloud.example.test'], expires: '', notes: 'Placeholder files. They hold no real key material.' } },
+  { id: 'insure', type: 'document', title: 'Equipment insurance', fav: false, tags: ['policy'], custom: [], age: 120, vals: { files: [{ name: 'insurance-policy.pdf', size: 839680 }, { name: 'claim-form.pdf', size: 98304 }], password: '', websites: [], expires: dateIn(14), notes: '' } }
+];
+const DEVICES = () => [
+  { id: 'd1', name: 'MacBook Pro 14', kind: 'laptop', os: 'macOS 15', seen: 'Active now', here: true },
+  { id: 'd2', name: 'iPhone 15', kind: 'smartphone', os: 'iOS 18', seen: '2 hours ago' },
+  { id: 'd3', name: 'Mac mini (studio)', kind: 'monitor', os: 'macOS 14', seen: '3 days ago' },
+  { id: 'd4', name: 'Linux workstation', kind: 'monitor', os: 'Fedora 41', seen: '41 days ago', stale: true }
+];
+const BREACHED = new Set(['notion']);
+const WORDS = 'amber anchor apple arrow aspen basin beacon birch bishop bridge cabin candle canyon carbon cedar chalk cherry cider cliff clover cobalt comet copper coral cotton crane crystal dawn delta desert drift eagle ember falcon fern field flint forest frost garden garnet ginger glacier granite harbor hazel heron hollow indigo island ivory jasper juniper kettle lagoon lantern lemon linen lotus maple marble meadow mint mirror moss nectar north oasis olive onyx orbit orchid otter paper pebble pepper pine plum prairie quartz quiver raven reef ridge river saddle sage sailor shadow silver slate sparrow spruce summit sunset thistle thunder timber tulip velvet violet walnut willow winter yarrow zephyr'.split(' ');
+
+/* ---------- state ---------- */
+const S = {
+  locked: true, unlock: 'idle',
+  vaultId: 'personal', vaults: { personal: PERSONAL(), side: [] },
+  devices: DEVICES(), grants: [], query: '',
+  theme: 'system', autolock: 5, touchId: true, storage: 'local', sync: 'synced', syncedAt: 'just now',
+  breachOn: false, breach: 'off', agentPending: true, secret: {}, nid: 1
+};
+const items = () => S.vaults[S.vaultId];
+const byId = id => items().find(i => i.id === id);
+const G = { mode: 'password', len: 20, lower: true, upper: true, num: true, sym: true, ambig: false, words: 6, sep: '-', cap: true, addnum: true, out: '' };
+const SEC_SHOW = 10000, SEC_CLEAR = 30000;
+
+/* ---------- history (in-memory stack) ---------- */
+const H = { stack: [{ p: 'list', f: 'all' }], i: 0 };
+const cur = () => H.stack[H.i];
+const LISTS = ['all', 'login', 'token', 'env', 'ssh', 'note', 'document'];
+const LIST_NAME = { all: 'All items', login: 'Logins', token: 'API tokens', env: 'Env bundles', ssh: 'SSH keys', note: 'Notes', document: 'Documents' };
+const PAGE_NAME = { gen: 'Generator', health: 'Health', devices: 'Devices', kit: 'Emergency Kit', settings: 'Settings', pick: 'New item' };
+const sideKey = r => r.p === 'list' ? r.f : (r.p === 'item' || r.p === 'edit' || r.p === 'pick') ? (r.from || 'all') : r.p;
+function titleOf(r) {
+  if (r.p === 'list') return LIST_NAME[r.f];
+  if (r.p === 'pick') return 'New item';
+  if (r.p === 'item' || r.p === 'edit') { const k = r.from || 'all'; return LIST_NAME[k] || PAGE_NAME[k] || 'All items'; }
+  return PAGE_NAME[r.p];
+}
+const scrollEl = () => $('#scroll');
+function _go(route) {
+  const r = cur(); r.scroll = scrollEl().scrollTop;
+  if (r.p === route.p && r.f === route.f && r.id === route.id && r.p !== 'edit') { render(); return; }
+  H.stack = H.stack.slice(0, H.i + 1); H.stack.push(route); H.i++; render(true);
+}
+function _back() { if (H.i > 0) { cur().scroll = scrollEl().scrollTop; H.i--; render(false, true); } }
+function _fwd() { if (H.i < H.stack.length - 1) { cur().scroll = scrollEl().scrollTop; H.i++; render(false, true); } }
+function guard(next) {
+  const r = cur();
+  if (r.p === 'edit' && $('#ed-title')) { captureDraft(); if (norm(r.draft) !== r.orig) { openDiscard(next); return; } }
+  next();
+}
+const go = route => guard(() => _go(route));
+const back = () => guard(_back);
+const fwd = () => guard(_fwd);
+function purgeRoutes(id) {
+  const keep = H.stack.map((r, k) => ({ r, k })).filter(x => !(x.r.id === id && (x.r.p === 'item' || x.r.p === 'edit')));
+  const before = keep.filter(x => x.k <= H.i).length;
+  H.stack = keep.map(x => x.r); H.i = Math.max(0, Math.min(before - 1, H.stack.length - 1));
+}
+
+/* ---------- derived ---------- */
+function strengthOf(pw) {
+  if (!pw) return { level: 'weak', bits: 0 };
+  let pool = 0;
+  if (/[a-z]/.test(pw)) pool += 26;
+  if (/[A-Z]/.test(pw)) pool += 26;
+  if (/\d/.test(pw)) pool += 10;
+  if (/[^A-Za-z0-9]/.test(pw)) pool += 33;
+  let bits = pw.length * Math.log2(pool || 1);
+  if (/^[A-Za-z]+\d{0,4}[!@#$]?$/.test(pw)) bits *= 0.5; /* a word plus a few digits is easy to guess */
+  bits = Math.round(bits);
+  return { level: bits < 45 ? 'weak' : bits < 72 ? 'fair' : 'strong', bits };
+}
+const LEVEL = { weak: { text: 'Weak', icon: 'shield-alert', n: 1, cls: 'danger' }, fair: { text: 'Fair', icon: 'circle-alert', n: 2, cls: 'warning' }, strong: { text: 'Strong', icon: 'shield-check', n: 3, cls: 'success' } };
+function meterFor(s, empty) {
+  const L = LEVEL[s.level];
+  return `<div class="meter m-${L.cls}"><span class="meter-bar" aria-hidden="true">${[1, 2, 3].map(n => `<i class="${n <= L.n ? 'on' : ''}"></i>`).join('')}</span><span class="meter-text">${icon(L.icon, 'i16')}<span>${L.text}</span></span><span class="meter-bits">${empty ? 'Add a password to see its strength' : `about ${s.bits} bits`}</span></div>`;
+}
+const meterHTML = pw => meterFor(strengthOf(pw), !pw);
+function reusedIds() {
+  const m = {};
+  items().filter(i => i.type === 'login' && i.vals.password).forEach(i => (m[i.vals.password] = m[i.vals.password] || []).push(i.id));
+  return new Set(Object.values(m).filter(a => a.length > 1).flat());
+}
+function issues(it) {
+  const f = [];
+  if (it.type === 'login' && strengthOf(it.vals.password).level === 'weak') f.push('weak');
+  if (it.type === 'login' && reusedIds().has(it.id)) f.push('reused');
+  if (it.age >= 365) f.push('old');
+  if (S.breachOn && S.breach === 'done' && BREACHED.has(it.id)) f.push('breached');
+  return f;
+}
+const subtitle = it => { const v = it.vals; return it.type === 'login' ? v.username : it.type === 'token' ? (v.provider || 'API token') + (v.hosts && v.hosts[0] ? ' - ' + v.hosts[0] : '') : it.type === 'note' ? 'Secure note' : it.type === 'env' ? `${v.vars.length} ${v.vars.length === 1 ? 'variable' : 'variables'}` : it.type === 'ssh' ? 'SSH key' : `${v.files.length} ${v.files.length === 1 ? 'file' : 'files'}`; };
+const hostsOf = it => it.type === 'login' || it.type === 'document' ? (it.vals.websites || []) : it.type === 'token' ? (it.vals.hosts || []) : [];
+const ageText = d => d < 1 ? 'today' : d === 1 ? 'yesterday' : d < 60 ? `${d} days ago` : d < 730 ? `${Math.round(d / 30)} months ago` : `${Math.round(d / 365)} years ago`;
+const fmtTime = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/* ---------- search (titles, tags, domains, usernames - never secret values) ---------- */
+function lev(a, b) {
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const c = [i];
+    for (let j = 1; j <= n; j++) c[j] = Math.min(prev[j] + 1, c[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = c;
+  }
+  return prev[n];
+}
+function matchItem(it, raw) {
+  const q = raw.trim().toLowerCase();
+  if (!q) return { hit: true, why: '' };
+  if (it.title.toLowerCase().includes(q)) return { hit: true, why: 'Matched title' };
+  const tg = it.tags.find(a => a.includes(q));
+  if (tg) return { hit: true, why: `Matched tag "${tg}"` };
+  const h = hostsOf(it).find(x => x.toLowerCase().includes(q)); if (h) return { hit: true, why: `Matched domain ${h}` };
+  const u = it.type === 'login' ? it.vals.username : ''; if (u && u.toLowerCase().includes(q)) return { hit: true, why: 'Matched username' };
+  if (it.type === 'token' && (it.vals.provider || '').toLowerCase().includes(q)) return { hit: true, why: `Matched provider ${it.vals.provider}` };
+  if (it.type === 'env' && it.vals.vars.some(x => x.name.toLowerCase().includes(q))) return { hit: true, why: 'Matched a variable name' };
+  if (q.length >= 4) {
+    const toks = [...it.title.toLowerCase().split(/\s+/), ...it.tags];
+    const t = toks.find(t => t.length >= 4 && lev(q, t) <= 2);
+    if (t) return { hit: true, why: `Typo corrected to "${t === it.title.toLowerCase() ? it.title : t}"` };
+  }
+  return { hit: false };
+}
+
+/* ---------- toast, theme, menus ---------- */
+let toastT;
+function toast(msg, ic = 'check') {
+  const t = $('#toast');
+  t.innerHTML = `${icon(ic, 'i16')}<span>${esc(msg)}</span>`;
+  t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3600);
+}
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', S.theme);
+  try { localStorage.setItem('figlock-theme', S.theme); } catch (e) { /* storage blocked in preview */ }
+}
+function closeMenus() { $$('.menu').forEach(m => { const a = m.parentElement.querySelector('[data-menu]'); if (a) a.setAttribute('aria-expanded', 'false'); m.remove(); }); }
+function openMenu(anchor, html, cls = '') {
+  const m = document.createElement('div');
+  m.className = 'menu ' + cls; m.setAttribute('role', 'menu'); m.innerHTML = html;
+  anchor.parentElement.appendChild(m); anchor.setAttribute('aria-expanded', 'true');
+  const f = m.querySelector('button:not(:disabled), input'); if (f) f.focus();
+  return m;
+}
+
+/* ---------- secret field component ---------- */
+function secVal(key) {
+  const i = key.indexOf(':'), id = key.slice(0, i), f = key.slice(i + 1);
+  if (id === 'gen') return G.out; if (id === 'kit') return SECRET_KEY;
+  const it = byId(id); if (!it) return '';
+  if (f.startsWith('c.')) return (it.custom[+f.slice(2)] || {}).value || '';
+  if (f.startsWith('v.')) return (it.vals.vars[+f.slice(2)] || {}).value || '';
+  return it.vals[f] || '';
+}
+function timersHTML(key) {
+  const st = S.secret[key]; if (!st) return '';
+  const now = Date.now(); let h = '';
+  if (st.revealUntil > now) { const l = st.revealUntil - now; h += `<div class="timer"><span>${icon('eye', 'i12')}Hidden again in ${Math.ceil(l / 1000)}s</span><div class="bar" aria-hidden="true"><i style="transform:scaleX(${(l / SEC_SHOW).toFixed(3)})"></i></div></div>`; }
+  if (st.copyUntil > now) { const l = st.copyUntil - now; h += `<div class="timer"><span>${icon('clock', 'i12')}Clipboard clears in ${Math.ceil(l / 1000)}s</span><div class="bar" aria-hidden="true"><i style="transform:scaleX(${(l / SEC_CLEAR).toFixed(3)})"></i></div></div>`; }
+  return h;
+}
+function secretField(key, label, o = {}) {
+  const st = S.secret[key] || {}, shown = st.revealUntil > Date.now(), val = secVal(key), lid = 'lb-' + key.replace(/[:.]/g, '-');
+  return `<div class="frow" data-sf="${key}" data-label="${esc(label)}" data-multi="${o.multi ? 1 : 0}" data-mono="${o.mono ? 1 : 0}">
+    <div class="frow-label ${o.mono ? 'mono' : ''}" id="${lid}">${esc(label)}</div>
+    <div class="frow-line">
+      <div class="secret-val mono ${o.multi ? 'multi' : ''}" role="group" aria-labelledby="${lid}">${shown ? esc(val) : `<span aria-hidden="true">••••••••••••</span><span class="vh">Hidden</span>`}</div>
+      <button type="button" class="btn" data-act="reveal" data-key="${key}" aria-label="${shown ? 'Hide' : 'Show'} ${esc(label.toLowerCase())}">${icon(shown ? 'eye-off' : 'eye')}${shown ? 'Hide' : 'Show'}</button>
+      <button type="button" class="btn" data-act="copy" data-key="${key}" aria-label="Copy ${esc(label.toLowerCase())}">${icon('copy')}Copy</button>
+    </div>
+    <div data-st="${key}">${timersHTML(key)}</div>
+  </div>`;
+}
+function replaceSecret(key) {
+  $$(`[data-sf="${key}"]`).forEach(el => {
+    const had = el.contains(document.activeElement), act = document.activeElement && document.activeElement.dataset.act;
+    el.outerHTML = secretField(key, el.dataset.label, { multi: el.dataset.multi === '1', mono: el.dataset.mono === '1' });
+    if (had) { const n = $(`[data-sf="${key}"] [data-act="${act}"]`); if (n) n.focus(); }
+  });
+}
+function clearClipboard() { try { navigator.clipboard.writeText('').catch(() => { }); } catch (e) { /* clipboard unavailable */ } }
+function tickSecrets() {
+  const now = Date.now();
+  Object.keys(S.secret).forEach(key => {
+    const st = S.secret[key];
+    if (st.revealUntil && st.revealUntil <= now) { st.revealUntil = 0; replaceSecret(key); }
+    if (st.copyUntil && st.copyUntil <= now) { st.copyUntil = 0; clearClipboard(); toast('Clipboard cleared', 'clock'); }
+    if (!st.revealUntil && !st.copyUntil) delete S.secret[key];
+  });
+  $$('[data-st]').forEach(el => { const h = timersHTML(el.dataset.st); if (el.innerHTML !== h) el.innerHTML = h; });
+}
+
+/* ---------- sync ---------- */
+function syncInfo() {
+  const dest = S.storage === 'drive' ? 'Google Drive' : 'Local folder';
+  if (S.sync === 'offline') return { cls: 'off', ic: 'cloud-off', t: 'Offline, encrypted on this device', long: `Offline. Changes are saved on this device and sync to ${dest} when you reconnect.`, title: 'Offline' };
+  if (S.sync === 'syncing') return { cls: 'busy', ic: 'refresh', spin: true, t: 'Syncing, encrypted', long: `Syncing changes to ${dest}.`, title: 'Syncing' };
+  return { cls: 'ok', ic: 'shield-check', t: 'Synced and encrypted', long: `Synced to ${dest} ${S.syncedAt}.`, title: 'Synced' };
+}
+function renderSync() {
+  const i = syncInfo(), b = $('#syncBtn');
+  b.className = 'sync-badge ' + i.cls;
+  b.innerHTML = `${icon(i.ic, 'i16', i.spin ? 'spin' : '')}<span>${i.t}</span>`;
+  b.setAttribute('aria-label', `${i.t}. ${i.long}`); b.title = i.long;
+}
+let syncT;
+function bumpSync() {
+  if (S.sync === 'offline') return;
+  S.sync = 'syncing'; renderSync(); if (cur().p === 'settings') render();
+  clearTimeout(syncT);
+  syncT = setTimeout(() => { if (S.sync === 'syncing') { S.sync = 'synced'; S.syncedAt = 'just now'; renderSync(); if (cur().p === 'settings') render(); } }, 1500);
+}
+
+/* ---------- unlock ---------- */
+function keyBlocksHTML(key) {
+  const parts = key.split('-');
+  return KEY_LENS.map((n, i) => `<input class="input mono kb" data-kb="${i}" name="secret-key-${i + 1}" maxlength="${n}" value="${esc(parts[i] || '')}" aria-label="Secret Key group ${i + 1} of 6" autocomplete="off" spellcheck="false" style="width:calc(${n}ch + 28px)">`).join('');
+}
+const readKey = () => $$('#ulKey .kb').map(i => i.value.trim().toUpperCase()).join('-');
+const keyOk = k => k.split('-').length === 6 && k.split('-').every((p, i) => p.length === KEY_LENS[i] && /^[A-Z0-9]+$/.test(p));
+function renderUnlock() {
+  const busy = S.unlock === 'unlocking' || S.unlock === 'touch';
+  $('#ulStatus').innerHTML = `${icon('lock', 'i14')}<span>Personal vault is locked</span>`;
+  $('#ulGo').innerHTML = S.unlock === 'unlocking' ? `${icon('loader', 'i16', 'spin')}Unlocking...` : 'Unlock';
+  $('#ulGo').disabled = busy;
+  $('#ulTouch').innerHTML = S.unlock === 'touch' ? `${icon('fingerprint')}Waiting for Touch ID...` : `${icon('fingerprint')}Use Touch ID`;
+  $('#ulTouch').disabled = busy;
+  $('#ulPw').disabled = busy; $('#ulShow').disabled = busy; $$('#ulKey .kb').forEach(i => (i.disabled = busy));
+  $('#ulNote').innerHTML = `${icon('clock', 'i14')}<span>FigLock locks itself after ${S.autolock === 60 ? '1 hour' : S.autolock + (S.autolock === 1 ? ' minute' : ' minutes')} without activity.</span>`;
+  const e = $('#ulError');
+  if (S.unlock === 'error') { e.hidden = false; e.innerHTML = `<span class="alert-ic">${icon('circle-alert', 'i18')}</span><span>That master password and Secret Key do not match this vault. Check both and try again. Your Secret Key is in your Emergency Kit.</span>`; }
+  else e.hidden = true;
+}
+function fieldErr(id, msg, inputSel) {
+  const e = $(id + 'Err'); if (!e) return;
+  e.hidden = !msg; e.innerHTML = msg ? `${icon('circle-alert', 'i14')}<span>${esc(msg)}</span>` : '';
+  $$(inputSel || id).forEach(i => i.classList.toggle('is-error', !!msg));
+}
+const KEY_MSG = 'This Secret Key looks incomplete. It has six groups of letters and numbers.';
+function validateUnlock() {
+  const pw = $('#ulPw').value, ok = keyOk(readKey());
+  fieldErr('#ulPw', pw ? '' : 'Enter your master password.');
+  fieldErr('#ulKey', ok ? '' : KEY_MSG, '#ulKey .kb');
+  return !!pw && ok;
+}
+function tryUnlock() {
+  if (S.unlock === 'unlocking' || S.unlock === 'touch') return;
+  S.unlock = 'idle'; renderUnlock();
+  if (!validateUnlock()) { (($('#ulPw').value ? $('#ulKey .kb') : $('#ulPw'))).focus(); return; }
+  S.unlock = 'unlocking'; renderUnlock();
+  setTimeout(() => {
+    if ($('#ulPw').value.length >= 8) finishUnlock();
+    else { S.unlock = 'error'; renderUnlock(); $('#ulPw').focus(); $('#ulPw').select(); }
+  }, 900);
+}
+function touchUnlock() {
+  if (S.unlock === 'unlocking' || S.unlock === 'touch') return;
+  if (!S.touchId) { S.unlock = 'error'; renderUnlock(); return; }
+  S.unlock = 'touch'; renderUnlock(); setTimeout(finishUnlock, 1200);
+}
+function finishUnlock() {
+  S.locked = false; S.unlock = 'idle'; $('#ulPw').value = ''; renderUnlock();
+  $('#unlock').hidden = true; $('#app').hidden = false;
+  H.stack = [{ p: 'list', f: 'all' }]; H.i = 0; S.query = ''; $('#search').value = '';
+  render(); const r = $('#page .lrow') || $('#search'); if (r) r.focus();
+}
+function lockVault() {
+  closeMenus(); ['dlgAlert', 'dlgAgent', 'dlgDiscard'].forEach(id => { const d = $('#' + id); if (d.open) d.close(); });
+  Object.values(S.secret).forEach(s => (s.revealUntil = 0));
+  S.locked = true; $('#unlock').hidden = false; $('#app').hidden = true;
+  S.unlock = 'idle'; fieldErr('#ulPw', ''); renderUnlock(); $('#ulPw').focus();
+}
+
+/* ---------- chrome ---------- */
+function renderNav() {
+  const all = items(), c = f => f === 'all' ? all.length : all.filter(i => i.type === f).length;
+  const attn = all.filter(i => issues(i).length).length, sk = sideKey(cur());
+  const btn = (id, label, ic, count, extra = '') => `<button type="button" class="nav-item" data-act="nav" data-nav="${id}" ${sk === id ? 'aria-current="page"' : ''} title="${esc(label)}" aria-label="${esc(label)}">${icon(ic)}<span class="lbl od-truncate">${esc(label)}</span>${extra}${count !== null ? `<span class="nav-count">${count}</span>` : ''}</button>`;
+  $('#nav').innerHTML =
+    `<div class="nav-sec">Vault</div>` + btn('all', 'All items', 'layers', c('all')) + ['login', 'token', 'env', 'ssh', 'note', 'document'].map(k => btn(k, LIST_NAME[k], TYPE[k].icon, c(k))).join('') +
+    `<div class="nav-sec">Tools</div>` + btn('gen', 'Generator', 'dices', null) +
+    btn('health', 'Health', 'heart-pulse', null, attn ? `<span class="badge warning" title="${attn} items need attention">${attn}</span>` : '') +
+    `<div class="nav-sec">Account</div>` + btn('devices', 'Devices', 'laptop', S.devices.length) + btn('kit', 'Emergency Kit', 'life-buoy', null) + btn('settings', 'Settings', 'settings', null);
+}
+function renderToolbar() {
+  const r = cur();
+  $('#bk').disabled = H.i === 0; $('#fw').disabled = H.i >= H.stack.length - 1;
+  $('#tbTitle').textContent = titleOf(r);
+  const b = $('#agentBadge'); b.hidden = !S.agentPending || S.locked;
+  b.innerHTML = `${icon('bot', 'i16')}<span>1</span>`; b.setAttribute('aria-label', '1 agent request waiting for your approval');
+}
+
+/* ---------- pages ---------- */
+function render(focusHead, restore) {
+  if (S.locked) return;
+  const r = cur(); closeMenus();
+  const fn = { list: pageList, item: pageItem, edit: pageEdit, pick: pagePick, gen: pageGen, health: pageHealth, devices: pageDevices, kit: pageKit, settings: pageSettings }[r.p];
+  renderNav(); renderToolbar(); renderSync();
+  $('#page').innerHTML = fn(r);
+  if (r.p === 'gen') renderGenResult();
+  scrollEl().scrollTop = restore ? (r.scroll || 0) : 0;
+  if (focusHead) { const h = $('#pageH'); if (h) h.focus({ preventScroll: true }); }
+  if (restore && r.p === 'list' && r.focusId) { const row = $(`#page .lrow[data-id="${r.focusId}"]`); if (row) row.focus({ preventScroll: true }); }
+}
+function listRow(it, why) {
+  return `<button type="button" class="lrow" data-act="open" data-id="${it.id}" aria-label="${esc(it.title)}, ${esc(subtitle(it))}">
+    <span class="tile">${icon(TYPE[it.type].icon, 'i18')}</span>
+    <span class="lrow-text od-field"><span class="lrow-title od-truncate">${esc(it.title)}</span><span class="lrow-sub od-truncate">${esc(subtitle(it))}</span>${why ? `<span class="lrow-why">${icon('search', 'i12')}<span>${esc(why)}</span></span>` : ''}</span>
+    ${it.fav ? `<span class="fav" title="Favorite">${icon('star-fill', 'i14')}<span class="vh">Favorite</span></span>` : '<span></span>'}
+    <span class="chev">${icon('chevron-right', 'i16')}</span>
+  </button>`;
+}
+function pageList(r) {
+  const all = items();
+  if (!all.length && !S.query) {
+    return `<div class="empty"><div class="ring">${icon('layers', 'i24')}</div><h2 id="pageH" tabindex="-1">Your vault is empty</h2><p>Add a login, API token, note or document. FigLock encrypts every item on this device before it syncs.</p><div class="od-row" style="--od-gap:8px"><button type="button" class="btn btn-primary" data-act="newItem">${icon('plus')}New item</button><button type="button" class="btn" data-act="importStub">${icon('upload')}Import from a file</button></div></div>`;
+  }
+  let list = r.f === 'all' ? all : all.filter(i => i.type === r.f);
+  const hits = list.map(it => ({ it, m: matchItem(it, S.query) })).filter(x => x.m.hit);
+  const n = hits.length, count = `${n} ${n === 1 ? 'item' : 'items'}`;
+  if (!n) {
+    return `<div class="empty"><div class="ring">${icon('search', 'i20')}</div><h2 id="pageH" tabindex="-1">${S.query ? `No items match "${esc(S.query)}"` : `No ${LIST_NAME[r.f].toLowerCase()} yet`}</h2><p>${S.query ? 'Search looks at titles, tags, domains and usernames. It never looks inside secret values. Try fewer letters.' : 'Add one and it will show up here.'}</p>${S.query ? '' : `<button type="button" class="btn" data-act="newItem">${icon('plus')}New item</button>`}</div>`;
+  }
+  const head = `<p class="cap" id="pageH" tabindex="-1" style="margin:0 var(--s2)">${S.query ? `${count} for "${esc(S.query)}". Search matches titles, tags, domains and usernames, and never shows secret values.` : count}</p>`;
+  if (r.f === 'all' && !S.query && hits.some(x => x.it.fav)) {
+    const favs = hits.filter(x => x.it.fav), rest = hits.filter(x => !x.it.fav);
+    return head + `<section><h2 class="gtitle">Favorites</h2><div class="group" role="list">${favs.map(x => listRow(x.it, '')).join('')}</div></section>` + (rest.length ? `<section><h2 class="gtitle">Everything else</h2><div class="group">${rest.map(x => listRow(x.it, '')).join('')}</div></section>` : '');
+  }
+  return head + `<div class="group">${hits.map(x => listRow(x.it, x.m.why)).join('')}</div>`;
+}
+const fileIcon = n => /\.json$/i.test(n) ? 'braces' : 'file-text';
+const PROVIDERS = ['GitHub', 'GitLab', 'AWS', 'Google Cloud', 'Stripe', 'OpenAI', 'Anthropic', 'Cloudflare', 'Other'];
+const MAX_FILES = 8, MAX_FILE = 1048576;
+const idOf = path => 'ed-' + path.replace(/\./g, '-');
+const getPath = (o, p) => p.split('.').reduce((a, k) => (a == null ? a : a[k]), o);
+function setPath(o, p, v) { const ks = p.split('.'), last = ks.pop(); ks.reduce((a, k) => a[k], o)[last] = v; }
+const fmtSize = b => b < 1024 ? `${b} B` : b < 1048576 ? `${Math.round(b / 1024)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+const counterText = (n, max) => `${fmtSize(n)} of ${fmtSize(max)}`;
+const fmtDate = s => new Date(s + 'T00:00:00').toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+const dayDiff = s => Math.round((new Date(s + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+const expState = s => { if (!s) return ''; const d = dayDiff(s); return d < 0 ? 'expired' : d <= 30 ? 'soon' : ''; };
+
+/* ----- detail page ----- */
+function plainField(label, value, it, f, { mono = false, copy = true } = {}) {
+  if (!value) return '';
+  return `<div class="frow"><div class="frow-label">${esc(label)}</div><div class="frow-line"><div class="frow-val grow ${mono ? 'mono' : ''}">${esc(value)}</div>${copy ? `<button type="button" class="btn btn-ghost" data-act="copyPlain" data-id="${it.id}" data-f="${f}" aria-label="Copy ${esc(label.toLowerCase())}">${icon('copy')}Copy</button>` : ''}</div></div>`;
+}
+function listRows(label, arr, mono) {
+  arr = (arr || []).filter(Boolean); if (!arr.length) return '';
+  return `<div class="frow"><div class="frow-label">${esc(label)}</div>${arr.map(x => `<div class="frow-val ${mono ? 'mono' : ''}">${esc(x)}</div>`).join('')}</div>`;
+}
+const notesRow = n => n ? `<div class="frow"><div class="frow-label">Notes</div><div class="frow-val">${esc(n)}</div></div>` : '';
+function expRow(s) {
+  if (!s) return '';
+  const st = expState(s), d = dayDiff(s), rel = d < 0 ? `${-d} ${-d === 1 ? 'day' : 'days'} ago` : d === 0 ? 'Today' : `In ${d} ${d === 1 ? 'day' : 'days'}`;
+  return `<div class="frow"><div class="frow-label">Expires</div><div class="frow-line"><div class="od-field grow" style="gap:0"><span class="frow-val">${fmtDate(s)}</span><span class="cap">${rel}</span></div>${st ? `<span class="badge ${st === 'expired' ? 'danger' : 'warning'}">${icon(st === 'expired' ? 'circle-alert' : 'clock', 'i12')}${st === 'expired' ? 'Expired' : 'Expires soon'}</span>` : ''}</div></div>`;
+}
+function filesRow(it) {
+  const f = it.vals.files || []; if (!f.length) return '';
+  return `<div class="frow"><div class="frow-label">Files</div><div class="filelist">${f.map((x, i) => `<div class="filerow">${icon(fileIcon(x.name), 'i20')}<span class="od-field"><span class="od-truncate">${esc(x.name)}</span><span class="cap">${fmtSize(x.size)}</span></span><button type="button" class="btn" data-act="dlFile" data-id="${it.id}" data-i="${i}" aria-label="Download ${esc(x.name)}">${icon('download')}Download</button></div>`).join('')}</div></div>`;
+}
+function pageItem(r) {
+  const it = byId(r.id);
+  if (!it) return `<div class="empty"><h2 id="pageH" tabindex="-1">This item is no longer in the vault</h2><button type="button" class="btn" data-act="back">Go back</button></div>`;
+  const v = it.vals, id = it.id, fl = issues(it);
+  const sf = (f, label, o) => secretField(`${id}:${f}`, label, o);
+  let rows = '';
+  if (it.type === 'login') rows = plainField('Username', v.username, it, 'username') + sf('password', 'Password') + (v.totp ? sf('totp', 'One-time code setup key') : '') + listRows('Websites', v.websites) + notesRow(v.notes);
+  if (it.type === 'token') rows = sf('token', 'Token') + plainField('Provider', v.provider, it, 'provider', { copy: false }) + plainField('Environment variable name', v.envName, it, 'envName', { mono: true }) + plainField('Scopes', v.scopes, it, 'scopes', { copy: false }) + expRow(v.expires) + listRows('Allowed hosts', v.hosts, true) + notesRow(v.notes);
+  if (it.type === 'note') rows = `<div class="frow"><div class="frow-label">Note</div><div class="frow-val">${esc(v.note)}</div></div>`;
+  if (it.type === 'env') rows = v.vars.map((x, i) => sf('v.' + i, x.name, { mono: true })).join('') + notesRow(v.notes);
+  if (it.type === 'ssh') rows = sf('privateKey', 'Private key', { multi: true }) + plainField('Public key', v.publicKey, it, 'publicKey', { mono: true }) + (v.passphrase ? sf('passphrase', 'Passphrase') : '') + notesRow(v.notes);
+  if (it.type === 'document') rows = filesRow(it) + (v.password ? sf('password', 'Password') : '') + listRows('Websites', v.websites) + expRow(v.expires) + notesRow(v.notes);
+  const fi = { weak: ['shield-alert', 'danger', 'Weak password'], reused: ['copy', 'warning', 'Reused password'], old: ['history', 'warning', 'Not changed in over a year'], breached: ['triangle-alert', 'danger', 'Found in a breach'] };
+  const es = it.type === 'token' || it.type === 'document' ? expState(v.expires) : '';
+  const grants = S.grants.filter(g => g.item === it.id);
+  const banner = it.id === 'gh' && S.agentPending ? `<div class="banner" role="region" aria-label="Agent request">${icon('bot', 'i20')}<span class="od-field"><span class="ag-v">Claude Code is asking to use this token</span><span class="cap" style="color:var(--text-2)">Nothing is shared until you approve it.</span></span><button type="button" class="btn btn-agent-quiet" data-act="agentOpen">Review request</button></div>` : '';
+  const chips = fl.map(f => `<span class="badge ${fi[f][1]}">${icon(fi[f][0], 'i12')}${fi[f][2]}</span>`).join('') + (es ? `<span class="badge ${es === 'expired' ? 'danger' : 'warning'}">${icon(es === 'expired' ? 'circle-alert' : 'clock', 'i12')}${es === 'expired' ? 'Expired' : 'Expires soon'}</span>` : '');
+  return `${banner}
+    <div class="ihead"><span class="tile lg">${icon(TYPE[it.type].icon, 'i28')}</span><div class="od-field"><h1 id="pageH" tabindex="-1">${esc(it.title)}</h1><span class="cap">${TYPE[it.type].label}, updated ${ageText(it.age)}</span></div></div>
+    <div class="actions">
+      <button type="button" class="btn" data-act="edit" data-id="${it.id}">${icon('pencil')}Edit</button>
+      <button type="button" class="btn" data-act="fav" data-id="${it.id}" aria-pressed="${it.fav}">${icon(it.fav ? 'star-fill' : 'star', '', it.fav ? 'fav' : '')}${it.fav ? 'Remove from favorites' : 'Add to favorites'}</button>
+      <button type="button" class="btn btn-danger-quiet" data-act="del" data-id="${it.id}">${icon('trash')}Delete</button>
+    </div>
+    ${chips ? `<div class="chips">${chips}</div>` : ''}
+    ${rows ? `<div class="group">${rows}</div>` : ''}
+    ${it.type === 'login' ? `<section><h2 class="gtitle">Password strength</h2>${meterHTML(v.password)}</section>` : ''}
+    ${it.custom.length ? `<section><h2 class="gtitle">Custom fields</h2><div class="group">${it.custom.map((c, i) => sf('c.' + i, c.name)).join('')}</div></section>` : ''}
+    ${it.tags.length ? `<section><h2 class="gtitle">Tags</h2><div class="chips">${it.tags.map(a => `<span class="badge">${esc(a)}</span>`).join('')}</div><p class="gfoot">Search finds this item by its tags.</p></section>` : ''}
+    <section><h2 class="gtitle c-agent" style="display:flex;align-items:center;gap:8px">${icon('bot')}Agent access</h2>
+      ${grants.length ? `<div class="group">${grants.map(g => `<div class="grant"><span class="c-agent">${icon('bot', 'i20')}</span><span class="od-field"><span class="ag-v">${esc(g.agent)}, ${esc(g.how)}</span><span class="cap">${g.where ? esc(g.where) + ', ' : ''}${g.until ? 'until ' + fmtTime(g.until) : 'one time'}</span></span><button type="button" class="btn" data-act="revokeGrant" data-gid="${g.id}">Revoke grant</button></div>`).join('')}</div>`
+        : `<p class="sec">No agent has a grant for ${esc(it.title)}. Agents ask first, and you approve each grant.</p>`}
+    </section>`;
+}
+
+/* ----- new item picker ----- */
+function pagePick() {
+  return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">New item</h1><span class="cap">Choose what you want to store. You cannot change the type later.</span></div></div>
+  <div class="group">${Object.keys(TYPE).map(k => `<button type="button" class="lrow prow" data-act="pickType" data-type="${k}" aria-label="${TYPE[k].label}. ${esc(TYPE[k].desc)}"><span class="tile">${icon(TYPE[k].icon, 'i20')}</span><span class="lrow-text od-field"><span class="lrow-title">${TYPE[k].label}</span><span class="lrow-sub">${esc(TYPE[k].desc)}</span></span><span></span><span class="chev">${icon('chevron-right')}</span></button>`).join('')}</div>`;
+}
+
+/* ----- editor field builders ----- */
+const reqMark = '<span class="req" aria-hidden="true"> *</span>';
+const helpEl = (id, t) => `<div class="help" id="${id}-help" ${t ? '' : 'hidden'}>${esc(t || '')}</div><div class="err" id="${id}-err" hidden></div>`;
+function fText(path, label, o = {}) {
+  const id = idOf(path), v = getPath(cur().draft, path) || '';
+  return `<div><label class="label" for="${id}">${esc(label)}${o.req ? reqMark : ''}</label><input class="input ${o.mono ? 'mono' : ''}" id="${id}" data-f="${path}" type="text" value="${esc(v)}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.max ? `maxlength="${o.max}"` : ''} autocomplete="off" spellcheck="false" ${o.req ? 'aria-required="true"' : ''} aria-describedby="${id}-help ${id}-err">${helpEl(id, o.help)}</div>`;
+}
+function fArea(path, label, o = {}) {
+  const id = idOf(path), v = getPath(cur().draft, path) || '';
+  return `<div><label class="label" for="${id}">${esc(label)}${o.req ? reqMark : ''}</label><textarea class="input ${o.mono ? 'mono' : ''}" id="${id}" data-f="${path}" rows="${o.rows || 4}" ${o.max ? `maxlength="${o.max}"` : ''} spellcheck="false" aria-describedby="${id}-help ${id}-err" ${o.min ? `style="min-height:${o.min}px"` : ''}>${esc(v)}</textarea>${o.counter ? `<div class="help" id="${id}-count">${counterText(v.length, o.max)}</div>` : ''}${helpEl(id, o.help)}</div>`;
+}
+function fSecret(path, label, o = {}) {
+  const id = idOf(path), v = getPath(cur().draft, path) || '';
+  const show = `<button type="button" class="btn" data-act="edShow" data-target="${id}" aria-pressed="false">${icon('eye')}Show</button>`;
+  const gen = o.gen ? `<button type="button" class="btn btn-icon" data-act="genPop" data-menu="1" aria-haspopup="dialog" aria-label="Generate a password" data-tip="Generate a password">${icon('dices')}</button>` : '';
+  const file = o.file ? `<button type="button" class="btn" data-act="keyFile">${icon('upload')}Choose file</button><input type="file" id="keyFileIn" hidden tabindex="-1" aria-label="Choose a private key file">` : '';
+  const ctl = o.multi
+    ? `<textarea class="input mono masked" id="${id}" data-f="${path}" rows="${o.rows || 6}" maxlength="${o.max}" spellcheck="false" autocomplete="off" aria-describedby="${id}-help ${id}-err">${esc(v)}</textarea><div class="od-row" style="--od-gap:8px;margin-top:8px">${show}${file}</div>`
+    : `<div class="field-wrap"><input class="input mono" id="${id}" data-f="${path}" type="password" value="${esc(v)}" maxlength="${o.max}" autocomplete="off" spellcheck="false" aria-describedby="${id}-help ${id}-err">${show}${gen}</div>`;
+  return `<div><label class="label" for="${id}">${esc(label)}${o.req ? reqMark : ''}</label><div class="anchor">${ctl}</div>${o.gen ? `<div style="margin-top:8px" id="edMeter">${meterHTML(v)}</div>` : ''}${o.counter ? `<div class="help" id="${id}-count">${counterText(v.length, o.max)}</div>` : ''}${helpEl(id, o.help)}</div>`;
+}
+function fList(path, label, o) {
+  const arr = getPath(cur().draft, path), id = idOf(path);
+  return `<div><span class="label" id="${id}-lbl">${esc(label)}</span><div class="rows" role="group" aria-labelledby="${id}-lbl">${arr.map((x, i) => `<div class="rowline"><input class="input ${o.mono ? 'mono' : ''}" id="${id}-${i}" data-f="${path}.${i}" value="${esc(x)}" placeholder="${esc(o.ph)}" aria-label="${o.item} ${i + 1}" autocomplete="off" spellcheck="false"><button type="button" class="btn btn-icon" data-act="rmRow" data-path="${path}" data-i="${i}" aria-label="Remove ${o.item.toLowerCase()} ${i + 1}" data-tip="Remove">${icon('x')}</button></div>`).join('')}</div><button type="button" class="btn" style="margin-top:8px" data-act="addRow" data-path="${path}">${icon('plus')}${o.add}</button>${o.help ? `<div class="help">${esc(o.help)}</div>` : ''}</div>`;
+}
+function tagsHTML() {
+  const d = cur().draft;
+  return `<label class="label" for="tag-in">Tags</label><div class="tagfield">${d.tags.map((t, i) => `<span class="chip">${esc(t)}<button type="button" data-act="tagRm" data-i="${i}" aria-label="Remove tag ${esc(t)}">${icon('x', 'i12')}</button></span>`).join('')}<input id="tag-in" class="tag-in" type="text" maxlength="40" aria-describedby="tag-help" autocomplete="off" spellcheck="false"></div><div class="help" id="tag-help">Lowercase letters, digits, hyphen and underscore, up to 40 characters. Press Return or comma to add.</div>`;
+}
+function customHTML() {
+  const arr = cur().draft.custom;
+  return `<div><span class="label" id="cf-lbl">Custom fields</span>${arr.length ? `<div class="cfhead cap" aria-hidden="true"><span>Name</span><span>Value (secret)</span><span></span><span></span></div>` : ''}<div class="rows" role="group" aria-labelledby="cf-lbl">${arr.map((c, i) => `<div class="cfrow"><input class="input" id="ed-custom-${i}-name" data-f="custom.${i}.name" value="${esc(c.name)}" aria-label="Custom field ${i + 1} name" autocomplete="off" spellcheck="false" maxlength="128"><input class="input mono" type="password" id="ed-custom-${i}-value" data-f="custom.${i}.value" value="${esc(c.value)}" aria-label="Custom field ${i + 1} value" autocomplete="off" spellcheck="false" maxlength="65536"><button type="button" class="btn btn-icon" data-act="edShow" data-target="ed-custom-${i}-value" data-io="value of custom field ${i + 1}" aria-pressed="false" aria-label="Show value of custom field ${i + 1}" data-tip="Show">${icon('eye')}</button><button type="button" class="btn btn-icon" data-act="rmRow" data-path="custom" data-i="${i}" aria-label="Remove custom field ${i + 1}" data-tip="Remove">${icon('x')}</button><div class="err" id="ed-custom-${i}-err" hidden></div></div>`).join('')}</div><button type="button" class="btn" style="margin-top:8px" data-act="addRow" data-path="custom">${icon('plus')}Add custom field</button></div>`;
+}
+function varsHTML() {
+  const arr = cur().draft.vals.vars;
+  return `<div><span class="label" id="vars-lbl">Variables${reqMark}</span>${arr.length ? `<div class="varhead" aria-hidden="true"><span>Name</span><span>Value (secret)</span><span></span></div>` : ''}<div class="rows" role="group" aria-labelledby="vars-lbl">${arr.map((x, i) => `<div class="varrow"><input class="input mono" id="ed-vals-vars-${i}-name" data-f="vals.vars.${i}.name" data-env="1" value="${esc(x.name)}" placeholder="NAME" aria-label="Variable ${i + 1} name" autocomplete="off" spellcheck="false" maxlength="128"><div class="varval"><input class="input mono" type="password" id="ed-vals-vars-${i}-value" data-f="vals.vars.${i}.value" value="${esc(x.value)}" aria-label="Variable ${i + 1} value" autocomplete="off" spellcheck="false" maxlength="65536"><button type="button" class="btn btn-icon" data-act="edShow" data-target="ed-vals-vars-${i}-value" data-io="value of variable ${i + 1}" aria-pressed="false" aria-label="Show value of variable ${i + 1}" data-tip="Show">${icon('eye')}</button></div><button type="button" class="btn btn-icon" data-act="rmRow" data-path="vals.vars" data-i="${i}" aria-label="Remove variable ${i + 1}" data-tip="Remove">${icon('x')}</button><div class="err" id="ed-vars-${i}-err" hidden></div></div>`).join('')}</div>
+    <div class="od-row" style="--od-gap:8px;margin-top:8px"><button type="button" class="btn" id="ed-vars" data-act="addRow" data-path="vals.vars">${icon('plus')}Add variable</button><div class="anchor"><button type="button" class="btn" data-act="envPaste" data-menu="1" aria-haspopup="dialog">${icon('copy')}Paste .env</button></div></div>
+    <div class="help">Names use A-Z, 0-9 and underscore. Each value can be up to 64 KB.</div><div class="err" id="ed-vars-err" hidden></div></div>`;
+}
+function fileRowsHTML() {
+  const f = cur().draft.vals.files; if (!f.length) return '';
+  return `<div class="filelist">${f.map((x, i) => `<div class="filerow">${icon(fileIcon(x.name), 'i20')}<span class="od-field"><span class="od-truncate">${esc(x.name)}</span><span class="cap">${fmtSize(x.size)}</span></span><button type="button" class="btn btn-icon" data-act="rmFile" data-i="${i}" aria-label="Remove ${esc(x.name)}" data-tip="Remove">${icon('x')}</button></div>`).join('')}</div><p class="cap" style="margin-top:4px">${f.length} of ${MAX_FILES} files</p>`;
+}
+function filesBlock() {
+  return `<div><span class="label" id="files-lbl">Files${reqMark}</span>
+    <div class="drop" id="drop" role="group" aria-labelledby="files-lbl" aria-describedby="drop-note">${icon('upload', 'i24')}<span class="drop-t">Drop files here or choose files</span><button type="button" class="btn" id="ed-files" data-act="chooseFiles">Choose files</button><span class="cap" id="drop-note">Up to 8 files, 1 MB each. Files are encrypted on this device before they sync.</span></div>
+    <input type="file" id="fileIn" multiple hidden tabindex="-1" aria-label="Choose files">
+    <div id="fileRows" style="margin-top:8px">${fileRowsHTML()}</div><div class="err" id="ed-files-err" role="alert" hidden></div></div>`;
+}
+function totpBlock(d) {
+  const on = !!d.vals.totpOn;
+  return `<div class="od-stack" style="--od-gap:12px"><div class="opt"><span class="od-field"><span class="srow-t">Add one-time code</span><span class="cap">Store the setup key from a site that offers two-step sign-in.</span></span>${sw('totpSw', 'totp', on, 'Add one-time code')}</div>${on ? fSecret('vals.totp', 'One-time code setup key', { max: 1024, req: true }) : ''}</div>`;
+}
+function tokenProviderBlock(d) {
+  const id = 'ed-vals-provider';
+  return `<div><label class="label" for="${id}">Provider</label><select class="select" id="${id}" data-f="vals.provider" style="min-width:220px">${PROVIDERS.map(p => `<option ${d.vals.provider === p ? 'selected' : ''}>${p}</option>`).join('')}</select></div>`;
+}
+function expiresBlock(d) {
+  const v = d.vals.expires || '';
+  return `<div><label class="label" for="ed-vals-expires">Expires</label><div class="od-row" style="--od-gap:8px"><input class="input" type="date" id="ed-vals-expires" data-f="vals.expires" value="${esc(v)}" style="width:200px"><button type="button" class="btn" data-act="expClear" ${v ? '' : 'hidden'}>Clear</button></div><div class="help">Optional. FigLock flags the item when it expires within 30 days.</div></div>`;
+}
+function editFields(d) {
+  const t = d.type; let f = '';
+  if (t === 'login') f = fText('vals.username', 'Username', { max: 512 }) + fSecret('vals.password', 'Password', { gen: true, max: 4096, req: true, help: 'Up to 4 KB.' }) + totpBlock(d) + fList('vals.websites', 'Websites', { item: 'Website', ph: 'https://example.com', add: 'Add website' }) + fArea('vals.notes', 'Notes', { rows: 3, max: 65536 });
+  if (t === 'token') f = tokenProviderBlock(d) + fSecret('vals.token', 'Token', { max: 16384, req: true, help: 'Up to 16 KB.' }) + fText('vals.envName', 'Environment variable name', { mono: true, ph: 'GITHUB_TOKEN', max: 128, help: 'Used by figlock run.' }) + fText('vals.scopes', 'Scopes', { max: 512 }) + expiresBlock(d) + fList('vals.hosts', 'Allowed hosts', { item: 'Host', mono: true, ph: 'api.example.com', add: 'Add host', help: 'Agents can only use this token for these hosts.' }) + fArea('vals.notes', 'Notes', { rows: 3, max: 65536 });
+  if (t === 'note') f = fArea('vals.note', 'Note', { min: 220, max: 262144, counter: true, mono: false });
+  if (t === 'env') f = varsHTML() + fArea('vals.notes', 'Notes', { rows: 3, max: 65536 });
+  if (t === 'ssh') f = fSecret('vals.privateKey', 'Private key', { multi: true, max: 32768, req: true, counter: true, file: true, rows: 7, help: 'Up to 32 KB.' }) + fArea('vals.publicKey', 'Public key', { mono: true, rows: 3, max: 8192, help: 'Optional.' }) + fSecret('vals.passphrase', 'Passphrase', { max: 4096, help: 'Optional.' }) + fArea('vals.notes', 'Notes', { rows: 3, max: 65536 });
+  if (t === 'document') f = filesBlock() + fSecret('vals.password', 'Password', { max: 4096, help: 'Optional. Up to 4 KB.' }) + fList('vals.websites', 'Websites', { item: 'Website', ph: 'https://example.com', add: 'Add website' }) + expiresBlock(d) + fArea('vals.notes', 'Notes', { rows: 3, max: 65536 });
+  return f + `<div id="tagWrap">${tagsHTML()}</div>` + customHTML();
+}
+function blankVals(t) {
+  return {
+    login: { username: '', password: '', totpOn: false, totp: '', websites: [''], notes: '' },
+    token: { provider: 'Other', token: '', envName: '', scopes: '', expires: '', hosts: [''], notes: '' },
+    note: { note: '' }, env: { vars: [{ name: '', value: '' }], notes: '' },
+    ssh: { privateKey: '', publicKey: '', passphrase: '', notes: '' },
+    document: { files: [], password: '', websites: [''], expires: '', notes: '' }
+  }[t];
+}
+function editInit(r) {
+  if (r.draft) return r.draft;
+  const it = r.id ? byId(r.id) : null;
+  const base = it ? { type: it.type, title: it.title, tags: [...it.tags], custom: it.custom.map(c => ({ ...c })), vals: JSON.parse(JSON.stringify(it.vals)) } : { type: r.type || 'login', title: '', tags: [], custom: [], vals: blankVals(r.type || 'login') };
+  const v = base.vals;
+  if (base.type === 'login') { v.totpOn = !!v.totp; if (!v.websites.length) v.websites = ['']; }
+  if (base.type === 'token' || base.type === 'document') { if (base.type === 'token' && !v.hosts.length) v.hosts = ['']; if (base.type === 'document' && !v.websites.length) v.websites = ['']; }
+  if (base.type === 'env' && !v.vars.length) v.vars = [{ name: '', value: '' }];
+  r.orig = norm(base); r.draft = JSON.parse(JSON.stringify(base));
+  if (r.preset && r.preset.password && r.draft.type === 'login') r.draft.vals.password = r.preset.password;
+  return r.draft;
+}
+function captureDraft() { /* the draft is updated as you type */ }
+function renderEditor() { const sc = scrollEl().scrollTop; $('#page').innerHTML = pageEdit(cur()); scrollEl().scrollTop = sc; }
+function pageEdit(r) {
+  const e = editInit(r), it = r.id ? byId(r.id) : null, T = TYPE[e.type];
+  return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">${it ? 'Edit ' + esc(it.title) : 'New item'}</h1><span class="cap">${it ? 'Changes are encrypted on this device before they sync.' : 'FigLock encrypts the item on this device before it syncs.'}</span></div></div>
+    <div class="od-row" style="--od-gap:12px"><span class="tile">${icon(T.icon, 'i18')}</span><span class="od-field"><span class="srow-t">${T.label}</span><span class="cap">${it ? 'The type cannot be changed once an item exists.' : 'To choose a different type, go back.'}</span></span></div>
+    <div class="group editor-card">${fText('title', 'Title', { req: true, max: 256 })}${editFields(e)}</div>
+    <div class="od-row" style="--od-gap:8px"><button type="button" class="btn btn-primary" data-act="saveEdit">${it ? 'Save changes' : 'Add item'}</button><button type="button" class="btn" data-act="cancelEdit">Cancel</button></div>`;
+}
+
+/* ----- tags, env, files helpers ----- */
+function renderTags(focus) { const w = $('#tagWrap'); if (!w) return; w.innerHTML = tagsHTML(); if (focus) $('#tag-in').focus(); }
+function commitTag(focus) {
+  const r = cur(); if (r.p !== 'edit' || !r.draft) return;
+  const i = $('#tag-in'); if (!i) return;
+  const v = i.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40); i.value = '';
+  if (v && !r.draft.tags.includes(v)) { r.draft.tags.push(v); renderTags(focus); }
+  else if (focus) i.focus();
+}
+function envErr(i) {
+  const vars = cur().draft.vals.vars, x = vars[i];
+  if (!x.name) return x.value ? 'Add a name for this variable.' : '';
+  if (!/^[A-Z_][A-Z0-9_]*$/.test(x.name)) return 'Names start with a letter or underscore and use only A-Z, 0-9 and underscore.';
+  if (vars.findIndex(y => y.name === x.name) < i) return `${x.name} is already used. Each name must be unique.`;
+  return '';
+}
+function validateEnvNames() {
+  const r = cur(); if (r.p !== 'edit' || r.draft.type !== 'env') return [];
+  const out = [];
+  r.draft.vals.vars.forEach((x, i) => {
+    const m = envErr(i), el = $(`#ed-vars-${i}-err`), inp = $(`#ed-vals-vars-${i}-name`);
+    if (el) { el.hidden = !m; el.innerHTML = m ? `${icon('circle-alert', 'i14')}<span>${esc(m)}</span>` : ''; }
+    if (inp) inp.classList.toggle('is-error', !!m);
+    if (m) out.push({ err: `ed-vars-${i}-err`, focus: `ed-vals-vars-${i}-name`, msg: m });
+  });
+  return out;
+}
+function parseEnv(text) {
+  const out = [];
+  text.split(/\r?\n/).forEach(line => {
+    line = line.trim(); if (!line || line.startsWith('#')) return;
+    line = line.replace(/^export\s+/, ''); const i = line.indexOf('='); if (i < 1) return;
+    const name = line.slice(0, i).trim().toUpperCase().replace(/[^A-Z0-9_]/g, ''); let val = line.slice(i + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) val = val.slice(1, -1);
+    if (name) out.push({ name, value: val });
+  });
+  return out;
+}
+function showFileErr(errs) {
+  const el = $('#ed-files-err'); if (!el) return;
+  if (!errs.length) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `<div class="od-stack" style="--od-gap:4px">${errs.map(e => `<div class="od-row-top" style="--od-gap:4px">${icon('circle-alert', 'i14')}<span>${e.name ? `<span class="cap" style="display:block;color:var(--danger)">${esc(e.name)}</span>` : ''}${esc(e.msg)}</span></div>`).join('')}</div>`;
+}
+function addFiles(list) {
+  const r = cur(); if (r.p !== 'edit' || !r.draft || r.draft.type !== 'document') return;
+  const files = r.draft.vals.files, errs = []; let full = false;
+  Array.from(list).forEach(f => {
+    if (files.length >= MAX_FILES) { full = true; return; }
+    if (f.size > MAX_FILE) { errs.push({ name: f.name, msg: `That file is ${fmtSize(f.size)}. The limit is 1 MB.` }); return; }
+    files.push({ name: f.name, size: f.size }); /* names and sizes only, contents are never read */
+  });
+  if (full) errs.push({ name: '', msg: 'You can add up to 8 files.' });
+  const el = $('#fileRows'); if (el) el.innerHTML = fileRowsHTML();
+  showFileErr(errs);
+}
+
+/* ----- validate and save ----- */
+function validateEdit() {
+  const d = cur().draft, v = d.vals, errs = [];
+  $$('#page .err').forEach(e => { e.hidden = true; }); $$('#page .is-error').forEach(i => i.classList.remove('is-error'));
+  const add = (err, focus, msg) => {
+    errs.push({ err, focus, msg });
+    const el = $('#' + err); if (el) { el.hidden = false; el.innerHTML = `${icon('circle-alert', 'i14')}<span>${esc(msg)}</span>`; }
+    const f = $('#' + focus); if (f && f.classList && f.tagName !== 'BUTTON') f.classList.add('is-error');
+  };
+  if (!d.title.trim()) add('ed-title-err', 'ed-title', 'Add a title so you can find this item later.');
+  if (d.type === 'login') {
+    if (!v.password) add('ed-vals-password-err', 'ed-vals-password', 'Add a password. Login items need one.');
+    if (v.totpOn && !v.totp.trim()) add('ed-vals-totp-err', 'ed-vals-totp', 'Paste the setup key, or turn off one-time code.');
+  }
+  if (d.type === 'token' && !v.token) add('ed-vals-token-err', 'ed-vals-token', 'Paste the token you want to store.');
+  if (d.type === 'ssh' && !v.privateKey.trim()) add('ed-vals-privateKey-err', 'ed-vals-privateKey', 'Add the private key, or choose a key file.');
+  if (d.type === 'env') {
+    const ev = validateEnvNames(); ev.forEach(x => errs.push(x));
+    if (!v.vars.some(x => x.name) && !ev.length) add('ed-vars-err', 'ed-vars', 'Add at least one variable.');
+  }
+  if (d.type === 'document' && !v.files.length) add('ed-files-err', 'ed-files', 'Add at least one file.');
+  d.custom.forEach((c, i) => { if (!c.name.trim() && c.value) add(`ed-custom-${i}-err`, `ed-custom-${i}-name`, 'Add a name for this custom field.'); });
+  errs.sort((a, b) => { const x = $('#' + a.focus), y = $('#' + b.focus); return x && y ? (x.compareDocumentPosition(y) & 4 ? -1 : 1) : 0; });
+  return errs;
+}
+function saveEdit() {
+  const r = cur(); commitTag(false);
+  const errs = validateEdit();
+  if (errs.length) { const f = $('#' + errs[0].focus); if (f) f.focus(); return; }
+  const d = r.draft, v = JSON.parse(JSON.stringify(d.vals));
+  ['websites', 'hosts'].forEach(k => { if (v[k]) v[k] = v[k].map(s => s.trim()).filter(Boolean); });
+  if (v.vars) v.vars = v.vars.filter(x => x.name);
+  if (d.type === 'login') { if (!v.totpOn) v.totp = ''; delete v.totpOn; }
+  const custom = d.custom.filter(c => c.name.trim()).map(c => ({ name: c.name.trim(), value: c.value }));
+  let it = r.id ? byId(r.id) : null;
+  if (it) {
+    it.title = d.title.trim(); it.tags = [...d.tags]; it.custom = custom; it.vals = v; it.age = 0;
+    Object.keys(S.secret).forEach(k => { if (k.startsWith(it.id + ':')) delete S.secret[k]; });
+    r.orig = norm(d); _back();
+  } else {
+    it = { id: 'n' + (S.nid++), type: d.type, title: d.title.trim(), fav: false, tags: [...d.tags], custom, age: 0, vals: v };
+    items().unshift(it);
+    if (H.stack[H.i - 1] && H.stack[H.i - 1].p === 'pick') { H.stack.splice(H.i - 1, 1); H.i--; }
+    H.stack[H.i] = { p: 'item', id: it.id, from: r.from || 'all' }; render(true);
+  }
+  bumpSync(); toast(`Saved ${it.title}`);
+}
+
+/* ---------- alert dialog (centered, destructive) ---------- */
+function confirmDlg({ title, body, label, onOk }) {
+  const d = $('#dlgAlert');
+  d.innerHTML = `<div class="dlg-body alertbox"><span class="c-danger">${icon('triangle-alert', 'i28')}</span><h2 id="dcTitle">${esc(title)}</h2><p class="sec">${esc(body)}</p></div><div class="alertfoot"><button type="button" class="btn" data-dc="cancel">Cancel</button><button type="button" class="btn btn-danger" data-dc="ok">${esc(label)}</button></div>`;
+  $('[data-dc="cancel"]', d).onclick = () => d.close();
+  $('[data-dc="ok"]', d).onclick = () => { d.close(); onOk(); };
+  d.showModal(); $('[data-dc="cancel"]', d).focus();
+}
+/* ---------- discard sheet (top) ---------- */
+function openDiscard(next) {
+  const d = $('#dlgDiscard'), r = cur(), it = r.id ? byId(r.id) : null, name = it ? it.title : 'this new item';
+  d.innerHTML = `<div class="dlg-body"><div class="dlg-title"><span class="c-warning">${icon('triangle-alert', 'i24')}</span><h2 id="dsTitle">Discard changes to ${esc(name)}?</h2></div><p class="sec" style="margin-top:8px">You have edits that are not saved. FigLock will drop them if you leave this page.</p></div><div class="dlg-foot"><button type="button" class="btn" data-ds="keep">Keep editing</button><button type="button" class="btn btn-danger" data-ds="discard">Discard changes</button></div>`;
+  $('[data-ds="keep"]', d).onclick = () => d.close();
+  $('[data-ds="discard"]', d).onclick = () => { r.orig = norm(r.draft); d.close(); next(); };
+  d.showModal(); $('[data-ds="keep"]', d).focus();
+}
+
+/* ---------- agent approval sheet ---------- */
+const AG = { step: 'review', busy: false };
+function agentHTML() {
+  const until = fmtTime(Date.now() + 15 * 60000);
+  const row = (ic, k, v, c) => `<div class="ag-row">${icon(ic, 'i20')}<div class="od-field"><span class="ag-k">${k}</span><span class="ag-v">${v}</span><span class="cap">${c}</span></div></div>`;
+  if (AG.step === 'reveal') {
+    return `<div class="dlg-body"><div class="dlg-title"><span class="ag-ic" style="background:var(--warning-subtle);color:var(--warning)">${icon('triangle-alert', 'i20')}</span><h2 id="agTitle">Claude Code asks to reveal GitHub token</h2></div>
+      <p class="sec" style="margin-top:12px">Reveal shows the token itself to Claude Code. It can end up in logs or in the conversation. Use through HTTP does the same job without showing the value.</p>
+      <div class="ag-reveal">${icon('triangle-alert', 'i20')}<div class="od-field"><span class="ag-v">Reveal needs its own approval</span><span class="cap" style="color:var(--text)">Approving use through HTTP does not include reveal. This approval covers one reveal and ends right after.</span></div></div></div>
+      <div class="dlg-foot"><button type="button" class="btn" data-act="agBack" ${AG.busy ? 'disabled' : ''}>Back</button><button type="button" class="btn btn-warn" data-act="agRevealOk" ${AG.busy ? 'disabled' : ''} aria-label="Approve Claude Code to reveal GitHub token once, with Touch ID">${AG.busy ? `${icon('loader', 'i16', 'spin')}Waiting for Touch ID...` : `${icon('fingerprint')}Approve one reveal with Touch ID`}</button></div>`;
+  }
+  return `<div class="dlg-body"><div class="dlg-title"><span class="ag-ic">${icon('bot', 'i24')}</span><div class="od-field" style="gap:0"><h2 id="agTitle">Claude Code wants to use GitHub token</h2><span class="cap">Waiting for your approval</span></div></div>
+    <div class="ag-rows">
+      ${row('bot', 'Who', 'Claude Code', 'Identified by process: claude (PID 48213)')}
+      ${row('key-round', 'What', 'GitHub token', 'API token item in Personal vault')}
+      ${row('terminal', 'How', 'Use through HTTP', 'FigLock adds the token to the request. Claude Code never sees the value.')}
+      ${row('globe', 'Where', '<span class="mono">api.github.com</span>', 'Requests to other hosts are blocked.')}
+      ${row('clock', 'For how long', '15 minutes', `Ends at ${until}. You can revoke it sooner from the item.`)}
+    </div>
+    <div class="ag-reveal">${icon('triangle-alert', 'i20')}<div class="od-field"><span class="ag-v">Reveal is separate</span><span class="cap" style="color:var(--text)">Claude Code can also ask to see the token itself. That always needs its own approval and is not part of this one.</span><div><button type="button" class="btn btn-warn" data-act="agReveal" ${AG.busy ? 'disabled' : ''}>Review reveal request</button></div></div></div>
+    <p class="sec" style="margin-top:12px">Approving lets Claude Code use GitHub token through HTTP for 15 minutes.</p></div>
+    <div class="dlg-foot"><button type="button" class="btn" data-act="agDeny" ${AG.busy ? 'disabled' : ''}>Deny</button><button type="button" class="btn btn-agent" data-act="agApprove" ${AG.busy ? 'disabled' : ''} aria-label="Approve Claude Code to use GitHub token for 15 minutes with Touch ID">${AG.busy ? `${icon('loader', 'i16', 'spin')}Waiting for Touch ID...` : `${icon('fingerprint')}Approve with Touch ID`}</button></div>`;
+}
+function renderAgent() { const d = $('#dlgAgent'); d.innerHTML = agentHTML(); if (d.open && !AG.busy) { const f = $('[data-act="agApprove"], [data-act="agRevealOk"]', d); if (f) f.focus(); } }
+function openAgent() { AG.step = 'review'; AG.busy = false; $('#dlgAgent').innerHTML = agentHTML(); $('#dlgAgent').showModal(); const b = $('#dlgAgent [data-act="agDeny"]'); if (b) b.focus(); }
+function agentDone(msg) { AG.busy = false; S.agentPending = false; $('#dlgAgent').close(); render(); toast(msg, 'bot'); }
+
+/* ---------- health / devices / kit / settings / generator ---------- */
+function pageHealth() {
+  const all = items(), r = reusedIds();
+  const lists = { weak: all.filter(i => i.type === 'login' && strengthOf(i.vals.password).level === 'weak'), reused: all.filter(i => r.has(i.id)), old: all.filter(i => i.age >= 365), breached: S.breach === 'done' ? all.filter(i => BREACHED.has(i.id)) : [] };
+  const attn = new Set(Object.values(lists).flat().map(i => i.id)).size;
+  const cats = [
+    { k: 'weak', ic: 'shield-alert', t: 'Weak passwords', d: 'Short or easy to guess. Replace them with a generated password.' },
+    { k: 'reused', ic: 'copy', t: 'Reused passwords', d: 'The same password protects more than one login.' },
+    { k: 'old', ic: 'history', t: 'Old items', d: 'Not changed in over a year.' },
+    { k: 'breached', ic: 'triangle-alert', t: 'Breached passwords', d: '' }
+  ];
+  const sentence = 'Only the first 5 characters of each password hash leave this device, so your passwords stay private.';
+  const sect = c => {
+    const l = lists[c.k], off = c.k === 'breached' && S.breach !== 'done';
+    const status = off ? '' : l.length ? `<span class="badge ${c.k === 'old' || c.k === 'reused' ? 'warning' : 'danger'}">${icon('triangle-alert', 'i12')}Needs attention</span>` : `<span class="badge success">${icon('shield-check', 'i12')}Healthy</span>`;
+    const cnt = off ? (S.breach === 'running' ? 'Checking' : 'Off') : `${l.length} ${l.length === 1 ? 'item' : 'items'}`;
+    let sub = c.d, body = '';
+    if (c.k === 'breached') {
+      sub = S.breach === 'off' ? `Breach check is off. ${sentence}` : S.breach === 'running' ? `Checking ${all.filter(i => i.type === 'login').length} passwords...` : sentence;
+      if (S.breach === 'off') body = `<div class="hh" style="border-top:1px solid var(--border)"><button type="button" class="btn btn-primary" data-act="breachOn">${icon('shield-check')}Turn on breach check</button></div>`;
+      if (S.breach === 'running') body = `<div class="skel"></div><div class="skel"></div>`;
+      if (S.breach === 'done') body = `<div class="hh" style="border-top:1px solid var(--border)"><button type="button" class="btn" data-act="breachOn">${icon('refresh')}Check again</button><button type="button" class="btn btn-ghost" data-act="breachOff">Turn off</button></div>`;
+    }
+    const links = !off ? l.map(i => `<button type="button" class="lrow" data-act="open" data-id="${i.id}" aria-label="${esc(i.title)}, ${esc(subtitle(i))}"><span class="tile">${icon(TYPE[i.type].icon, 'i18')}</span><span class="lrow-text od-field"><span class="lrow-title od-truncate">${esc(i.title)}</span><span class="lrow-sub od-truncate">${esc(subtitle(i))}</span></span><span></span><span class="chev">${icon('chevron-right')}</span></button>`).join('') : '';
+    return `<section><div class="group"><div class="hh"><span class="tile">${icon(c.ic, 'i18')}</span><span class="od-field"><span class="lrow-title">${c.t}</span><span class="cap">${esc(cnt)}</span></span>${status}</div><p class="cap" style="padding:0 var(--s4) var(--s3);margin-top:-4px">${esc(sub)}</p>${links}${body}</div></section>`;
+  };
+  return `<div class="ihead"><span class="${attn ? 'c-warning' : 'c-success'}">${icon(attn ? 'shield-alert' : 'shield-check', 'i28')}</span><div class="od-field"><h1 id="pageH" tabindex="-1">${attn ? `${attn} ${attn === 1 ? 'item needs' : 'items need'} attention` : 'Nothing needs attention'}</h1><span class="cap">Health looks at the logins and tokens in this vault. Select an item to fix it.</span></div></div>${cats.map(sect).join('')}`;
+}
+function pageDevices() {
+  return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">Devices</h1><span class="cap">Devices that can unlock this vault. Revoke any device you no longer use.</span></div></div>
+  <div class="group">${S.devices.map(x => `<div class="srow"><span class="tile">${icon(x.kind, 'i18')}</span><div class="od-field"><span class="srow-t" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>${esc(x.name)}</span>${x.here ? `<span class="badge primary">${icon('check', 'i12')}This device</span>` : ''}</span><span class="cap">${esc(x.os)}, last seen ${esc(x.here ? 'now' : x.seen)}</span>${x.stale ? `<span class="cap c-warning" style="display:flex;gap:4px;align-items:center">${icon('clock', 'i12')}Not seen in over a month. Revoke it if you no longer use it.</span>` : ''}</div>${x.here ? '' : `<button type="button" class="btn btn-danger-quiet" data-act="revokeDev" data-id="${x.id}" aria-label="Revoke ${esc(x.name)}">Revoke</button>`}</div>`).join('')}</div>
+  <p class="gfoot">To add a device, sign in on it with your master password and Secret Key. You can find the Secret Key in your Emergency Kit.</p>`;
+}
+function pageKit() {
+  const st = S.secret['kit:key'] || {}, shown = st.revealUntil > Date.now(), parts = SECRET_KEY.split('-');
+  return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">Emergency Kit</h1><span class="cap">A sheet to print and keep somewhere safe. You need your Secret Key to add a device.</span></div></div>
+  <div class="group kit">
+    <div class="kit-top"><svg class="logo" width="44" height="44" aria-hidden="true"><use href="#logo"/></svg><div class="od-field" style="gap:0"><h2 style="font-size:16px;line-height:24px;font-weight:600">FigLock Emergency Kit</h2><span class="cap">Mira Okafor, mira@example.test</span></div></div>
+    <div class="kit-key" data-sf="kit:key" data-label="Secret Key">
+      <div class="frow-label" id="lb-kit-key">Secret Key</div>
+      <div class="blocks" role="group" aria-labelledby="lb-kit-key">${shown ? parts.map(p => `<span class="blk">${esc(p)}</span>`).join('') : `<span class="blk" aria-hidden="true">••-••••••-••••••-••••••-••••••-••••••</span><span class="vh">Hidden</span>`}</div>
+      <div class="od-row" style="--od-gap:8px;margin-top:12px"><button type="button" class="btn" data-act="reveal" data-key="kit:key" aria-label="${shown ? 'Hide' : 'Show'} Secret Key">${icon(shown ? 'eye-off' : 'eye')}${shown ? 'Hide' : 'Show'}</button><button type="button" class="btn" data-act="copy" data-key="kit:key" aria-label="Copy Secret Key">${icon('copy')}Copy</button></div>
+      <div data-st="kit:key">${timersHTML('kit:key')}</div>
+    </div>
+    <div class="od-stack" style="--od-gap:4px"><span class="lrow-title">Master password</span><span class="sec">Write it on this sheet by hand. FigLock never prints it.</span></div>
+    <div class="alert" style="background:var(--warning-subtle)"><span class="c-warning">${icon('triangle-alert', 'i18')}</span><span>Anyone with this sheet and your master password can open your vault. Store it somewhere safe, away from your devices.</span></div>
+  </div>
+  <div class="actions"><button type="button" class="btn btn-primary" data-act="kitSave">${icon('download')}Save Emergency Kit as PDF</button></div>`;
+}
+const sw = (act, k, on, label) => `<button type="button" class="switch" role="switch" aria-checked="${on}" aria-label="${esc(label)}" data-act="${act}" data-k="${k}"></button>`;
+function pageSettings() {
+  const si = syncInfo();
+  const sc = { ok: 'c-success', busy: 'c-primary', off: 'c-warning' }[si.cls];
+  return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">Settings</h1><span class="cap">Where your vault lives, how it unlocks and how it looks.</span></div></div>
+  <section aria-labelledby="stStorage"><h2 class="gtitle" id="stStorage">Storage location</h2>
+    <div class="group" role="radiogroup" aria-labelledby="stStorage">
+      <button type="button" class="srow checkrow" role="radio" aria-checked="${S.storage === 'local'}" data-act="storage" data-k="local"><span class="tile">${icon('folder', 'i18')}</span><span class="od-field"><span class="srow-t">Local folder</span><span class="cap mono">~/Documents/FigLock</span></span>${S.storage === 'local' ? `<span class="c-primary">${icon('check')}</span>` : ''}</button>
+      <button type="button" class="srow checkrow" role="radio" aria-checked="${S.storage === 'drive'}" data-act="storage" data-k="drive"><span class="tile">${icon('cloud', 'i18')}</span><span class="od-field"><span class="srow-t">Google Drive</span><span class="cap">vault@example.test</span></span>${S.storage === 'drive' ? `<span class="c-primary">${icon('check')}</span>` : ''}</button>
+      <div class="srow"><span class="${sc}">${icon(si.ic, 'i20', si.spin ? 'spin' : '')}</span><span class="od-field"><span class="srow-t">${si.title}</span><span class="cap">${esc(si.long)}</span></span><button type="button" class="btn" data-act="syncNow" ${S.sync !== 'synced' ? 'disabled' : ''}>${icon('refresh')}Sync now</button></div>
+    </div></section>
+  <section aria-labelledby="stUnlock"><h2 class="gtitle" id="stUnlock">Unlocking</h2>
+    <div class="group">
+      <div class="srow"><span class="od-field"><span class="srow-t">Quick unlock with Touch ID</span><span class="cap">Unlock this vault with your fingerprint. You still need your master password after a restart.</span></span>${sw('touchSw', 'touch', S.touchId, 'Quick unlock with Touch ID')}</div>
+      <div class="srow"><span class="od-field"><label class="srow-t" for="autolock">Auto-lock timeout</label><span class="cap">FigLock locks after this much time without activity.</span></span><select class="select" id="autolock" data-in="autolock">${[[1, '1 minute'], [5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour']].map(([v, l]) => `<option value="${v}" ${S.autolock === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    </div></section>
+  <section aria-labelledby="stView"><h2 class="gtitle" id="stView">Appearance</h2>
+    <div class="group"><div class="srow"><span class="od-field"><span class="srow-t" id="lbTheme">Theme</span><span class="cap">System follows your Mac.</span></span><div class="seg" role="radiogroup" aria-labelledby="lbTheme">${[['system', 'System', 'monitor'], ['light', 'Light', 'sun'], ['dark', 'Dark', 'moon']].map(([k, l, ic]) => `<button type="button" role="radio" aria-checked="${S.theme === k}" data-act="theme" data-k="${k}">${icon(ic, 'i14')}${l}</button>`).join('')}</div></div></div></section>
+  <section aria-labelledby="stVault"><h2 class="gtitle" id="stVault">Vault</h2>
+    <div class="group"><div class="srow"><span class="od-field"><label class="srow-t" for="vaultSel">Active vault</label><span class="cap">Switch to the empty vault to see how a new vault looks.</span></span><select class="select" id="vaultSel" data-in="vault"><option value="personal" ${S.vaultId === 'personal' ? 'selected' : ''}>Personal vault</option><option value="side" ${S.vaultId === 'side' ? 'selected' : ''}>Side project vault</option></select></div></div></section>`;
+}
+
+/* ---------- generator ---------- */
+function rnd(n) { const a = new Uint32Array(1); const lim = Math.floor(4294967296 / n) * n; let x; do { crypto.getRandomValues(a); x = a[0]; } while (x >= lim); return x % n; }
+function genPassword(len = G.len, o = G) {
+  const amb = /[Il1O0o]/g, set = { lower: 'abcdefghijklmnopqrstuvwxyz', upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', num: '0123456789', sym: '!@#$%^&*-_=+?' };
+  const pools = ['lower', 'upper', 'num', 'sym'].filter(k => o[k]).map(k => o.ambig ? set[k].replace(amb, '') : set[k]);
+  if (!pools.length) return '';
+  const all = pools.join(''), out = pools.map(p => p[rnd(p.length)]);
+  while (out.length < len) out.push(all[rnd(all.length)]);
+  for (let i = out.length - 1; i > 0; i--) { const j = rnd(i + 1);[out[i], out[j]] = [out[j], out[i]]; }
+  return out.slice(0, len).join('');
+}
+function genPassphrase() {
+  const w = Array.from({ length: G.words }, () => { const x = WORDS[rnd(WORDS.length)]; return G.cap ? x[0].toUpperCase() + x.slice(1) : x; });
+  if (G.addnum) w[rnd(w.length)] += rnd(90) + 10;
+  return w.join(G.sep);
+}
+const regen = () => { G.out = G.mode === 'password' ? genPassword() : genPassphrase(); };
+/* Conservative passphrase estimate: counts only the entropy of the words this app really draws from (log2 of its own list), no bonus for length. */
+function genStrength() {
+  if (G.mode === 'password') return strengthOf(G.out);
+  const bits = Math.round(G.words * Math.log2(WORDS.length) + (G.addnum ? Math.log2(90) : 0));
+  return { level: bits < 45 ? 'weak' : bits < 72 ? 'fair' : 'strong', bits };
+}
+function genMeter() {
+  const s = genStrength(), hint = G.mode === 'passphrase' && s.level !== 'strong' ? `<p class="cap" style="margin-top:4px">Add more words to make this passphrase stronger.</p>` : '';
+  return meterFor(s, false) + hint;
+}
+function renderGenResult() {
+  const r = $('#genResult'); if (!r) return;
+  if (!G.out) regen();
+  r.innerHTML = `<div class="gen-out" aria-live="polite">${G.out ? esc(G.out) : 'Turn on at least one character type'}</div><div style="margin-top:12px">${genMeter()}</div><div data-st="gen:out">${timersHTML('gen:out')}</div>`;
+}
+function pageGen() {
+  if (!G.out) regen();
+  const pw = G.mode === 'password';
+  const opt = (k, l, ex) => `<div class="srow"><span class="od-field"><span class="srow-t">${l}</span>${ex ? `<span class="cap mono">${ex}</span>` : ''}</span>${sw('gsw', k, G[k], l)}</div>`;
+  return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">Generator</h1><span class="cap">Make a strong password or passphrase. Nothing is saved until you use it in an item.</span></div></div>
+  <div class="group" style="padding:var(--s4)"><div id="genResult"></div>
+    <div class="od-cluster" style="margin-top:16px"><button type="button" class="btn btn-primary" data-act="gcopy">${icon('copy')}Copy</button><button type="button" class="btn" data-act="regen">${icon('refresh')}Generate again</button><div class="anchor"><button type="button" class="btn" data-act="useIn" data-menu="1" aria-haspopup="menu">${icon('arrow-right')}Use in item</button></div></div></div>
+  <section><h2 class="gtitle">Options</h2><div class="group">
+    <div class="srow"><span class="od-field"><span class="srow-t" id="lbMode">Type</span></span><div class="seg" role="radiogroup" aria-labelledby="lbMode"><button type="button" role="radio" aria-checked="${pw}" data-act="gmode" data-k="password">Password</button><button type="button" role="radio" aria-checked="${!pw}" data-act="gmode" data-k="passphrase">Passphrase</button></div></div>
+    ${pw ? `<div class="srow"><label class="srow-t" for="glen" style="width:72px">Length</label><input class="range" id="glen" type="range" min="8" max="64" value="${G.len}" data-in="glen"><span class="mono od-fixed" id="glenv" style="width:28px;text-align:right">${G.len}</span></div>
+      ${opt('lower', 'Lowercase letters', 'a-z')}${opt('upper', 'Uppercase letters', 'A-Z')}${opt('num', 'Numbers', '0-9')}${opt('sym', 'Symbols', '!@#$')}${opt('ambig', 'Avoid look-alike characters', '')}`
+      : `<div class="srow"><label class="srow-t" for="gwords" style="width:72px">Words</label><input class="range" id="gwords" type="range" min="4" max="12" value="${G.words}" data-in="gwords"><span class="mono od-fixed" id="gwordsv" style="width:28px;text-align:right">${G.words}</span></div>
+      <div class="srow"><span class="od-field"><label class="srow-t" for="gsep">Separator</label></span><select class="select" id="gsep" data-in="gsep">${[['-', 'Hyphen'], ['.', 'Dot'], [' ', 'Space'], ['', 'None']].map(([v, l]) => `<option value="${v}" ${G.sep === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      ${opt('cap', 'Capitalize words', '')}${opt('addnum', 'Include a number', '')}`}
+  </div></section>`;
+}
+
+/* ---------- actions ---------- */
+function openItem(id) { const r = cur(); r.focusId = id; go({ p: 'item', id, from: sideKey(r) }); }
+const norm = d => { const clean = x => { if (typeof x === 'string') return x.trim() ? x : undefined; if (typeof x === 'boolean') return x || undefined; if (typeof x === 'number') return x; if (Array.isArray(x)) { const a = x.map(clean).filter(v => v !== undefined); return a.length ? a : undefined; } if (x && typeof x === 'object') { const o = {}; Object.keys(x).sort().forEach(k => { const v = clean(x[k]); if (v !== undefined) o[k] = v; }); return Object.keys(o).length ? o : undefined; } return undefined; }; return JSON.stringify(clean(d) || {}); };
+function startEdit(id, preset = {}) {
+  const pw = preset.password || (preset.vals && preset.vals.password), from = sideKey(cur());
+  if (!id && !preset.type) { go({ p: 'pick', from }); return; }
+  go({ p: 'edit', id: id || null, type: preset.type, preset: pw ? { password: pw } : null, from });
+  setTimeout(() => { const t = $('#ed-title'); if (t) t.focus(); }, 0);
+}
+const doSearchFocus = () => { const s = $('#search'); s.focus(); s.select(); };
+function genPopHTML() {
+  return `<div style="padding:12px;display:flex;flex-direction:column;gap:12px"><div><div class="cap" style="margin-bottom:4px">Suggested password</div><div class="gen-out" id="popOut" style="font-size:15px;line-height:22px;padding:12px;min-height:0"></div></div><div id="popMeter"></div>
+  <div><div class="od-row" style="justify-content:space-between"><label class="label" for="popLen" style="margin:0">Length</label><span class="mono" id="popLenV">${G.len}</span></div><input class="range" id="popLen" type="range" min="12" max="40" value="${Math.max(G.len, 16)}" data-in="popLen"></div>
+  <div class="od-row" style="--od-gap:8px"><button type="button" class="btn btn-primary" data-act="popUse">Use this password</button><button type="button" class="btn btn-icon" data-act="popRegen" data-keep="1" aria-label="Generate another" data-tip="Generate another">${icon('refresh')}</button></div>
+  <button type="button" class="linkbtn" data-act="popMore" style="text-align:left">More options in the generator</button></div>`;
+}
+function refreshGenPop() { const o = $('#popOut'); if (!o) return; o.textContent = G.out; $('#popMeter').innerHTML = meterFor(strengthOf(G.out), false); $('#popLenV').textContent = G.len; }
+
+const A = {
+  nav: t => { const k = t.dataset.nav; closeMenus(); S.query = ''; $('#search').value = ''; go(LISTS.includes(k) ? { p: 'list', f: k } : { p: k }); },
+  back, fwd,
+  open: t => openItem(t.dataset.id),
+  fav: t => { const it = byId(t.dataset.id); it.fav = !it.fav; render(); const b = $('#page [data-act="fav"]'); if (b) b.focus(); toast(it.fav ? `Added ${it.title} to favorites` : `Removed ${it.title} from favorites`, 'star'); },
+  edit: t => startEdit(t.dataset.id),
+  newItem: () => startEdit(null),
+  edShow: t => {
+    const i = $('#' + t.dataset.target), ta = i.tagName === 'TEXTAREA', on = ta ? i.classList.contains('masked') : i.type === 'password';
+    if (ta) i.classList.toggle('masked', !on); else i.type = on ? 'text' : 'password';
+    t.setAttribute('aria-pressed', on);
+    if (t.dataset.io) { t.setAttribute('aria-label', `${on ? 'Hide' : 'Show'} ${t.dataset.io}`); t.dataset.tip = on ? 'Hide' : 'Show'; t.innerHTML = icon(on ? 'eye-off' : 'eye'); }
+    else t.innerHTML = `${icon(on ? 'eye-off' : 'eye')}${on ? 'Hide' : 'Show'}`;
+  },
+  pickType: t => go({ p: 'edit', id: null, type: t.dataset.type, from: cur().from || 'all' }),
+  addRow: t => {
+    const d = cur().draft, p = t.dataset.path, arr = getPath(d, p); arr.push(p === 'custom' || p === 'vals.vars' ? { name: '', value: '' } : '');
+    renderEditor(); const n = arr.length - 1;
+    const f = typeof arr[n] === 'object' ? $('#' + idOf(p + '.' + n + '.name')) : $('#' + idOf(p) + '-' + n); if (f) f.focus();
+  },
+  rmRow: t => { const p = t.dataset.path; getPath(cur().draft, p).splice(+t.dataset.i, 1); renderEditor(); if (p === 'vals.vars') validateEnvNames(); const b = $(`#page [data-act="addRow"][data-path="${p}"]`); if (b) b.focus(); },
+  tagRm: t => { cur().draft.tags.splice(+t.dataset.i, 1); renderTags(true); },
+  totpSw: () => { const d = cur().draft; d.vals.totpOn = !d.vals.totpOn; if (!d.vals.totpOn) d.vals.totp = ''; renderEditor(); const f = d.vals.totpOn ? $('#ed-vals-totp') : $('#page [data-act="totpSw"]'); if (f) f.focus(); },
+  expClear: t => { const i = $('#ed-vals-expires'); i.value = ''; cur().draft.vals.expires = ''; t.hidden = true; i.focus(); },
+  chooseFiles: () => $('#fileIn').click(),
+  rmFile: t => { const f = cur().draft.vals.files, x = f.splice(+t.dataset.i, 1)[0]; $('#fileRows').innerHTML = fileRowsHTML(); showFileErr([]); const b = $('#ed-files'); if (b) b.focus(); toast(`Removed ${x.name}`, 'trash'); },
+  dlFile: t => toast('FigLock does not keep file contents in this prototype, so there is nothing to download.', 'circle-alert'),
+  keyFile: () => $('#keyFileIn').click(),
+  envPaste: t => {
+    const m = openMenu(t, `<div style="padding:12px;display:flex;flex-direction:column;gap:8px"><label class="label" for="envTa" style="margin:0">Paste .env lines</label><textarea class="input mono" id="envTa" rows="6" placeholder="KEY=value" spellcheck="false"></textarea><div class="help" style="margin:0">One KEY=value per line. Lines that start with # are skipped.</div><div class="err" id="envTaErr" hidden></div><div><button type="button" class="btn btn-primary" data-act="envPasteGo" data-keep="1">Add variables</button></div></div>`);
+    m.style.width = '380px'; m.style.maxWidth = 'calc(100vw - 48px)'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Paste .env'); $('#envTa').focus();
+  },
+  envPasteGo: () => {
+    const rows = parseEnv($('#envTa').value);
+    if (!rows.length) { const e = $('#envTaErr'); e.hidden = false; e.innerHTML = `${icon('circle-alert', 'i14')}<span>No KEY=value lines found. Check the pasted text and try again.</span>`; return; }
+    const d = cur().draft; d.vals.vars = d.vals.vars.filter(x => x.name || x.value).concat(rows);
+    closeMenus(); renderEditor(); validateEnvNames(); toast(`Added ${rows.length} ${rows.length === 1 ? 'variable' : 'variables'}`);
+  },
+  cancelEdit: () => back(),
+  saveEdit,
+  del: t => {
+    const it = byId(t.dataset.id), g = S.grants.filter(x => x.item === it.id).length;
+    confirmDlg({
+      title: `Delete ${it.title}?`, label: `Delete ${it.title}`,
+      body: `FigLock removes ${it.title} from this vault on all your devices. This cannot be undone.${g ? ' Active agent grants for it end right away.' : ''}`,
+      onOk: () => {
+        const list = items(); list.splice(list.findIndex(x => x.id === it.id), 1);
+        S.grants = S.grants.filter(x => x.item !== it.id); purgeRoutes(it.id);
+        render(true); bumpSync(); toast(`Deleted ${it.title}`, 'trash');
+      }
+    });
+  },
+  reveal: t => { const k = t.dataset.key, st = S.secret[k] = S.secret[k] || {}; st.revealUntil = st.revealUntil > Date.now() ? 0 : Date.now() + SEC_SHOW; if (k === 'kit:key') { render(); const b = $('#page [data-act="reveal"]'); if (b) b.focus(); } else replaceSecret(k); if (st.revealUntil) toast('Showing for 10 seconds', 'eye'); },
+  copy: t => { const k = t.dataset.key, st = S.secret[k] = S.secret[k] || {}; try { navigator.clipboard.writeText(secVal(k)).catch(() => { }); } catch (e) { /* clipboard unavailable */ } st.copyUntil = Date.now() + SEC_CLEAR; $$(`[data-st="${k}"]`).forEach(el => (el.innerHTML = timersHTML(k))); toast('Copied. The clipboard clears in 30 seconds.'); },
+  copyPlain: t => { const it = byId(t.dataset.id); try { navigator.clipboard.writeText(it.vals[t.dataset.f]).catch(() => { }); } catch (e) { /* clipboard unavailable */ } toast(`Copied ${t.getAttribute('aria-label').replace('Copy ', '')}`); },
+  genPop: t => { const m = openMenu(t, genPopHTML(), 'right'); m.style.width = '320px'; m.style.maxWidth = 'calc(100vw - 48px)'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-label', 'Password generator'); G.mode = 'password'; G.len = Math.max(G.len, 16); regen(); refreshGenPop(); },
+  popRegen: () => { regen(); refreshGenPop(); },
+  popUse: () => { const i = $('#ed-vals-password'); i.value = G.out; i.dispatchEvent(new Event('input', { bubbles: true })); closeMenus(); toast('Password filled in. Save to keep it.'); i.focus(); },
+  popMore: () => { closeMenus(); go({ p: 'gen' }); },
+  revokeGrant: t => { const g = S.grants.find(x => x.id === t.dataset.gid); S.grants = S.grants.filter(x => x !== g); render(); toast(`Revoked the grant for ${g.agent}`, 'bot'); },
+  lock: lockVault, unlock: tryUnlock, unlockTouch: touchUnlock,
+  ulShow: t => { const i = $('#ulPw'), on = i.type === 'password'; i.type = on ? 'text' : 'password'; t.textContent = on ? 'Hide' : 'Show'; t.setAttribute('aria-pressed', on); },
+  syncMenu: t => { const i = syncInfo(); openMenu(t, `<div class="menu-cap">${esc(i.long)}</div><button type="button" class="menu-item" role="menuitem" data-act="syncNow" ${S.sync !== 'synced' ? 'disabled' : ''}>${icon('refresh')}Sync now</button><button type="button" class="menu-item" role="menuitem" data-act="toggleOffline">${icon(S.sync === 'offline' ? 'cloud' : 'cloud-off')}${S.sync === 'offline' ? 'Go back online' : 'Work offline'}</button>`, 'up'); },
+  syncNow: () => { if (S.sync === 'synced') bumpSync(); },
+  toggleOffline: () => { S.sync = S.sync === 'offline' ? 'synced' : 'offline'; if (S.sync === 'synced') S.syncedAt = 'just now'; renderSync(); if (cur().p === 'settings') render(); toast(S.sync === 'offline' ? 'Working offline. Changes stay on this device.' : 'Back online', S.sync === 'offline' ? 'cloud-off' : 'cloud'); },
+  importStub: () => toast('Choose a CSV or JSON file to import. Nothing leaves this device.', 'upload'),
+  storage: t => { S.storage = t.dataset.k; render(); const b = $(`#page [data-act="storage"][data-k="${S.storage}"]`); if (b) b.focus(); bumpSync(); toast(`Vault storage is now ${S.storage === 'drive' ? 'Google Drive' : 'Local folder'}`); },
+  touchSw: () => { S.touchId = !S.touchId; render(); const b = $('#page [data-act="touchSw"]'); if (b) b.focus(); toast(S.touchId ? 'Touch ID is on for quick unlock' : 'Touch ID is off. You will type your master password to unlock.', 'fingerprint'); },
+  theme: t => { S.theme = t.dataset.k; applyTheme(); render(); const b = $(`#page [data-act="theme"][data-k="${S.theme}"]`); if (b) b.focus(); },
+  kitSave: () => toast('Emergency Kit saved to your Downloads folder', 'download'),
+  revokeDev: t => {
+    const d = S.devices.find(x => x.id === t.dataset.id);
+    confirmDlg({
+      title: `Revoke ${d.name}?`, label: `Revoke ${d.name}`,
+      body: `${d.name} loses access to this vault right away. To come back, it must sign in again with your master password and Secret Key.`,
+      onOk: () => { S.devices = S.devices.filter(x => x.id !== d.id); render(); toast(`Revoked ${d.name}`, 'laptop'); const h = $('#pageH'); if (h) h.focus(); }
+    });
+  },
+  breachOn: () => {
+    S.breachOn = true; S.breach = 'running'; render();
+    setTimeout(() => { S.breach = 'done'; render(); toast('Breach check finished. 1 password needs a change.', 'shield-check'); }, 1400);
+  },
+  breachOff: () => { S.breachOn = false; S.breach = 'off'; render(); toast('Breach check is off'); },
+  gmode: t => { G.mode = t.dataset.k; regen(); render(); const b = $(`#page [data-act="gmode"][data-k="${G.mode}"]`); if (b) b.focus(); },
+  gsw: t => {
+    const k = t.dataset.k;
+    if (['lower', 'upper', 'num', 'sym'].includes(k) && G[k] && ['lower', 'upper', 'num', 'sym'].filter(x => G[x]).length === 1) { toast('Keep at least one character type on.', 'circle-alert'); return; }
+    G[k] = !G[k]; regen(); render(); const b = $(`#page [data-act="gsw"][data-k="${k}"]`); if (b) b.focus();
+  },
+  regen: () => { regen(); renderGenResult(); },
+  gcopy: () => { if (G.out) A.copy({ dataset: { key: 'gen:out' } }); },
+  useIn: t => {
+    const logins = items().filter(i => i.type === 'login');
+    openMenu(t, `<div class="menu-cap">Use this password in</div>${logins.map(i => `<button type="button" class="menu-item" role="menuitem" data-act="useInPick" data-id="${i.id}">${icon('globe')}<span class="od-truncate">${esc(i.title)}</span></button>`).join('')}<div class="menu-sep"></div><button type="button" class="menu-item" role="menuitem" data-act="useInNew">${icon('plus')}New login</button>`);
+  },
+  useInPick: t => { startEdit(t.dataset.id, { password: G.out }); toast('Password added to the editor. Save to keep it.'); },
+  useInNew: () => { startEdit(null, { type: 'login', vals: { password: G.out } }); toast('Password added to the new login. Save to keep it.'); },
+  agentBadge: () => { if (byId('gh')) { go({ p: 'item', id: 'gh', from: sideKey(cur()) }); } },
+  agentOpen: () => openAgent(),
+  agApprove: () => {
+    AG.busy = true; $('#dlgAgent').innerHTML = agentHTML();
+    setTimeout(() => {
+      if (!$('#dlgAgent').open) { AG.busy = false; return; }
+      S.grants.push({ id: 'g' + Date.now(), item: 'gh', agent: 'Claude Code', how: 'use through HTTP', where: 'api.github.com', until: Date.now() + 15 * 60000 });
+      agentDone(`Approved. Claude Code can use GitHub token until ${fmtTime(Date.now() + 15 * 60000)}.`);
+    }, 1000);
+  },
+  agDeny: () => agentDone('Denied. Claude Code did not get access to GitHub token.'),
+  agReveal: () => { AG.step = 'reveal'; AG.busy = false; renderAgent(); },
+  agBack: () => { AG.step = 'review'; renderAgent(); },
+  agRevealOk: () => {
+    AG.busy = true; $('#dlgAgent').innerHTML = agentHTML();
+    setTimeout(() => {
+      if (!$('#dlgAgent').open) { AG.busy = false; return; }
+      S.grants.push({ id: 'g' + Date.now(), item: 'gh', agent: 'Claude Code', how: 'reveal once', where: '', until: 0 });
+      agentDone('Approved one reveal of GitHub token for Claude Code.');
+    }, 1000);
+  }
+};
+
+/* ---------- events ---------- */
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'), inMenu = e.target.closest('.menu');
+  if (!t) { if (!inMenu) closeMenus(); return; }
+  const wasOpen = t.dataset.menu && t.parentElement.querySelector('.menu');
+  if (!t.dataset.keep) closeMenus();
+  if (wasOpen) return;
+  const f = A[t.dataset.act]; if (f) f(t, e);
+});
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'search') {
+    S.query = t.value;
+    const r = cur();
+    if (r.p !== 'list') { go({ p: 'list', f: 'all' }); } else render();
+    return;
+  }
+  if (t.id === 'tag-in') {
+    let v = t.value.toLowerCase();
+    if (v.includes(',')) { const parts = v.split(','); t.value = parts[0]; commitTag(true); const i = $('#tag-in'); if (i) i.value = (parts.slice(1).join('')).replace(/[^a-z0-9_-]/g, ''); }
+    else t.value = v.replace(/[^a-z0-9_-]/g, '');
+    return;
+  }
+  if (t.dataset && t.dataset.f && cur().draft) {
+    let v = t.value;
+    if (t.dataset.env) { v = v.toUpperCase().replace(/[^A-Z0-9_]/g, ''); if (v !== t.value) t.value = v; }
+    setPath(cur().draft, t.dataset.f, v);
+    if (t.id === 'ed-vals-password') { const m = $('#edMeter'); if (m) m.innerHTML = meterHTML(v); }
+    if (t.dataset.f === 'title' && v.trim()) { t.classList.remove('is-error'); const er = $('#ed-title-err'); if (er) er.hidden = true; }
+    if (t.dataset.env) validateEnvNames();
+    if (t.type === 'date') { const b = t.parentElement.querySelector('[data-act="expClear"]'); if (b) b.hidden = !v; }
+    const cnt = $('#' + t.id + '-count'); if (cnt) { cnt.textContent = counterText(v.length, t.maxLength); cnt.classList.toggle('c-warning', v.length > t.maxLength * 0.9); }
+    return;
+  }
+  if (t.classList && t.classList.contains('kb')) {
+    t.value = t.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const i = +t.dataset.kb; if (t.value.length === KEY_LENS[i] && i < 5) $(`#ulKey .kb[data-kb="${i + 1}"]`).focus();
+    return;
+  }
+  const k = t.dataset && t.dataset.in; if (!k) return;
+  if (k === 'glen') { G.len = +t.value; regen(); $('#glenv').textContent = G.len; renderGenResult(); }
+  if (k === 'gwords') { G.words = +t.value; regen(); $('#gwordsv').textContent = G.words; renderGenResult(); }
+  if (k === 'gsep') { G.sep = t.value; regen(); renderGenResult(); }
+  if (k === 'popLen') { G.len = +t.value; regen(); refreshGenPop(); }
+  if (k === 'autolock') { S.autolock = +t.value; renderUnlock(); toast(`FigLock will lock after ${t.options[t.selectedIndex].text} of inactivity`, 'clock'); }
+  if (k === 'vault') { S.vaultId = t.value; H.stack = [{ p: 'settings' }]; H.i = 0; S.query = ''; $('#search').value = ''; render(); toast(`Switched to ${S.vaultId === 'personal' ? 'Personal vault' : 'Side project vault'}`, 'layers'); const s = $('#vaultSel'); if (s) s.focus(); }
+});
+document.addEventListener('paste', e => {
+  const t = e.target; if (!(t.classList && t.classList.contains('kb'))) return;
+  const raw = (e.clipboardData.getData('text') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  const parts = raw.includes('-') ? raw.split('-') : (raw.length === 32 ? KEY_LENS.map((n, i) => raw.slice(KEY_LENS.slice(0, i).reduce((a, b) => a + b, 0), KEY_LENS.slice(0, i + 1).reduce((a, b) => a + b, 0))) : null);
+  if (parts && parts.length === 6) { e.preventDefault(); $$('#ulKey .kb').forEach((i, k) => (i.value = parts[k].slice(0, KEY_LENS[k]))); fieldErr('#ulKey', '', '#ulKey .kb'); }
+});
+document.addEventListener('focusout', e => {
+  if (e.target.id === 'ulPw') fieldErr('#ulPw', e.target.value ? '' : 'Enter your master password.');
+  if (e.target.classList && e.target.classList.contains('kb') && !(e.relatedTarget && e.relatedTarget.classList && e.relatedTarget.classList.contains('kb'))) fieldErr('#ulKey', keyOk(readKey()) ? '' : KEY_MSG, '#ulKey .kb');
+});
+document.addEventListener('keydown', e => {
+  const t = e.target, tag = (t.tagName || '').toLowerCase(), typing = ['input', 'textarea', 'select'].includes(tag), mod = e.metaKey || e.ctrlKey;
+  if (S.locked) {
+    if (e.key === 'Enter' && (t.id === 'ulPw' || (t.classList && t.classList.contains('kb')))) { e.preventDefault(); tryUnlock(); }
+    if (t.classList && t.classList.contains('kb') && e.key === 'Backspace' && !t.value) { const p = $(`#ulKey .kb[data-kb="${+t.dataset.kb - 1}"]`); if (p) p.focus(); }
+    return;
+  }
+  const dlg = $$('dialog').some(d => d.open);
+  if (dlg) return;
+  if (mod && e.key === '[') { e.preventDefault(); back(); return; }
+  if (mod && e.key === ']') { e.preventDefault(); fwd(); return; }
+  if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); doSearchFocus(); return; }
+  if (mod && e.key.toLowerCase() === 'n') { e.preventDefault(); A.newItem(); return; }
+  if (mod && e.key.toLowerCase() === 'l') { e.preventDefault(); lockVault(); return; }
+  if (mod && e.key === ',') { e.preventDefault(); go({ p: 'settings' }); return; }
+  if (e.key === '/' && !typing && !mod) { e.preventDefault(); doSearchFocus(); return; }
+  if (e.key === 'Escape') {
+    if ($('.menu')) { const a = $('.menu').parentElement.querySelector('[data-menu]'); closeMenus(); if (a) a.focus(); return; }
+    if (t.id === 'search') { if (S.query) { S.query = ''; t.value = ''; render(); } else t.blur(); }
+    return;
+  }
+  if (t.id === 'search') {
+    if (e.key === 'ArrowDown') { const r = $('#page .lrow'); if (r) { e.preventDefault(); r.focus(); } }
+    if (e.key === 'Enter') { const r = $('#page .lrow'); if (r) { e.preventDefault(); r.click(); } }
+  }
+  if (t.classList && t.classList.contains('lrow') && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const rows = $$('#page .lrow'), i = rows.indexOf(t), n = rows[i + (e.key === 'ArrowDown' ? 1 : -1)];
+    e.preventDefault(); if (n) n.focus(); else if (e.key === 'ArrowUp') $('#search').focus();
+  }
+  if (e.key === 'Enter' && tag === 'input' && cur().p === 'edit' && t.id.startsWith('ed-')) { e.preventDefault(); saveEdit(); }
+});
+document.getElementById('dlgAgent').addEventListener('cancel', e => { if (AG.busy) e.preventDefault(); });
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { }); } catch (e) { /* older engines */ }
+
+/* ---------- editor listeners ---------- */
+document.addEventListener('keydown', e => {
+  const t = e.target; if (!t || t.id !== 'tag-in') return;
+  if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitTag(true); }
+  else if (e.key === 'Backspace' && !t.value) { const tg = cur().draft.tags; if (tg.length) { e.preventDefault(); tg.pop(); renderTags(true); } }
+});
+document.addEventListener('focusout', e => { if (e.target && e.target.id === 'tag-in') commitTag(false); });
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'fileIn') { addFiles(t.files); t.value = ''; }
+  if (t.id === 'keyFileIn') {
+    const f = t.files[0]; t.value = ''; if (!f) return;
+    const er = $('#ed-vals-privateKey-err');
+    if (f.size > 32768) { er.hidden = false; er.innerHTML = `${icon('circle-alert', 'i14')}<span>That file is ${fmtSize(f.size)}. The limit is 32 KB.</span>`; return; }
+    er.hidden = true;
+    const rd = new FileReader(); rd.onload = () => { const ta = $('#ed-vals-privateKey'); if (ta) { ta.value = String(rd.result); ta.dispatchEvent(new Event('input', { bubbles: true })); } }; rd.readAsText(f);
+  }
+});
+document.addEventListener('dragover', e => { e.preventDefault(); const z = $('#drop'); if (z) z.classList.toggle('over', !!(e.target.closest && e.target.closest('#drop'))); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) { const z = $('#drop'); if (z) z.classList.remove('over'); } });
+document.addEventListener('drop', e => {
+  e.preventDefault(); const z = $('#drop'); if (z) z.classList.remove('over');
+  if (z && e.target.closest && e.target.closest('#drop') && e.dataTransfer) addFiles(e.dataTransfer.files);
+});
+
+/* ---------- init ---------- */
+(function init() {
+  try { const t = localStorage.getItem('figlock-theme'); if (t) S.theme = t; } catch (e) { /* storage blocked in preview */ }
+  applyTheme();
+  $('#ulKey').innerHTML = keyBlocksHTML(SECRET_KEY);
+  $('#searchIc').innerHTML = icon('search');
+  $('#bk').innerHTML = icon('chevron-left', 'i18'); $('#fw').innerHTML = icon('chevron-right', 'i18');
+  $('#newBtn').innerHTML = `${icon('plus')}<span class="lbl">New item</span>`;
+  $('#lockBtn').innerHTML = `${icon('log-out')}<span class="lbl">Lock vault</span>`;
+  renderUnlock();
+  setInterval(tickSecrets, 250);
+})();
+</script>
+</body>
+</html>
