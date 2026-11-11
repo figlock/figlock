@@ -18,6 +18,10 @@ export type Draft = {
   vars: Pair[];
   custom: Pair[];
   tags: string[];
+  /** Ids of the secret fields the item already holds. Their values are not in the editor. */
+  held: string[];
+  /** Held secrets the person chose to remove. */
+  cleared: string[];
   /** Files the item already has and keeps; the ones taken out are sent as removals. */
   kept: FileInfo[];
   staged: StagedFile[];
@@ -62,28 +66,38 @@ export const blankDraft = (kind: Kind): Draft => ({
   vars: kind === "env" ? [pair()] : [],
   custom: [],
   tags: [],
+  held: [],
+  cleared: [],
   kept: [],
   staged: [],
 });
 
+/** Whether the item holds a secret in `field` that Save would leave as it is. */
+export const keeps = (d: Draft, field: string) =>
+  d.held.includes(field) && !d.cleared.includes(field);
+
 export function draftFromItem(item: ItemForEdit): Draft {
   const f = item.fields;
   const d = blankDraft(item.kind);
+  d.held = item.secrets;
   d.title = f.title ?? "";
   for (const k of SCALARS[item.kind]) d.scalars[k] = f[k] ?? "";
-  d.totpOn = !!f.totp;
+  d.totpOn = d.held.includes("totp");
   const urls = suffixed(f, "url/").map(([id, value]) => ({ id, value }));
   if (urls.length) d.urls = urls;
   const hosts = suffixed(f, "allowed_hosts/").map(([id, value]) => ({ id, value }));
   if (hosts.length) d.hosts = hosts;
-  const vars = suffixed(f, "env/").map(([name, value]) => ({ id: newSuffix(), name, value }));
+  const vars = item.secrets
+    .filter((k) => k.startsWith("env/"))
+    .sort()
+    .map((k) => ({ id: newSuffix(), name: k.slice(4), value: "" }));
   if (vars.length) d.vars = vars;
   d.custom = Object.keys(f)
     .filter((k) => /^custom\/[^/]+\/name$/.test(k))
     .sort()
     .map((k) => {
       const id = k.split("/")[1];
-      return { id, name: f[k], value: f[`custom/${id}/value`] ?? "" };
+      return { id, name: f[k], value: "" };
     });
   d.tags = Object.keys(f)
     .filter((k) => k.startsWith("tags/"))
@@ -93,7 +107,10 @@ export function draftFromItem(item: ItemForEdit): Draft {
   return d;
 }
 
-/** What Save sends. Empty values are left out, which removes them from the item. */
+/**
+ * What Save sends. Empty non-secret values are left out, which removes them from the item. A secret is sent
+ * only when it was typed; one that was left blank is kept, and one that was removed goes in `clear`.
+ */
 export function toItemDraft(d: Draft, original: FileInfo[]): ItemDraft {
   const fields: Record<string, string> = { title: d.title.trim() };
   for (const [k, v] of Object.entries(d.scalars)) {
@@ -102,16 +119,28 @@ export function toItemDraft(d: Draft, original: FileInfo[]): ItemDraft {
   }
   for (const e of d.urls) if (e.value.trim()) fields[`url/${e.id}`] = e.value.trim();
   for (const e of d.hosts) if (e.value.trim()) fields[`allowed_hosts/${e.id}`] = e.value.trim();
-  for (const v of d.vars) if (v.name) fields[`env/${v.name}`] = v.value;
+  for (const v of d.vars) if (v.name && v.value) fields[`env/${v.name}`] = v.value;
   for (const c of d.custom) {
     if (!c.name.trim()) continue;
     fields[`custom/${c.id}/name`] = c.name.trim();
-    fields[`custom/${c.id}/value`] = c.value;
+    if (c.value) fields[`custom/${c.id}/value`] = c.value;
   }
+  const varNames = new Set(d.vars.filter((v) => v.name).map((v) => `env/${v.name}`));
+  const customIds = new Set(
+    d.custom.filter((c) => c.name.trim()).map((c) => `custom/${c.id}/value`),
+  );
+  const clear = d.held.filter((h) => {
+    if (h in fields) return false;
+    if (h.startsWith("env/")) return !varNames.has(h);
+    if (h.startsWith("custom/")) return !customIds.has(h);
+    if (h === "totp") return !d.totpOn || d.cleared.includes(h);
+    return d.cleared.includes(h);
+  });
   for (const t of d.tags) fields[`tags/${t}`] = "1";
   const keptIds = new Set(d.kept.map((k) => k.id));
   return {
     fields,
+    clear,
     addFiles: d.staged.map((s) => s.token),
     removeFiles: original.filter((o) => !keptIds.has(o.id)).map((o) => o.id),
   };
@@ -135,11 +164,13 @@ export function validate(d: Draft): Errors {
   const s = d.scalars;
   if (!d.title.trim()) e.title = "Add a title so you can find this item later.";
   if (d.kind === "login") {
-    if (!s.password) e.password = "Add a password. Login items need one.";
-    if (d.totpOn && !s.totp.trim()) e.totp = "Paste the setup key, or turn off one-time code.";
+    if (!s.password && !keeps(d, "password")) e.password = "Add a password. Login items need one.";
+    if (d.totpOn && !s.totp.trim() && !keeps(d, "totp"))
+      e.totp = "Paste the setup key, or turn off one-time code.";
   }
-  if (d.kind === "token" && !s.token) e.token = "Paste the token you want to store.";
-  if (d.kind === "ssh" && !s.private_key.trim())
+  if (d.kind === "token" && !s.token && !keeps(d, "token"))
+    e.token = "Paste the token you want to store.";
+  if (d.kind === "ssh" && !s.private_key.trim() && !keeps(d, "private_key"))
     e.private_key = "Add the private key, or choose a key file.";
   if (d.kind === "env") {
     const seen = new Set<string>();
@@ -151,7 +182,7 @@ export function validate(d: Draft): Errors {
         v.error = "Names start with a letter or underscore and use only A-Z, 0-9 and underscore.";
       } else if (seen.has(v.name)) {
         v.error = `${v.name} is already used. Each name must be unique.`;
-      } else if (!v.value) {
+      } else if (!v.value && !keeps(d, `env/${v.name}`)) {
         v.error = `Add a value for ${v.name}.`;
       }
       if (v.name) seen.add(v.name);
@@ -163,7 +194,8 @@ export function validate(d: Draft): Errors {
   for (const c of d.custom) {
     c.error = "";
     if (!c.name.trim() && c.value) c.error = "Add a name for this custom field.";
-    else if (c.name.trim() && !c.value) c.error = `Add a value for ${c.name.trim()}.`;
+    else if (c.name.trim() && !c.value && !keeps(d, `custom/${c.id}/value`))
+      c.error = `Add a value for ${c.name.trim()}.`;
   }
   const order = ["title", "password", "totp", "token", "private_key", "vars", "files"] as const;
   e.first =

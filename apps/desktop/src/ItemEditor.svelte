@@ -6,6 +6,7 @@
     blankDraft,
     draftFromItem,
     hasErrors,
+    keeps,
     newEntry,
     newPair,
     parseEnv,
@@ -117,6 +118,13 @@
     }
   }
 
+  function toggleClear(field: string) {
+    if (!draft) return;
+    draft.cleared = draft.cleared.includes(field)
+      ? draft.cleared.filter((f) => f !== field)
+      : [...draft.cleared, field];
+  }
+
   function addPasted() {
     if (!draft) return;
     const parsed = parseEnv(pasted);
@@ -201,6 +209,7 @@
           <SecretInput
             label="Password"
             bind:value={draft.scalars.password}
+            held={keeps(draft, "password")}
             required
             maxlength={4096}
             help="Up to 4 KB."
@@ -233,6 +242,7 @@
               <SecretInput
                 label="One-time code setup key"
                 bind:value={draft.scalars.totp}
+                held={keeps(draft, "totp")}
                 required
                 maxlength={1024}
                 error={errors.totp}
@@ -254,6 +264,7 @@
           <SecretInput
             label="Token"
             bind:value={draft.scalars.token}
+            held={keeps(draft, "token")}
             required
             maxlength={16384}
             help="Up to 16 KB."
@@ -294,6 +305,7 @@
             noun="Variable"
             env
             bind:pairs={draft.vars}
+            held={(p) => keeps(draft!, `env/${p.name}`)}
             error={errors.vars}
             help="Names use A-Z, 0-9 and underscore. Each value can be up to 64 KB."
             onadd={() => (draft!.vars = [...draft!.vars, newPair()])}
@@ -314,6 +326,7 @@
           <TextArea
             label="Private key"
             bind:value={draft.scalars.private_key}
+            placeholder={keeps(draft, "private_key") ? "Unchanged" : undefined}
             rows={7}
             maxlength={32768}
             mono
@@ -344,6 +357,9 @@
         <SecretInput
           label="Passphrase"
           bind:value={draft.scalars.passphrase}
+          held={draft.held.includes("passphrase")}
+          cleared={draft.cleared.includes("passphrase")}
+          ontoggleclear={() => toggleClear("passphrase")}
           maxlength={4096}
           help="Optional."
         />
@@ -358,6 +374,9 @@
         <SecretInput
           label="Password"
           bind:value={draft.scalars.password}
+          held={draft.held.includes("password")}
+          cleared={draft.cleared.includes("password")}
+          ontoggleclear={() => toggleClear("password")}
           maxlength={4096}
           help="Optional. Up to 4 KB."
         />
@@ -387,6 +406,7 @@
         label="Custom fields"
         noun="Custom field"
         bind:pairs={draft.custom}
+        held={(p) => keeps(draft!, `custom/${p.id}/value`)}
         onadd={() => (draft!.custom = [...draft!.custom, newPair()])}
       />
 

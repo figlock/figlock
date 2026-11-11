@@ -256,7 +256,8 @@ test("editing a login saves the changed fields", async () => {
   core.itemForEdit.mockResolvedValue({
     id: "a1",
     kind: "login",
-    fields: { title: "Cloudflare", username: "ops@example.test", password },
+    fields: { title: "Cloudflare", username: "ops@example.test" },
+    secrets: ["password"],
     files: [],
   });
   open();
@@ -268,10 +269,10 @@ test("editing a login saves the changed fields", async () => {
   await user.click(screen.getByRole("button", { name: "Save changes" }));
   await waitFor(() => expect(core.updateItem).toHaveBeenCalledTimes(1));
   expect(core.updateItem.mock.calls[0][0]).toBe("a1");
-  expect(core.updateItem.mock.calls[0][1].fields).toMatchObject({
-    title: "Cloudflare DNS",
-    password,
-  });
+  const sent = core.updateItem.mock.calls[0][1];
+  expect(sent.fields).toMatchObject({ title: "Cloudflare DNS" });
+  expect(sent.fields).not.toHaveProperty("password");
+  expect(sent.clear).toEqual([]);
 });
 
 test("a document takes files from the picker and refuses a ninth", async () => {

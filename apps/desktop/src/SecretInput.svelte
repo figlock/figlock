@@ -10,6 +10,12 @@
     maxlength?: number;
     required?: boolean;
     mono?: boolean;
+    /** The item already holds a value for this field. Left blank, it is kept. */
+    held?: boolean;
+    /** The held value will be removed on save. */
+    cleared?: boolean;
+    /** Remove the held value, or take that back. Leave it out for a field that must have a value. */
+    ontoggleclear?: () => void;
     /** More controls beside Show, such as the generator. */
     extra?: Snippet;
   };
@@ -21,6 +27,9 @@
     maxlength,
     required,
     mono = true,
+    held = false,
+    cleared = false,
+    ontoggleclear,
     extra,
   }: Props = $props();
 
@@ -30,10 +39,11 @@
 <TextField
   {label}
   bind:value
-  {help}
+  help={cleared ? "Removed when you save." : help}
   {error}
   {maxlength}
-  {required}
+  required={required && !held}
+  placeholder={held && !cleared ? "Unchanged" : undefined}
   {mono}
   type={shown ? "text" : "password"}
   autocomplete="new-password"
@@ -46,6 +56,9 @@
       <Icon name={shown ? "eye-off" : "eye"} />
       {shown ? "Hide" : "Show"}
     </Button>
+    {#if ontoggleclear && (held || cleared) && !value}
+      <Button onclick={ontoggleclear}>{cleared ? "Keep" : "Remove"}</Button>
+    {/if}
     {@render extra?.()}
   {/snippet}
 </TextField>

@@ -11,6 +11,8 @@
     env?: boolean;
     help?: string;
     error?: string;
+    /** The item already holds a value for this row. Left blank, it is kept. */
+    held?: (pair: Pair) => boolean;
     onadd: () => void;
     /** A button beside Add, such as Paste .env. */
     onpaste?: () => void;
@@ -22,6 +24,7 @@
     env = false,
     help,
     error,
+    held,
     onadd,
     onpaste,
   }: Props = $props();
@@ -58,6 +61,7 @@
           bind:value={pair.value}
           type={shown.has(pair.id) ? "text" : "password"}
           maxlength="65536"
+          placeholder={held?.(pair) ? "Unchanged" : undefined}
           aria-label="{noun} {i + 1} value"
           autocomplete="new-password"
           spellcheck="false"

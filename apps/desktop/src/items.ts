@@ -85,16 +85,22 @@ export type ItemDetail = {
   files: FileInfo[];
 };
 
+/** An item for the editor. Like the page, it has no secret value: `secrets` only says which ones exist. */
 export type ItemForEdit = {
   id: string;
   kind: Kind;
   fields: Record<string, string>;
+  secrets: string[];
   files: FileInfo[];
 };
 
-/** What Save sends: every field the item should have, and the file changes. */
+/**
+ * What Save sends: the non-secret fields the item should have, the secret values that were typed, the secret
+ * fields to remove, and the file changes. A secret the item holds and this does not name is kept.
+ */
 export type ItemDraft = {
   fields: Record<string, string>;
+  clear: string[];
   addFiles: string[];
   removeFiles: string[];
 };

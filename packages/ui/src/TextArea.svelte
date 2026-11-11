@@ -4,6 +4,7 @@
     value: string;
     help?: string;
     error?: string;
+    placeholder?: string;
     rows?: number;
     maxlength?: number;
     mono?: boolean;
@@ -18,6 +19,7 @@
     value = $bindable(),
     help,
     error,
+    placeholder,
     rows = 4,
     maxlength,
     mono = false,
@@ -38,6 +40,7 @@
     bind:value
     {rows}
     {maxlength}
+    {placeholder}
     {oninput}
     spellcheck="false"
     autocomplete="off"

@@ -92,27 +92,111 @@ test("saving sends schema field ids, leaves empty values out and tags them with 
     "custom/c1/name": "Account",
     "custom/c1/value": "42",
   });
+  expect(out.clear).toEqual([]);
   expect(out.addFiles).toEqual([]);
 });
 
-test("an item loaded for editing round-trips unchanged", () => {
-  const pw = secret();
+test("an item loaded for editing carries no secret and saves with every secret kept", () => {
   const fields = {
     title: "GitHub token",
     provider: "GitHub",
-    token: pw,
     "allowed_hosts/h1": "api.github.com",
     "tags/ci": "1",
     "custom/c1/name": "Org",
-    "custom/c1/value": "acme",
   };
+  const secrets = ["token", "custom/c1/value"];
   const files = [{ id: "f1", name: "a.json", mime: "application/json", size: 2 }];
-  const d = draftFromItem({ id: "x", kind: "token", fields, files });
+  const d = draftFromItem({ id: "x", kind: "token", fields, secrets, files });
+  expect(d.scalars.token).toBe("");
+  expect(d.custom).toEqual([{ id: "c1", name: "Org", value: "" }]);
   expect(d.hosts).toEqual([{ id: "h1", value: "api.github.com" }]);
   expect(d.tags).toEqual(["ci"]);
-  expect(toItemDraft(d, files).fields).toEqual(fields);
+  expect(hasErrors(validate(d))).toBe(false);
+  const out = toItemDraft(d, files);
+  expect(out.fields).toEqual(fields);
+  expect(out.clear).toEqual([]);
   d.kept = [];
   expect(toItemDraft(d, files).removeFiles).toEqual(["f1"]);
+});
+
+test("a typed secret replaces the held one, a removed one is cleared, a blank one is unchanged", () => {
+  const load = () =>
+    draftFromItem({
+      id: "x",
+      kind: "ssh",
+      fields: { title: "Deploy key" },
+      secrets: ["private_key", "passphrase"],
+      files: [],
+    });
+  const pass = secret();
+
+  const unchanged = toItemDraft(load(), []);
+  expect(unchanged.fields).toEqual({ title: "Deploy key" });
+  expect(unchanged.clear).toEqual([]);
+
+  const changed = load();
+  changed.scalars.passphrase = pass;
+  const sent = toItemDraft(changed, []);
+  expect(sent.fields).toEqual({ title: "Deploy key", passphrase: pass });
+  expect(sent.clear).toEqual([]);
+
+  const removed = load();
+  removed.cleared = ["passphrase"];
+  expect(hasErrors(validate(removed))).toBe(false);
+  expect(toItemDraft(removed, []).clear).toEqual(["passphrase"]);
+  expect(toItemDraft(removed, []).fields).toEqual({ title: "Deploy key" });
+});
+
+test("a required secret is satisfied by the held one until it is cleared", () => {
+  const d = draftFromItem({
+    id: "x",
+    kind: "login",
+    fields: { title: "Site" },
+    secrets: ["password", "totp"],
+    files: [],
+  });
+  expect(d.totpOn).toBe(true);
+  expect(hasErrors(validate(d))).toBe(false);
+  d.totpOn = false;
+  expect(toItemDraft(d, []).clear).toEqual(["totp"]);
+  d.cleared = ["password"];
+  expect(validate(d).password).toBeTruthy();
+});
+
+test("env variables keep blank values, and a renamed or removed variable clears the old one", () => {
+  const d = draftFromItem({
+    id: "x",
+    kind: "env",
+    fields: { title: "Staging" },
+    secrets: ["env/A", "env/B", "env/C"],
+    files: [],
+  });
+  expect(d.vars.map((v) => v.name)).toEqual(["A", "B", "C"]);
+  d.vars[1].name = "B2";
+  expect(validate(d).first).toBe("pairs");
+  expect(d.vars[1].error).toMatch(/Add a value/);
+  d.vars[1].value = secret();
+  d.vars = d.vars.filter((v) => v.name !== "C");
+  expect(hasErrors(validate(d))).toBe(false);
+  const out = toItemDraft(d, []);
+  expect(Object.keys(out.fields).sort()).toEqual(["env/B2", "title"]);
+  expect(out.clear.sort()).toEqual(["env/B", "env/C"]);
+});
+
+test("a removed custom field clears its value", () => {
+  const d = draftFromItem({
+    id: "x",
+    kind: "note",
+    fields: { title: "n", "custom/c1/name": "Org", "custom/c2/name": "Team" },
+    secrets: ["custom/c1/value", "custom/c2/value"],
+    files: [],
+  });
+  d.custom = d.custom.filter((c) => c.id !== "c2");
+  expect(hasErrors(validate(d))).toBe(false);
+  const out = toItemDraft(d, []);
+  expect(out.fields["custom/c1/name"]).toBe("Org");
+  expect(out.fields).not.toHaveProperty("custom/c1/value");
+  expect(out.clear).toEqual(["custom/c2/value"]);
 });
 
 test("a pasted .env file becomes names and values", () => {

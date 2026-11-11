@@ -31,6 +31,7 @@ fn draft(fields: &[(&str, &str)]) -> ItemDraft {
             .iter()
             .map(|(f, v)| ((*f).to_owned(), (*v).to_owned()))
             .collect::<BTreeMap<_, _>>(),
+        clear: Vec::new(),
         add_files: Vec::new(),
         remove_files: Vec::new(),
     }
@@ -106,7 +107,12 @@ fn login_lifecycle_inner() {
 
     // Edit: a new title and password, and the username removed.
     let edit = d.item_for_edit(&id).unwrap();
-    assert_eq!(edit.fields["password"], secret);
+    assert_eq!(edit.secrets, ["password"]);
+    assert!(!edit.fields.contains_key("password"));
+    assert!(
+        !serde_json::to_string(&edit).unwrap().contains(&secret),
+        "the editor was sent the password"
+    );
     let fresh = password();
     d.update_item(
         &id,
@@ -121,6 +127,36 @@ fn login_lifecycle_inner() {
     assert_eq!(titles(&d, ""), ["Cloudflare DNS"]);
     assert_eq!(d.reveal_field(&id, "password").unwrap(), fresh);
     assert!(!d.item_detail(&id).unwrap().fields.contains_key("username"));
+
+    // A secret the draft does not name stays; one it lists to clear goes.
+    let before = d.item_detail(&id).unwrap().updated_ms;
+    d.update_item(
+        &id,
+        draft(&[
+            ("title", "Cloudflare DNS"),
+            ("url/a1", "dash.cloudflare.com"),
+            ("notes", "Owner account"),
+        ]),
+    )
+    .unwrap();
+    assert_eq!(d.reveal_field(&id, "password").unwrap(), fresh);
+    assert!(d.item_detail(&id).unwrap().updated_ms >= before);
+    let mut clear = draft(&[("title", "Cloudflare DNS")]);
+    clear.clear = vec!["password".to_owned()];
+    d.update_item(&id, clear).unwrap();
+    assert!(d.item_detail(&id).unwrap().secrets.is_empty());
+    d.update_item(
+        &id,
+        draft(&[("title", "Cloudflare DNS"), ("password", &fresh)]),
+    )
+    .unwrap();
+    let mut not_secret = draft(&[("title", "Cloudflare DNS")]);
+    not_secret.clear = vec!["title".to_owned()];
+    assert_eq!(
+        code_of(d.update_item(&id, not_secret).unwrap_err()),
+        "failed"
+    );
+    assert_eq!(d.reveal_field(&id, "password").unwrap(), fresh);
 
     // A draft the schema refuses changes nothing.
     assert_eq!(
@@ -445,4 +481,46 @@ fn lock_inner() {
     ] {
         assert_eq!(code_of(e), "locked");
     }
+}
+
+#[test]
+fn an_edit_the_vault_refuses_halfway_is_not_kept() {
+    scenario("atomic_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn atomic_inner() {
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    let secret = password();
+    let id = d
+        .add_item("login", draft(&[("title", "Site"), ("password", &secret)]))
+        .unwrap();
+    let item = super::items::parse_id(&id).unwrap();
+    let err = {
+        let mut inner = d.inner();
+        Desk::apply(
+            &mut inner,
+            &item,
+            vec![
+                ("title".to_owned(), Some(Zeroizing::new("Half".to_owned()))),
+                (
+                    "not_a_field".to_owned(),
+                    Some(Zeroizing::new("x".to_owned())),
+                ),
+            ],
+        )
+        .unwrap_err()
+    };
+    assert_eq!(code_of(err), "locked");
+    assert_eq!(code_of(d.list_items("").unwrap_err()), "locked");
+
+    // Another change after unlocking does not carry the half-applied title.
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    d.add_item("login", draft(&[("title", "Other"), ("password", &secret)]))
+        .unwrap();
+    let mut all = titles(&d, "");
+    all.sort();
+    assert_eq!(all, ["Other", "Site"]);
 }

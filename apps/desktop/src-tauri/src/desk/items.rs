@@ -64,21 +64,27 @@ pub struct FileInfo {
     pub size: usize,
 }
 
-/// An item with every value, for the editor only.
+/// An item for the editor: like the page, no secret value. A secret field is only said to exist.
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemForEdit {
     pub id: String,
     pub kind: &'static str,
     pub fields: BTreeMap<String, String>,
+    /// Ids of the secret fields the item holds; their values are not here.
+    pub secrets: Vec<String>,
     pub files: Vec<FileInfo>,
 }
 
-/// What the editor sends back on Save: the whole set of fields the item should have, plus file changes.
+/// What the editor sends back on Save: the non-secret fields the item should have, the secret values the person
+/// typed, and file changes. A secret field the item holds and the draft does not name stays as it is.
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ItemDraft {
     pub fields: BTreeMap<String, String>,
+    /// Ids of secret fields to remove.
+    #[serde(default)]
+    pub clear: Vec<String>,
     /// Staged files to attach.
     #[serde(default)]
     pub add_files: Vec<String>,
@@ -128,7 +134,7 @@ pub(super) struct Cache {
     index: Index,
 }
 
-fn parse_id(id: &str) -> CmdRes<ItemId> {
+pub(super) fn parse_id(id: &str) -> CmdRes<ItemId> {
     let bytes = hex::decode(id).map_err(|_| not_found())?;
     bytes.try_into().map_err(|_| not_found())
 }
@@ -221,6 +227,23 @@ fn is_file_field(f: &str) -> bool {
     f.starts_with("file/")
 }
 
+/// The non-secret fields of an item with their values, and the ids of its secret fields. Files are left out.
+fn split_fields(item: &ItemView) -> (BTreeMap<String, String>, Vec<String>) {
+    let mut fields = BTreeMap::new();
+    let mut secrets = Vec::new();
+    for (f, value) in &item.fields {
+        if is_file_field(f) {
+            continue;
+        }
+        if is_secret_field(f) {
+            secrets.push(f.clone());
+        } else {
+            fields.insert(f.clone(), value.to_string());
+        }
+    }
+    (fields, secrets)
+}
+
 impl Desk {
     fn with_session<T>(&self, f: impl FnOnce(&mut Inner) -> CmdRes<T>) -> CmdRes<T> {
         let mut inner = self.inner();
@@ -283,18 +306,7 @@ impl Desk {
     pub fn item_detail(&self, id: &str) -> CmdRes<ItemDetail> {
         self.with_session(|inner| {
             let v = Self::view(inner, id)?;
-            let mut fields = BTreeMap::new();
-            let mut secrets = Vec::new();
-            for (f, value) in &v.fields {
-                if is_file_field(f) {
-                    continue;
-                }
-                if is_secret_field(f) {
-                    secrets.push(f.clone());
-                } else {
-                    fields.insert(f.clone(), value.to_string());
-                }
-            }
+            let (fields, secrets) = split_fields(&v);
             Ok(ItemDetail {
                 id: id_hex(&v.id),
                 kind: kind_of(v.item_type),
@@ -361,8 +373,19 @@ impl Desk {
         draft: &ItemDraft,
         kept_files: usize,
         staged: usize,
+        retained: usize,
     ) -> CmdRes<Vec<(String, String)>> {
         let mut out = Vec::new();
+        if draft
+            .clear
+            .iter()
+            .any(|f| !is_secret_field(f) || is_file_field(f))
+        {
+            return Err(CmdError::new(
+                "failed",
+                "This item has a field its type does not allow.",
+            ));
+        }
         for (f, value) in &draft.fields {
             if value.is_empty() {
                 continue;
@@ -406,7 +429,7 @@ impl Desk {
         } else if staged > 0 {
             return Err(CmdError::new("failed", "Only documents hold files."));
         }
-        if out.len() + 3 * (kept_files + staged) > MAX_FIELDS_PER_ITEM {
+        if out.len() + retained + 3 * (kept_files + staged) > MAX_FIELDS_PER_ITEM {
             return Err(CmdError::new(
                 "failed",
                 "This item has too many fields. Remove some and try again.",
@@ -436,7 +459,7 @@ impl Desk {
         self.with_session(|inner| {
             let staged_n = draft.add_files.len();
             let mut fields: Vec<(String, Zeroizing<String>)> =
-                Self::check_draft(t, &draft, 0, staged_n)?
+                Self::check_draft(t, &draft, 0, staged_n, 0)?
                     .into_iter()
                     .map(|(f, v)| (f, Zeroizing::new(v)))
                     .collect();
@@ -459,7 +482,7 @@ impl Desk {
         })
     }
 
-    /// The item as it is now, with every value, so the editor can show and change them.
+    /// The item as it is now, without secret values, so the editor can show and change the rest.
     pub fn item_for_edit(&self, id: &str) -> CmdRes<ItemForEdit> {
         self.with_session(|inner| {
             let v = Self::view(inner, id)?;
@@ -469,16 +492,12 @@ impl Desk {
                     "Restore this item before you edit it.",
                 ));
             }
-            let fields = v
-                .fields
-                .iter()
-                .filter(|(f, _)| !is_file_field(f))
-                .map(|(f, value)| (f.clone(), value.to_string()))
-                .collect();
+            let (fields, secrets) = split_fields(&v);
             Ok(ItemForEdit {
                 id: id_hex(&v.id),
                 kind: kind_of(v.item_type),
                 fields,
+                secrets,
                 files: files_of(&v),
             })
         })
@@ -499,52 +518,91 @@ impl Desk {
                 return Err(not_found());
             }
             let kept = attached.len() - draft.remove_files.len();
-            let wanted = Self::check_draft(t, &draft, kept, draft.add_files.len())?;
+            let drafted: BTreeSet<&str> = draft
+                .fields
+                .iter()
+                .filter(|(_, v)| !v.is_empty())
+                .map(|(f, _)| f.as_str())
+                .collect();
+            let cleared: BTreeSet<&str> = draft.clear.iter().map(String::as_str).collect();
+            let retained = current
+                .fields
+                .keys()
+                .filter(|f| {
+                    !is_file_field(f)
+                        && is_secret_field(f)
+                        && !drafted.contains(f.as_str())
+                        && !cleared.contains(f.as_str())
+                })
+                .count();
+            let wanted = Self::check_draft(t, &draft, kept, draft.add_files.len(), retained)?;
             let mut new_files = Vec::new();
             for file in Self::take_staged(inner, &draft.add_files)? {
                 new_files.extend(docfile::fields_of(file)?);
             }
-            let now = now_ms();
-            let session = inner.session.as_mut().ok_or_else(locked)?;
-            let wanted_ids: BTreeSet<&str> = wanted.iter().map(|(f, _)| f.as_str()).collect();
+            let mut ops: Vec<(String, Option<Zeroizing<String>>)> = Vec::new();
             for (f, value) in &wanted {
                 if current.fields.get(f).map(|v| v.as_str()) != Some(value.as_str()) {
-                    session
-                        .vault
-                        .set_field(&current.id, f, Some(value), now)
-                        .map_err(Fail::from)?;
+                    ops.push((f.clone(), Some(Zeroizing::new(value.clone()))));
                 }
             }
             for f in current.fields.keys() {
-                if !is_file_field(f) && !wanted_ids.contains(f.as_str()) {
-                    session
-                        .vault
-                        .set_field(&current.id, f, None, now)
-                        .map_err(Fail::from)?;
+                if !is_file_field(f)
+                    && !drafted.contains(f.as_str())
+                    && (!is_secret_field(f) || cleared.contains(f.as_str()))
+                {
+                    ops.push((f.clone(), None));
                 }
             }
             for fid in &draft.remove_files {
                 for leaf in ["name", "mime", "data"] {
                     let f = format!("file/{fid}/{leaf}");
                     if current.fields.contains_key(&f) {
-                        session
-                            .vault
-                            .set_field(&current.id, &f, None, now)
-                            .map_err(Fail::from)?;
+                        ops.push((f, None));
                     }
                 }
             }
-            for (f, value) in &new_files {
+            ops.extend(new_files.into_iter().map(|(f, v)| (f, Some(v))));
+            Self::apply(inner, &current.id, ops)
+        })
+    }
+
+    /// Write the field changes of one item and commit them together. If any one is refused, the vault in memory
+    /// holds a half-applied edit the core cannot undo, so the session is dropped: nothing of the edit was
+    /// written, and the next unlock starts from what is stored.
+    pub(super) fn apply(
+        inner: &mut Inner,
+        item: &ItemId,
+        ops: Vec<(String, Option<Zeroizing<String>>)>,
+    ) -> CmdRes<()> {
+        let now = now_ms();
+        let session = inner.session.as_mut().ok_or_else(locked)?;
+        let done = (|| -> Result<(), Fail> {
+            for (f, value) in &ops {
                 session
                     .vault
-                    .set_field(&current.id, f, Some(value), now)
+                    .set_field(item, f, value.as_ref().map(|v| v.as_str()), now)
                     .map_err(Fail::from)?;
             }
-            session.commit()?;
-            inner.cache = None;
-            inner.staged.clear();
-            Ok(())
-        })
+            session.commit()
+        })();
+        match done {
+            Ok(()) => {
+                inner.cache = None;
+                inner.staged.clear();
+                Ok(())
+            }
+            Err(f) => {
+                inner.drop_session();
+                Err(CmdError::new(
+                    "locked",
+                    format!(
+                        "{} The vault was locked so nothing half-saved is kept. Unlock it and try again.",
+                        f.0
+                    ),
+                ))
+            }
+        }
     }
 
     pub fn delete_item(&self, id: &str) -> CmdRes<()> {
