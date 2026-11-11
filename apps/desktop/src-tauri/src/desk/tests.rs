@@ -119,7 +119,10 @@ fn create_lock_and_unlock_inner() {
         code_of(d.unlock(&pw, "FL1-nope").unwrap_err()),
         "bad_secret_key"
     );
-    assert_eq!(code_of(d.unlock("", &key).unwrap_err()), "empty_password");
+    assert_eq!(
+        code_of(d.unlock(&pw[..0], &key).unwrap_err()),
+        "empty_password"
+    );
     assert_eq!(d.state().unwrap().phase, "locked");
 
     assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
