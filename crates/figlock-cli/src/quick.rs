@@ -157,14 +157,15 @@ impl<B: Backend> Quick<B> {
     }
 
     /// What `figlock init` does about quick unlock once the vault exists. `ask` is only called when
-    /// `interactive` and the choice is left open; a failed question counts as No.
+    /// `interactive` and the choice is left open; a failed question counts as No. `auk` derives the key and only
+    /// runs once enrolment is going ahead.
     pub fn offer_at_init(
         &self,
         choice: InitChoice,
         interactive: bool,
         ask: impl FnOnce() -> Res<bool>,
         vault: &str,
-        auk: &Key,
+        auk: impl FnOnce() -> Res<Key>,
         now: u64,
     ) -> InitOutcome {
         if choice == InitChoice::No {
@@ -181,7 +182,7 @@ impl<B: Backend> Quick<B> {
         if !yes {
             return InitOutcome::Off;
         }
-        match self.enable(vault, auk, now) {
+        match auk().and_then(|auk| self.enable(vault, &auk, now)) {
             Ok(()) => InitOutcome::On,
             Err(e) => InitOutcome::Failed(e),
         }
@@ -708,7 +709,7 @@ mod tests {
     #[test]
     fn init_offer_on_a_terminal_defaults_to_yes_when_asked() {
         let (_d, fake, q) = setup();
-        let out = q.offer_at_init(InitChoice::Ask, true, || Ok(true), VAULT, &key(), T0);
+        let out = q.offer_at_init(InitChoice::Ask, true, || Ok(true), VAULT, || Ok(key()), T0);
         assert!(matches!(out, InitOutcome::On));
         assert!(fake.0.key.borrow().is_some());
         assert!(q.status(VAULT).0);
@@ -717,7 +718,7 @@ mod tests {
     #[test]
     fn init_offer_declined_keeps_nothing() {
         let (_d, fake, q) = setup();
-        let out = q.offer_at_init(InitChoice::Ask, true, || Ok(false), VAULT, &key(), T0);
+        let out = q.offer_at_init(InitChoice::Ask, true, || Ok(false), VAULT, || Ok(key()), T0);
         assert!(matches!(out, InitOutcome::Off));
         assert!(fake.0.key.borrow().is_none());
         assert!(!q.status(VAULT).0);
@@ -731,7 +732,7 @@ mod tests {
             false,
             || panic!("must not ask"),
             VAULT,
-            &key(),
+            || Ok(key()),
             T0,
         );
         assert!(matches!(out, InitOutcome::Off));
@@ -746,7 +747,7 @@ mod tests {
             true,
             || panic!("must not ask"),
             VAULT,
-            &key(),
+            || Ok(key()),
             T0,
         );
         assert!(matches!(no, InitOutcome::Off));
@@ -756,7 +757,7 @@ mod tests {
             false,
             || panic!("must not ask"),
             VAULT,
-            &key(),
+            || Ok(key()),
             T0,
         );
         assert!(matches!(yes, InitOutcome::On));
@@ -771,7 +772,7 @@ mod tests {
             true,
             || Err(Fail::new("no terminal")),
             VAULT,
-            &key(),
+            || Ok(key()),
             T0,
         );
         assert!(matches!(out, InitOutcome::Off));
@@ -782,9 +783,27 @@ mod tests {
     fn init_offer_reports_a_failed_enrolment_and_leaves_it_off() {
         let dir = tempfile::tempdir().unwrap();
         let q = Quick::new(dir.path().to_path_buf(), Broken, 3600);
-        let out = q.offer_at_init(InitChoice::Yes, true, || Ok(true), VAULT, &key(), T0);
+        let out = q.offer_at_init(InitChoice::Yes, true, || Ok(true), VAULT, || Ok(key()), T0);
         assert!(matches!(out, InitOutcome::Failed(_)));
         assert!(!q.status(VAULT).0);
+    }
+
+    #[test]
+    fn init_offer_derives_the_key_only_when_enrolling() {
+        let (_d, _fake, q) = setup();
+        let derive = || -> Res<Key> { panic!("must not derive") };
+        assert!(matches!(
+            q.offer_at_init(InitChoice::No, true, || Ok(true), VAULT, derive, T0),
+            InitOutcome::Off
+        ));
+        assert!(matches!(
+            q.offer_at_init(InitChoice::Ask, false, || Ok(true), VAULT, derive, T0),
+            InitOutcome::Off
+        ));
+        assert!(matches!(
+            q.offer_at_init(InitChoice::Ask, true, || Ok(false), VAULT, derive, T0),
+            InitOutcome::Off
+        ));
     }
 
     #[test]
@@ -816,7 +835,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let fake = Fake::default();
         let q = Quick::new(dir.path().to_path_buf(), NoHardware(fake.clone()), 3600);
-        let out = q.offer_at_init(InitChoice::Yes, true, || Ok(true), VAULT, &key(), T0);
+        let out = q.offer_at_init(InitChoice::Yes, true, || Ok(true), VAULT, || Ok(key()), T0);
         assert!(matches!(out, InitOutcome::Unavailable));
         assert!(fake.0.key.borrow().is_none());
     }

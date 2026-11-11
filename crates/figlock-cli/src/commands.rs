@@ -117,14 +117,16 @@ fn offer_quick_unlock(
     let attempt = || -> Res<quick::InitOutcome> {
         let quick = quick::system()?;
         let vault = session::vault_id_of(&created.vault_json)?;
-        let auk = Vault::unlock_key(&created.vault_json, password, &created.secret_key)
-            .map_err(|_| Fail::new("could not derive the unlock key"))?;
+        let auk = || {
+            Vault::unlock_key(&created.vault_json, password, &created.secret_key)
+                .map_err(|_| Fail::new("could not derive the unlock key"))
+        };
         let ask = || {
             prompt::confirm_default_yes(
                 "Unlock this device with Touch ID instead of your master password?",
             )
         };
-        Ok(quick.offer_at_init(choice, interactive, ask, &vault, &auk, now_ms() / 1000))
+        Ok(quick.offer_at_init(choice, interactive, ask, &vault, auk, now_ms() / 1000))
     };
     let retry = "run `figlock quick-unlock enable` to try again";
     match attempt() {
