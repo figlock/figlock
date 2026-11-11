@@ -5,7 +5,7 @@ usable from CLI, desktop, web, browser extension and native mobile apps, with no
 our own. Your vault lives as ciphertext in storage you already own (Google Drive, iCloud Drive, later Git
 and S3). AI agents can *use* a secret after you approve with Touch ID, without ever seeing it.
 
-**Status:** early development, first release v0.1.0. The `figlock` CLI can create a vault in a local folder or in Google Drive, add, edit, find, get, copy, generate, export and import items, and let an agent use a secret through the broker (`figlock --help`). Do not store real secrets in anything from this repo
+**Status:** early development, current release v0.2.0. The `figlock` CLI can create a vault in a local folder or in Google Drive, add, edit, find, get, copy, generate, export and import items, change the master password, rotate the Secret Key, revoke a device, and let an agent use a secret through the broker (`figlock --help`). Do not store real secrets in anything from this repo
 until the security audit (phase 6) is done.
 
 - What we're building: [docs/prd.md](docs/prd.md)

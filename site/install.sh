@@ -6,7 +6,7 @@
 # root-owned directory.
 #
 # Environment:
-#   FIGLOCK_VERSION      release tag to install, for example v0.1.0 (default: latest)
+#   FIGLOCK_VERSION      release tag to install, for example v0.2.0 (default: latest)
 #   FIGLOCK_INSTALL_DIR  where to put the binary (default: ~/.local/bin)
 #   FIGLOCK_BASE_URL     directory holding the archives and SHA256SUMS (default: the GitHub release); for mirrors and tests
 set -eu

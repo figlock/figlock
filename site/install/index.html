@@ -54,7 +54,7 @@
     <div class="wrap">
       <article class="prose">
         <h1>Install FigLock</h1>
-        <p class="meta">Version 0.1.0, the command line for macOS and Linux.</p>
+        <p class="meta">Version 0.2.0, the command line for macOS and Linux.</p>
         <p>Pick one way below. Each takes about a minute, and then you can create a vault in about five.</p>
 
         <div class="notice" role="note">
@@ -77,7 +77,7 @@
           <li>Tells you if that folder isn't on your path yet.</li>
         </ol>
         <p>It never asks for admin rights. You can <a href="/install.sh">read the installer</a> before you run it. To choose a version or a folder:</p>
-        <pre class="code code--cmd"><code>curl -fsSL https://figlock.com/install.sh | FIGLOCK_VERSION=v0.1.0 FIGLOCK_INSTALL_DIR="$HOME/bin" sh</code></pre>
+        <pre class="code code--cmd"><code>curl -fsSL https://figlock.com/install.sh | FIGLOCK_VERSION=v0.2.0 FIGLOCK_INSTALL_DIR="$HOME/bin" sh</code></pre>
 
         <h2 id="manual">Download it yourself</h2>
         <p>Every build and the checksum list are on the <a href="https://github.com/figlock/figlock/releases/latest">latest release page</a>. Pick the file for your machine:</p>
@@ -87,19 +87,19 @@
               <tr><th scope="col">Machine</th><th scope="col">File</th></tr>
             </thead>
             <tbody>
-              <tr><th scope="row">Mac, Apple silicon or Intel</th><td><code>figlock-0.1.0-universal-apple-darwin.tar.gz</code></td></tr>
-              <tr><th scope="row">Linux, x86_64</th><td><code>figlock-0.1.0-x86_64-unknown-linux-musl.tar.gz</code></td></tr>
-              <tr><th scope="row">Linux, ARM64</th><td><code>figlock-0.1.0-aarch64-unknown-linux-musl.tar.gz</code></td></tr>
+              <tr><th scope="row">Mac, Apple silicon or Intel</th><td><code>figlock-0.2.0-universal-apple-darwin.tar.gz</code></td></tr>
+              <tr><th scope="row">Linux, x86_64</th><td><code>figlock-0.2.0-x86_64-unknown-linux-musl.tar.gz</code></td></tr>
+              <tr><th scope="row">Linux, ARM64</th><td><code>figlock-0.2.0-aarch64-unknown-linux-musl.tar.gz</code></td></tr>
             </tbody>
           </table>
         </div>
         <p>Check the file against the list, then unpack it. On Linux use <code>sha256sum</code> in place of <code>shasum -a 256</code>.</p>
-        <pre class="code code--cmd"><code>grep figlock-0.1.0-universal-apple-darwin.tar.gz SHA256SUMS | shasum -a 256 -c</code></pre>
-        <pre class="code code--cmd"><code>tar -xzf figlock-0.1.0-universal-apple-darwin.tar.gz &amp;&amp; ./figlock --version</code></pre>
+        <pre class="code code--cmd"><code>grep figlock-0.2.0-universal-apple-darwin.tar.gz SHA256SUMS | shasum -a 256 -c</code></pre>
+        <pre class="code code--cmd"><code>tar -xzf figlock-0.2.0-universal-apple-darwin.tar.gz &amp;&amp; ./figlock --version</code></pre>
 
         <h2 id="check">Check it works</h2>
         <pre class="code code--cmd"><code>figlock --version</code></pre>
-        <p>You should see <code>figlock 0.1.0</code>. If your shell says <code>command not found</code>, add the install folder to your path:</p>
+        <p>You should see <code>figlock 0.2.0</code>. If your shell says <code>command not found</code>, add the install folder to your path:</p>
         <pre class="code code--cmd"><code>echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.zshrc &amp;&amp; exec zsh</code></pre>
 
         <h2 id="first-steps">Your first five minutes</h2>
@@ -124,6 +124,12 @@
             <h3>Quick unlock (Mac)</h3>
             <p>Unlock with Touch ID, your Apple Watch or your device password instead of typing your master password and Secret Key every time. The key is tied to your Mac's chip. Create asks you about it; if you said no, or want it on a vault you already have, turn it on here. <code>figlock quick-unlock disable</code> turns it off.</p>
             <pre class="code code--cmd"><code>figlock quick-unlock enable</code></pre>
+          </li>
+          <li>
+            <h3>Change your password or Secret Key later</h3>
+            <p>Both ask for your current details first. Other devices then ask for a full unlock with the new ones. Rotating the Secret Key shows the new one once, so replace your Emergency Kit.</p>
+            <pre class="code code--cmd"><code>figlock password change</code></pre>
+            <pre class="code code--cmd"><code>figlock secret-key rotate</code></pre>
           </li>
           <li>
             <h3>Let an agent use a token</h3>
