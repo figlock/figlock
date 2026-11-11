@@ -303,3 +303,106 @@ fn a_revoked_device_with_the_old_credentials_cannot_unlock_after_a_change() {
         .unwrap();
     assert_eq!(titles(&mut again), ["Before"]);
 }
+
+#[test]
+fn revoke_and_change_in_one_write_never_stores_the_new_key_under_the_old_credentials() {
+    let (mut a, created) = new_vault();
+    let sk = sk_copy(&created.secret_key);
+    let mut records = vec![created.device_record.clone()];
+    let (c, rec_c) = common::join(
+        &mut a,
+        &created.vault_json,
+        &records,
+        &sk,
+        "Lost phone",
+        T0 + 100,
+    );
+    records.push(rec_c.bytes);
+    let c_id = *c.vault.device_id();
+    add_login(&mut a, "Before", T0 + 200);
+    a.commit().unwrap();
+    let before = json(&created.vault_json)["revision"].as_u64().unwrap();
+
+    let r = a
+        .revoke_device_and_change_credentials(
+            pw(),
+            &sk,
+            &c_id,
+            CredentialChange {
+                new_password: Some(NEW_PW),
+                rotate_secret_key: true,
+                ..CredentialChange::default()
+            },
+            T0 + 300,
+        )
+        .unwrap();
+    let new_sk = r.secret_key.as_ref().expect("a new Secret Key is returned");
+
+    // One vault.json, one revision step, new epoch, revocation recorded.
+    let v = json(&r.vault_json);
+    assert_eq!(v["revision"].as_u64().unwrap(), before + 1);
+    assert_eq!(v["key_epoch"], 2);
+    assert_eq!(v["revoked"].as_array().unwrap().len(), 1);
+
+    // The lost phone knew the old password and Secret Key. In every combination, none opens the file.
+    assert!(unlock(&r.vault_json, pw(), &sk).is_err());
+    assert!(unlock(&r.vault_json, NEW_PW, &sk).is_err());
+    assert!(unlock(&r.vault_json, pw(), new_sk).is_err());
+    assert!(
+        Vault::unlock_key(&r.vault_json, pw(), &sk).is_ok_and(|auk| {
+            Vault::unlock_with_key(
+                &r.vault_json,
+                &auk,
+                DeviceKeys::generate().unwrap(),
+                "Thief",
+                &[],
+                T0 + 900,
+            )
+            .is_err()
+        })
+    );
+
+    // A remaining device opens it with the new credentials, in the new epoch, and sees its data.
+    let kept: Vec<Vec<u8>> = r.records.iter().map(|c| c.bytes.clone()).collect();
+    let (mut again, _) = Vault::unlock(
+        &r.vault_json,
+        NEW_PW,
+        new_sk,
+        DeviceKeys::generate().unwrap(),
+        "Laptop 2",
+        &kept,
+        T0 + 900,
+    )
+    .unwrap();
+    assert_eq!(again.epoch(), 2);
+    let _ = titles(&mut again);
+
+    // What the phone still holds, the old vault.json, opens only the old epoch.
+    let old = unlock(&created.vault_json, pw(), &sk).unwrap();
+    assert_eq!(old.epoch(), 1);
+}
+
+#[test]
+fn revoke_and_change_with_wrong_current_credentials_changes_nothing() {
+    let (mut a, created) = new_vault();
+    let sk = sk_copy(&created.secret_key);
+    let (c, _) = common::join(
+        &mut a,
+        &created.vault_json,
+        std::slice::from_ref(&created.device_record),
+        &sk,
+        "Lost phone",
+        T0 + 100,
+    );
+    let c_id = *c.vault.device_id();
+    let epoch = a.epoch();
+    let err = a.revoke_device_and_change_credentials(
+        "not the password",
+        &sk,
+        &c_id,
+        password_only(NEW_PW),
+        T0 + 300,
+    );
+    assert!(err.is_err());
+    assert_eq!(a.epoch(), epoch);
+}

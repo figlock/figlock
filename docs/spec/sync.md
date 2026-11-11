@@ -56,7 +56,8 @@ figlock/
   vault.json                         replaceable. KDF params, wrapped keys, key epoch, revoked list (signed)
   devices/<device_id>.json           created by the authority; replaced (re-signed) only by a key rotation
   log/<device_id>/<seq>.op           op file, create-only. <seq> is 8 decimal digits, 00000001 upward
-  snap/<device_id>-<seq>.snap        snapshot, create-only. <seq> is the writer's own op seq it covers through
+  snap/<device_id>-<seq>-<epoch>.snap  snapshot, create-only. <seq> is the writer's own op seq it covers through,
+                                     <epoch> the key epoch it is sealed under (8 decimal digits)
   inbox/<request_id>.req             pairing requests and shares (FIG-18), create-only
 ```
 

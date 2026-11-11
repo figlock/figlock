@@ -313,7 +313,8 @@ Rotation cannot recall data a revoked device already copied; it only protects wh
 This limit MUST be stated in the UI and the threat model (FIG-19). The password and Secret Key are not
 changed by a rotation, so a revoked device that also holds `AUK` or both credentials can still unwrap the new
 `VK`; revoking a device whose credentials may be known is therefore followed by a password change and Secret
-Key rotation (`pairing-recovery.md` 4).
+Key rotation (`pairing-recovery.md` 4). Doing both in one `vault.json` write, so `VK'` is never wrapped
+under the old `AUK`, is `Vault::revoke_device_and_change_credentials` (ADR-0022 amendment).
 
 ### 9.2 `vault.json` members after a rotation
 

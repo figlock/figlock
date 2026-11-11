@@ -34,8 +34,8 @@ Implementing the invite flow and device revocation (FIG-33) showed gaps and one 
 - The BlobStore needs `put_replace` on `devices/`, which every adapter already has.
 - A revoked device that holds the credentials can still unwrap the new `VK`. This was already implied; it is
   now written down in `crypto.md` 9.1.
-- Two rotations without an op file in between produce the same snapshot name. The second `put_new` fails with
-  `Exists`; the caller writes one op first. A cleaner naming rule can follow if this shows up in practice.
+- Two rotations without an op file in between used to produce the same snapshot name. Fixed in FIG-72: the
+  epoch is now part of the name (ADR-0022 amendment, `sync.md` 3).
 
 ## Alternatives considered
 

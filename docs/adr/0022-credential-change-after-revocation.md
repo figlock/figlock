@@ -21,20 +21,44 @@ the current `vault.json`. `crypto.md` 9 already lists password change and Secret
   device holding the credentials and a copy of the pre-change `vault.json` can still open that epoch, which
   is the limit already stated for rotation (`crypto.md` 9.1).
 - The two operations stay separate. Making every password change rotate `VK` would rewrite the whole vault
-  for a routine change, and a combined "revoke and change credentials" flow can be built from the two calls.
+  for a routine change. The combined revoke-and-change call is described in the amendment below.
 
 ## Consequences
 
 - Other devices fail their next quick unlock and ask for a full unlock with the new credentials. The CLI
   must call `Quick::forget` on a change and offer the new Emergency Kit when the Secret Key rotated.
 - The Recovery Key wrap of `VK` (`pairing-recovery.md` 7) is untouched, because `VK` is the same.
-- Two revocations with no op file in between still produce the same snapshot name (ADR-0018). A credential
-  change writes no snapshot, so it does not add to that problem.
-- CLI and app commands for the change are separate tasks.
+- Two revocations with no op file in between used to produce the same snapshot name (ADR-0018); fixed by the
+  epoch in the name (amendment below). A credential change writes no snapshot.
+- CLI commands are in the amendment below; app commands are a separate task.
 
 ## Alternatives considered
 
 - Rotate `VK` on every credential change: closes the copied-`vault.json` window but costs a full snapshot
   and an epoch per password change.
 - One combined revoke-and-change call: fewer ways to forget the second step, but a larger API to test and
-  specify; it can be added on top later.
+  specify. Added later, see the amendment below.
+
+## Amendment (FIG-72): revoke and change credentials in one write
+
+Revocation already rotates `VK` (ADR-0018), so the open question was whether a credential change after a
+compromise must rotate it again. It does not. The window is only that `revoke_device` wraps the new `VK'`
+under the *old* `AUK` and writes that `vault.json`; a revoked device with the old credentials can unwrap
+`VK'` from it. Closing the window needs no second rotation, only that `VK'` is never wrapped under the old
+`AUK`.
+
+- **`Vault::revoke_device_and_change_credentials`** takes the same arguments as `revoke_device` plus a
+  `CredentialChange`. It derives the new `AUK` (fresh salt, optional new password, Secret Key and Argon2
+  parameters) first and wraps `VK'` under it. One `vault.json` is written, `revision + 1` once. Nothing that
+  the old `AUK` opens is stored at the new epoch. `revoke_device` stays for callers that do not change the
+  credentials; a plain `change_credentials` still does not rotate `VK`.
+- **What it cannot do** is unchanged and stays in the UI text: a copy of the `vault.json` from before the
+  revocation still opens the old epoch, and data the device already copied stays copied.
+- **Snapshot names carry the epoch**: `snap/<device_id>-<seq>-<epoch>.snap`, `<epoch>` 8 decimal digits. Two
+  revocations with no op file in between no longer collide. Readers never parse the name (the file header
+  decides), so nothing else changes. `sync.md` 3 and ADR-0018 are updated.
+- **CLI**: `figlock password change` and `figlock secret-key rotate` (each calls `Quick::forget`, the second
+  offers a new Emergency Kit), and the combined flow behind `figlock device revoke <id>` with
+  `--change-password` and `--rotate-secret-key`. Other devices are told at their next unlock that a full
+  unlock is needed. `device revoke` needs a device list, which the CLI does not have yet, so `device list` is
+  added with it. Pairing from the CLI is a separate task.
