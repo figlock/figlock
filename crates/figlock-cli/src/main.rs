@@ -310,6 +310,12 @@ pub struct InitArgs {
     pub device_name: String,
     #[arg(long, value_enum, default_value = "default", hide = true)]
     pub kdf: KdfProfile,
+    /// Turn on quick unlock (Touch ID) for this device without asking.
+    #[arg(long, conflicts_with = "no_quick_unlock")]
+    pub quick_unlock: bool,
+    /// Do not turn on quick unlock and do not ask.
+    #[arg(long)]
+    pub no_quick_unlock: bool,
 }
 
 fn parse_type(s: &str) -> Result<ItemType, String> {

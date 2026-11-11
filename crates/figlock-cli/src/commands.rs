@@ -1,6 +1,7 @@
 //! One function per subcommand.
 
 use std::collections::BTreeSet;
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::thread::sleep;
 use std::time::Duration;
@@ -15,7 +16,7 @@ use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
 use crate::session::{Session, id_hex, now_ms, title_of};
 use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
-    clipboard, docfile, generate, prompt,
+    clipboard, docfile, generate, prompt, quick, session,
 };
 
 pub(crate) const VAULT_NAME: &str = "personal";
@@ -54,6 +55,11 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     let params = match a.kdf {
         KdfProfile::Default => KdfParams::DEFAULT,
         KdfProfile::Floor => KdfParams::FLOOR,
+    };
+    let choice = match (a.quick_unlock, a.no_quick_unlock) {
+        (true, _) => quick::InitChoice::Yes,
+        (_, true) => quick::InitChoice::No,
+        _ => quick::InitChoice::Ask,
     };
     let password = prompt::new_password()?;
     let (vault, created) = Vault::create(&password, &a.device_name, params, now_ms())?;
@@ -95,7 +101,47 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         "Write the Secret Key down now. It is shown once, is needed on every new device and for recovery, \
          and cannot be reset."
     );
+    offer_quick_unlock(choice, json, &created, &password);
     Ok(())
+}
+
+/// The last step of `init`: offer quick unlock (`docs/adr/0025`, amendment FIG-79). The vault and the Secret
+/// Key are already out, so nothing here may fail the command.
+fn offer_quick_unlock(
+    choice: quick::InitChoice,
+    json: bool,
+    created: &figlock_core::Created,
+    password: &str,
+) {
+    let interactive = !json && std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
+    let attempt = || -> Res<quick::InitOutcome> {
+        let quick = quick::system()?;
+        let vault = session::vault_id_of(&created.vault_json)?;
+        let auk = || {
+            Vault::unlock_key(&created.vault_json, password, &created.secret_key)
+                .map_err(|_| Fail::new("could not derive the unlock key"))
+        };
+        let ask = || {
+            prompt::confirm_default_yes(
+                "Unlock this device with Touch ID instead of your master password?",
+            )
+        };
+        Ok(quick.offer_at_init(choice, interactive, ask, &vault, auk, now_ms() / 1000))
+    };
+    let retry = "run `figlock quick-unlock enable` to try again";
+    match attempt() {
+        Ok(quick::InitOutcome::On) => {
+            eprintln!("Quick unlock is on. `figlock quick-unlock disable` turns it off.");
+        }
+        Ok(quick::InitOutcome::Unavailable) if interactive || choice == quick::InitChoice::Yes => {
+            eprintln!("Quick unlock is not available on this machine.");
+        }
+        Ok(quick::InitOutcome::Failed(e)) => {
+            eprintln!("warning: quick unlock was not turned on: {e}; {retry}")
+        }
+        Err(e) => eprintln!("warning: quick unlock was not turned on: {e}; {retry}"),
+        Ok(_) => {}
+    }
 }
 
 /// Validated `(field, value)` pairs from `--set` and `--secret`; secret values are read here.

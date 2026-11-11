@@ -72,6 +72,24 @@ is opaque and only the same chip can use it.
   release builds never call `swiftc`; a CI build of the Linux target covers this. Quick unlock on Linux stays
   the master password until a platform option (TPM, secret service) is decided in its own ADR.
 
+## Amendment (FIG-79): quick unlock is offered at `figlock init`, default Yes
+
+Until now quick unlock was only turned on by `figlock quick-unlock enable`, so most people never had it and
+typed the Secret Key on every full unlock. Init is the one moment the master password and Secret Key are
+already in hand, so it is the cheapest place to offer it.
+
+- After the vault is created and the Secret Key is shown, on an interactive terminal where quick unlock is
+  available, `init` asks "Unlock this device with Touch ID instead of your master password? [Y/n]". Enter
+  means Yes. The text says the key stays on this device only and that `figlock quick-unlock disable` undoes it.
+- `--quick-unlock` and `--no-quick-unlock` skip the question. A run with no terminal (scripts, tests,
+  `--json`) never asks and only turns it on with `--quick-unlock`, so a prompt nobody sees can never appear.
+- Where the platform cannot do it, nothing is asked and one line says so.
+- A failed or cancelled enrolment never fails `init`: the vault already exists. It warns and points to
+  `figlock quick-unlock enable`.
+- The protection, limits and expiry of the original decision are unchanged; only the default at init is new.
+  The desktop and mobile apps use the same default on their create-vault screens.
+- Remembering the Secret Key itself stays a separate, opt-in decision (default No, ADR-0026 draft).
+
 ## Consequences
 
 - A thief with the user's files and a logged-in session still cannot use `QK` without Touch ID or the device

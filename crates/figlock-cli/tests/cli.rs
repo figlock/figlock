@@ -597,7 +597,7 @@ mod clipboard {
 }
 
 #[test]
-fn quick_unlock_is_off_by_default_and_commands_without_a_prompt_work() {
+fn init_without_a_terminal_leaves_quick_unlock_off() {
     let e = Env::init();
     assert!(e.ok(&["quick-unlock", "status"]).contains("off"));
     assert!(e.ok(&["lock"]).contains("Locked"));
@@ -847,4 +847,35 @@ fn contains(hay: &[u8], needle: &[u8]) -> bool {
 
 fn figlock_b64(bytes: &[u8]) -> String {
     figlock_core::encode_file(bytes).unwrap().to_string()
+}
+
+#[test]
+fn init_quick_unlock_flags_conflict_and_no_flag_turns_it_off() {
+    let home = TempDir::new().unwrap();
+    let store = TempDir::new().unwrap();
+    let run = |extra: &[&str]| {
+        let mut args = vec![
+            "init",
+            "--store",
+            store.path().to_str().unwrap(),
+            "--kdf",
+            "floor",
+        ];
+        args.extend_from_slice(extra);
+        Command::new(env!("CARGO_BIN_EXE_figlock"))
+            .args(args)
+            .env("FIGLOCK_HOME", home.path())
+            .env("FIGLOCK_DEVICE_KEYS", "file")
+            .env("FIGLOCK_PASSWORD", PW)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap()
+    };
+    let both = run(&["--quick-unlock", "--no-quick-unlock"]);
+    assert!(!both.status.success());
+    assert!(text(&both.stderr).contains("cannot be used with"));
+    let out = run(&["--no-quick-unlock"]);
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(!text(&out.stderr).to_lowercase().contains("quick unlock"));
+    assert!(!home.path().join("quick-unlock.json").exists());
 }

@@ -106,7 +106,7 @@
         <ol class="steps">
           <li>
             <h3>Create a vault</h3>
-            <p>Pick a folder you already sync, or use Google Drive. FigLock shows your Secret Key and helps you save an Emergency Kit. Keep it safe: without the kit and your master password, nobody can open your vault, including us.</p>
+            <p>Pick a folder you already sync, or use Google Drive. FigLock shows your Secret Key and helps you save an Emergency Kit. Keep it safe: without the kit and your master password, nobody can open your vault, including us. On a Mac it then asks whether to unlock this device with Touch ID; press Enter for yes.</p>
             <pre class="code code--cmd"><code>figlock init --store ~/Documents/figlock-vault</code></pre>
           </li>
           <li>
@@ -121,8 +121,8 @@
             <pre class="code code--cmd"><code>figlock copy github</code></pre>
           </li>
           <li>
-            <h3>Turn on quick unlock (Mac)</h3>
-            <p>Unlock with Touch ID, your Apple Watch or your device password instead of typing your master password and Secret Key every time. The key is tied to your Mac's chip.</p>
+            <h3>Quick unlock (Mac)</h3>
+            <p>Unlock with Touch ID, your Apple Watch or your device password instead of typing your master password and Secret Key every time. The key is tied to your Mac's chip. Create asks you about it; if you said no, or want it on a vault you already have, turn it on here. <code>figlock quick-unlock disable</code> turns it off.</p>
             <pre class="code code--cmd"><code>figlock quick-unlock enable</code></pre>
           </li>
           <li>

@@ -73,3 +73,17 @@ pub fn secret_value(field: &str) -> Res<Zeroizing<String>> {
     line.truncate(trimmed);
     Ok(line)
 }
+
+/// A yes/no question on the terminal where Enter means Yes. Anything but y/yes counts as No.
+pub fn confirm_default_yes(question: &str) -> Res<bool> {
+    let mut err = io::stderr();
+    err.write_all(format!("{question} [Y/n] ").as_bytes())?;
+    err.flush()?;
+    let mut line = String::new();
+    // A closed input is not an Enter: only a typed newline accepts the default.
+    if io::stdin().lock().read_line(&mut line)? == 0 {
+        return Ok(false);
+    }
+    let answer = line.trim().to_ascii_lowercase();
+    Ok(answer.is_empty() || answer == "y" || answer == "yes")
+}
