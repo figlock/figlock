@@ -9,7 +9,7 @@ use std::process::{Command, Stdio};
 
 use zeroize::Zeroizing;
 
-use figlock_session::error::{Fail, Res};
+use crate::error::{Fail, Res};
 
 fn candidates(var: &str, defaults: &[&str]) -> Vec<Vec<String>> {
     let split = |s: &str| s.split_whitespace().map(str::to_owned).collect::<Vec<_>>();
@@ -73,6 +73,28 @@ pub fn copy(text: &str) -> Res<()> {
     Err(Fail::new(
         "no clipboard tool found (install wl-clipboard, xclip or xsel, or set FIGLOCK_CLIPBOARD_COPY)",
     ))
+}
+
+/// What [`clear_if_unchanged`] did.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Cleared {
+    Yes,
+    /// Something else was copied in the meantime; left alone.
+    Changed,
+    /// The clipboard cannot be read, so it was not cleared.
+    Unreadable,
+}
+
+/// Empty the clipboard if it still holds `value`, so a later copy of something else is never wiped.
+pub fn clear_if_unchanged(value: &str) -> Res<Cleared> {
+    match paste() {
+        Some(now) if *now == value || now.trim_end() == value => {
+            copy("")?;
+            Ok(Cleared::Yes)
+        }
+        Some(_) => Ok(Cleared::Changed),
+        None => Ok(Cleared::Unreadable),
+    }
 }
 
 /// Current clipboard text, or `None` when it cannot be read.

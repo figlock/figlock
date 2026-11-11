@@ -1,7 +1,9 @@
 //! What a device keeps to open its vault, and the unlocked session built on it. No terminal or window code:
 //! the front end (the CLI, the desktop app) supplies the questions and the warnings through [`Ui`].
 
+pub mod clipboard;
 pub mod config;
+pub mod docfile;
 pub mod error;
 pub mod join;
 pub mod keystore;

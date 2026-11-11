@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 figlock-core = { version = "0.2.0", path = "../../../crates/figlock-core" }
 figlock-session = { version = "0.2.0", path = "../../../crates/figlock-session" }
 figlock-store = { version = "0.2.0", path = "../../../crates/figlock-store" }
+getrandom.workspace = true
 hex.workspace = true
 zeroize.workspace = true
 serde = { version = "1", features = ["derive"] }
@@ -21,6 +22,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 
 [dev-dependencies]
+serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

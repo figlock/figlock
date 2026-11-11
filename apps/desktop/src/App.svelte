@@ -5,8 +5,8 @@
   import Join from "./Join.svelte";
   import OpenExisting from "./OpenExisting.svelte";
   import Unlock from "./Unlock.svelte";
-  import Unlocked from "./Unlocked.svelte";
   import Welcome from "./Welcome.svelte";
+  import Workspace from "./Workspace.svelte";
   import { activity, lock, onAutoLock, vaultState, type VaultState } from "./vault";
 
   let vault = $state<VaultState | null>(null);
@@ -58,7 +58,7 @@
     <p class="text-text-secondary">Starting...</p>
   </main>
 {:else if vault.phase === "unlocked"}
-  <Unlocked onlock={lockNow} />
+  <Workspace onlock={lockNow} onlocked={refresh} />
 {:else if vault.phase === "locked"}
   <Unlock {vault} ondone={enter} />
 {:else if view === "create"}

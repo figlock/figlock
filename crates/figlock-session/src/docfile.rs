@@ -9,13 +9,22 @@ use std::path::Path;
 use figlock_core::{ItemView, MAX_FILE_BYTES, decode_file, encode_file};
 use zeroize::Zeroizing;
 
-use figlock_session::config::create_private_file;
-use figlock_session::error::{Fail, Res};
+use crate::config::create_private_file;
+use crate::error::{Fail, Res};
 
 const MAX_NAME_CHARS: usize = 200;
 
-/// The three fields for one file, in the order they are written. `id` is a fresh random suffix.
-pub fn fields_for(path: &Path) -> Res<Vec<(String, Zeroizing<String>)>> {
+/// A file read from disk, ready to become the three `file/<id>/...` fields.
+pub struct Loaded {
+    pub name: String,
+    pub mime: &'static str,
+    /// The `file/<id>/data` value: base64 of the contents.
+    pub data: Zeroizing<String>,
+    pub size: usize,
+}
+
+/// Read `path` for a document item: name, size and content checks, then the encoded contents.
+pub fn load(path: &Path) -> Res<Loaded> {
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -41,14 +50,30 @@ pub fn fields_for(path: &Path) -> Res<Vec<(String, Zeroizing<String>)>> {
         .read_to_end(&mut bytes)?;
     let data =
         encode_file(&bytes).map_err(|_| Fail::new(format!("{name} is too large or empty")))?;
+    let mime = mime_for(&name);
+    Ok(Loaded {
+        name,
+        mime,
+        data,
+        size: bytes.len(),
+    })
+}
+
+/// The three fields for one file, in the order they are written. `id` is a fresh random suffix.
+pub fn fields_for(path: &Path) -> Res<Vec<(String, Zeroizing<String>)>> {
+    fields_of(load(path)?)
+}
+
+/// The three fields for a loaded file.
+pub fn fields_of(file: Loaded) -> Res<Vec<(String, Zeroizing<String>)>> {
     let id = random_id()?;
     Ok(vec![
-        (format!("file/{id}/name"), Zeroizing::new(name.clone())),
+        (format!("file/{id}/name"), Zeroizing::new(file.name)),
         (
             format!("file/{id}/mime"),
-            Zeroizing::new(mime_for(&name).to_owned()),
+            Zeroizing::new(file.mime.to_owned()),
         ),
-        (format!("file/{id}/data"), data),
+        (format!("file/{id}/data"), file.data),
     ])
 }
 

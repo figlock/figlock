@@ -13,14 +13,15 @@ use zeroize::Zeroizing;
 use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
 use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
-    clipboard, docfile, generate, prompt, quick,
+    generate, prompt, quick,
 };
 use figlock_session::config::{self, Config, StoreSpec};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session;
 use figlock_session::session::{Session, id_hex, now_ms, title_of};
+use figlock_session::{clipboard, docfile};
 
-pub(crate) const VAULT_NAME: &str = "personal";
+pub(crate) use figlock_session::session::VAULT_NAME;
 
 fn print_json(v: &Value) -> Res<()> {
     println!(
@@ -385,10 +386,14 @@ pub fn copy(a: CopyArgs, json: bool) -> Res<()> {
             a.clear_after
         );
         sleep(Duration::from_secs(a.clear_after));
-        match clipboard::paste() {
-            Some(now) if *now == *value || now.trim_end() == value.as_str() => clipboard::copy("")?,
-            Some(_) => eprintln!("The clipboard changed in the meantime; left alone."),
-            None => eprintln!("Cannot read the clipboard, so it was not cleared."),
+        match clipboard::clear_if_unchanged(&value)? {
+            clipboard::Cleared::Yes => {}
+            clipboard::Cleared::Changed => {
+                eprintln!("The clipboard changed in the meantime; left alone.");
+            }
+            clipboard::Cleared::Unreadable => {
+                eprintln!("Cannot read the clipboard, so it was not cleared.");
+            }
         }
     }
     if json {

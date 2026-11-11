@@ -7,10 +7,8 @@
 mod b64;
 #[cfg(unix)]
 mod broker;
-mod clipboard;
 mod commands;
 mod credentials;
-mod docfile;
 mod drive;
 mod generate;
 #[cfg(unix)]

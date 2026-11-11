@@ -5,6 +5,7 @@ mod desk;
 
 use std::time::Duration;
 
+use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
 use desk::{CmdError, CmdRes, CreatedVault, Desk, VaultState};
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
@@ -140,6 +141,114 @@ async fn activity(desk: State<'_, Desk>) -> CmdRes<()> {
     Ok(())
 }
 
+#[tauri::command]
+async fn list_items(desk: State<'_, Desk>, query: String) -> CmdRes<Vec<ItemSummary>> {
+    desk.list_items(&query)
+}
+
+#[tauri::command]
+async fn list_deleted(desk: State<'_, Desk>) -> CmdRes<Vec<ItemSummary>> {
+    desk.list_deleted()
+}
+
+#[tauri::command]
+async fn item_detail(desk: State<'_, Desk>, id: String) -> CmdRes<ItemDetail> {
+    desk.item_detail(&id)
+}
+
+/// One secret value, because the person pressed Show.
+#[tauri::command]
+async fn reveal_field(desk: State<'_, Desk>, id: String, field: String) -> CmdRes<String> {
+    desk.reveal_field(&id, &field)
+}
+
+/// Copies a field without it passing through the window; resolves the seconds until it is cleared.
+#[tauri::command]
+async fn copy_field(desk: State<'_, Desk>, id: String, field: String) -> CmdRes<u64> {
+    desk.copy_field(&id, &field)
+}
+
+#[tauri::command]
+async fn add_item(desk: State<'_, Desk>, kind: String, draft: ItemDraft) -> CmdRes<String> {
+    desk.add_item(&kind, draft)
+}
+
+#[tauri::command]
+async fn item_for_edit(desk: State<'_, Desk>, id: String) -> CmdRes<ItemForEdit> {
+    desk.item_for_edit(&id)
+}
+
+#[tauri::command]
+async fn update_item(desk: State<'_, Desk>, id: String, draft: ItemDraft) -> CmdRes<()> {
+    desk.update_item(&id, draft)
+}
+
+#[tauri::command]
+async fn delete_item(desk: State<'_, Desk>, id: String) -> CmdRes<()> {
+    desk.delete_item(&id)
+}
+
+#[tauri::command]
+async fn restore_item(desk: State<'_, Desk>, id: String) -> CmdRes<()> {
+    desk.restore_item(&id)
+}
+
+/// The native file picker for a document's files; the chosen files are read here, not in the window.
+#[tauri::command]
+async fn choose_files(app: AppHandle, desk: State<'_, Desk>) -> CmdRes<Staged> {
+    let paths: Vec<String> = app
+        .dialog()
+        .file()
+        .blocking_pick_files()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|p| p.into_path().ok())
+        .map(|p| p.display().to_string())
+        .collect();
+    desk.stage_files(&paths)
+}
+
+/// Files dropped on the window.
+#[tauri::command]
+async fn stage_files(desk: State<'_, Desk>, paths: Vec<String>) -> CmdRes<Staged> {
+    desk.stage_files(&paths)
+}
+
+#[tauri::command]
+async fn unstage_file(desk: State<'_, Desk>, token: String) -> CmdRes<()> {
+    desk.unstage_file(&token);
+    Ok(())
+}
+
+#[tauri::command]
+async fn clear_staged(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.clear_staged();
+    Ok(())
+}
+
+/// Ask where to save a file of a document and write it there. `false` when the person cancels.
+#[tauri::command]
+async fn save_file(
+    app: AppHandle,
+    desk: State<'_, Desk>,
+    id: String,
+    file_id: String,
+) -> CmdRes<bool> {
+    let (name, bytes) = desk.file_bytes(&id, &file_id)?;
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_file_name(&name)
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(false);
+    };
+    figlock_session::docfile::write_out(&bytes, &path.display().to_string(), true)
+        .map_err(CmdError::from)?;
+    Ok(true)
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -176,6 +285,21 @@ pub fn run() {
             quick_unlock,
             lock,
             activity,
+            list_items,
+            list_deleted,
+            item_detail,
+            reveal_field,
+            copy_field,
+            add_item,
+            item_for_edit,
+            update_item,
+            delete_item,
+            restore_item,
+            choose_files,
+            stage_files,
+            unstage_file,
+            clear_staged,
+            save_file,
         ])
         .run(tauri::generate_context!())
         .expect("the FigLock desktop app failed to start");
