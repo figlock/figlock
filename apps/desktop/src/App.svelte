@@ -1,37 +1,76 @@
 <script lang="ts">
-  import { Button } from "@figlock/ui";
+  import { onMount } from "svelte";
 
-  import { vaultState, type VaultState } from "./vault";
+  import Create from "./Create.svelte";
+  import Join from "./Join.svelte";
+  import OpenExisting from "./OpenExisting.svelte";
+  import Unlock from "./Unlock.svelte";
+  import Unlocked from "./Unlocked.svelte";
+  import Welcome from "./Welcome.svelte";
+  import { activity, lock, onAutoLock, vaultState, type VaultState } from "./vault";
 
   let vault = $state<VaultState | null>(null);
   let failed = $state(false);
+  let view = $state<"welcome" | "create" | "open" | "join">("welcome");
 
-  $effect(() => {
+  const refresh = () =>
     vaultState().then(
       (s) => (vault = s),
       () => (failed = true),
     );
+  const enter = (s: VaultState) => {
+    vault = s;
+    view = "welcome";
+  };
+
+  onMount(() => {
+    refresh();
+    // The idle timer runs in the app core; tell it about input, at most once a second.
+    let last = 0;
+    const seen = () => {
+      const now = Date.now();
+      if (vault?.phase === "unlocked" && now - last > 1000) {
+        last = now;
+        activity().catch(() => {});
+      }
+    };
+    const events = ["keydown", "pointerdown", "pointermove", "wheel"] as const;
+    for (const e of events) window.addEventListener(e, seen, { passive: true });
+    const off = onAutoLock(refresh);
+    return () => {
+      for (const e of events) window.removeEventListener(e, seen);
+      off.then((f) => f());
+    };
   });
+
+  async function lockNow() {
+    await lock();
+    await refresh();
+  }
 </script>
 
-<main class="flex min-h-screen items-center justify-center p-6">
-  <section class="w-full max-w-sm rounded-(--radius-md) border border-border bg-surface p-6">
-    <h1 class="text-(length:--text-2xl) font-semibold tracking-(--tracking-tight)">FigLock</h1>
-    {#if failed}
-      <p class="mt-2 text-text-secondary">
-        Can't reach the app core. Restart FigLock and try again.
-      </p>
-    {:else if vault === null}
-      <p class="mt-2 text-text-secondary">Starting...</p>
-    {:else}
-      <p class="mt-2 text-text-secondary">
-        {vault.initialised ? "Your vault is locked." : "No vault on this device yet."}
-      </p>
-      <div class="mt-4">
-        <Button variant="primary" disabled>{vault.initialised ? "Unlock" : "Create a vault"}</Button
-        >
-      </div>
-      <p class="mt-6 text-(length:--text-xs) text-text-tertiary">Version {vault.version}</p>
-    {/if}
-  </section>
-</main>
+{#if failed}
+  <main class="grid min-h-screen place-items-center p-6">
+    <p class="text-text-secondary">Can't reach the app core. Restart FigLock and try again.</p>
+  </main>
+{:else if vault === null}
+  <main class="grid min-h-screen place-items-center p-6">
+    <p class="text-text-secondary">Starting...</p>
+  </main>
+{:else if vault.phase === "unlocked"}
+  <Unlocked onlock={lockNow} />
+{:else if vault.phase === "locked"}
+  <Unlock {vault} ondone={enter} />
+{:else if view === "create"}
+  <Create touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
+{:else if view === "open"}
+  <OpenExisting
+    touchAvailable={vault.touchAvailable}
+    onback={() => (view = "welcome")}
+    ondone={enter}
+  />
+{:else if view === "join"}
+  <Join touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
+{:else}
+  <Welcome onpick={(v) => (view = v)} />
+{/if}

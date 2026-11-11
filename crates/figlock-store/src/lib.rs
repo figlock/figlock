@@ -86,7 +86,7 @@ impl From<std::io::Error> for StoreError {
 pub type Result<T> = std::result::Result<T, StoreError>;
 
 /// The storage contract from `sync.md` 2. Every implementation must pass `tests/contract.rs`.
-pub trait BlobStore {
+pub trait BlobStore: Send {
     /// The full blob, or [`StoreError::NotFound`].
     fn get(&self, path: &str) -> Result<Vec<u8>>;
 

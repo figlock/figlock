@@ -3,6 +3,7 @@
 
 pub mod config;
 pub mod error;
+pub mod join;
 pub mod keystore;
 pub mod quick;
 pub mod quick_se;
