@@ -78,16 +78,23 @@ fn logout_deletes_a_damaged_token_file_and_says_so() {
 }
 
 #[test]
-fn init_needs_exactly_one_place_to_keep_the_vault() {
+fn init_with_drive_and_a_folder_needs_the_sign_in_and_creates_nothing() {
     let home = TempDir::new().unwrap();
-    let neither = figlock(&home, &["init"]);
-    assert!(!neither.status.success());
-    let both = figlock(
+    let folder = home.path().join("vault-here");
+    let out = figlock(
         &home,
-        &["init", "--drive", "--store", "/nonexistent-figlock-test"],
+        &[
+            "init",
+            "--drive",
+            "--store",
+            folder.to_str().unwrap(),
+            "--kdf",
+            "floor",
+        ],
     );
-    assert!(!both.status.success());
-    assert!(String::from_utf8_lossy(&both.stderr).contains("cannot be used with"));
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("figlock drive login"));
+    assert!(!folder.exists());
     assert!(!home.path().join("config.json").exists());
 }
 

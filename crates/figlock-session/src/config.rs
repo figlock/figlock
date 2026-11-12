@@ -17,18 +17,29 @@ use zeroize::Zeroizing;
 use crate::error::{Fail, Res};
 use crate::keystore::{self, SecretStore};
 
-/// Where this device's vault lives.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum StoreSpec {
-    /// A folder on this machine (possibly synced by iCloud Drive, Dropbox, Syncthing).
-    Folder(PathBuf),
+/// A second location the local vault is kept matched to by sync (ADR-0026).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Remote {
     /// The hidden appDataFolder in the Google Drive this device is signed in to (`figlock drive login`).
     Drive,
 }
 
+/// Where this device's vault lives: always a local folder (possibly itself synced by iCloud Drive, Dropbox,
+/// Syncthing), and optionally a remote that sync keeps matched to it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Place {
+    pub local: PathBuf,
+    pub remote: Option<Remote>,
+}
+
 pub struct Config {
-    pub store: StoreSpec,
+    pub place: Place,
     pub device_name: String,
+}
+
+/// Where the local copy goes when the person chooses Drive and does not pick a folder.
+pub fn default_local_dir() -> Res<PathBuf> {
+    Ok(home()?.join("vault"))
 }
 
 /// `FIGLOCK_HOME`, else the platform's per-user config directory.
@@ -116,16 +127,7 @@ fn save_in(
     store: Option<&dyn SecretStore>,
 ) -> Res<()> {
     private_dir(home)?;
-    let body = match &cfg.store {
-        StoreSpec::Folder(path) => {
-            let path = path
-                .to_str()
-                .ok_or_else(|| Fail::new("the store path is not valid text"))?;
-            json!({ "store": path, "device_name": cfg.device_name })
-        }
-        StoreSpec::Drive => json!({ "store_kind": "drive", "device_name": cfg.device_name }),
-    }
-    .to_string();
+    let body = config_body(cfg)?;
     let account = hex::encode(device.device_id);
     let keys = Zeroizing::new(match store {
         Some(_) => json!({ "device_id": account, "keystore": true }).to_string(),
@@ -148,6 +150,20 @@ fn save_in(
         return Err(e.into());
     }
     Ok(())
+}
+
+fn config_body(cfg: &Config) -> Res<String> {
+    let path = cfg
+        .place
+        .local
+        .to_str()
+        .ok_or_else(|| Fail::new("the store path is not valid text"))?;
+    let mut body = json!({ "store": path, "device_name": cfg.device_name });
+    match cfg.place.remote {
+        None => {}
+        Some(Remote::Drive) => body["remote"] = json!("drive"),
+    }
+    Ok(body.to_string())
 }
 
 /// `device.json` with the keys in it, for platforms without a keystore.
@@ -298,7 +314,11 @@ fn not_set_up() -> Fail {
 }
 
 pub fn load() -> Res<Config> {
-    let raw = fs::read(config_path(&home()?)).map_err(|_| not_set_up())?;
+    load_in(&home()?)
+}
+
+fn load_in(home: &Path) -> Res<Config> {
+    let raw = fs::read(config_path(home)).map_err(|_| not_set_up())?;
     let v: Value = serde_json::from_slice(&raw).map_err(|_| Fail::new("config.json is damaged"))?;
     let get = |k: &str| {
         v.get(k)
@@ -306,19 +326,31 @@ pub fn load() -> Res<Config> {
             .map(str::to_owned)
             .ok_or_else(|| Fail::new("config.json is damaged"))
     };
-    let store = match v.get("store_kind").and_then(Value::as_str) {
-        None => StoreSpec::Folder(get("store")?.into()),
-        Some("drive") => StoreSpec::Drive,
-        Some(_) => {
-            return Err(Fail::new(
-                "config.json names a storage kind this version does not know",
-            ));
-        }
+    let unknown = || Fail::new("config.json names a storage kind this version does not know");
+    let remote = match v.get("remote").and_then(Value::as_str) {
+        None => None,
+        Some("drive") => Some(Remote::Drive),
+        Some(_) => return Err(unknown()),
     };
-    Ok(Config {
-        store,
+    let (local, legacy) = match v.get("store_kind").and_then(Value::as_str) {
+        None => (get("store")?.into(), false),
+        // A Drive-only device from before ADR-0026: it gets a local folder, filled from Drive on first use.
+        Some("drive") => (home.join("vault"), true),
+        Some(_) => return Err(unknown()),
+    };
+    let cfg = Config {
+        place: Place {
+            local,
+            remote: if legacy { Some(Remote::Drive) } else { remote },
+        },
         device_name: get("device_name")?,
-    })
+    };
+    if legacy {
+        // Written before anything is downloaded, so a crash leaves a config whose empty local folder the
+        // next open fills from Drive.
+        fs::write(config_path(home), config_body(&cfg)?)?;
+    }
+    Ok(cfg)
 }
 
 pub fn load_device() -> Res<DeviceKeys> {
@@ -501,7 +533,10 @@ mod tests {
 
     fn cfg() -> Config {
         Config {
-            store: StoreSpec::Drive,
+            place: Place {
+                local: "/vault".into(),
+                remote: Some(Remote::Drive),
+            },
             device_name: "Laptop".into(),
         }
     }
@@ -666,5 +701,60 @@ mod tests {
             &keys
         ));
         assert_eq!(store.items.borrow().len(), 1);
+    }
+
+    #[test]
+    fn a_folder_with_and_without_drive_round_trips() {
+        let d = tempfile::tempdir().unwrap();
+        let keys = DeviceKeys::generate().unwrap();
+        let mut c = cfg();
+        c.place = Place {
+            local: d.path().join("v"),
+            remote: None,
+        };
+        save_in(d.path(), &c, &keys, None).unwrap();
+        let back = load_in(d.path()).unwrap();
+        assert_eq!(back.place, c.place);
+        assert!(
+            !fs::read_to_string(config_path(d.path()))
+                .unwrap()
+                .contains("remote")
+        );
+
+        c.place.remote = Some(Remote::Drive);
+        fs::write(config_path(d.path()), config_body(&c).unwrap()).unwrap();
+        assert_eq!(load_in(d.path()).unwrap().place, c.place);
+    }
+
+    #[test]
+    fn a_drive_only_device_gets_a_local_folder_and_is_rewritten_once() {
+        let d = tempfile::tempdir().unwrap();
+        fs::write(
+            config_path(d.path()),
+            r#"{"store_kind":"drive","device_name":"Old"}"#,
+        )
+        .unwrap();
+        let c = load_in(d.path()).unwrap();
+        assert_eq!(c.place.local, d.path().join("vault"));
+        assert_eq!(c.place.remote, Some(Remote::Drive));
+        assert_eq!(c.device_name, "Old");
+        let text = fs::read_to_string(config_path(d.path())).unwrap();
+        assert!(!text.contains("store_kind"), "rewritten in the new shape");
+        assert_eq!(
+            load_in(d.path()).unwrap().place,
+            c.place,
+            "and stable after"
+        );
+    }
+
+    #[test]
+    fn an_unknown_remote_is_refused() {
+        let d = tempfile::tempdir().unwrap();
+        fs::write(
+            config_path(d.path()),
+            r#"{"store":"/v","remote":"s3","device_name":"x"}"#,
+        )
+        .unwrap();
+        assert!(load_in(d.path()).is_err());
     }
 }

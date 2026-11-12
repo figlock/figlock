@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 use figlock_core::{
     Created, DeviceKeys, KdfParams, KitInfo, SecretKey, Vault, render_kit, verify_kit_groups,
 };
-use figlock_session::config::{self, Config, StoreSpec};
+use figlock_session::config::{self, Config, Place, Remote};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::{Session, Ui, now_ms};
 use figlock_session::{join, quick};
@@ -74,7 +74,7 @@ struct Creating {
     vault: Vault,
     created: Created,
     password: Zeroizing<String>,
-    spec: StoreSpec,
+    place: Place,
     device_name: String,
     /// The person typed the end of the Secret Key back correctly, so it was seen and saved.
     key_confirmed: bool,
@@ -294,21 +294,16 @@ impl Desk {
                 "Use at least 8 characters for the master password.",
             ));
         }
-        let spec = storage_spec(storage, true)?;
-        let store = figlock_session::store::open(&spec)?;
+        let place = storage_place(storage, true)?;
         // Only a definite "not there" lets this continue: an unreachable folder must not look empty.
-        match store.get("vault.json") {
-            Err(figlock_store::StoreError::NotFound) => {}
-            Ok(_) => {
-                return Err(CmdError::new(
-                    "vault_exists",
-                    format!(
-                        "A vault already exists in {}. Open it instead.",
-                        storage.there()
-                    ),
-                ));
-            }
-            Err(e) => return Err(Fail::from(e).into()),
+        if figlock_session::store::vault_exists(&place)? {
+            return Err(CmdError::new(
+                "vault_exists",
+                format!(
+                    "A vault already exists in {}. Open it instead.",
+                    storage.there()
+                ),
+            ));
         }
         let device_name = Self::device_name();
         let (vault, created) =
@@ -318,7 +313,7 @@ impl Desk {
             vault,
             created,
             password: Zeroizing::new(password.to_owned()),
-            spec,
+            place,
             device_name,
             key_confirmed: false,
         });
@@ -329,15 +324,17 @@ impl Desk {
     pub fn emergency_kit(&self) -> CmdRes<Zeroizing<Vec<u8>>> {
         let inner = self.inner();
         let c = inner.creating.as_ref().ok_or_else(nothing_to_do)?;
-        let storage = match &c.spec {
+        let storage = match c.place.remote {
+            Some(Remote::Drive) => "Google Drive".to_owned(),
             // The kit says what the vault is stored in, not where on this disk: a long path would not fit.
-            StoreSpec::Folder(p) => {
-                let name = p
+            None => {
+                let name = c
+                    .place
+                    .local
                     .file_name()
                     .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
                 format!("Folder {}", name.chars().take(60).collect::<String>())
             }
-            StoreSpec::Drive => "Google Drive".to_owned(),
         };
         let info = KitInfo {
             vault_name: "Personal",
@@ -378,9 +375,9 @@ impl Desk {
         }
         let c = inner.creating.take().ok_or_else(nothing_to_do)?;
         drop(inner);
-        let store = figlock_session::store::open(&c.spec)?;
+        let store = figlock_session::store::open(&c.place)?;
         let cfg = Config {
-            store: c.spec.clone(),
+            place: c.place.clone(),
             device_name: c.device_name.clone(),
         };
         config::save(&cfg, c.vault.device_keys())?;
@@ -398,6 +395,10 @@ impl Desk {
                 let _ = store.delete(p);
             }
             return Err(Fail::from(e).into());
+        }
+        // The vault is safe on this device either way; a failed first upload is retried by the next sync.
+        if cfg.place.remote.is_some() {
+            let _ = figlock_session::sync::run(&cfg, false);
         }
         let key = SecretKey::from_bytes(*c.created.secret_key.expose());
         self.enter(
@@ -427,8 +428,10 @@ impl Desk {
             ));
         }
         let key = parse_secret_key(secret_key)?;
-        let spec = storage_spec(storage, false)?;
-        let store = figlock_session::store::open(&spec)?;
+        let place = storage_place(storage, false)?;
+        // Downloads the vault into a new local copy when it lives in Drive.
+        figlock_session::sync::fill_local(&place).map_err(Fail::from)?;
+        let store = figlock_session::store::open(&place)?;
         let vault_json = store.get("vault.json").map_err(|e| match e {
             figlock_store::StoreError::NotFound => CmdError::new(
                 "no_vault",
@@ -439,7 +442,7 @@ impl Desk {
         Vault::unlock_key(&vault_json, password, &key).map_err(|_| wrong_credentials())?;
         let device = DeviceKeys::generate().map_err(Fail::from)?;
         let cfg = Config {
-            store: spec,
+            place,
             device_name: Self::device_name(),
         };
         config::save(&cfg, &device)?;
@@ -462,8 +465,8 @@ impl Desk {
                 "This device already has a vault set up.",
             ));
         }
-        let spec = storage_spec(storage, false)?;
-        let j = join::begin(spec, code, &Self::device_name(), now_ms())
+        let place = storage_place(storage, false)?;
+        let j = join::begin(place, code, &Self::device_name(), now_ms())
             .map_err(|f| CmdError::new("invite", f.0))?;
         let fingerprint = j.fingerprint().to_owned();
         self.inner().joining = Some(j);
@@ -637,20 +640,33 @@ impl Storage {
     }
 }
 
-fn storage_spec(storage: &Storage, create: bool) -> CmdRes<StoreSpec> {
+/// Where the local copy lives and what it syncs to. Drive means the default local folder plus sync to Drive,
+/// never Drive alone (ADR-0026).
+fn storage_place(storage: &Storage, create: bool) -> CmdRes<Place> {
     match storage {
-        Storage::Folder { path } => folder_spec(path, create),
+        Storage::Folder { path } => Ok(Place {
+            local: folder_path(path, create)?,
+            remote: None,
+        }),
         Storage::Drive => {
             if config::load_drive_token()?.is_none() {
                 return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
             }
-            Ok(StoreSpec::Drive)
+            let local = config::default_local_dir()?;
+            if create {
+                std::fs::create_dir_all(&local)
+                    .map_err(|_| CmdError::new("folder", "Could not make the vault folder."))?;
+            }
+            Ok(Place {
+                local,
+                remote: Some(Remote::Drive),
+            })
         }
     }
 }
 
 /// A vault folder the person chose; a new vault's folder is made if it does not exist yet.
-fn folder_spec(folder: &str, create: bool) -> CmdRes<StoreSpec> {
+fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
     let path = Path::new(folder.trim());
     if folder.trim().is_empty() || !path.is_absolute() {
         return Err(CmdError::new("folder", "Choose a folder for the vault."));
@@ -660,7 +676,7 @@ fn folder_spec(folder: &str, create: bool) -> CmdRes<StoreSpec> {
         std::fs::create_dir_all(path).map_err(|_| unusable())?;
     }
     let canonical = std::fs::canonicalize(path).map_err(|_| unusable())?;
-    Ok(StoreSpec::Folder(canonical))
+    Ok(canonical)
 }
 
 pub mod drive;
