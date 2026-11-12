@@ -58,7 +58,7 @@ takes a few minutes. On Linux, install the WebKitGTK build libraries first (the 
 
 ## Google Drive sign-in in a local build
 
-Source builds have no Google client secret (ADR-0021). To try `figlock drive login` locally, set it for the run
+Source builds have no Google client secret (ADR-0021). To try `figlock drive login` or Google Drive in the desktop app locally, set it for the run
 (never commit it, never paste it into an issue or PR):
 
 ```sh
