@@ -48,7 +48,7 @@ pub fn begin(place: Place, code: &str, device_name: &str, now_ms: u64) -> Res<Jo
         }
         Err(e) => return Err(e.into()),
     }
-    crate::sync::exchange(&place)?;
+    crate::sync::exchange(&place, true)?;
     Ok(Join {
         attempt,
         store,
@@ -66,7 +66,7 @@ impl Join {
 
     /// Whether the trusted device has answered.
     pub fn answered(&self) -> Res<bool> {
-        crate::sync::exchange(&self.place)?;
+        crate::sync::exchange(&self.place, false)?;
         match self.store.get(&self.attempt.resp_path()) {
             Ok(_) => Ok(true),
             Err(StoreError::NotFound) => Ok(false),

@@ -387,13 +387,20 @@ pub fn fill_local(place: &Place) -> Result<(), SyncError> {
     };
     fs::create_dir_all(&place.local)?;
     let local = crate::store::open_local(&place.local)?;
-    if read(local.as_ref(), "vault.json")?.is_some() {
-        return Ok(());
+    let remote = crate::store::open_remote(remote_kind)?;
+    fill_local_from(local.as_ref(), remote.as_ref())
+}
+
+fn fill_local_from(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<(), SyncError> {
+    let Some(have) = read(local, "vault.json")? else {
+        return pull_into(local, remote);
+    };
+    if let Some(theirs) = read(remote, "vault.json")?
+        && identity(&have)?.0 != identity(&theirs)?.0
+    {
+        return Err(SyncError::ForeignVault);
     }
-    pull_into(
-        local.as_ref(),
-        crate::store::open_remote(remote_kind)?.as_ref(),
-    )
+    Ok(())
 }
 
 fn pull_into(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<(), SyncError> {
@@ -409,8 +416,8 @@ fn pull_into(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<(), SyncEr
 }
 
 /// Push and pull for a join in progress, before this device has a config or id: it sends its request and
-/// collects the answer.
-pub fn exchange(place: &Place) -> Result<Report, SyncError> {
+/// collects the answer. Only the `first` exchange pushes every local file; later ones push the inbox only.
+pub fn exchange(place: &Place, first: bool) -> Result<Report, SyncError> {
     let Some(remote_kind) = place.remote else {
         return Ok(Report::default());
     };
@@ -421,7 +428,7 @@ pub fn exchange(place: &Place) -> Result<Report, SyncError> {
         remote.as_ref(),
         &Opts {
             own_device: None,
-            push_all: true,
+            push_all: first,
         },
     )
 }
@@ -605,6 +612,30 @@ mod tests {
         );
         assert_eq!(remote.get("log/aa/00000001.op"), Err(StoreError::NotFound));
         assert_eq!(la.get("log/zz/00000001.op"), Err(StoreError::NotFound));
+    }
+
+    #[test]
+    fn a_stale_local_vault_is_refused_and_a_matching_one_left_alone() {
+        let (_a, la) = device_a();
+        let (_r, remote) = store();
+        assert_eq!(fill_local_from(&la, &remote), Ok(()));
+        put(&remote, "vault.json", &vault_json("v1", 5, "x"));
+        put(&remote, "log/zz/00000001.op", b"theirs");
+        assert_eq!(fill_local_from(&la, &remote), Ok(()));
+        assert_eq!(la.get("log/zz/00000001.op"), Err(StoreError::NotFound));
+        put(&remote, "vault.json", &vault_json("other", 5, "x"));
+        assert_eq!(fill_local_from(&la, &remote), Err(SyncError::ForeignVault));
+    }
+
+    #[test]
+    fn later_join_polls_do_not_resurrect_compacted_files() {
+        let (_a, la) = device_a();
+        let (_r, remote) = store();
+        put(&remote, "vault.json", &vault_json("v1", 1, "x"));
+        put(&la, "inbox/req", b"req");
+        mirror(&la, &remote, &opts(None, false)).unwrap();
+        assert!(remote.get("inbox/req").is_ok());
+        assert_eq!(remote.get("log/aa/00000001.op"), Err(StoreError::NotFound));
     }
 
     #[test]
