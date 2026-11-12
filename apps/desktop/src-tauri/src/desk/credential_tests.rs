@@ -56,7 +56,7 @@ fn change_password_inner() {
     );
     assert_eq!(
         code_of(
-            d.change_credentials(&pw, Some("FL1-AAAA"), Some(&new_pw), false)
+            d.change_credentials(&pw, Some(&key[..8]), Some(&new_pw), false)
                 .unwrap_err()
         ),
         "bad_secret_key"
