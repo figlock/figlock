@@ -64,6 +64,9 @@ pub struct VaultState {
     /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
     pub secret_key_protection: Option<&'static str>,
     pub autolock_secs: u64,
+    /// The new Secret Key of a rotation whose Emergency Kit step is not finished. Only while unlocked: the
+    /// window shows that step again until the key is confirmed.
+    pub pending_kit: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -84,6 +87,13 @@ struct Creating {
     key_confirmed: bool,
 }
 
+/// A Secret Key made by a rotation, held until the person has saved the new Emergency Kit.
+struct Reissued {
+    key: SecretKey,
+    /// The person typed the end of the new key back correctly.
+    confirmed: bool,
+}
+
 struct Inner {
     session: Option<Session>,
     /// List rows and the search index of the unlocked vault; rebuilt after any change.
@@ -93,6 +103,7 @@ struct Inner {
     /// What the last copy left on the clipboard.
     copied: Option<items::Copied>,
     creating: Option<Creating>,
+    reissued: Option<Reissued>,
     joining: Option<join::Join>,
     /// A save happened since the last sync tick, so the next tick syncs soon instead of waiting its turn.
     dirty: bool,
@@ -209,6 +220,27 @@ fn parse_secret_key(text: &str) -> CmdRes<SecretKey> {
     })
 }
 
+/// The Emergency Kit PDF for `key`, naming where the vault is stored.
+fn kit_pdf(place: &Place, key: &SecretKey) -> CmdRes<Zeroizing<Vec<u8>>> {
+    let storage = match place.remote {
+        Some(Remote::Drive) => "Google Drive".to_owned(),
+        // The kit says what the vault is stored in, not where on this disk: a long path would not fit.
+        None => {
+            let name = place
+                .local
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+            format!("Folder {}", name.chars().take(60).collect::<String>())
+        }
+    };
+    let info = KitInfo {
+        vault_name: "Personal",
+        storage: &storage,
+        created: &civil_date(now_ms()),
+    };
+    render_kit(&info, key).map_err(|_| CmdError::new("failed", "Could not make the Emergency Kit."))
+}
+
 /// Today as `YYYY-MM-DD` (UTC), from the clock the app already reads.
 pub fn civil_date(now_ms: u64) -> String {
     let z = i64::try_from(now_ms / 86_400_000).unwrap_or(0) + 719_468;
@@ -255,6 +287,7 @@ impl Desk {
                 staged: std::collections::HashMap::new(),
                 copied: None,
                 creating: None,
+                reissued: None,
                 joining: None,
                 dirty: false,
                 active_at: now,
@@ -272,8 +305,20 @@ impl Desk {
     }
 
     pub fn state(&self) -> CmdRes<VaultState> {
-        let unlocked = self.inner().session.is_some();
         let initialised = config::is_initialised()?;
+        let (unlocked, pending_kit) = {
+            let mut inner = self.inner();
+            if !initialised {
+                inner.reissued = None;
+            }
+            let unlocked = inner.session.is_some();
+            let pending = inner
+                .reissued
+                .as_ref()
+                .filter(|_| unlocked)
+                .map(|r| r.key.format().to_string());
+            (unlocked, pending)
+        };
         let phase = match (initialised, unlocked) {
             (false, _) => "none",
             (true, false) => "locked",
@@ -305,6 +350,7 @@ impl Desk {
             secret_key_kept,
             secret_key_protection,
             autolock_secs: self.autolock.as_secs(),
+            pending_kit,
         })
     }
 
@@ -374,37 +420,28 @@ impl Desk {
         Ok(CreatedVault { secret_key })
     }
 
-    /// The Emergency Kit PDF for the vault being created, to be written where the person chose.
+    /// The Emergency Kit PDF for the vault being created, or for the Secret Key a rotation just made, to be
+    /// written where the person chose.
     pub fn emergency_kit(&self) -> CmdRes<Zeroizing<Vec<u8>>> {
         let inner = self.inner();
-        let c = inner.creating.as_ref().ok_or_else(nothing_to_do)?;
-        let storage = match c.place.remote {
-            Some(Remote::Drive) => "Google Drive".to_owned(),
-            // The kit says what the vault is stored in, not where on this disk: a long path would not fit.
-            None => {
-                let name = c
-                    .place
-                    .local
-                    .file_name()
-                    .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-                format!("Folder {}", name.chars().take(60).collect::<String>())
-            }
-        };
-        let info = KitInfo {
-            vault_name: "Personal",
-            storage: &storage,
-            created: &civil_date(now_ms()),
-        };
-        render_kit(&info, &c.created.secret_key)
-            .map_err(|_| CmdError::new("failed", "Could not make the Emergency Kit."))
+        if let Some(c) = inner.creating.as_ref() {
+            return kit_pdf(&c.place, &c.created.secret_key);
+        }
+        let r = inner.reissued.as_ref().ok_or_else(nothing_to_do)?;
+        kit_pdf(&config::load()?.place, &r.key)
     }
 
     /// The forced check that the Secret Key was really saved: the last two groups, typed back.
     pub fn check_kit_key(&self, typed: &str) -> CmdRes<bool> {
         let mut inner = self.inner();
-        let c = inner.creating.as_mut().ok_or_else(nothing_to_do)?;
-        let ok = verify_kit_groups(&c.created.secret_key, typed);
-        c.key_confirmed |= ok;
+        if let Some(c) = inner.creating.as_mut() {
+            let ok = verify_kit_groups(&c.created.secret_key, typed);
+            c.key_confirmed |= ok;
+            return Ok(ok);
+        }
+        let r = inner.reissued.as_mut().ok_or_else(nothing_to_do)?;
+        let ok = verify_kit_groups(&r.key, typed);
+        r.confirmed |= ok;
         Ok(ok)
     }
 
@@ -740,6 +777,7 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
     Ok(canonical)
 }
 
+pub mod credentials;
 pub mod devices;
 pub mod drive;
 pub mod generate;
@@ -747,6 +785,8 @@ pub mod items;
 pub mod secret_key;
 pub mod sync;
 
+#[cfg(test)]
+mod credential_tests;
 #[cfg(test)]
 mod device_tests;
 #[cfg(test)]

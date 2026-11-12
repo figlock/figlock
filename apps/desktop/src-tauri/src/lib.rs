@@ -5,6 +5,7 @@ mod desk;
 
 use std::time::Duration;
 
+use desk::credentials::Changed;
 use desk::devices::DeviceRow;
 use desk::drive::{DriveView, SignedOut};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
@@ -194,6 +195,43 @@ async fn revoke_device(
     })??;
     let _ = app.emit(SYNCED_EVENT, ());
     Ok(rows)
+}
+
+/// Change the master password, rotate the Secret Key, or both. A rotation returns the new key for the kit.
+#[tauri::command]
+async fn change_credentials(
+    app: AppHandle,
+    password: String,
+    secret_key: Option<String>,
+    new_password: Option<String>,
+    rotate: bool,
+) -> CmdRes<Changed> {
+    let changed = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || {
+            tauri::Manager::state::<Desk>(&app).change_credentials(
+                &password,
+                secret_key.as_deref(),
+                new_password.as_deref(),
+                rotate,
+            )
+        }
+    })
+    .await
+    .map_err(|_| {
+        CmdError::new(
+            "failed",
+            "The change stopped unexpectedly. Lock and unlock, then check which password works.",
+        )
+    })??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(changed)
+}
+
+/// Close the new Emergency Kit step once the new Secret Key is confirmed.
+#[tauri::command]
+async fn end_rotation(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.end_rotation()
 }
 
 #[tauri::command]
@@ -445,6 +483,8 @@ pub fn run() {
             sync_disable,
             devices,
             revoke_device,
+            change_credentials,
+            end_rotation,
             join_answered,
             join_cancel,
             join_finish,

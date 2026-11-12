@@ -2,7 +2,7 @@
 //! it asks for the master password and Secret Key again instead of trusting an open session. What crosses to
 //! the window is names, fingerprints and dates, never keys.
 
-use figlock_core::{CredentialChange, DeviceId, DeviceInfo};
+use figlock_core::{CredentialChange, DeviceId, DeviceInfo, SecretKey};
 use figlock_session::session::now_ms;
 use figlock_session::{quick, secret_key_store};
 use serde::Serialize;
@@ -50,6 +50,25 @@ pub(super) fn revoke_credentials_error(key_was_typed: bool) -> CmdError {
     }
 }
 
+/// The Secret Key for a step that rewraps the vault key: typed, or the one this device keeps (after Touch ID).
+/// The flag says it was typed; the window asks for it only when neither exists.
+pub(super) fn credentials_key(typed: Option<&str>, why: &str) -> CmdRes<(SecretKey, bool)> {
+    let typed = typed.map(str::trim).filter(|k| !k.is_empty());
+    if let Some(text) = typed {
+        return Ok((parse_secret_key(text)?, true));
+    }
+    let vault = figlock_session::session::peek_vault_id()?;
+    let key = secret_key_store::system()?
+        .get(&vault, why)?
+        .ok_or_else(|| {
+            CmdError::new(
+                "needs_secret_key",
+                "Type your Secret Key from your Emergency Kit to continue.",
+            )
+        })?;
+    Ok((key, false))
+}
+
 impl Desk {
     /// The devices that can open this vault, then the revoked ones. This device comes first.
     pub fn devices(&self) -> CmdRes<Vec<DeviceRow>> {
@@ -77,22 +96,7 @@ impl Desk {
         secret_key: Option<&str>,
         new_password: Option<&str>,
     ) -> CmdRes<Vec<DeviceRow>> {
-        // Typed, or the one this device keeps (after Touch ID); the window asks for it only when neither exists.
-        let typed = secret_key.map(str::trim).filter(|k| !k.is_empty());
-        let secret_key = match typed {
-            Some(text) => parse_secret_key(text)?,
-            None => {
-                let vault = figlock_session::session::peek_vault_id()?;
-                secret_key_store::system()?
-                    .get(&vault, "revoke a device")?
-                    .ok_or_else(|| {
-                        CmdError::new(
-                            "needs_secret_key",
-                            "Type your Secret Key from your Emergency Kit to revoke a device.",
-                        )
-                    })?
-            }
-        };
+        let (secret_key, typed) = credentials_key(secret_key, "revoke a device")?;
         let target: DeviceId = hex::decode(device)
             .ok()
             .and_then(|b| b.try_into().ok())
@@ -151,7 +155,7 @@ impl Desk {
                 .vault
                 .revoke_device(password, &secret_key, &target, now),
         }
-        .map_err(|_| revoke_credentials_error(typed.is_some()))?;
+        .map_err(|_| revoke_credentials_error(typed))?;
         if session.write_revocation(&revocation).is_err() {
             // Part of the revocation may be stored and this vault already moved on: lock, so the next unlock
             // reads what is really there, and let the person look at the list again.

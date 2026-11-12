@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Alert, Button, ConfirmDialog, Icon } from "@figlock/ui";
 
+  import CredentialsPanel from "./CredentialsPanel.svelte";
   import Devices from "./Devices.svelte";
   import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import { ago } from "./sync";
@@ -103,7 +104,8 @@
         {#if view.needsUnlock}
           <Alert tone="info">
             Another device changed this vault's password, keys or devices. Lock and unlock to see
-            everything.
+            everything. If it rotated the Secret Key, you will be asked for the new one from the new
+            Emergency Kit.
           </Alert>
           <div><Button onclick={lockToRefresh}><Icon name="lock" />Lock and unlock</Button></div>
         {/if}
@@ -144,6 +146,8 @@
   </section>
 
   <SecretKeyPanel />
+
+  <CredentialsPanel />
 
   <Devices />
 </div>

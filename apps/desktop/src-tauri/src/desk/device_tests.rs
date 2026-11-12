@@ -10,7 +10,7 @@ fn scenario(name: &str) {
 }
 
 /// A desk with a new vault, unlocked, and the credentials it was made with.
-fn unlocked(d: &Desk) -> (String, String) {
+pub(super) fn unlocked(d: &Desk) -> (String, String) {
     let pw = password();
     let key = created_key(d, &pw);
     let groups: Vec<&str> = key.split('-').collect();

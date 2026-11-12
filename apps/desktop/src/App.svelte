@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
 
   import Create from "./Create.svelte";
+  import NewKitDialog from "./NewKitDialog.svelte";
   import Join from "./Join.svelte";
   import OpenExisting from "./OpenExisting.svelte";
   import Unlock from "./Unlock.svelte";
@@ -67,6 +68,14 @@
       void refresh();
     }}
   />
+  {#if vault.pendingKit}
+    <NewKitDialog
+      secretKey={vault.pendingKit}
+      ondone={() => {
+        if (vault) vault = { ...vault, pendingKit: null };
+      }}
+    />
+  {/if}
 {:else if vault.phase === "locked"}
   <Unlock {vault} {notice} ondone={enter} />
 {:else if view === "create"}
