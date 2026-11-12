@@ -26,7 +26,11 @@ export class SyncStatus {
     const off = onSynced(() => {
       void this.refresh();
       this.onsynced();
-    }).catch(() => () => {});
+    }).catch((e) => {
+      // Without events the window still works (it polls), but say so: a missing permission is a bug.
+      console.error("sync events are unavailable", e);
+      return () => {};
+    });
     return () => {
       clearInterval(timer);
       void off.then((f) => f());
