@@ -688,11 +688,14 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
     Ok(canonical)
 }
 
+pub mod devices;
 pub mod drive;
 pub mod generate;
 pub mod items;
 pub mod sync;
 
+#[cfg(test)]
+mod device_tests;
 #[cfg(test)]
 mod item_tests;
 #[cfg(test)]

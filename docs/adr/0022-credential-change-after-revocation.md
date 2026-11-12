@@ -30,7 +30,9 @@ the current `vault.json`. `crypto.md` 9 already lists password change and Secret
 - The Recovery Key wrap of `VK` (`pairing-recovery.md` 7) is untouched, because `VK` is the same.
 - Two revocations with no op file in between used to produce the same snapshot name (ADR-0018); fixed by the
   epoch in the name (amendment below). A credential change writes no snapshot.
-- CLI commands are in the amendment below; app commands are a separate task.
+- CLI commands are in the amendment below. The desktop Settings Devices section revokes a device (FIG-88),
+  with an optional new master password in the same write; Secret Key rotation and standalone password
+  change in the app are a separate task.
 
 ## Alternatives considered
 
