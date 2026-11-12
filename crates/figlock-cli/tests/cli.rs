@@ -940,6 +940,7 @@ fn secret_key_rotation_replaces_the_old_key_and_shows_the_new_one_once() {
         .expect("new Secret Key printed")
         .to_owned();
     assert_ne!(new_sk, e.secret_key);
+    assert!(!text(&out.stderr).contains("was not kept"), "{}", text(&out.stderr));
 
     let old = e.run(&["find"]);
     assert!(!old.status.success());

@@ -22,7 +22,12 @@ fn forget_quick_unlock() {
 /// Keep the new Secret Key on this device, in place of the old one (ADR-0027). The vault is already changed, so a
 /// failure only warns: the key is still shown and the next full unlock asks for it.
 fn keep_secret_key(sk: &SecretKey) {
-    let kept = peek_vault_id().and_then(|vault| secret_key_store::system()?.put(&vault, sk));
+    let kept = secret_key_store::system().and_then(|keys| {
+        if !keys.available() {
+            return Ok(());
+        }
+        keys.put(&peek_vault_id()?, sk)
+    });
     if let Err(e) = kept {
         eprintln!("warning: the new Secret Key was not kept on this device: {e}");
     }
