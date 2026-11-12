@@ -12,6 +12,7 @@ pub mod quick;
 pub mod quick_se;
 pub mod session;
 pub mod store;
+pub mod sync;
 
 pub use error::{Fail, Res};
 pub use session::{Session, Ui, clean, id_hex, now_ms, peek_vault_id, title_of};

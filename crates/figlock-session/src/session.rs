@@ -96,7 +96,8 @@ fn read_vault_json(store: &dyn BlobStore) -> Res<Vec<u8>> {
 /// The vault's id, read without unlocking anything.
 pub fn peek_vault_id() -> Res<String> {
     let cfg = config::load()?;
-    let store = crate::store::open(&cfg.store)?;
+    crate::sync::fill_local(&cfg.place)?;
+    let store = crate::store::open(&cfg.place)?;
     vault_id_of(&read_vault_json(store.as_ref())?)
 }
 
@@ -136,7 +137,8 @@ impl Session {
 
     fn open_with(ui: Box<dyn Ui>, force_full: bool) -> Res<(Session, Key, Option<Credentials>)> {
         let cfg = config::load()?;
-        let store = crate::store::open(&cfg.store)?;
+        crate::sync::fill_local(&cfg.place)?;
+        let store = crate::store::open(&cfg.place)?;
         let vault_json = read_vault_json(store.as_ref())?;
         let mut records = Vec::new();
         for e in store.list("devices/")? {

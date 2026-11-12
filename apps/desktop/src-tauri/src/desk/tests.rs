@@ -280,7 +280,7 @@ fn drive_inner() {
 
     // Not signed in: every way of picking Drive says so, and nothing is set up.
     assert_eq!(
-        code_of(storage_spec(&Storage::Drive, true).unwrap_err()),
+        code_of(storage_place(&Storage::Drive, true).unwrap_err()),
         "drive_sign_in"
     );
     assert_eq!(
@@ -301,8 +301,8 @@ fn drive_inner() {
     config::save_drive_token(&password()).unwrap();
     assert!(drive::status().unwrap().signed_in);
     assert_eq!(
-        storage_spec(&Storage::Drive, true).unwrap(),
-        StoreSpec::Drive
+        storage_place(&Storage::Drive, true).unwrap().remote,
+        Some(Remote::Drive)
     );
 
     // A damaged token file is removed on sign-out, with nothing to revoke at Google.

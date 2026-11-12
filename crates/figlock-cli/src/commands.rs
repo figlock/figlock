@@ -16,7 +16,7 @@ use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
     prompt, quick,
 };
-use figlock_session::config::{self, Config, StoreSpec};
+use figlock_session::config::{self, Config, Place, Remote};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session;
 use figlock_session::session::{Session, id_hex, now_ms, title_of};
@@ -36,25 +36,23 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     if config::is_initialised()? {
         return Err(Fail::new("this device already has a vault set up"));
     }
-    let spec = match &a.store {
-        Some(path) => {
-            std::fs::create_dir_all(path)?;
-            StoreSpec::Folder(std::fs::canonicalize(path)?)
-        }
-        None => StoreSpec::Drive,
+    let mut place = Place {
+        local: match &a.store {
+            Some(path) => path.clone(),
+            None => config::default_local_dir()?,
+        },
+        remote: a.drive.then_some(Remote::Drive),
     };
-    let store = figlock_session::store::open(&spec)?;
     // Only a definite "not there" lets init continue: an unreachable or signed-out store must not look like
-    // an empty one, or a second vault could be created next to the first.
-    match store.get("vault.json") {
-        Err(figlock_store::StoreError::NotFound) => {}
-        Ok(_) => {
-            return Err(Fail::new(
-                "a vault already exists there; use the device pairing flow to add this device",
-            ));
-        }
-        Err(e) => return Err(e.into()),
+    // an empty one, or a second vault could be created next to the first. Nothing is created before this.
+    if figlock_session::store::vault_exists(&place)? {
+        return Err(Fail::new(
+            "a vault already exists there; use the device pairing flow to add this device",
+        ));
     }
+    std::fs::create_dir_all(&place.local)?;
+    place.local = std::fs::canonicalize(&place.local)?;
+    let store = figlock_session::store::open(&place)?;
     let params = match a.kdf {
         KdfProfile::Default => KdfParams::DEFAULT,
         KdfProfile::Floor => KdfParams::FLOOR,
@@ -67,7 +65,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     let password = prompt::new_password()?;
     let (vault, created) = Vault::create(&password, &a.device_name, params, now_ms())?;
     let cfg = Config {
-        store: spec,
+        place,
         device_name: a.device_name,
     };
     config::save(&cfg, vault.device_keys())?;
@@ -94,9 +92,9 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
             "secret_key": secret_key.as_str(),
         }))?;
     } else {
-        match &cfg.store {
-            StoreSpec::Folder(path) => println!("Vault created in {}", path.display()),
-            StoreSpec::Drive => println!("Vault created in your Google Drive (hidden app folder)"),
+        println!("Vault created in {}", cfg.place.local.display());
+        if cfg.place.remote.is_some() {
+            println!("Synced to your Google Drive (hidden app folder)");
         }
         println!("Secret Key: {}", secret_key.as_str());
     }
@@ -104,6 +102,13 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         "Write the Secret Key down now. It is shown once, is needed on every new device and for recovery, \
          and cannot be reset."
     );
+    if cfg.place.remote.is_some()
+        && let Err(e) = figlock_session::sync::run(&cfg, false)
+    {
+        eprintln!(
+            "The vault is saved on this device, but the first sync to Google Drive failed: {e}."
+        );
+    }
     offer_quick_unlock(choice, json, &created, &password);
     Ok(())
 }

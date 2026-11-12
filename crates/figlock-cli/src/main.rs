@@ -339,10 +339,11 @@ pub enum KdfProfile {
 
 #[derive(Args)]
 pub struct InitArgs {
-    /// Folder that will hold the encrypted vault (a synced folder works).
-    #[arg(long, conflicts_with = "drive", required_unless_present = "drive")]
+    /// Folder that will hold the encrypted vault (a synced folder works). Defaults to a folder in the
+    /// FigLock config directory.
+    #[arg(long)]
     pub store: Option<PathBuf>,
-    /// Keep the encrypted vault in your Google Drive instead (run `figlock drive login` first).
+    /// Also keep a synced copy in your Google Drive (run `figlock drive login` first).
     #[arg(long)]
     pub drive: bool,
     /// Name shown for this device.

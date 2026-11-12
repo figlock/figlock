@@ -14,6 +14,7 @@ figlock-biometric = { version = "0.2.0", path = "../figlock-biometric" }
 getrandom.workspace = true
 serde_json.workspace = true
 hex.workspace = true
+sha2.workspace = true
 zeroize.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]

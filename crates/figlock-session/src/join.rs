@@ -5,14 +5,14 @@
 use figlock_core::{DeviceKeys, JoinAttempt, Joined, device_fingerprint, invite_path};
 use figlock_store::{BlobStore, StoreError};
 
-use crate::config::{Config, StoreSpec};
+use crate::config::{Config, Place};
 use crate::error::{Fail, Res};
 
 /// A join that has asked and is waiting for the trusted device to approve it.
 pub struct Join {
     attempt: JoinAttempt,
     store: Box<dyn BlobStore>,
-    spec: StoreSpec,
+    place: Place,
     device_name: String,
     fingerprint: String,
 }
@@ -21,9 +21,11 @@ fn bad_invite() -> Fail {
     Fail::new("that invite code is not valid, has expired, or belongs to a different vault")
 }
 
-/// Send the request for the invite `code` found in the storage `spec`.
-pub fn begin(spec: StoreSpec, code: &str, device_name: &str, now_ms: u64) -> Res<Join> {
-    let store = crate::store::open(&spec)?;
+/// Send the request for the invite `code` found in the vault at `place`. With a remote, the vault is first
+/// downloaded into the local folder, and the request is pushed so the trusted device can see it.
+pub fn begin(place: Place, code: &str, device_name: &str, now_ms: u64) -> Res<Join> {
+    crate::sync::fill_local(&place)?;
+    let store = crate::store::open(&place)?;
     let vault_json = store.get("vault.json").map_err(|e| match e {
         StoreError::NotFound => Fail::new("there is no FigLock vault in that storage"),
         e => e.into(),
@@ -46,10 +48,11 @@ pub fn begin(spec: StoreSpec, code: &str, device_name: &str, now_ms: u64) -> Res
         }
         Err(e) => return Err(e.into()),
     }
+    crate::sync::exchange(&place)?;
     Ok(Join {
         attempt,
         store,
-        spec,
+        place,
         device_name: device_name.to_owned(),
         fingerprint,
     })
@@ -63,6 +66,7 @@ impl Join {
 
     /// Whether the trusted device has answered.
     pub fn answered(&self) -> Res<bool> {
+        crate::sync::exchange(&self.place)?;
         match self.store.get(&self.attempt.resp_path()) {
             Ok(_) => Ok(true),
             Err(StoreError::NotFound) => Ok(false),
@@ -89,7 +93,7 @@ impl Join {
         Ok((
             joined,
             Config {
-                store: self.spec.clone(),
+                place: self.place.clone(),
                 device_name: self.device_name.clone(),
             },
         ))
@@ -103,6 +107,13 @@ mod tests {
     use figlock_store::LocalFolder;
 
     const T0: u64 = 1_700_000_000_000;
+
+    fn folder(path: &std::path::Path) -> Place {
+        Place {
+            local: path.into(),
+            remote: None,
+        }
+    }
 
     /// A fresh master password for one test: generated, never a literal.
     fn password() -> String {
@@ -126,13 +137,7 @@ mod tests {
         let (mut invite, offer) = Invite::create(vault.vault_id(), T0).unwrap();
         store.put_new(&offer.inv_path, &offer.inv).unwrap();
 
-        let join = begin(
-            StoreSpec::Folder(dir.path().into()),
-            &offer.code,
-            "second",
-            T0 + 1,
-        )
-        .unwrap();
+        let join = begin(folder(dir.path()), &offer.code, "second", T0 + 1).unwrap();
         assert!(!join.answered().unwrap());
 
         let req = invite
@@ -165,13 +170,7 @@ mod tests {
         store.put_new("vault.json", &created.vault_json).unwrap();
         let (mut invite, offer) = Invite::create(vault.vault_id(), T0).unwrap();
         store.put_new(&offer.inv_path, &offer.inv).unwrap();
-        let join = begin(
-            StoreSpec::Folder(dir.path().into()),
-            &offer.code,
-            "second",
-            T0 + 1,
-        )
-        .unwrap();
+        let join = begin(folder(dir.path()), &offer.code, "second", T0 + 1).unwrap();
         let req = invite
             .open_request(&store.get(&invite.req_path()).unwrap(), T0 + 2)
             .unwrap();
@@ -197,7 +196,7 @@ mod tests {
         store.put_new("vault.json", &created.vault_json).unwrap();
         let (_, offer) = Invite::create(vault.vault_id(), T0).unwrap();
         // The invite was never stored.
-        let spec = || StoreSpec::Folder(dir.path().into());
+        let spec = || folder(dir.path());
         assert!(begin(spec(), &offer.code, "second", T0 + 1).is_err());
         assert!(begin(spec(), "not a code", "second", T0 + 1).is_err());
         // Expired.
