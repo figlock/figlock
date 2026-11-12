@@ -475,7 +475,9 @@ mod tests {
     }
 
     fn session(mode: Option<Mode>) -> (Session, Flaky) {
-        let (vault, _) = Vault::create("generated-pw-1", "Laptop", KdfParams::FLOOR, 1).unwrap();
+        // A password made for this run, never a literal.
+        let pw = SecretKey::random().unwrap().format().to_string();
+        let (vault, _) = Vault::create(&pw, "Laptop", KdfParams::FLOOR, 1).unwrap();
         let store = Flaky {
             files: Arc::default(),
             mode: Arc::new(Mutex::new(mode)),
