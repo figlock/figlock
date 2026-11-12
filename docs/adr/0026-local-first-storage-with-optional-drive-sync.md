@@ -62,6 +62,8 @@ and named by its owner:
   never merged.
 - **Schedule** follows `sync.md` 10: every 15 seconds while the app or broker runs, plus after a local write,
   on unlock, and on manual sync; backoff 5 s, 15 s, 60 s, then 5 minutes.
+- **One sync at a time per device.** A sync holds an exclusive lock file (`sync.lock` in the config home) for
+  its whole run; a second sync fails fast as busy (silent on the automatic paths) instead of mirroring too.
 
 ### Failure modes
 
