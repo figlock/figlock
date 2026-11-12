@@ -152,6 +152,7 @@ test("a vault missing from Drive is only uploaded again after the person confirm
     state: "lost",
     message: "The vault is no longer in your Google Drive. You can upload it again from this Mac.",
   });
+  expect(screen.getByTestId("last-sync").textContent).toContain("Sync is paused");
   await user.click(screen.getByRole("button", { name: /Upload from this Mac/ }));
   const dialog = await screen.findByRole("dialog");
   expect(core.syncNow).not.toHaveBeenCalled();

@@ -8,6 +8,9 @@
   const { sync, relock } = getWorkspace();
   const view = $derived(sync.view);
 
+  /** States where nothing happens until the person acts, so "last synced" would mislead. */
+  const PAUSED = ["sign_in", "lost", "foreign"];
+
   let confirming = $state<"off" | "reupload" | null>(null);
 
   async function lockToRefresh() {
@@ -43,7 +46,9 @@
             <p class="text-(length:--text-sm) text-text-secondary" data-testid="last-sync">
               {view.state === "syncing"
                 ? "Syncing now..."
-                : `Last synced ${ago(view.lastSyncSecsAgo)}`}
+                : PAUSED.includes(view.state)
+                  ? "Sync is paused"
+                  : `Last synced ${ago(view.lastSyncSecsAgo)}`}
             </p>
           {:else}
             <p class="font-medium">Off</p>

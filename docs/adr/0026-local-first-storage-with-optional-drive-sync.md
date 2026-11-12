@@ -89,9 +89,14 @@ and named by its owner:
   disable the Drive remote (`on` only stays on if the first sync works); `figlock sync status` shows signed
   in, last sync and the local path, with no network call. `figlock drive login` and `logout` are unchanged.
 - Ordinary commands read and write the local folder and never depend on the network. Before a command that
-  unlocks the vault, the CLI pulls if the last sync is more than 15 seconds old; after a command that writes,
-  it pushes. Both have a 5 second limit, are skipped when sync is off, and on failure print a warning (the
-  pull stays silent when simply offline) and carry on: the next sync catches up.
+  unlocks the vault, the CLI pulls if the last sync is more than a minute old (the desktop app and broker
+  poll every 15 seconds; a one-shot command that paid a Drive round trip every time would be slow for an
+  agent calling it in a loop, and `figlock sync` forces a fresh pull); after a command that writes, it pushes.
+  The pull waits at most 10 seconds and the push at most 40, because a Drive write is several requests and
+  giving up early would kill the upload when the process exits. Both are skipped when sync is off, and on
+  failure print one warning per command (the pull stays silent when simply offline) and carry on.
+- A sync lists each side once. Drive's flat namespace makes every listing a full listing request, so listing
+  once instead of once per directory cut a no-op sync from about 4.4 to about 3 seconds on a real Drive.
 - The broker daemon syncs once before it unlocks. A background loop while it runs waits until the broker can
   reload its in-memory vault, because pulling files it never reads would add nothing.
 

@@ -325,6 +325,31 @@ fn drive_inner() {
     assert!(!drive::sign_out().unwrap().revoked);
 }
 
+/// The window listens to the app core's events (a sync ran, the vault locked). Tauri refuses `listen` from a
+/// window whose capability does not grant it, and the window then just never hears: live sync updates and the
+/// auto-lock notice stop with no error on screen. The capability file is the contract Tauri reads.
+#[test]
+fn the_main_window_may_listen_to_the_app_cores_events_and_nothing_more() {
+    let raw = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("capabilities/default.json"),
+    )
+    .unwrap();
+    let cap: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(cap["windows"], serde_json::json!(["main"]));
+    let mut granted: Vec<&str> = cap["permissions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p.as_str().unwrap())
+        .collect();
+    granted.sort_unstable();
+    assert_eq!(
+        granted,
+        ["core:event:allow-listen", "core:event:allow-unlisten"],
+        "no filesystem, shell or network permission, and listening to events only"
+    );
+}
+
 #[test]
 fn the_window_sends_a_folder_and_whether_to_sync_it() {
     let f: Storage = serde_json::from_str(r#"{"path":"/tmp/v"}"#).unwrap();
