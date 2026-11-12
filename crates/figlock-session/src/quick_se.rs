@@ -27,8 +27,28 @@ use crate::config;
 use crate::error::{Fail, Res};
 use crate::quick::Backend;
 
-const QK_FILE: &str = "quick-unlock.qk";
-const BLOB_FILE: &str = "quick-unlock.blob";
+/// Where one kept secret lives: its chip key, its wrapped value and the temporary file a write goes through.
+/// Each secret has its own chip key, so one cannot be opened with the other's.
+#[derive(Clone, Copy)]
+pub struct Slot {
+    pub qk: &'static str,
+    pub blob: &'static str,
+    pub tmp: &'static str,
+}
+
+/// The Account Unlock Key kept for quick unlock.
+pub const QUICK_SLOT: Slot = Slot {
+    qk: "quick-unlock.qk",
+    blob: "quick-unlock.blob",
+    tmp: ".quick-unlock.tmp",
+};
+
+/// The Secret Key kept on the device (ADR-0027).
+pub const SECRET_KEY_SLOT: Slot = Slot {
+    qk: "secret-key.qk",
+    blob: "secret-key.blob",
+    tmp: ".secret-key.tmp",
+};
 /// How long the system sheet may stay open before the command gives up and asks for the master password.
 const PROMPT_WAIT: Duration = Duration::from_secs(60);
 
@@ -74,27 +94,39 @@ pub struct Hardware<E: Enclave, K: Backend> {
     device: Option<[u8; 16]>,
     enclave: E,
     keychain: K,
+    slot: Slot,
     /// The unlock key opened by the last successful `confirm`, handed out once by `get_key`.
     opened: RefCell<Option<Zeroizing<[u8; 32]>>>,
 }
 
 impl<E: Enclave, K: Backend> Hardware<E, K> {
     pub fn new(home: PathBuf, device: Option<[u8; 16]>, enclave: E, keychain: K) -> Self {
+        Self::with_slot(home, device, enclave, keychain, QUICK_SLOT)
+    }
+
+    pub fn with_slot(
+        home: PathBuf,
+        device: Option<[u8; 16]>,
+        enclave: E,
+        keychain: K,
+        slot: Slot,
+    ) -> Self {
         Hardware {
             home,
             device,
             enclave,
             keychain,
+            slot,
             opened: RefCell::new(None),
         }
     }
 
     fn qk_path(&self) -> PathBuf {
-        self.home.join(QK_FILE)
+        self.home.join(self.slot.qk)
     }
 
     fn blob_path(&self) -> PathBuf {
-        self.home.join(BLOB_FILE)
+        self.home.join(self.slot.blob)
     }
 
     fn ids(&self, vault: &str) -> Option<([u8; 16], [u8; 16])> {
@@ -108,7 +140,7 @@ impl<E: Enclave, K: Backend> Hardware<E, K> {
 
     fn write_private(&self, path: &PathBuf, bytes: &[u8]) -> Res<()> {
         config::private_dir(&self.home)?;
-        let tmp = self.home.join(".quick-unlock.tmp");
+        let tmp = self.home.join(self.slot.tmp);
         let _ = fs::remove_file(&tmp);
         let written = config::create_private_file(&tmp).and_then(|mut f| {
             f.write_all(bytes)?;
@@ -383,10 +415,10 @@ mod tests {
             Quick::new(self.dir.path().to_path_buf(), self.hw(), 3600)
         }
         fn qk(&self) -> PathBuf {
-            self.dir.path().join(QK_FILE)
+            self.dir.path().join(QUICK_SLOT.qk)
         }
         fn blob(&self) -> PathBuf {
-            self.dir.path().join(BLOB_FILE)
+            self.dir.path().join(QUICK_SLOT.blob)
         }
     }
 

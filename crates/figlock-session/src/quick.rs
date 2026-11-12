@@ -93,7 +93,12 @@ pub fn system() -> Res<Quick<Hardware<Chip, System>>> {
         .and_then(|v| v.parse::<u64>().ok())
         .map_or(IDLE_SECS, |v| v.min(IDLE_SECS));
     let home = config::home()?;
-    let backend = Hardware::new(home.clone(), config::device_id(), Chip, System);
+    let backend = Hardware::new(
+        home.clone(),
+        config::device_id(),
+        Chip,
+        System::QUICK_UNLOCK,
+    );
     Ok(Quick::new(home, backend, idle))
 }
 
@@ -289,7 +294,25 @@ impl<B: Backend> Quick<B> {
 
 /// This machine's keystore: the login keychain on macOS, behind a Touch ID or device-password prompt.
 /// Elsewhere quick unlock is unavailable until that platform gets an adapter.
-pub struct System;
+pub struct System {
+    /// The keychain service the item is filed under, so each kept secret has its own.
+    #[cfg_attr(
+        not(target_os = "macos"),
+        allow(dead_code, reason = "only the macOS keychain uses it")
+    )]
+    service: &'static str,
+}
+
+impl System {
+    /// The Account Unlock Key kept for quick unlock.
+    pub const QUICK_UNLOCK: System = System {
+        service: "com.figlock.cli",
+    };
+    /// The Secret Key kept on the device (ADR-0027).
+    pub const SECRET_KEY: System = System {
+        service: "com.figlock.cli.secret-key",
+    };
+}
 
 #[cfg(target_os = "macos")]
 impl Backend for System {
@@ -306,12 +329,12 @@ impl Backend for System {
     }
 
     fn put_key(&self, vault: &str, key: &[u8; 32]) -> Res<()> {
-        security_framework::passwords::set_generic_password(SERVICE, vault, key)
+        security_framework::passwords::set_generic_password(self.service, vault, key)
             .map_err(|_| Fail::new("could not save the key in the macOS keychain"))
     }
 
     fn get_key(&self, vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
-        match security_framework::passwords::get_generic_password(SERVICE, vault) {
+        match security_framework::passwords::get_generic_password(self.service, vault) {
             Ok(bytes) => Ok(<[u8; 32]>::try_from(bytes.as_slice())
                 .ok()
                 .map(Zeroizing::new)),
@@ -325,7 +348,7 @@ impl Backend for System {
     }
 
     fn delete_key(&self, vault: &str) -> Res<()> {
-        match security_framework::passwords::delete_generic_password(SERVICE, vault) {
+        match security_framework::passwords::delete_generic_password(self.service, vault) {
             Ok(()) => Ok(()),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
             Err(_) => Err(Fail::new(
@@ -345,8 +368,6 @@ impl Backend for System {
     }
 }
 
-#[cfg(target_os = "macos")]
-const SERVICE: &str = "com.figlock.cli";
 #[cfg(target_os = "macos")]
 const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 

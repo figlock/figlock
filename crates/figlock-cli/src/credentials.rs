@@ -7,6 +7,7 @@ use serde_json::json;
 
 use crate::{prompt, quick};
 use figlock_session::error::{Fail, Res};
+use figlock_session::secret_key_store;
 use figlock_session::session::{Session, peek_vault_id};
 
 const OTHER_DEVICES: &str = "Other devices will ask for a full unlock with the new details.";
@@ -15,6 +16,20 @@ fn forget_quick_unlock() {
     let result = peek_vault_id().and_then(|vault| quick::system()?.forget(&vault));
     if let Err(e) = result {
         eprintln!("warning: quick unlock key was not removed: {e}");
+    }
+}
+
+/// Keep the new Secret Key on this device, in place of the old one (ADR-0027). The vault is already changed, so a
+/// failure only warns: the key is still shown and the next full unlock asks for it.
+fn keep_secret_key(sk: &SecretKey) {
+    let kept = secret_key_store::system().and_then(|keys| {
+        if !keys.available() {
+            return Ok(());
+        }
+        keys.put(&peek_vault_id()?, sk)
+    });
+    if let Err(e) = kept {
+        eprintln!("warning: the new Secret Key was not kept on this device: {e}");
     }
 }
 
@@ -80,8 +95,43 @@ pub fn secret_key_rotate(json: bool) -> Res<()> {
     let new = r
         .secret_key
         .ok_or_else(|| Fail::new("no new Secret Key was made"))?;
+    keep_secret_key(&new);
     show_secret_key(&new, json)?;
     done(json, "The Secret Key is rotated.");
+    Ok(())
+}
+
+/// `figlock secret-key show`: print the Secret Key kept on this device, after Touch ID or the device password.
+pub fn secret_key_show(json: bool) -> Res<()> {
+    let keys = secret_key_store::system()?;
+    let vault = peek_vault_id()?;
+    if !keys.has(&vault) {
+        return Err(Fail::new(
+            "no Secret Key is kept on this device yet. It is kept the next time you unlock with the master \
+             password and Secret Key, or find it on your Emergency Kit",
+        ));
+    }
+    let key = keys.get(&vault, "show your Secret Key")?.ok_or_else(|| {
+        Fail::new("the Secret Key was not shown: Touch ID or the device password was not confirmed")
+    })?;
+    if json {
+        println!("{}", json!({ "secret_key": key.format().as_str() }));
+    } else {
+        println!("Secret Key: {}", key.format().as_str());
+    }
+    Ok(())
+}
+
+/// `figlock secret-key forget`: stop keeping the Secret Key on this device. The next full unlock asks for it.
+pub fn secret_key_forget(json: bool) -> Res<()> {
+    secret_key_store::system()?.forget(&peek_vault_id()?)?;
+    if json {
+        println!("{}", json!({ "kept": false }));
+    } else {
+        println!(
+            "The Secret Key is no longer kept on this device. The next full unlock asks for it."
+        );
+    }
     Ok(())
 }
 
@@ -206,6 +256,7 @@ pub fn device_revoke(
         forget_quick_unlock();
     }
     if let Some(new) = &r.secret_key {
+        keep_secret_key(new);
         show_secret_key(new, json)?;
     }
     let what = "The device is revoked.";

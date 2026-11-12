@@ -105,7 +105,7 @@ enum Command {
         #[command(subcommand)]
         action: PasswordCmd,
     },
-    /// Replace the Secret Key and get a new Emergency Kit.
+    /// Replace, show or forget the Secret Key.
     SecretKey {
         #[command(subcommand)]
         action: SecretKeyCmd,
@@ -141,6 +141,10 @@ enum PasswordCmd {
 enum SecretKeyCmd {
     /// Make a new Secret Key and show it once. The old one stops working everywhere.
     Rotate,
+    /// Show the Secret Key kept on this device, after Touch ID or the device password.
+    Show,
+    /// Stop keeping the Secret Key on this device. The next full unlock asks for it.
+    Forget,
 }
 
 #[derive(Subcommand)]
@@ -673,6 +677,8 @@ fn main() -> ExitCode {
         }),
         Command::SecretKey { action } => ok(match action {
             SecretKeyCmd::Rotate => credentials::secret_key_rotate(json),
+            SecretKeyCmd::Show => credentials::secret_key_show(json),
+            SecretKeyCmd::Forget => credentials::secret_key_forget(json),
         }),
         Command::Device { action } => ok(match action {
             DeviceCmd::List => credentials::device_list(json),
