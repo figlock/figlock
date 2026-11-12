@@ -24,6 +24,7 @@ fn print_json(v: &Value) -> Res<()> {
 
 /// Unlock the vault once, then serve until someone runs `figlock broker lock`.
 pub fn start(deny_all: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let Session { vault, .. } = Session::open(prompt::terminal())?;
     let log = audit::path_for(&vault)?;
     let writer = AuditWriter::open(&log, &vault)?;
@@ -152,6 +153,7 @@ fn when(ms: u64) -> String {
 
 /// Verify and print the audit log. Stops at the first record that fails, and says so.
 pub fn show_audit(tail: Option<usize>, json_out: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let Session { vault, .. } = Session::open(prompt::terminal())?;
     let path = audit::path_for(&vault)?;
     let bytes = match fs::read(&path) {

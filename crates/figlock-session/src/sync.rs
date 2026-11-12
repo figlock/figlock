@@ -379,9 +379,27 @@ pub fn run(cfg: &Config, confirm_reupload: bool) -> Result<Report, SyncError> {
     Ok(report)
 }
 
-/// Make sure the local folder holds a vault when a remote is set: a Drive-only device from before ADR-0026,
-/// or "open an existing vault from Drive". Pulls only; a no-op when the local folder already has one.
+/// Called whenever a vault is opened. Makes sure the local folder holds a vault when a remote is set (a
+/// Drive-only device from before ADR-0026). Pulls only, and touches the network only when the local folder has
+/// no vault yet: a device with a local vault must open offline.
 pub fn fill_local(place: &Place) -> Result<(), SyncError> {
+    let Some(remote_kind) = place.remote else {
+        return Ok(());
+    };
+    fs::create_dir_all(&place.local)?;
+    let local = crate::store::open_local(&place.local)?;
+    if read(local.as_ref(), "vault.json")?.is_some() {
+        return Ok(());
+    }
+    pull_into(
+        local.as_ref(),
+        crate::store::open_remote(remote_kind)?.as_ref(),
+    )
+}
+
+/// Opening an existing vault from the remote during setup (open or join): always looks at the remote, and
+/// refuses when the local folder already holds a different vault, so a stale copy is never unlocked by mistake.
+pub fn open_from_remote(place: &Place) -> Result<(), SyncError> {
     let Some(remote_kind) = place.remote else {
         return Ok(());
     };

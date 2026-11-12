@@ -43,6 +43,7 @@ fn done(json: bool, what: &str) {
 
 /// `figlock password change`
 pub fn password_change(json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let (session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let mut session = session;
     let new_password = prompt::changed_password()?;
@@ -55,6 +56,7 @@ pub fn password_change(json: bool) -> Res<()> {
         },
     )?;
     session.replace_vault_json(&r.vault_json)?;
+    crate::sync_cmd::push_after_write();
     forget_quick_unlock();
     done(json, "The master password is changed.");
     Ok(())
@@ -62,6 +64,7 @@ pub fn password_change(json: bool) -> Res<()> {
 
 /// `figlock secret-key rotate`
 pub fn secret_key_rotate(json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let (mut session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let r = session.vault.change_credentials(
         &password,
@@ -72,6 +75,7 @@ pub fn secret_key_rotate(json: bool) -> Res<()> {
         },
     )?;
     session.replace_vault_json(&r.vault_json)?;
+    crate::sync_cmd::push_after_write();
     forget_quick_unlock();
     let new = r
         .secret_key
@@ -90,6 +94,7 @@ fn label(d: &DeviceInfo) -> String {
 
 /// `figlock device list`
 pub fn device_list(json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let session = Session::open(prompt::terminal())?;
     let this = *session.vault.device_id();
     let devices = session.vault.devices();
@@ -164,6 +169,7 @@ pub fn device_revoke(
     rotate_secret_key: bool,
     json: bool,
 ) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let (mut session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let target = pick(
         &session.vault.devices(),
@@ -195,6 +201,7 @@ pub fn device_revoke(
             .revoke_device(&password, &secret_key, &target, now)?
     };
     session.write_revocation(&r)?;
+    crate::sync_cmd::push_after_write();
     if changing {
         forget_quick_unlock();
     }
