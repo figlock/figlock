@@ -169,8 +169,8 @@ pub fn status(json: bool) -> Res<()> {
 
 // ---- around ordinary commands ----
 
-/// Sync with a time limit. The thread is left to finish on its own if it runs over: every step is safe to
-/// interrupt, so the process ending first costs nothing.
+/// Sync with a time limit. A run that goes over is left to finish on its own thread. It holds the sync lock
+/// until then, so a later sync on this device reports busy instead of mirroring alongside it.
 fn timeboxed(cfg: Config) -> Result<Report, SyncError> {
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
@@ -193,6 +193,7 @@ fn quiet(warn_when_offline: bool) {
                 eprintln!("warning: {}", warning_text(*w));
             }
         }
+        Err(SyncError::Busy) => {}
         Err(SyncError::Offline) if !warn_when_offline => {}
         Err(e) => eprintln!(
             "warning: not synced with Google Drive ({e}); this device keeps working and the next sync catches up"

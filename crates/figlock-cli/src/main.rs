@@ -176,7 +176,7 @@ enum QuickCmd {
 #[derive(Args)]
 struct SyncArgs {
     /// Upload everything from this device again, after the vault was lost from Google Drive.
-    #[arg(long, global = true)]
+    #[arg(long)]
     reupload: bool,
     #[command(subcommand)]
     action: Option<SyncCmd>,
@@ -685,6 +685,9 @@ fn main() -> ExitCode {
             DriveCmd::Login => drive::login(json),
             DriveCmd::Logout => drive::logout(json),
         }),
+        Command::Sync(a) if a.reupload && a.action.is_some() => ok(Err(
+            figlock_session::error::Fail::new("--reupload only applies to `figlock sync` itself"),
+        )),
         Command::Sync(a) => ok(match a.action {
             None => sync_cmd::run(a.reupload, json),
             Some(SyncCmd::On) => sync_cmd::on(json),
