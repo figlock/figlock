@@ -17,9 +17,10 @@ fn end_of(key: &str) -> String {
 fn a_locked_vault_cannot_change_credentials() {
     let d = desk();
     let key = SecretKey::from_bytes([7; 16]).format().to_string();
+    let new_pw = password();
     assert_eq!(
         code_of(
-            d.change_credentials("x", Some(&key), Some("longenough"), false)
+            d.change_credentials("x", Some(&key), Some(&new_pw), false)
                 .unwrap_err()
         ),
         "locked"
@@ -48,7 +49,7 @@ fn change_password_inner() {
     );
     assert_eq!(
         code_of(
-            d.change_credentials(&pw, Some(&key), Some("short"), false)
+            d.change_credentials(&pw, Some(&key), Some(&new_pw[..4]), false)
                 .unwrap_err()
         ),
         "weak_password"
