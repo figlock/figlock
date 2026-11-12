@@ -332,7 +332,7 @@ test("a vault with nothing in it offers to add the first item", async () => {
   expect(await screen.findByText("Your vault is empty")).toBeTruthy();
 });
 
-test("a save that failed and locked the vault sends the person to unlock with the message", async () => {
+test("a save that failed leaves the editor open with the message, and the vault unlocked", async () => {
   const user = userEvent.setup();
   const onlocked = vi.fn();
   render(Workspace, { onlock: vi.fn(), onlocked });
@@ -343,16 +343,20 @@ test("a save that failed and locked the vault sends the person to unlock with th
     secrets: ["password"],
     files: [],
   });
-  core.updateItem.mockRejectedValue({
+  core.updateItem.mockRejectedValueOnce({
     code: "save_failed",
-    message: "Could not save. Unlock to try again.",
+    message: "Could not save. Nothing was changed; try again.",
   });
   await user.click(await screen.findByRole("button", { name: /Cloudflare/ }));
   await user.click(await screen.findByRole("button", { name: "Edit" }));
   await user.click(await screen.findByRole("button", { name: "Save changes" }));
-  await waitFor(() =>
-    expect(onlocked).toHaveBeenCalledWith("Could not save. Unlock to try again."),
-  );
+  expect(await screen.findByText("Could not save. Nothing was changed; try again.")).toBeTruthy();
+  expect(onlocked).not.toHaveBeenCalled();
+
+  // Trying again works.
+  await user.click(screen.getByRole("button", { name: "Save changes" }));
+  await waitFor(() => expect(core.updateItem).toHaveBeenCalledTimes(2));
+  expect(onlocked).not.toHaveBeenCalled();
 });
 
 test("the generator page makes a password, remakes it when options change, and copies it", async () => {

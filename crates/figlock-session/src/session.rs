@@ -29,6 +29,7 @@ pub struct Session {
     pub vault: Vault,
     store: Box<dyn BlobStore>,
     ui: Box<dyn Ui>,
+    uncertain: bool,
 }
 
 /// The vault name every item is added under, until a device holds more than one vault.
@@ -206,7 +207,12 @@ impl Session {
                 Err(e) => return Err(e.into()),
             }
         }
-        let mut session = Session { vault, store, ui };
+        let mut session = Session {
+            vault,
+            store,
+            ui,
+            uncertain: false,
+        };
         session.load_log(now)?;
         Ok((session, auk, creds))
     }
@@ -276,18 +282,56 @@ impl Session {
         Ok(())
     }
 
-    /// Write pending changes as one op file.
+    /// Write pending changes as one op file. If the file definitely was not written the commit is taken back,
+    /// so the changes are pending again: call `commit` to retry or `discard_pending` to give them up. If a
+    /// failed write turns out to have landed, the commit counts as done. If that cannot be told, the session
+    /// is `uncertain` and refuses to commit again: unlock again to resync.
     pub fn commit(&mut self) -> Res<()> {
+        if self.uncertain {
+            return Err(Self::uncertain_error());
+        }
         let Some(c) = self.vault.commit()? else {
             return Ok(());
         };
-        match self.store.put_new(&c.path, &c.bytes) {
-            Ok(()) => Ok(()),
-            Err(StoreError::Exists) => Err(Fail::new(
-                "another change was written at the same moment; run the command again",
-            )),
-            Err(e) => Err(e.into()),
+        let Err(e) = self.store.put_new(&c.path, &c.bytes) else {
+            self.vault.confirm_commit();
+            return Ok(());
+        };
+        match self.store.get(&c.path) {
+            Ok(bytes) if bytes == c.bytes => {
+                self.vault.confirm_commit();
+                Ok(())
+            }
+            Ok(_) | Err(StoreError::NotFound) => {
+                self.vault.rollback_commit();
+                match e {
+                    StoreError::Exists => Err(Fail::new(
+                        "another change was written at the same moment; run the command again",
+                    )),
+                    e => Err(e.into()),
+                }
+            }
+            Err(_) => {
+                self.uncertain = true;
+                Err(Self::uncertain_error())
+            }
         }
+    }
+
+    /// True once a save failed in a way that leaves it unknown whether it was written. Drop the session.
+    pub fn is_uncertain(&self) -> bool {
+        self.uncertain
+    }
+
+    fn uncertain_error() -> Fail {
+        Fail::new(
+            "the last save may or may not have been written; lock and unlock again to find out",
+        )
+    }
+
+    /// Give up every change that has not been written, as if it had not been made.
+    pub fn discard_pending(&mut self) {
+        self.vault.discard_pending();
     }
 
     pub fn items(&mut self, include_deleted: bool) -> Vec<ItemView> {
@@ -346,4 +390,156 @@ pub fn title_of(item: &ItemView) -> &str {
     item.fields
         .get("title")
         .map_or("(untitled)", |t| t.as_str())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use figlock_core::{ItemType, KdfParams};
+    use figlock_store::Entry;
+
+    use super::*;
+
+    #[derive(Clone, Copy, PartialEq)]
+    enum Mode {
+        WriteThenFail,
+        FailWithoutWriting,
+        FailEverything,
+    }
+
+    #[derive(Clone)]
+    struct Flaky {
+        files: Arc<Mutex<BTreeMap<String, Vec<u8>>>>,
+        mode: Arc<Mutex<Option<Mode>>>,
+    }
+
+    impl BlobStore for Flaky {
+        fn get(&self, path: &str) -> Result<Vec<u8>, StoreError> {
+            if *self.mode.lock().unwrap() == Some(Mode::FailEverything) {
+                return Err(StoreError::Unavailable);
+            }
+            self.files
+                .lock()
+                .unwrap()
+                .get(path)
+                .cloned()
+                .ok_or(StoreError::NotFound)
+        }
+        fn put_new(&self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+            let mode = *self.mode.lock().unwrap();
+            let mut files = self.files.lock().unwrap();
+            if files.contains_key(path) {
+                return Err(StoreError::Exists);
+            }
+            match mode {
+                Some(Mode::FailWithoutWriting | Mode::FailEverything) => {
+                    Err(StoreError::Unavailable)
+                }
+                Some(Mode::WriteThenFail) => {
+                    files.insert(path.to_owned(), bytes.to_vec());
+                    Err(StoreError::Unavailable)
+                }
+                None => {
+                    files.insert(path.to_owned(), bytes.to_vec());
+                    Ok(())
+                }
+            }
+        }
+        fn put_replace(&self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+            self.files
+                .lock()
+                .unwrap()
+                .insert(path.to_owned(), bytes.to_vec());
+            Ok(())
+        }
+        fn list(&self, _prefix: &str) -> Result<Vec<Entry>, StoreError> {
+            Ok(Vec::new())
+        }
+        fn delete(&self, path: &str) -> Result<(), StoreError> {
+            self.files.lock().unwrap().remove(path);
+            Ok(())
+        }
+    }
+
+    struct NoUi;
+    impl Ui for NoUi {
+        fn password(&self) -> Res<Zeroizing<String>> {
+            Err(Fail::new("no"))
+        }
+        fn secret_key(&self) -> Res<SecretKey> {
+            Err(Fail::new("no"))
+        }
+        fn notice(&self, _: &str) {}
+        fn warn(&self, _: &str) {}
+    }
+
+    fn session(mode: Option<Mode>) -> (Session, Flaky) {
+        // A password made for this run, never a literal.
+        let pw = SecretKey::random().unwrap().format().to_string();
+        let (vault, _) = Vault::create(&pw, "Laptop", KdfParams::FLOOR, 1).unwrap();
+        let store = Flaky {
+            files: Arc::default(),
+            mode: Arc::new(Mutex::new(mode)),
+        };
+        let s = Session {
+            vault,
+            store: Box::new(store.clone()),
+            ui: Box::new(NoUi),
+            uncertain: false,
+        };
+        (s, store)
+    }
+
+    fn add(s: &mut Session, title: &str) {
+        s.vault
+            .add_item(ItemType::Login, VAULT_NAME, &[("title", title)], 2)
+            .unwrap();
+    }
+
+    fn op_files(store: &Flaky) -> Vec<String> {
+        store.files.lock().unwrap().keys().cloned().collect()
+    }
+
+    #[test]
+    fn a_write_that_landed_despite_the_error_counts_as_saved() {
+        let (mut s, store) = session(Some(Mode::WriteThenFail));
+        add(&mut s, "One");
+        s.commit().unwrap();
+        assert!(!s.is_uncertain());
+        *store.mode.lock().unwrap() = None;
+        add(&mut s, "Two");
+        s.commit().unwrap();
+        let files = op_files(&store);
+        assert!(files[0].ends_with("00000001.op"));
+        assert!(files[1].ends_with("00000002.op"));
+        s.vault.rollback_commit();
+        assert!(!s.vault.has_pending());
+    }
+
+    #[test]
+    fn a_write_that_did_not_land_is_taken_back_and_retried_with_the_same_sequence() {
+        let (mut s, store) = session(Some(Mode::FailWithoutWriting));
+        add(&mut s, "One");
+        assert!(s.commit().is_err());
+        assert!(!s.is_uncertain());
+        assert!(s.vault.has_pending());
+        *store.mode.lock().unwrap() = None;
+        s.commit().unwrap();
+        let files = op_files(&store);
+        assert_eq!(files.len(), 1);
+        assert!(files[0].ends_with("00000001.op"));
+    }
+
+    #[test]
+    fn when_the_read_back_fails_too_the_session_refuses_further_commits() {
+        let (mut s, store) = session(Some(Mode::FailEverything));
+        add(&mut s, "One");
+        assert!(s.commit().is_err());
+        assert!(s.is_uncertain());
+        *store.mode.lock().unwrap() = None;
+        add(&mut s, "Two");
+        assert!(s.commit().is_err());
+        assert!(op_files(&store).len() <= 1);
+    }
 }
