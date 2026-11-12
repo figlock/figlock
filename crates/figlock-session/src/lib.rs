@@ -10,6 +10,7 @@ pub mod join;
 pub mod keystore;
 pub mod quick;
 pub mod quick_se;
+pub mod secret_key_store;
 pub mod session;
 pub mod store;
 pub mod sync;

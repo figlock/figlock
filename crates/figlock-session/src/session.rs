@@ -11,6 +11,7 @@ use zeroize::Zeroizing;
 use crate::config;
 use crate::error::{Fail, Res};
 use crate::quick;
+use crate::secret_key_store::{self, SecretKeyStore};
 
 /// The master password and Secret Key a full unlock was given.
 type Credentials = (Zeroizing<String>, SecretKey);
@@ -124,6 +125,51 @@ pub fn vault_id_of(vault_json: &[u8]) -> Res<String> {
         .ok_or_else(|| Fail::new("vault.json is damaged"))
 }
 
+/// The Secret Key, the Account Unlock Key and the opened vault for a full unlock. The key kept on this device
+/// is tried first, after Touch ID or the device password. A key only counts when `open` accepts the key
+/// derived from it: deriving one never fails, so a stale key would otherwise look fine. If nothing is kept, or
+/// the kept key does not open the vault (the Secret Key was rotated on another device, or the password is
+/// wrong, which cannot be told apart), the person types it, and what opened the vault is kept for next time
+/// (ADR-0027). A kept key that fails is never deleted here: the password may simply have been mistyped.
+fn credentials<B: quick::Backend, T>(
+    vault_json: &[u8],
+    vault: &str,
+    password: &str,
+    keys: &SecretKeyStore<B>,
+    ui: &dyn Ui,
+    open: &dyn Fn(&Key) -> Res<Result<T, figlock_core::Error>>,
+) -> Res<(SecretKey, Key, T)> {
+    let kept = keys
+        .get(vault, "unlock your FigLock vault")
+        .unwrap_or_else(|e| {
+            ui.warn(&format!(
+                "the Secret Key kept on this device was not read: {e}"
+            ));
+            None
+        });
+    if let Some(secret_key) = kept {
+        let auk = Vault::unlock_key(vault_json, password, &secret_key)
+            .map_err(|_| wrong_credentials())?;
+        if let Ok(opened) = open(&auk)? {
+            return Ok((secret_key, auk, opened));
+        }
+        ui.notice(
+            "the Secret Key kept on this device did not open the vault; if your master password is right, \
+             the Secret Key was changed, so enter the new one from your Emergency Kit",
+        );
+    }
+    let secret_key = ui.secret_key()?;
+    let auk =
+        Vault::unlock_key(vault_json, password, &secret_key).map_err(|_| wrong_credentials())?;
+    let opened = open(&auk)?.map_err(|_| wrong_credentials())?;
+    if keys.available()
+        && let Err(e) = keys.put(vault, &secret_key)
+    {
+        ui.warn(&format!("the Secret Key was not kept on this device: {e}"));
+    }
+    Ok((secret_key, auk, opened))
+}
+
 impl Session {
     /// Unlock with quick unlock when it is on and still valid, otherwise with the master password and
     /// Secret Key.
@@ -202,10 +248,15 @@ impl Session {
             Some(done) => done,
             None => {
                 let password = ui.password()?;
-                let secret_key = ui.secret_key()?;
-                let auk = Vault::unlock_key(&vault_json, &password, &secret_key)
-                    .map_err(|_| wrong_credentials())?;
-                let done = unlock(&auk)?.map_err(|_| wrong_credentials())?;
+                let keys = secret_key_store::system()?;
+                let (secret_key, auk, done) = credentials(
+                    &vault_json,
+                    &vault_id,
+                    &password,
+                    &keys,
+                    ui.as_ref(),
+                    &unlock,
+                )?;
                 if let Err(e) = quick.remember(&vault_id, &auk, now / 1000) {
                     ui.warn(&format!("quick unlock was not refreshed: {e}"));
                 }
@@ -660,5 +711,204 @@ mod tests {
         let r = a.refresh().unwrap();
         assert!(r.settings_changed);
         assert_eq!(r.applied, 0);
+    }
+
+    mod credentials_tests {
+        use std::cell::{Cell, RefCell};
+        use std::rc::Rc;
+
+        use figlock_biometric::Outcome;
+
+        use super::*;
+        use crate::quick::Backend;
+
+        #[derive(Default)]
+        struct Shared {
+            key: RefCell<Option<[u8; 32]>>,
+        }
+
+        #[derive(Clone, Default)]
+        struct Fake(Rc<Shared>);
+
+        impl Backend for Fake {
+            fn available(&self) -> bool {
+                true
+            }
+            fn confirm(&self, _: &str, _: &str) -> Outcome {
+                Outcome::Confirmed
+            }
+            fn put_key(&self, _: &str, key: &[u8; 32]) -> Res<()> {
+                *self.0.key.borrow_mut() = Some(*key);
+                Ok(())
+            }
+            fn get_key(&self, _: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
+                Ok((*self.0.key.borrow()).map(Zeroizing::new))
+            }
+            fn has_key(&self, _: &str) -> Res<bool> {
+                Ok(self.0.key.borrow().is_some())
+            }
+            fn delete_key(&self, _: &str) -> Res<()> {
+                *self.0.key.borrow_mut() = None;
+                Ok(())
+            }
+            fn boot_id(&self) -> String {
+                String::new()
+            }
+        }
+
+        /// Answers the Secret Key question with `typed`, and counts how often it was asked.
+        struct Typed {
+            typed: Option<SecretKey>,
+            asked: Cell<u32>,
+            notices: RefCell<Vec<String>>,
+        }
+
+        impl Ui for Typed {
+            fn password(&self) -> Res<Zeroizing<String>> {
+                Err(Fail::new("not used"))
+            }
+            fn secret_key(&self) -> Res<SecretKey> {
+                self.asked.set(self.asked.get() + 1);
+                self.typed
+                    .as_ref()
+                    .map(|k| SecretKey::from_bytes(*k.expose()))
+                    .ok_or_else(|| Fail::new("no key typed"))
+            }
+            fn notice(&self, m: &str) {
+                self.notices.borrow_mut().push(m.to_owned());
+            }
+            fn warn(&self, _: &str) {}
+        }
+
+        fn ui(typed: Option<&SecretKey>) -> Typed {
+            Typed {
+                typed: typed.map(|k| SecretKey::from_bytes(*k.expose())),
+                asked: Cell::new(0),
+                notices: RefCell::new(Vec::new()),
+            }
+        }
+
+        struct Rig {
+            vault_json: Vec<u8>,
+            vault: String,
+            pw: String,
+            sk: SecretKey,
+            device_record: Vec<u8>,
+        }
+
+        impl Rig {
+            fn creds(
+                &self,
+                password: &str,
+                keys: &SecretKeyStore<Fake>,
+                ui: &Typed,
+            ) -> Res<(SecretKey, Key, Vault)> {
+                let records = [self.device_record.clone()];
+                credentials(
+                    &self.vault_json,
+                    &self.vault,
+                    password,
+                    keys,
+                    ui,
+                    &|auk: &Key| {
+                        Ok(Vault::unlock_with_key(
+                            &self.vault_json,
+                            auk,
+                            figlock_core::DeviceKeys::generate().unwrap(),
+                            "Laptop",
+                            &records,
+                            2,
+                        )
+                        .map(|(v, _)| v))
+                    },
+                )
+            }
+        }
+
+        fn rig() -> Rig {
+            let pw = SecretKey::random().unwrap().format().to_string();
+            let (v, created) = Vault::create(&pw, "Laptop", KdfParams::FLOOR, 1).unwrap();
+            Rig {
+                vault_json: created.vault_json,
+                vault: hex::encode(v.vault_id()),
+                pw,
+                sk: created.secret_key,
+                device_record: created.device_record,
+            }
+        }
+
+        fn kept(fake: &Fake) -> Option<[u8; 16]> {
+            (*fake.0.key.borrow()).map(|b| b[..16].try_into().unwrap())
+        }
+
+        #[test]
+        fn a_kept_key_unlocks_without_asking_for_it() {
+            let r = rig();
+            let keys = SecretKeyStore::new(Fake::default(), true);
+            keys.put(&r.vault, &r.sk).unwrap();
+            let ui = ui(None);
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
+            assert_eq!(sk.expose(), r.sk.expose());
+            assert_eq!(ui.asked.get(), 0);
+        }
+
+        #[test]
+        fn a_typed_key_is_kept_for_next_time() {
+            let r = rig();
+            let fake = Fake::default();
+            let keys = SecretKeyStore::new(fake.clone(), true);
+            let ui = ui(Some(&r.sk));
+            r.creds(&r.pw, &keys, &ui).unwrap();
+            assert_eq!(ui.asked.get(), 1);
+            assert_eq!(kept(&fake), Some(*r.sk.expose()));
+        }
+
+        #[test]
+        fn a_stale_kept_key_asks_for_the_new_one_and_replaces_it() {
+            let r = rig();
+            let fake = Fake::default();
+            let keys = SecretKeyStore::new(fake.clone(), true);
+            let old = SecretKey::random().unwrap();
+            keys.put(&r.vault, &old).unwrap();
+            let ui = ui(Some(&r.sk));
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
+            assert_eq!(sk.expose(), r.sk.expose());
+            assert_eq!(ui.asked.get(), 1);
+            assert_eq!(ui.notices.borrow().len(), 1);
+            assert_eq!(kept(&fake), Some(*r.sk.expose()));
+        }
+
+        #[test]
+        fn a_wrong_password_does_not_delete_or_replace_the_kept_key() {
+            let r = rig();
+            let fake = Fake::default();
+            let keys = SecretKeyStore::new(fake.clone(), true);
+            keys.put(&r.vault, &r.sk).unwrap();
+            // The person mistyped the password and typed the right key again when asked.
+            let ui = ui(Some(&r.sk));
+            let wrong = SecretKey::random().unwrap().format().to_string();
+            assert!(r.creds(&wrong, &keys, &ui).is_err());
+            assert_eq!(kept(&fake), Some(*r.sk.expose()));
+        }
+
+        #[test]
+        fn a_wrong_typed_key_keeps_nothing() {
+            let r = rig();
+            let fake = Fake::default();
+            let keys = SecretKeyStore::new(fake.clone(), true);
+            let ui = ui(Some(&SecretKey::random().unwrap()));
+            assert!(r.creds(&r.pw, &keys, &ui).is_err());
+            assert_eq!(kept(&fake), None);
+        }
+
+        #[test]
+        fn a_device_that_cannot_keep_the_key_still_unlocks_by_typing() {
+            let r = rig();
+            let keys = SecretKeyStore::new(Fake::default(), false);
+            let ui = ui(Some(&r.sk));
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
+            assert_eq!(sk.expose(), r.sk.expose());
+            assert_eq!(ui.asked.get(), 1);
+        }
     }
 }

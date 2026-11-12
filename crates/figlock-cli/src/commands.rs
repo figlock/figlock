@@ -99,9 +99,10 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         println!("Secret Key: {}", secret_key.as_str());
     }
     eprintln!(
-        "Write the Secret Key down now. It is shown once, is needed on every new device and for recovery, \
-         and cannot be reset."
+        "Write the Secret Key down now. It is shown once and cannot be reset. This device keeps it for you; \
+         you need the written copy to recover the vault or to add a device when no other one is at hand."
     );
+    keep_secret_key(&created);
     if cfg.place.remote.is_some()
         && let Err(e) = figlock_session::sync::run(&cfg, false)
     {
@@ -111,6 +112,20 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     }
     offer_quick_unlock(choice, json, &created, &password);
     Ok(())
+}
+
+/// Keep the Secret Key on this device (ADR-0027). The vault and the key are already out, so a failure only warns.
+fn keep_secret_key(created: &figlock_core::Created) {
+    let keys = match figlock_session::secret_key_store::system() {
+        Ok(k) if k.available() => k,
+        // Nothing to keep it in on this machine (FIG-105): the key is typed when needed, as before.
+        _ => return,
+    };
+    let kept = session::vault_id_of(&created.vault_json)
+        .and_then(|vault| keys.put(&vault, &created.secret_key));
+    if let Err(e) = kept {
+        eprintln!("warning: the Secret Key was not kept on this device: {e}");
+    }
 }
 
 /// The last step of `init`: offer quick unlock (`docs/adr/0025`, amendment FIG-79). The vault and the Secret

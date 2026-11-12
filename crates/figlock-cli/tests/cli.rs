@@ -611,6 +611,23 @@ fn init_without_a_terminal_leaves_quick_unlock_off() {
     assert!(text(&out.stderr).contains("could not unlock"));
 }
 
+#[test]
+fn a_device_with_no_keystore_keeps_no_secret_key_and_says_so() {
+    // The tests run with `FIGLOCK_DEVICE_KEYS=file`, like a headless machine: there is nowhere to keep it.
+    let e = Env::init();
+    let shown = e.run(&["secret-key", "show"]);
+    assert!(!shown.status.success());
+    assert!(text(&shown.stderr).contains("no Secret Key is kept on this device"));
+    assert!(!text(&shown.stdout).contains(&e.secret_key));
+    // Forgetting what is not kept is fine, and the full unlock still works by typing the key.
+    assert!(e.ok(&["secret-key", "forget"]).contains("no longer kept"));
+    let found = e.run_with(&["find"], None, PW, Some(&e.secret_key));
+    assert!(found.status.success(), "{}", text(&found.stderr));
+    for name in ["secret-key.qk", "secret-key.blob"] {
+        assert!(!e.home.path().join(name).exists());
+    }
+}
+
 /// Bytes that are not valid UTF-8 and do not look like text, so a lossy path would corrupt them.
 fn file_bytes(n: usize) -> Vec<u8> {
     let mut b = vec![0u8; n];
