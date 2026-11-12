@@ -16,11 +16,11 @@ fn end_of(key: &str) -> String {
 #[test]
 fn a_locked_vault_cannot_change_credentials() {
     let d = desk();
-    let key = SecretKey::from_bytes([7; 16]).format().to_string();
+    let key = SecretKey::random().unwrap().format().to_string();
     let new_pw = password();
     assert_eq!(
         code_of(
-            d.change_credentials("x", Some(&key), Some(&new_pw), false)
+            d.change_credentials(&password(), Some(&key), Some(&new_pw), false)
                 .unwrap_err()
         ),
         "locked"
