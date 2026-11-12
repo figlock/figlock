@@ -36,6 +36,7 @@ pub fn enable(json: bool) -> Res<()> {
             "this machine cannot ask for Touch ID or the device password, so quick unlock is unavailable",
         ));
     }
+    crate::sync_cmd::pull_first();
     let (_session, auk) = Session::open_full(prompt::terminal())?;
     let vault = figlock_session::session::peek_vault_id()?;
     quick.enable(&vault, &auk, figlock_session::session::now_ms() / 1000)?;

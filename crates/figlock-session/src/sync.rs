@@ -10,7 +10,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use figlock_store::{BlobStore, StoreError};
 use sha2::{Digest, Sha256};
@@ -52,6 +52,8 @@ pub enum SyncError {
     RemoteLost,
     /// A `vault.json` that is not valid JSON with a `vault_id` and `revision`.
     Damaged,
+    /// Another sync on this device is running; it does the work.
+    Busy,
     Other(String),
 }
 
@@ -66,6 +68,7 @@ impl std::fmt::Display for SyncError {
                 "the remote vault is gone; confirm to upload everything from this device again"
             }
             SyncError::Damaged => "a vault.json is damaged, so nothing was synced",
+            SyncError::Busy => "another sync is already running on this device",
             SyncError::Other(m) => m,
         })
     }
@@ -360,10 +363,30 @@ pub fn forget_state() {
     }
 }
 
+/// Held for the whole of a sync so two never mirror into the local folder at once.
+struct SyncLock(#[expect(dead_code)] fs::File);
+
+impl SyncLock {
+    fn acquire_in(dir: &Path) -> Result<Self, SyncError> {
+        fs::create_dir_all(dir)?;
+        let f = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(dir.join("sync.lock"))?;
+        match f.try_lock() {
+            Ok(()) => Ok(SyncLock(f)),
+            Err(fs::TryLockError::WouldBlock) => Err(SyncError::Busy),
+            Err(fs::TryLockError::Error(e)) => Err(e.into()),
+        }
+    }
+}
+
 /// Sync this device's local folder with its remote. `confirm_reupload` is the person's yes to uploading
 /// everything again after the remote was lost.
 pub fn run(cfg: &Config, confirm_reupload: bool) -> Result<Report, SyncError> {
     let remote_kind = cfg.place.remote.ok_or(SyncError::NotEnabled)?;
+    let _lock = SyncLock::acquire_in(&config::home()?)?;
     let local = crate::store::open(&cfg.place)?;
     let remote = crate::store::open_remote(remote_kind)?;
     let own = config::device_id().map(hex::encode);
@@ -379,9 +402,27 @@ pub fn run(cfg: &Config, confirm_reupload: bool) -> Result<Report, SyncError> {
     Ok(report)
 }
 
-/// Make sure the local folder holds a vault when a remote is set: a Drive-only device from before ADR-0026,
-/// or "open an existing vault from Drive". Pulls only; a no-op when the local folder already has one.
+/// Called whenever a vault is opened. Makes sure the local folder holds a vault when a remote is set (a
+/// Drive-only device from before ADR-0026). Pulls only, and touches the network only when the local folder has
+/// no vault yet: a device with a local vault must open offline.
 pub fn fill_local(place: &Place) -> Result<(), SyncError> {
+    let Some(remote_kind) = place.remote else {
+        return Ok(());
+    };
+    fs::create_dir_all(&place.local)?;
+    let local = crate::store::open_local(&place.local)?;
+    if read(local.as_ref(), "vault.json")?.is_some() {
+        return Ok(());
+    }
+    pull_into(
+        local.as_ref(),
+        crate::store::open_remote(remote_kind)?.as_ref(),
+    )
+}
+
+/// Opening an existing vault from the remote during setup (open or join): always looks at the remote, and
+/// refuses when the local folder already holds a different vault, so a stale copy is never unlocked by mistake.
+pub fn open_from_remote(place: &Place) -> Result<(), SyncError> {
     let Some(remote_kind) = place.remote else {
         return Ok(());
     };
@@ -468,6 +509,18 @@ mod tests {
             out.insert("vault.json".into(), v);
         }
         out
+    }
+
+    #[test]
+    fn a_second_sync_cannot_start_while_one_holds_the_lock() {
+        let d = tempfile::tempdir().unwrap();
+        let first = SyncLock::acquire_in(d.path()).unwrap();
+        assert!(matches!(
+            SyncLock::acquire_in(d.path()),
+            Err(SyncError::Busy)
+        ));
+        drop(first);
+        assert!(SyncLock::acquire_in(d.path()).is_ok());
     }
 
     fn opts(own: Option<&str>, push_all: bool) -> Opts<'_> {

@@ -353,6 +353,18 @@ fn load_in(home: &Path) -> Res<Config> {
     Ok(cfg)
 }
 
+/// Turn the remote on or off for this device, keeping everything else in `config.json`.
+pub fn set_remote(remote: Option<Remote>) -> Res<Config> {
+    set_remote_in(&home()?, remote)
+}
+
+fn set_remote_in(home: &Path, remote: Option<Remote>) -> Res<Config> {
+    let mut cfg = load_in(home)?;
+    cfg.place.remote = remote;
+    fs::write(config_path(home), config_body(&cfg)?)?;
+    Ok(cfg)
+}
+
 pub fn load_device() -> Res<DeviceKeys> {
     load_device_in(&home()?, keystore::system().as_deref())
 }
@@ -756,5 +768,20 @@ mod tests {
         )
         .unwrap();
         assert!(load_in(d.path()).is_err());
+    }
+
+    #[test]
+    fn the_remote_can_be_turned_on_and_off() {
+        let d = tempfile::tempdir().unwrap();
+        let keys = DeviceKeys::generate().unwrap();
+        let mut c = cfg();
+        c.place.remote = None;
+        save_in(d.path(), &c, &keys, None).unwrap();
+        let on = set_remote_in(d.path(), Some(Remote::Drive)).unwrap();
+        assert_eq!(on.place.remote, Some(Remote::Drive));
+        assert_eq!(load_in(d.path()).unwrap().place.remote, Some(Remote::Drive));
+        let off = set_remote_in(d.path(), None).unwrap();
+        assert_eq!(off.place, c.place);
+        assert_eq!(load_in(d.path()).unwrap().device_name, "Laptop");
     }
 }

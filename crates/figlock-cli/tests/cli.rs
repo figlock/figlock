@@ -943,3 +943,88 @@ fn device_list_marks_this_device_and_it_cannot_revoke_itself() {
     let bad = e.run(&["device", "revoke", "zz"]);
     assert!(text(&bad.stderr).contains("hex digits"));
 }
+
+// ---- Drive sync (ADR-0026); nothing here talks to Google ----
+
+#[test]
+fn sync_is_off_for_a_folder_vault_and_says_how_to_turn_it_on() {
+    let e = Env::init();
+    let status = e.ok(&["sync", "status"]);
+    assert!(status.contains("Google Drive sync: off"), "{status}");
+    let json: Value = serde_json::from_str(&e.ok(&["--json", "sync", "status"])).unwrap();
+    assert_eq!(json["remote"], Value::Null);
+    assert_eq!(
+        json["local"],
+        e.store.path().canonicalize().unwrap().to_str().unwrap()
+    );
+
+    let out = e.run(&["sync"]);
+    assert!(!out.status.success());
+    assert!(
+        text(&out.stderr).contains("figlock sync on"),
+        "{}",
+        text(&out.stderr)
+    );
+    assert!(
+        e.run(&["sync", "off"]).status.success(),
+        "off when off is calm"
+    );
+}
+
+#[test]
+fn sync_on_needs_a_sign_in_and_changes_nothing_without_one() {
+    let e = Env::init();
+    let before = fs::read(e.home.path().join("config.json")).unwrap();
+    let out = e.run(&["sync", "on"]);
+    assert!(!out.status.success());
+    assert!(
+        text(&out.stderr).contains("figlock drive login"),
+        "{}",
+        text(&out.stderr)
+    );
+    assert_eq!(fs::read(e.home.path().join("config.json")).unwrap(), before);
+}
+
+#[test]
+fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_reached() {
+    let e = Env::init();
+    // A device with Drive sync on but no sign-in: the same as a revoked or offline remote.
+    let path = e.home.path().join("config.json");
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    cfg["remote"] = Value::from("drive");
+    fs::write(&path, cfg.to_string()).unwrap();
+
+    let status = e.ok(&["sync", "status"]);
+    assert!(status.contains("Google Drive sync: on"), "{status}");
+    assert!(status.contains("Signed in to Google: no"), "{status}");
+
+    let out = e.run_stdin(
+        &[
+            "add",
+            "--type",
+            "login",
+            "--title",
+            "Offline item",
+            "--secret",
+            "password",
+        ],
+        &format!("{SECRET}\n"),
+    );
+    assert!(out.status.success(), "{}", text(&out.stderr));
+    assert!(
+        text(&out.stderr).contains("not synced with Google Drive"),
+        "{}",
+        text(&out.stderr)
+    );
+    let found = e.ok(&["find", "Offline item"]);
+    assert!(found.contains("Offline item"), "{found}");
+    assert_eq!(e.ops().len(), 1, "the write landed in the local folder");
+
+    let sync = e.run(&["sync"]);
+    assert!(!sync.status.success());
+    assert!(
+        text(&sync.stderr).contains("figlock drive login"),
+        "{}",
+        text(&sync.stderr)
+    );
+}

@@ -24,7 +24,7 @@ fn bad_invite() -> Fail {
 /// Send the request for the invite `code` found in the vault at `place`. With a remote, the vault is first
 /// downloaded into the local folder, and the request is pushed so the trusted device can see it.
 pub fn begin(place: Place, code: &str, device_name: &str, now_ms: u64) -> Res<Join> {
-    crate::sync::fill_local(&place)?;
+    crate::sync::open_from_remote(&place)?;
     let store = crate::store::open(&place)?;
     let vault_json = store.get("vault.json").map_err(|e| match e {
         StoreError::NotFound => Fail::new("there is no FigLock vault in that storage"),

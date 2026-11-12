@@ -62,6 +62,8 @@ and named by its owner:
   never merged.
 - **Schedule** follows `sync.md` 10: every 15 seconds while the app or broker runs, plus after a local write,
   on unlock, and on manual sync; backoff 5 s, 15 s, 60 s, then 5 minutes.
+- **One sync at a time per device.** A sync holds an exclusive lock file (`sync.lock` in the config home) for
+  its whole run; a second sync fails fast as busy (silent on the automatic paths) instead of mirroring too.
 
 ### Failure modes
 
@@ -80,15 +82,18 @@ and named by its owner:
 - Setup (CLI and desktop) offers three choices: create a new vault, open an existing vault from Drive, or
   join a device by pairing. Open and join create a local copy and pull what is in Drive.
 - `figlock init` creates the local vault at `--store <dir>` (default `<app data dir>/vault`); `--drive` adds
-  Drive sync to it. `figlock open --drive` and `figlock join` create the local copy from Drive.
-- `figlock sync` runs one pull and push and prints what moved (`--json` supported). `figlock sync on` and
-  `figlock sync off` enable and disable the Drive remote; `figlock sync status` shows signed in, last sync and
-  any warnings. `figlock drive login` and `logout` are unchanged.
-- One-shot commands read and write the local folder only and never block on the network. After a command that
-  writes, the CLI makes one best-effort push with a short timeout and prints a warning if it fails; the next
-  sync catches up.
-- The broker daemon runs the background sync loop while it is up, so an agent session has the same freshness
-  as the desktop app.
+  Drive sync to it. The CLI has no open or join command today; when it gets them they download into a new
+  local copy like the desktop app does.
+- `figlock sync` runs one pull and push and prints what moved (`--json` supported); `--reupload` is the
+  person's confirmation after the remote was lost. `figlock sync on` and `figlock sync off` enable and
+  disable the Drive remote (`on` only stays on if the first sync works); `figlock sync status` shows signed
+  in, last sync and the local path, with no network call. `figlock drive login` and `logout` are unchanged.
+- Ordinary commands read and write the local folder and never depend on the network. Before a command that
+  unlocks the vault, the CLI pulls if the last sync is more than 15 seconds old; after a command that writes,
+  it pushes. Both have a 5 second limit, are skipped when sync is off, and on failure print a warning (the
+  pull stays silent when simply offline) and carry on: the next sync catches up.
+- The broker daemon syncs once before it unlocks. A background loop while it runs waits until the broker can
+  reload its in-memory vault, because pulling files it never reads would add nothing.
 
 ## Consequences
 

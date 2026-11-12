@@ -208,6 +208,7 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
         return Err(Fail::new("use --title for the title"));
     }
     fields.push(("title".to_owned(), Zeroizing::new(a.title)));
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let refs: Vec<(&str, &str)> = fields
         .iter()
@@ -215,6 +216,7 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
         .collect();
     let id = s.vault.add_item(a.item_type, VAULT_NAME, &refs, now_ms())?;
     s.commit()?;
+    crate::sync_cmd::push_after_write();
     if json {
         print_json(&json!({ "id": id_hex(&id) }))
     } else {
@@ -236,6 +238,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
             "nothing to do: give --set, --secret, --unset, --file, --remove-file, --delete or --restore",
         ));
     }
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let item = s.resolve(&a.item, a.restore)?;
     let id = item.id;
@@ -271,6 +274,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
         s.vault.restore_item(&id, now)?;
     }
     s.commit()?;
+    crate::sync_cmd::push_after_write();
     if json {
         print_json(&json!({ "id": id_hex(&id) }))
     } else {
@@ -280,6 +284,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
 }
 
 pub fn find(a: FindArgs, json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let mut items = s.items(false);
     if let Some(t) = a.item_type {
@@ -307,6 +312,7 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
 }
 
 pub fn get(a: GetArgs, json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let item = s.resolve(&a.item, false)?;
     if let (Some(name), Some(out)) = (&a.file, &a.out) {
@@ -371,6 +377,7 @@ fn default_secret_field(t: ItemType) -> Option<&'static str> {
 }
 
 pub fn copy(a: CopyArgs, json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let item = s.resolve(&a.item, false)?;
     let field = match a.field {
@@ -428,6 +435,7 @@ pub fn generate(a: GenerateArgs, json: bool) -> Res<()> {
 }
 
 pub fn export(a: ExportArgs) -> Res<()> {
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let items = s.items(a.include_deleted);
     let list: Vec<Value> = items

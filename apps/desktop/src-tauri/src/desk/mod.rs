@@ -430,7 +430,7 @@ impl Desk {
         let key = parse_secret_key(secret_key)?;
         let place = storage_place(storage, false)?;
         // Downloads the vault into a new local copy when it lives in Drive.
-        figlock_session::sync::fill_local(&place).map_err(Fail::from)?;
+        figlock_session::sync::open_from_remote(&place).map_err(Fail::from)?;
         let store = figlock_session::store::open(&place)?;
         let vault_json = store.get("vault.json").map_err(|e| match e {
             figlock_store::StoreError::NotFound => CmdError::new(

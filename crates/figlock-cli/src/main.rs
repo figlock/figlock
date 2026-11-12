@@ -21,6 +21,7 @@ mod run;
 #[cfg(unix)]
 mod scrub;
 mod skill;
+mod sync_cmd;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -121,6 +122,8 @@ enum Command {
         #[command(subcommand)]
         action: DriveCmd,
     },
+    /// Keep this device's vault matched to Google Drive. With no subcommand, sync once now.
+    Sync(SyncArgs),
     /// The Claude skill that teaches agents to use secrets through the broker.
     Skill {
         #[command(subcommand)]
@@ -167,6 +170,25 @@ enum QuickCmd {
     /// Turn it off and delete the kept key.
     Disable,
     /// Show whether it is on.
+    Status,
+}
+
+#[derive(Args)]
+struct SyncArgs {
+    /// Upload everything from this device again, after the vault was lost from Google Drive.
+    #[arg(long)]
+    reupload: bool,
+    #[command(subcommand)]
+    action: Option<SyncCmd>,
+}
+
+#[derive(Subcommand)]
+enum SyncCmd {
+    /// Turn Drive sync on and upload what is already on this device (sign in first with `figlock drive login`).
+    On,
+    /// Stop syncing. The vault on this device and the copy in Drive are left alone.
+    Off,
+    /// Show whether sync is on, whether you are signed in and when it last ran.
     Status,
 }
 
@@ -662,6 +684,15 @@ fn main() -> ExitCode {
         Command::Drive { action } => ok(match action {
             DriveCmd::Login => drive::login(json),
             DriveCmd::Logout => drive::logout(json),
+        }),
+        Command::Sync(a) if a.reupload && a.action.is_some() => ok(Err(
+            figlock_session::error::Fail::new("--reupload only applies to `figlock sync` itself"),
+        )),
+        Command::Sync(a) => ok(match a.action {
+            None => sync_cmd::run(a.reupload, json),
+            Some(SyncCmd::On) => sync_cmd::on(json),
+            Some(SyncCmd::Off) => sync_cmd::off(json),
+            Some(SyncCmd::Status) => sync_cmd::status(json),
         }),
         Command::Skill { action } => ok(match action {
             SkillCmd::Install(a) => skill::install(&a, json),

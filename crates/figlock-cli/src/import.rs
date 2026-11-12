@@ -100,6 +100,7 @@ pub fn import(a: ImportArgs, json: bool) -> Res<()> {
         }
         return Err(Fail::new("nothing to import"));
     }
+    crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let now = now_ms();
     for (n, chunk) in report.items.chunks(COMMIT_EVERY).enumerate() {
@@ -115,6 +116,7 @@ pub fn import(a: ImportArgs, json: bool) -> Res<()> {
         }
         s.commit().map_err(|_| partial(n * COMMIT_EVERY))?;
     }
+    crate::sync_cmd::push_after_write();
     if json {
         println!("{}", summary_json(&a, &report, true));
     } else {
