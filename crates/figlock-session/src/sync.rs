@@ -137,18 +137,30 @@ fn identity(bytes: &[u8]) -> Result<(String, u64), SyncError> {
     }
 }
 
-/// Path to "is it available here yet". A listed file whose bytes are not on the device is not missing.
-fn listing(store: &dyn BlobStore, prefix: &str) -> Result<BTreeMap<String, bool>, SyncError> {
+/// Every path in the store to "is it available here yet" (a listed file whose bytes are not on the device is
+/// not missing). One listing, not one per directory: Google Drive's flat namespace costs a full listing request
+/// for each call, and a sync on a slow connection is dominated by them.
+fn listing(store: &dyn BlobStore) -> Result<BTreeMap<String, bool>, SyncError> {
     Ok(store
-        .list(prefix)?
+        .list("")?
         .into_iter()
         .map(|e| (e.path, e.available))
         .collect())
 }
 
+fn under(all: &BTreeMap<String, bool>, prefix: &str) -> BTreeMap<String, bool> {
+    all.iter()
+        .filter(|(p, _)| p.starts_with(prefix))
+        .map(|(p, a)| (p.clone(), *a))
+        .collect()
+}
+
 struct Mirror<'a> {
     local: &'a dyn BlobStore,
     remote: &'a dyn BlobStore,
+    /// What each side held when the sync started.
+    local_all: BTreeMap<String, bool>,
+    remote_all: BTreeMap<String, bool>,
     report: Report,
 }
 
@@ -197,7 +209,10 @@ impl Mirror<'_> {
     }
 
     fn create_only(&mut self, prefix: &str, opts: &Opts) -> Result<(), SyncError> {
-        let (l, r) = (listing(self.local, prefix)?, listing(self.remote, prefix)?);
+        let (l, r) = (
+            under(&self.local_all, prefix),
+            under(&self.remote_all, prefix),
+        );
         for (path, available) in &r {
             if *available && !l.contains_key(path) {
                 self.create(true, path)?;
@@ -214,8 +229,8 @@ impl Mirror<'_> {
     /// The authority's `devices/` records win outright: a rotation re-signs them and a revocation removes one.
     fn devices(&mut self, winner: Winner) -> Result<(), SyncError> {
         let (l, r) = (
-            listing(self.local, "devices/")?,
-            listing(self.remote, "devices/")?,
+            under(&self.local_all, "devices/"),
+            under(&self.remote_all, "devices/"),
         );
         match winner {
             Winner::Same => {
@@ -301,6 +316,8 @@ pub fn mirror(
     opts: &Opts,
 ) -> Result<Report, SyncError> {
     let mut warnings = Vec::new();
+    // List first: a Drive listing also fills the id cache that makes the reads below one request each.
+    let (local_all, remote_all) = (listing(local)?, listing(remote)?);
     let (lv, rv) = (read(local, "vault.json")?, read(remote, "vault.json")?);
     let winner = pick_vault_json(&lv, &rv, opts, &mut warnings)?;
     if lv.is_none() && rv.is_none() {
@@ -309,6 +326,8 @@ pub fn mirror(
     let mut m = Mirror {
         local,
         remote,
+        local_all,
+        remote_all,
         report: Report {
             warnings,
             ..Report::default()
@@ -818,5 +837,44 @@ mod tests {
             mirror(&la, &remote, &opts(Some(A), true)),
             Err(SyncError::SignIn)
         );
+    }
+
+    /// Counts listing requests, the expensive call on Google Drive.
+    struct Lists<'a> {
+        inner: &'a LocalFolder,
+        lists: AtomicUsize,
+    }
+
+    impl BlobStore for Lists<'_> {
+        fn get(&self, p: &str) -> Result<Vec<u8>, StoreError> {
+            self.inner.get(p)
+        }
+        fn put_new(&self, p: &str, b: &[u8]) -> Result<(), StoreError> {
+            self.inner.put_new(p, b)
+        }
+        fn put_replace(&self, p: &str, b: &[u8]) -> Result<(), StoreError> {
+            self.inner.put_replace(p, b)
+        }
+        fn list(&self, p: &str) -> Result<Vec<Entry>, StoreError> {
+            self.lists.fetch_add(1, Ordering::SeqCst);
+            self.inner.list(p)
+        }
+        fn delete(&self, p: &str) -> Result<(), StoreError> {
+            self.inner.delete(p)
+        }
+    }
+
+    #[test]
+    fn a_sync_lists_each_side_once() {
+        let (_a, la) = device_a();
+        let (_r, inner) = store();
+        let remote = Lists {
+            inner: &inner,
+            lists: AtomicUsize::new(0),
+        };
+        mirror(&la, &remote, &opts(Some(A), true)).unwrap();
+        assert_eq!(remote.lists.load(Ordering::SeqCst), 1);
+        mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!(remote.lists.load(Ordering::SeqCst), 2, "one per sync");
     }
 }

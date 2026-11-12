@@ -5,6 +5,7 @@
 //! sync is older than the polling interval) and push after they write, each with a short timeout, so a slow or
 //! missing network never stops a command from working: it prints a warning and the next sync catches up.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -16,10 +17,15 @@ use figlock_session::error::{Fail, Res};
 use figlock_session::session::now_ms;
 use figlock_session::sync::{self, Report, SyncError, Warning};
 
-/// Commands pull when the last sync is older than this (`sync.md` 10: poll every 15 seconds).
-const PULL_AFTER_MS: u64 = 15_000;
-/// How long an ordinary command waits for the network before it carries on without it.
-const QUIET_TIMEOUT: Duration = Duration::from_secs(5);
+/// Commands pull when the last sync is older than this. The desktop app and the broker poll every 15 seconds
+/// (`sync.md` 10); a one-shot command that paid a network round trip each time would be slow for an agent
+/// calling it in a loop, so it accepts a minute of staleness (`figlock sync` forces a fresh pull).
+const PULL_AFTER_MS: u64 = 60_000;
+/// How long a command waits for the pull before it carries on without it.
+const PULL_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long a command waits for its own write to reach Drive. Drive writes are several requests each, so this
+/// is generous: giving up early would kill the upload when the process exits.
+const PUSH_TIMEOUT: Duration = Duration::from_secs(40);
 
 fn print_json(v: &serde_json::Value) -> Res<()> {
     println!(
@@ -171,33 +177,41 @@ pub fn status(json: bool) -> Res<()> {
 
 /// Sync with a time limit. A run that goes over is left to finish on its own thread. It holds the sync lock
 /// until then, so a later sync on this device reports busy instead of mirroring alongside it.
-fn timeboxed(cfg: Config) -> Result<Report, SyncError> {
+fn timeboxed(cfg: Config, limit: Duration) -> Result<Report, SyncError> {
     let (tx, rx) = mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(sync::run(&cfg, false));
     });
-    rx.recv_timeout(QUIET_TIMEOUT)
-        .unwrap_or(Err(SyncError::Offline))
+    rx.recv_timeout(limit).unwrap_or(Err(SyncError::Offline))
 }
 
-fn quiet(warn_when_offline: bool) {
+/// A command that pulls and pushes would otherwise print the same warning twice.
+static WARNED: AtomicBool = AtomicBool::new(false);
+
+fn warn_once(text: &str) {
+    if !WARNED.swap(true, Ordering::SeqCst) {
+        eprintln!("warning: {text}");
+    }
+}
+
+fn quiet(warn_when_offline: bool, limit: Duration) {
     let Ok(cfg) = config::load() else {
         return;
     };
     if cfg.place.remote.is_none() {
         return;
     }
-    match timeboxed(cfg) {
+    match timeboxed(cfg, limit) {
         Ok(report) => {
             for w in &report.warnings {
-                eprintln!("warning: {}", warning_text(*w));
+                warn_once(warning_text(*w));
             }
         }
         Err(SyncError::Busy) => {}
         Err(SyncError::Offline) if !warn_when_offline => {}
-        Err(e) => eprintln!(
-            "warning: not synced with Google Drive ({e}); this device keeps working and the next sync catches up"
-        ),
+        Err(e) => warn_once(&format!(
+            "not synced with Google Drive ({e}); this device keeps working. Run `figlock sync` when you can"
+        )),
     }
 }
 
@@ -206,11 +220,11 @@ fn quiet(warn_when_offline: bool) {
 pub fn pull_first() {
     let fresh = sync::last_sync_ms().is_some_and(|t| now_ms().saturating_sub(t) < PULL_AFTER_MS);
     if !fresh {
-        quiet(false);
+        quiet(false, PULL_TIMEOUT);
     }
 }
 
 /// After a command wrote to the vault: send it up, and say so if that did not work.
 pub fn push_after_write() {
-    quiet(true);
+    quiet(true, PUSH_TIMEOUT);
 }

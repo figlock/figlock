@@ -1011,6 +1011,14 @@ fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_rea
         &format!("{SECRET}\n"),
     );
     assert!(out.status.success(), "{}", text(&out.stderr));
+    assert_eq!(
+        text(&out.stderr)
+            .matches("not synced with Google Drive")
+            .count(),
+        1,
+        "one warning for the command, not one for the pull and one for the push: {}",
+        text(&out.stderr)
+    );
     assert!(
         text(&out.stderr).contains("not synced with Google Drive"),
         "{}",
