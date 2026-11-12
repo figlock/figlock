@@ -64,6 +64,9 @@ pub struct VaultState {
     /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
     pub secret_key_protection: Option<&'static str>,
     pub autolock_secs: u64,
+    /// The new Secret Key of a rotation whose Emergency Kit step is not finished. Only while unlocked: the
+    /// window shows that step again until the key is confirmed.
+    pub pending_kit: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -125,7 +128,6 @@ impl Inner {
         }
         self.session = None;
         self.cache = None;
-        self.reissued = None;
         self.staged.clear();
     }
 }
@@ -303,8 +305,20 @@ impl Desk {
     }
 
     pub fn state(&self) -> CmdRes<VaultState> {
-        let unlocked = self.inner().session.is_some();
         let initialised = config::is_initialised()?;
+        let (unlocked, pending_kit) = {
+            let mut inner = self.inner();
+            if !initialised {
+                inner.reissued = None;
+            }
+            let unlocked = inner.session.is_some();
+            let pending = inner
+                .reissued
+                .as_ref()
+                .filter(|_| unlocked)
+                .map(|r| r.key.format().to_string());
+            (unlocked, pending)
+        };
         let phase = match (initialised, unlocked) {
             (false, _) => "none",
             (true, false) => "locked",
@@ -336,6 +350,7 @@ impl Desk {
             secret_key_kept,
             secret_key_protection,
             autolock_secs: self.autolock.as_secs(),
+            pending_kit,
         })
     }
 

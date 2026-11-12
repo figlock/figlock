@@ -132,13 +132,13 @@ fn rotate_key_inner() {
 }
 
 #[test]
-fn locking_drops_an_unconfirmed_new_key() {
-    scenario("lock_drops_new_key_inner");
+fn locking_keeps_an_unconfirmed_new_key() {
+    scenario("lock_keeps_new_key_inner");
 }
 
 #[test]
 #[ignore = "runs as a child of the test above"]
-fn lock_drops_new_key_inner() {
+fn lock_keeps_new_key_inner() {
     let d = desk();
     let (pw, key) = unlocked(&d);
     let new_key = d
@@ -147,6 +147,13 @@ fn lock_drops_new_key_inner() {
         .secret_key
         .unwrap();
     d.lock();
-    assert_eq!(code_of(d.emergency_kit().unwrap_err()), "failed");
-    assert_eq!(d.unlock(&pw, Some(&new_key)).unwrap().phase, "unlocked");
+    assert_eq!(d.state().unwrap().pending_kit, None);
+    let state = d.unlock(&pw, Some(&new_key)).unwrap();
+    assert_eq!(state.phase, "unlocked");
+    assert_eq!(state.pending_kit.as_deref(), Some(new_key.as_str()));
+    assert!(d.emergency_kit().is_ok());
+    assert_eq!(code_of(d.end_rotation().unwrap_err()), "key_not_confirmed");
+    assert!(d.check_kit_key(&end_of(&new_key)).unwrap());
+    d.end_rotation().unwrap();
+    assert_eq!(d.state().unwrap().pending_kit, None);
 }

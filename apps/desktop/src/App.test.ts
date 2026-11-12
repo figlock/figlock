@@ -12,6 +12,8 @@ const state = vi.hoisted(() => ({
   } as Record<string, unknown>,
   unlock: vi.fn(),
   quickUnlock: vi.fn(),
+  endRotation: vi.fn(),
+  checkKitKey: vi.fn(),
 }));
 
 vi.mock("./vault", () => ({
@@ -24,7 +26,11 @@ vi.mock("./vault", () => ({
   suggestedFolder: () => Promise.resolve("/Users/test/FigLock"),
   chooseFolder: () => Promise.resolve(null),
   errorOf: (e: unknown) => e,
+  saveEmergencyKit: () => Promise.resolve(true),
+  checkKitKey: state.checkKitKey,
 }));
+
+vi.mock("./credentials", () => ({ endRotation: state.endRotation }));
 
 vi.mock("./items", async (original) => ({
   ...(await original<typeof import("./items")>()),
@@ -182,4 +188,25 @@ test("typing the key one character at a time, prefix included, lands the groups 
   const value = (i: number) =>
     (screen.getByLabelText(`Secret Key group ${i} of 8`) as HTMLInputElement).value;
   expect([value(1), value(2), value(3)]).toEqual(["ABCD", "EFGH", ""]);
+});
+
+test("unlocking with a rotation's kit step unfinished shows it again until it is confirmed", async () => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute("open", "");
+  };
+  const NEW_KEY = "FL1-2222-3333-4444-5555-6666-7777-8888-9999";
+  state.current = { ...state.current, phase: "locked", secretKeyKept: true };
+  state.unlock.mockResolvedValue({ ...state.current, phase: "unlocked", pendingKit: NEW_KEY });
+  state.checkKitKey.mockResolvedValue(true);
+  state.endRotation.mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  render(App);
+  await user.type(await screen.findByLabelText("Master password"), "correct horse");
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+  const dialog = await screen.findByRole("dialog", { name: "Save your new Secret Key" });
+  expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  await user.type(screen.getByLabelText("Confirm you saved it"), "8888-9999");
+  await user.click(screen.getByRole("button", { name: "Done" }));
+  await waitFor(() => expect(dialog.isConnected).toBe(false));
+  expect(state.endRotation).toHaveBeenCalledTimes(1);
 });

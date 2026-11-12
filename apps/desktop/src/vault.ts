@@ -15,6 +15,8 @@ export type VaultState = {
   /** How the kept key is protected, when there is one. */
   secretKeyProtection: "secure-enclave" | "keychain" | null;
   autolockSecs: number;
+  /** The new Secret Key of a rotation whose Emergency Kit step is not finished, while unlocked. */
+  pendingKit: string | null;
 };
 
 /** A failed command: a code to branch on and a message that is safe to show. */
