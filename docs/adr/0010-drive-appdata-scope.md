@@ -1,6 +1,6 @@
 # ADR-0010: Google Drive access limited to the drive.appdata scope
 
-- Status: Accepted
+- Status: Accepted (amended by ADR-0026: the local copy is always the primary location and Drive is an optional synced remote)
 - Date: 2026-11-03
 - Decision: D10 in `docs/decisions.md`
 

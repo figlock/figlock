@@ -1,6 +1,6 @@
 # ADR-0021: Google sign-in uses an installed-app client, loopback and PKCE; the secret is injected at build time
 
-- Status: Accepted (revised 2026-11-06, same day: the secret moved from source to the build)
+- Status: Accepted (revised 2026-11-06, same day: the secret moved from source to the build; sign-in now enables an optional sync remote, ADR-0026)
 - Date: 2026-11-06
 - Decision: D21 in `docs/decisions.md`
 
