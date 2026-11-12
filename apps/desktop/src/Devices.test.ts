@@ -12,6 +12,7 @@ const core = vi.hoisted(() => ({
   syncStatus: vi.fn(),
   onSynced: vi.fn(),
   listItems: vi.fn(),
+  lock: vi.fn(),
 }));
 
 vi.mock("./devices", () => ({ listDevices: core.listDevices, revokeDevice: core.revokeDevice }));
@@ -25,7 +26,7 @@ vi.mock("./items", async (original) => ({
   listItems: core.listItems,
   listDeleted: () => Promise.resolve([]),
 }));
-vi.mock("./vault", () => ({ errorOf: (e: unknown) => e, lock: () => Promise.resolve() }));
+vi.mock("./vault", () => ({ errorOf: (e: unknown) => e, lock: core.lock }));
 
 import Workspace from "./Workspace.svelte";
 
@@ -50,6 +51,7 @@ beforeEach(() => {
     this.setAttribute("open", "");
   };
   vi.clearAllMocks();
+  core.lock.mockResolvedValue(undefined);
   core.listItems.mockResolvedValue([]);
   core.onSynced.mockResolvedValue(() => {});
   core.syncStatus.mockResolvedValue({
@@ -68,10 +70,11 @@ beforeEach(() => {
 
 async function toDevices() {
   const user = userEvent.setup();
-  render(Workspace, { onlock: vi.fn(), onlocked: vi.fn() });
+  const onlocked = vi.fn();
+  render(Workspace, { onlock: vi.fn(), onlocked });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
   await screen.findByRole("list", { name: "Devices" });
-  return user;
+  return Object.assign(user, { onlocked });
 }
 
 async function fill(user: ReturnType<typeof userEvent.setup>) {
@@ -139,4 +142,15 @@ test("a compromised device also sets a new password, which must match", async ()
     ),
   );
   expect(await screen.findByText(/master password is changed/)).toBeTruthy();
+});
+
+test("a refusal because settings changed elsewhere locks the vault and relocks", async () => {
+  const user = await toDevices();
+  await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
+  const message = "Vault settings changed on another device. Lock and unlock to continue.";
+  core.revokeDevice.mockRejectedValue({ code: "needs_unlock", message });
+  const dialog = await fill(user);
+  await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
+  await waitFor(() => expect(user.onlocked).toHaveBeenCalledWith(message));
+  expect(core.lock).toHaveBeenCalledTimes(1);
 });

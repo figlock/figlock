@@ -3,7 +3,7 @@
 
   import { listDevices, revokeDevice, type Device } from "./devices";
   import RevokeDialog from "./RevokeDialog.svelte";
-  import { errorOf } from "./vault";
+  import { errorOf, lock } from "./vault";
   import { failure, getWorkspace } from "./workspace";
 
   const w = getWorkspace();
@@ -37,6 +37,7 @@
       const err = errorOf(e);
       if (err.code === "locked" || err.code === "revoke_uncertain" || err.code === "needs_unlock") {
         revoking = null;
+        if (err.code === "needs_unlock") await lock();
         if (err.code === "locked") w.relock();
         else w.relock(err.message);
       }
