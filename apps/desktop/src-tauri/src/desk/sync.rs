@@ -205,6 +205,16 @@ impl Desk {
         true
     }
 
+    /// A fresh unlock reloads everything, so the notice has been acted on.
+    pub(super) fn clear_needs_unlock(&self) {
+        self.sync_state().needs_unlock = false;
+    }
+
+    #[cfg(test)]
+    pub(super) fn flag_needs_unlock_for_test(&self) {
+        self.sync_state().needs_unlock = true;
+    }
+
     #[cfg(test)]
     pub(super) fn absorb_pull_for_test(&self) -> bool {
         self.absorb_pull()

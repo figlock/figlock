@@ -499,3 +499,27 @@ fn sync_pull_inner() {
         .collect();
     assert_eq!(titles, vec!["From the other Mac".to_owned()]);
 }
+
+#[test]
+fn unlocking_again_clears_the_lock_and_unlock_notice() {
+    scenario("sync_needs_unlock_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn sync_needs_unlock_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.finish_create(false).unwrap();
+    config::set_remote(Some(Remote::Drive)).unwrap();
+
+    d.flag_needs_unlock_for_test();
+    assert!(d.sync_status().unwrap().needs_unlock);
+    d.lock();
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert!(!d.sync_status().unwrap().needs_unlock);
+}

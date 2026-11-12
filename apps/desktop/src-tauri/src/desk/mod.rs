@@ -580,6 +580,8 @@ impl Desk {
         inner.session = Some(session);
         inner.active_at = Instant::now();
         inner.ticked_at = Instant::now();
+        drop(inner);
+        self.clear_needs_unlock();
     }
 
     /// Drop the unlocked vault. Its keys are zeroed as it drops.
