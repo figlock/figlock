@@ -71,7 +71,7 @@ No other primitive may be used without an ADR and new test vectors.
 | Name | Size | Created | Stored |
 | ---- | ---- | ------- | ------ |
 | Master password `pw` | user chosen | by the user | nowhere; in the user's head or password manager |
-| Secret Key `SK` | 128 bit | at vault creation | Emergency Kit (paper or file), and on a device only wrapped by quick unlock |
+| Secret Key `SK` | 128 bit | at vault creation | Emergency Kit (paper or file), and in each device's store (ADR-0027: hardware plus presence, the OS login store, or an owner-only file) |
 | Account Unlock Key `AUK` | 256 bit | derived at each full unlock | memory only (and hardware-wrapped for quick unlock, section 8) |
 | Vault Key `VK` | 256 bit | at vault creation, random | storage, wrapped by `AUK` (and by the Recovery Key if enabled) |
 | Item key `IK` | 256 bit | per item, random | inside the vault, wrapped by `VK` |
