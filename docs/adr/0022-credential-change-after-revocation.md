@@ -31,8 +31,10 @@ the current `vault.json`. `crypto.md` 9 already lists password change and Secret
 - Two revocations with no op file in between used to produce the same snapshot name (ADR-0018); fixed by the
   epoch in the name (amendment below). A credential change writes no snapshot.
 - CLI commands are in the amendment below. The desktop Settings Devices section revokes a device (FIG-88),
-  with an optional new master password in the same write; Secret Key rotation and standalone password
-  change in the app are a separate task.
+  with an optional new master password in the same write. Settings also has "Change master password" and
+  "Rotate Secret Key" (FIG-88): both ask for the credentials again, keep Touch ID on for the device that made
+  the change, and a rotation replaces the key kept on that device and requires the new Emergency Kit to be
+  saved (the last two groups typed back) before the step can be closed.
 
 ## Alternatives considered
 
