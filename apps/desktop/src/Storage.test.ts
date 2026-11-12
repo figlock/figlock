@@ -34,7 +34,7 @@ vi.mock("./vault", () => ({
 import App from "./App.svelte";
 
 const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
-const pick = (name: string) => screen.getByRole("radio", { name: new RegExp(name) });
+const syncBox = () => screen.getByRole("checkbox", { name: /Sync with Google Drive/ });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -46,7 +46,7 @@ async function toCreate() {
   const user = userEvent.setup();
   render(App);
   await user.click(await screen.findByRole("button", { name: "Create a vault" }));
-  await screen.findByRole("radiogroup", { name: "Where the vault is kept" });
+  await screen.findByRole("checkbox", { name: /Sync with Google Drive/ });
   return user;
 }
 
@@ -56,21 +56,21 @@ async function fillPasswords(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Repeat master password"), pw);
 }
 
-test("a folder is the default and is sent as a folder", async () => {
+test("a folder is the default and is sent without Drive", async () => {
   const user = await toCreate();
-  expect(pick("A folder").getAttribute("aria-checked")).toBe("true");
+  expect((syncBox() as HTMLInputElement).checked).toBe(false);
   await fillPasswords(user);
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await waitFor(() => expect(core.createVault).toHaveBeenCalledTimes(1));
   expect(core.createVault.mock.calls[0][0]).toEqual({
-    kind: "folder",
     path: "/Users/test/FigLock",
+    drive: false,
   });
 });
 
-test("Google Drive needs a sign-in before the vault can be created, and is sent as Drive", async () => {
+test("syncing with Google Drive needs a sign-in first, and keeps the local folder", async () => {
   const user = await toCreate();
-  await user.click(pick("Google Drive"));
+  await user.click(syncBox());
   expect(await screen.findByRole("button", { name: "Sign in with Google" })).toBeTruthy();
   const next = screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement;
   expect(next.disabled).toBe(true);
@@ -84,12 +84,15 @@ test("Google Drive needs a sign-in before the vault can be created, and is sent 
   await fillPasswords(user);
   await user.click(next);
   await waitFor(() => expect(core.createVault).toHaveBeenCalledTimes(1));
-  expect(core.createVault.mock.calls[0][0]).toEqual({ kind: "drive" });
+  expect(core.createVault.mock.calls[0][0]).toEqual({
+    path: "/Users/test/FigLock",
+    drive: true,
+  });
 });
 
 test("while the browser sign-in is open the button says so and cannot be pressed twice", async () => {
   const user = await toCreate();
-  await user.click(pick("Google Drive"));
+  await user.click(syncBox());
   let finish: (v: unknown) => void = () => {};
   core.driveSignIn.mockReturnValue(new Promise((r) => (finish = r)));
   await user.click(await screen.findByRole("button", { name: "Sign in with Google" }));
@@ -104,7 +107,7 @@ test("while the browser sign-in is open the button says so and cannot be pressed
 
 test("a failed sign-in shows why and leaves the person able to try again", async () => {
   const user = await toCreate();
-  await user.click(pick("Google Drive"));
+  await user.click(syncBox());
   core.driveSignIn.mockRejectedValue({
     code: "drive_sign_in",
     message: "The sign-in was not finished in time.",
@@ -119,7 +122,7 @@ test("a failed sign-in shows why and leaves the person able to try again", async
 test("a build without a Google client says so instead of offering a sign-in", async () => {
   core.driveStatus.mockResolvedValue({ canSignIn: false, signedIn: false });
   const user = await toCreate();
-  await user.click(pick("Google Drive"));
+  await user.click(syncBox());
   expect(await screen.findByText(/cannot sign in to Google/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Sign in with Google" })).toBeNull();
   expect((screen.getByRole("button", { name: "Continue" }) as HTMLButtonElement).disabled).toBe(
@@ -130,7 +133,7 @@ test("a build without a Google client says so instead of offering a sign-in", as
 test("signing out says when Google could not confirm the access is gone", async () => {
   core.driveStatus.mockResolvedValueOnce({ canSignIn: true, signedIn: true });
   const user = await toCreate();
-  await user.click(pick("Google Drive"));
+  await user.click(syncBox());
   expect(await screen.findByText("Signed in to Google Drive.")).toBeTruthy();
   core.driveSignOut.mockResolvedValue({ revoked: false });
   core.driveStatus.mockResolvedValue({ canSignIn: true, signedIn: false });
@@ -150,5 +153,5 @@ test("opening an existing vault can use Google Drive too", async () => {
   await user.type(screen.getAllByLabelText(/Secret Key group 1/)[0], KEY);
   await user.click(screen.getByRole("button", { name: "Open vault" }));
   await waitFor(() => expect(core.openExisting).toHaveBeenCalledTimes(1));
-  expect(core.openExisting.mock.calls[0][0]).toEqual({ kind: "drive" });
+  expect(core.openExisting.mock.calls[0][0]).toEqual({ drive: true });
 });

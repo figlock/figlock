@@ -90,12 +90,15 @@ struct Inner {
     copied: Option<items::Copied>,
     creating: Option<Creating>,
     joining: Option<join::Join>,
+    /// A save happened since the last sync tick, so the next tick syncs soon instead of waiting its turn.
+    dirty: bool,
     active_at: Instant,
     ticked_at: Instant,
 }
 
 pub struct Desk {
     inner: Mutex<Inner>,
+    sync: Mutex<sync::SyncState>,
     kdf: KdfParams,
     autolock: Duration,
     clipboard_clear: Duration,
@@ -214,9 +217,11 @@ impl Desk {
                 copied: None,
                 creating: None,
                 joining: None,
+                dirty: false,
                 active_at: now,
                 ticked_at: now,
             }),
+            sync: Mutex::new(sync::SyncState::new()),
             kdf,
             autolock,
             clipboard_clear,
@@ -622,47 +627,49 @@ fn capitalise(s: &str) -> String {
     })
 }
 
-/// Where the person put the vault: a folder they chose, or the hidden app folder in their Google Drive.
+/// Where the person put the vault: a folder on this Mac (the local copy), and whether it syncs to the hidden
+/// app folder in their Google Drive. Drive without a folder means the default local folder (ADR-0026).
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum Storage {
-    Folder { path: String },
-    Drive,
+#[serde(rename_all = "camelCase")]
+pub struct Storage {
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub drive: bool,
 }
 
 impl Storage {
-    /// "that folder" or "this Google Drive", for messages.
+    /// "that folder" or "this Google Drive", for messages: what a vault is looked for in.
     fn there(&self) -> &'static str {
-        match self {
-            Storage::Folder { .. } => "that folder",
-            Storage::Drive => "this Google Drive",
+        if self.drive {
+            "this Google Drive"
+        } else {
+            "that folder"
         }
     }
 }
 
-/// Where the local copy lives and what it syncs to. Drive means the default local folder plus sync to Drive,
-/// never Drive alone (ADR-0026).
+/// Where the local copy lives and what it syncs to.
 fn storage_place(storage: &Storage, create: bool) -> CmdRes<Place> {
-    match storage {
-        Storage::Folder { path } => Ok(Place {
-            local: folder_path(path, create)?,
-            remote: None,
-        }),
-        Storage::Drive => {
-            if config::load_drive_token()?.is_none() {
-                return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
-            }
-            let local = config::default_local_dir()?;
+    let local = match storage.path.as_deref().map(str::trim) {
+        Some(path) if !path.is_empty() => folder_path(path, create)?,
+        _ if storage.drive => {
+            let dir = config::default_local_dir()?;
             if create {
-                std::fs::create_dir_all(&local)
+                std::fs::create_dir_all(&dir)
                     .map_err(|_| CmdError::new("folder", "Could not make the vault folder."))?;
             }
-            Ok(Place {
-                local,
-                remote: Some(Remote::Drive),
-            })
+            dir
         }
+        _ => return Err(CmdError::new("folder", "Choose a folder for the vault.")),
+    };
+    if storage.drive && config::load_drive_token()?.is_none() {
+        return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
     }
+    Ok(Place {
+        local,
+        remote: storage.drive.then_some(Remote::Drive),
+    })
 }
 
 /// A vault folder the person chose; a new vault's folder is made if it does not exist yet.
@@ -682,6 +689,7 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
 pub mod drive;
 pub mod generate;
 pub mod items;
+pub mod sync;
 
 #[cfg(test)]
 mod item_tests;

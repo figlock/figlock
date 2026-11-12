@@ -8,12 +8,15 @@ use std::time::Duration;
 use desk::drive::{DriveView, SignedOut};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
+use desk::sync::SyncView;
 use desk::{CmdError, CmdRes, CreatedVault, Desk, Storage, VaultState};
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
 
 /// The window is told the vault locked by itself (idle or sleep) with this event.
 const LOCKED_EVENT: &str = "figlock://locked";
+/// The window is told a sync ran, so it can reload the items and the sync status.
+const SYNCED_EVENT: &str = "figlock://synced";
 
 #[tauri::command]
 async fn vault_state(desk: State<'_, Desk>) -> CmdRes<VaultState> {
@@ -117,6 +120,42 @@ async fn drive_sign_in() -> CmdRes<DriveView> {
 #[tauri::command]
 async fn drive_sign_out() -> CmdRes<SignedOut> {
     desk::drive::sign_out()
+}
+
+/// Whether sync is on and how it is going, with no network call.
+#[tauri::command]
+async fn sync_status(desk: State<'_, Desk>) -> CmdRes<SyncView> {
+    desk.sync_status()
+}
+
+/// Sync once now. `reupload` is the person's confirmation after the vault was lost from Drive.
+#[tauri::command]
+async fn sync_now(app: AppHandle, reupload: bool) -> CmdRes<SyncView> {
+    let view = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || tauri::Manager::state::<Desk>(&app).sync_now(reupload)
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Sync stopped unexpectedly. Try again."))??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(view)
+}
+
+#[tauri::command]
+async fn sync_enable(app: AppHandle) -> CmdRes<SyncView> {
+    let view = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || tauri::Manager::state::<Desk>(&app).sync_enable()
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Sync stopped unexpectedly. Try again."))??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(view)
+}
+
+#[tauri::command]
+async fn sync_disable(desk: State<'_, Desk>) -> CmdRes<SyncView> {
+    desk.sync_disable()
 }
 
 #[tauri::command]
@@ -309,6 +348,17 @@ pub fn run() {
                     }
                 }
             });
+            // Keeps the local vault matched to Drive, locked or not: it only moves ciphertext.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(Duration::from_secs(1));
+                    let desk = tauri::Manager::state::<Desk>(&handle);
+                    if desk.sync_tick() {
+                        let _ = handle.emit(SYNCED_EVENT, ());
+                    }
+                }
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -325,6 +375,10 @@ pub fn run() {
             drive_status,
             drive_sign_in,
             drive_sign_out,
+            sync_status,
+            sync_now,
+            sync_enable,
+            sync_disable,
             join_answered,
             join_cancel,
             join_finish,

@@ -7,12 +7,22 @@ import {
   type Storage,
 } from "./vault";
 
+/** Where the vault comes from when opening one: a folder, or the person's Google Drive. */
 export type StorageKind = "folder" | "drive";
 
-/** Where the person is putting, or finding, the vault: a folder, or their Google Drive. */
+/**
+ * Where the person is putting, or finding, the vault.
+ *
+ * Creating (`mode: "create"`): a folder on this Mac, and whether to also sync it to Google Drive.
+ * Opening or joining (`mode: "source"`): a folder that holds the vault, or Google Drive, which downloads a
+ * copy into this Mac's default folder and keeps it synced.
+ */
 export class StorageChoice {
+  /** Source mode only. */
   kind = $state<StorageKind>("folder");
   folder = $state("");
+  /** Create mode only: also keep a synced copy in Google Drive. */
+  syncDrive = $state(false);
   /** `null` until Drive's state is known. */
   drive = $state<DriveStatus | null>(null);
   signingIn = $state(false);
@@ -21,12 +31,23 @@ export class StorageChoice {
   /** Set after signing out: Google could not confirm the access is gone. */
   notRevoked = $state(false);
 
+  constructor(readonly mode: "create" | "source" = "source") {}
+
+  /** Whether Drive is part of the choice. */
+  usesDrive = $derived(this.mode === "create" ? this.syncDrive : this.kind === "drive");
   /** What the commands take. */
   value = $derived<Storage>(
-    this.kind === "drive" ? { kind: "drive" } : { kind: "folder", path: this.folder },
+    this.mode === "create"
+      ? { path: this.folder, drive: this.syncDrive }
+      : this.kind === "drive"
+        ? { drive: true }
+        : { path: this.folder },
   );
-  /** Enough is chosen to go on: a folder, or a Drive sign-in. */
-  ready = $derived(this.kind === "folder" ? this.folder !== "" : this.drive?.signedIn === true);
+  /** Enough is chosen to go on: a folder (or Drive), and a sign-in when Drive is used. */
+  ready = $derived(
+    (this.mode === "create" || this.kind === "folder" ? this.folder !== "" : true) &&
+      (!this.usesDrive || this.drive?.signedIn === true),
+  );
 
   async refresh() {
     try {

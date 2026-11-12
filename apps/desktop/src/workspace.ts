@@ -2,12 +2,14 @@ import { getContext, setContext } from "svelte";
 
 import type { Library } from "./library.svelte";
 import type { Nav } from "./nav.svelte";
+import type { SyncStatus } from "./sync.svelte";
 import { errorOf } from "./vault";
 
 /** What every page of the unlocked app shares. */
 export type Workspace = {
   nav: Nav;
   library: Library;
+  sync: SyncStatus;
   /** A command said the vault is locked: go back to the unlock screen, with a message when there is one. */
   relock: (notice?: string) => void;
 };

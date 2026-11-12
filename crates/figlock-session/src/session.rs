@@ -25,6 +25,17 @@ pub trait Ui: Send {
     fn warn(&self, message: &str);
 }
 
+/// What [`Session::refresh`] found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Refreshed {
+    /// Op files applied.
+    pub applied: usize,
+    /// `vault.json` changed on another device: lock and unlock to take it in.
+    pub settings_changed: bool,
+    /// Some device's changes could not be applied yet (a gap or a file that failed verification).
+    pub stopped: bool,
+}
+
 pub struct Session {
     pub vault: Vault,
     store: Box<dyn BlobStore>,
@@ -219,9 +230,10 @@ impl Session {
         Ok((session, auk, creds))
     }
 
-    /// Apply every op file, per device in order. A file that does not verify, or a gap, stops that device
-    /// (`sync.md` 8) and is reported; the other devices are unaffected.
-    fn load_log(&mut self, now: u64) -> Res<()> {
+    /// Apply every op file not applied yet, per device in order. A file that does not verify, or a gap, stops
+    /// that device (`sync.md` 8) and is reported; the other devices are unaffected. Returns how many files
+    /// were applied, and whether any device was stopped.
+    fn load_log(&mut self, now: u64) -> Res<(usize, bool)> {
         let mut by_device: BTreeMap<DeviceId, Vec<(u64, String, bool)>> = BTreeMap::new();
         for e in self.store.list("log/")? {
             if let Some((device, seq)) = parse_log_path(&e.path) {
@@ -231,9 +243,14 @@ impl Session {
                     .push((seq, e.path, e.available));
             }
         }
+        let (mut applied, mut stopped) = (0, false);
         for (device, mut files) in by_device {
             files.sort();
+            let done = self.vault.applied_seq(&device);
             for (seq, path, available) in files {
+                if seq <= done {
+                    continue;
+                }
                 let bytes = if available {
                     self.store.get(&path).ok()
                 } else {
@@ -244,6 +261,7 @@ impl Session {
                         "op {seq} from device {} is not available yet; later changes from it wait",
                         short(&device)
                     ));
+                    stopped = true;
                     break;
                 };
                 if self.vault.apply_file(&bytes, &device, seq, now).is_err() {
@@ -251,11 +269,43 @@ impl Session {
                         "ignoring changes from device {} from op {seq} on: the file failed verification or is out of order",
                         short(&device)
                     ));
+                    stopped = true;
                     break;
                 }
+                applied += 1;
             }
         }
-        Ok(())
+        Ok((applied, stopped))
+    }
+
+    /// Take in what a sync brought into the local folder while the vault is open: new device records and new
+    /// op files. Returns `settings_changed` when another device changed `vault.json` (a password change,
+    /// rotation or revocation), which an open session cannot absorb: lock and unlock to pick it up.
+    pub fn refresh(&mut self) -> Res<Refreshed> {
+        let vault_json = read_vault_json(self.store.as_ref())?;
+        let v: serde_json::Value =
+            serde_json::from_slice(&vault_json).map_err(|_| Fail::new("vault.json is damaged"))?;
+        let settings_changed = v["revision"].as_u64() != Some(self.vault.revision())
+            || v["key_epoch"].as_u64() != Some(u64::from(self.vault.epoch()));
+        if settings_changed {
+            return Ok(Refreshed {
+                applied: 0,
+                settings_changed: true,
+                stopped: false,
+            });
+        }
+        for e in self.store.list("devices/")? {
+            if let Ok(bytes) = self.store.get(&e.path) {
+                // Records already known or not valid are not an error here.
+                let _ = self.vault.add_device_record(&bytes);
+            }
+        }
+        let (applied, stopped) = self.load_log(now_ms())?;
+        Ok(Refreshed {
+            applied,
+            settings_changed: false,
+            stopped,
+        })
     }
 
     /// Replace `vault.json` (a credential change).
@@ -543,5 +593,72 @@ mod tests {
         add(&mut s, "Two");
         assert!(s.commit().is_err());
         assert!(op_files(&store).len() <= 1);
+    }
+
+    /// Two devices of one vault over one folder, the way a sync leaves them.
+    fn two_devices() -> (tempfile::TempDir, Session, Session, Vec<u8>) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let folder = move || Box::new(figlock_store::LocalFolder::open(&root).unwrap());
+        let pw = SecretKey::random().unwrap().format().to_string();
+        let (a, created) = Vault::create(&pw, "A", KdfParams::FLOOR, 1).unwrap();
+        folder().put_new("vault.json", &created.vault_json).unwrap();
+        let rec_a = format!("devices/{}.json", hex::encode(a.device_id()));
+        folder().put_new(&rec_a, &created.device_record).unwrap();
+        let auk = Vault::unlock_key(&created.vault_json, &pw, &created.secret_key).unwrap();
+        let (b, record) = Vault::unlock_with_key(
+            &created.vault_json,
+            &auk,
+            figlock_core::DeviceKeys::generate().unwrap(),
+            "B",
+            std::slice::from_ref(&created.device_record),
+            2,
+        )
+        .unwrap();
+        let rec_b = format!("devices/{}.json", hex::encode(b.device_id()));
+        folder().put_new(&rec_b, &record.unwrap()).unwrap();
+        let mk = |vault| Session {
+            vault,
+            store: folder(),
+            ui: Box::new(NoUi),
+            uncertain: false,
+        };
+        (dir, mk(a), mk(b), created.vault_json)
+    }
+
+    #[test]
+    fn refresh_takes_in_what_another_device_wrote_once() {
+        let (_dir, mut a, mut b, _) = two_devices();
+        assert_eq!(a.refresh().unwrap().applied, 0);
+        add(&mut b, "From B");
+        b.commit().unwrap();
+        // A learned of B's record only through the folder, as after a sync.
+        let r = a.refresh().unwrap();
+        assert_eq!(
+            (r.applied, r.settings_changed, r.stopped),
+            (1, false, false)
+        );
+        assert!(a.items(false).iter().any(|i| title_of(i) == "From B"));
+        assert_eq!(
+            a.refresh().unwrap().applied,
+            0,
+            "applied files are not applied twice"
+        );
+
+        add(&mut b, "Second");
+        b.commit().unwrap();
+        assert_eq!(a.refresh().unwrap().applied, 1);
+        assert_eq!(a.items(false).len(), 2);
+    }
+
+    #[test]
+    fn refresh_says_when_the_vault_settings_changed_elsewhere() {
+        let (dir, mut a, _b, vault_json) = two_devices();
+        let mut v: serde_json::Value = serde_json::from_slice(&vault_json).unwrap();
+        v["revision"] = serde_json::json!(v["revision"].as_u64().unwrap() + 1);
+        std::fs::write(dir.path().join("vault.json"), v.to_string()).unwrap();
+        let r = a.refresh().unwrap();
+        assert!(r.settings_changed);
+        assert_eq!(r.applied, 0);
     }
 }

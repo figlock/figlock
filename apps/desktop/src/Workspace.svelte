@@ -3,6 +3,9 @@
   import { onMount, tick } from "svelte";
 
   import GeneratorPage from "./GeneratorPage.svelte";
+  import Settings from "./Settings.svelte";
+  import { SyncStatus } from "./sync.svelte";
+  import { badge } from "./sync";
   import ItemEditor from "./ItemEditor.svelte";
   import ItemList from "./ItemList.svelte";
   import ItemPage from "./ItemPage.svelte";
@@ -23,7 +26,10 @@
 
   const nav = new Nav();
   const library = new Library(() => onlocked());
-  setWorkspace({ nav, library, relock: (notice) => onlocked(notice) });
+  // Items other devices added show up as the app core pulls them.
+  const sync = new SyncStatus(() => void library.refresh());
+  setWorkspace({ nav, library, sync, relock: (notice) => onlocked(notice) });
+  const syncBadge = $derived(sync.view?.enabled ? badge(sync.view) : null);
 
   let scroller = $state<HTMLElement>();
   let search = $state<HTMLInputElement>();
@@ -31,7 +37,11 @@
 
   const route = $derived(nav.current);
   const section = $derived<Filter | null>(
-    route.p === "list" ? route.f : route.p === "generator" ? null : route.from,
+    route.p === "list"
+      ? route.f
+      : route.p === "generator" || route.p === "settings"
+        ? null
+        : route.from,
   );
 
   const NAMES: Record<string, string> = { all: "All items", deleted: "Recently deleted" };
@@ -39,11 +49,13 @@
   const title = $derived(
     route.p === "generator"
       ? "Generator"
-      : route.p === "pick" || (route.p === "edit" && !route.id)
-        ? "New item"
-        : route.p === "edit"
-          ? "Edit item"
-          : nameOf(section ?? "all"),
+      : route.p === "settings"
+        ? "Settings"
+        : route.p === "pick" || (route.p === "edit" && !route.id)
+          ? "New item"
+          : route.p === "edit"
+            ? "Edit item"
+            : nameOf(section ?? "all"),
   );
 
   const count = (f: Filter) =>
@@ -61,7 +73,11 @@
 
   onMount(() => {
     void library.refresh();
-    return () => library.stop();
+    const stopSync = sync.start();
+    return () => {
+      library.stop();
+      stopSync();
+    };
   });
 
   // Keep each page's scroll position for back and forward, and focus the new page's heading.
@@ -170,8 +186,35 @@
         <Icon name="dices" />
         <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Generator</span>
       </button>
+      <button
+        type="button"
+        onclick={() => nav.go({ p: "settings" })}
+        aria-current={route.p === "settings" ? "page" : undefined}
+        aria-label="Settings"
+        title="Settings"
+        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {route.p ===
+        'settings'
+          ? 'bg-border text-primary'
+          : 'text-text'}"
+      >
+        <Icon name="settings" />
+        <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Settings</span>
+      </button>
     </nav>
     <div class="border-t border-border p-3 max-[860px]:p-2">
+      {#if syncBadge}
+        <button
+          type="button"
+          onclick={() => nav.go({ p: "settings" })}
+          title="Google Drive sync"
+          class="mb-1 flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left text-(length:--text-xs) hover:bg-border max-[860px]:hidden {syncBadge.attention
+            ? 'text-warning'
+            : 'text-text-secondary'}"
+        >
+          <Icon name={syncBadge.attention ? "triangle-alert" : "refresh"} />
+          <span class="min-w-0 flex-1 truncate" data-testid="sync-badge">{syncBadge.text}</span>
+        </button>
+      {/if}
       <button
         type="button"
         onclick={onlock}
@@ -238,6 +281,8 @@
             <ItemPage id={route.id} from={route.from} />
           {:else if route.p === "generator"}
             <GeneratorPage />
+          {:else if route.p === "settings"}
+            <Settings />
           {:else if route.p === "pick"}
             <NewItem from={route.from} />
           {:else}

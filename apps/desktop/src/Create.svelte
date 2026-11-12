@@ -21,7 +21,7 @@
   let { touchAvailable, onback, ondone }: Props = $props();
 
   let step = $state<"form" | "key">("form");
-  const storage = new StorageChoice();
+  const storage = new StorageChoice("create");
   let password = $state("");
   let again = $state("");
   let secretKey = $state("");
