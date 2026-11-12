@@ -40,6 +40,21 @@ and named by its owner:
   `devices/` records follow the side that supplied the winning `vault.json` (a rotation re-signs them,
   ADR-0018). A lower remote `revision` is storage going backwards (`sync.md` 8.6): local is kept, a warning
   is raised, and the next push puts the newer copy back.
+- **`vault.json` fork.** Two devices that change credentials, revoke a device or rotate keys while apart
+  both write `revision + 1`, and the two files differ. This is the one case where sync cannot just union:
+  1. A different `revision` is not a fork; the higher one wins as above.
+  2. For the same `revision` with different bytes, every device picks the same winner by the lowest SHA-256
+     of the file, so both sides converge without coordination. The sync engine reports a fork warning.
+  3. The device whose change lost does not silently drop it. On its next unlock it compares the winner with
+     what it wrote and re-applies the difference as a new write at a higher `revision`: a revocation is
+     re-added to the `revoked` list (revocations only ever grow, so they are never lost to a fork), and a
+     key rotation is redone if the winner is at a lower `key_epoch`. A credential change (password or Secret
+     Key, ADR-0022) that lost is not merged: the person is told which change was superseded and repeats it.
+  4. Op files sealed under an epoch the winner does not know stay readable through `epoch_keys`; if the
+     winner lacks that epoch's key, the device re-runs the rotation rather than leaving data unreadable.
+  The winner rule is deterministic but arbitrary, so a fork is rare and loud by design: it needs two
+  devices making vault-level changes at once, and the UI says so. This rule is checked against the vault
+  code in the sync engine slice, and `sync.md` 3 gets a matching line there if it changes.
 - **Deletions are not mirrored.** Compaction (`sync.md` 7) is done by the owning device on both sides.
   Pull skips op files already covered by a valid snapshot's high-water marks, so a compacted file is not
   pulled back from a stale remote.
@@ -62,6 +77,8 @@ and named by its owner:
 
 ### CLI
 
+- Setup (CLI and desktop) offers three choices: create a new vault, open an existing vault from Drive, or
+  join a device by pairing. Open and join create a local copy and pull what is in Drive.
 - `figlock init` creates the local vault at `--store <dir>` (default `<app data dir>/vault`); `--drive` adds
   Drive sync to it. `figlock open --drive` and `figlock join` create the local copy from Drive.
 - `figlock sync` runs one pull and push and prints what moved (`--json` supported). `figlock sync on` and
