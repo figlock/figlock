@@ -62,13 +62,22 @@ pub(super) fn desk() -> Desk {
     )
 }
 
+/// A folder as the window sends it.
+pub(super) fn folder(path: &str) -> Storage {
+    Storage::Folder {
+        path: path.to_owned(),
+    }
+}
+
 pub(super) fn vault_dir() -> String {
     std::env::var("FIGLOCK_TEST_VAULT").unwrap()
 }
 
 /// The Secret Key of a vault being created, as the person would type it.
 pub(super) fn created_key(d: &Desk, password: &str) -> String {
-    d.create(&vault_dir(), password).unwrap().secret_key
+    d.create(&folder(&vault_dir()), password)
+        .unwrap()
+        .secret_key
 }
 
 pub(super) fn code_of(e: CmdError) -> &'static str {
@@ -87,7 +96,7 @@ fn create_lock_and_unlock_inner() {
     let (pw, wrong) = (password(), password());
     assert_eq!(d.state().unwrap().phase, "none");
     assert_eq!(
-        code_of(d.create(&vault_dir(), &pw[..4]).unwrap_err()),
+        code_of(d.create(&folder(&vault_dir()), &pw[..4]).unwrap_err()),
         "weak_password"
     );
     let key = created_key(&d, &pw);
@@ -155,7 +164,7 @@ fn create_lock_and_unlock_inner() {
     assert_eq!(code_of(d.quick_unlock().unwrap_err()), "quick_unavailable");
     assert_eq!(d.state().unwrap().phase, "locked");
     // A second vault cannot be made over the first.
-    assert!(d.create(&vault_dir(), &password()).is_err());
+    assert!(d.create(&folder(&vault_dir()), &password()).is_err());
 }
 
 #[test]
@@ -201,23 +210,32 @@ fn open_existing_inner() {
     assert_eq!(d.state().unwrap().phase, "none");
 
     let other = SecretKey::random().unwrap().format().to_string();
-    let folder = vault_dir();
-    std::fs::create_dir_all(format!("{folder}/../empty")).unwrap();
+    let dir = vault_dir();
+    std::fs::create_dir_all(format!("{dir}/../empty")).unwrap();
     assert_eq!(
-        code_of(d.open_existing(&folder, &wrong, &key, false).unwrap_err()),
+        code_of(
+            d.open_existing(&folder(&dir), &wrong, &key, false)
+                .unwrap_err()
+        ),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.open_existing(&folder, &pw, &other, false).unwrap_err()),
+        code_of(
+            d.open_existing(&folder(&dir), &pw, &other, false)
+                .unwrap_err()
+        ),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.open_existing(&folder, &pw, "garbage", false).unwrap_err()),
+        code_of(
+            d.open_existing(&folder(&dir), &pw, "garbage", false)
+                .unwrap_err()
+        ),
         "bad_secret_key"
     );
     assert_eq!(
         code_of(
-            d.open_existing(&format!("{folder}/../empty"), &pw, &key, false)
+            d.open_existing(&folder(&format!("{dir}/../empty")), &pw, &key, false)
                 .unwrap_err()
         ),
         "no_vault"
@@ -226,7 +244,9 @@ fn open_existing_inner() {
     assert_eq!(d.state().unwrap().phase, "none");
 
     assert_eq!(
-        d.open_existing(&folder, &pw, &key, false).unwrap().phase,
+        d.open_existing(&folder(&dir), &pw, &key, false)
+            .unwrap()
+            .phase,
         "unlocked"
     );
 }
@@ -245,4 +265,62 @@ fn the_date_on_the_kit_is_the_calendar_date() {
     assert_eq!(civil_date(0), "1970-01-01");
     assert_eq!(civil_date(1_700_000_000_000), "2023-11-14");
     assert_eq!(civil_date(951_782_400_000), "2000-02-29");
+}
+
+#[test]
+fn choosing_google_drive_needs_a_sign_in_first() {
+    scenario("drive_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn drive_inner() {
+    let d = desk();
+    assert!(!drive::status().unwrap().signed_in);
+
+    // Not signed in: every way of picking Drive says so, and nothing is set up.
+    assert_eq!(
+        code_of(storage_spec(&Storage::Drive, true).unwrap_err()),
+        "drive_sign_in"
+    );
+    assert_eq!(
+        code_of(d.create(&Storage::Drive, &password()).unwrap_err()),
+        "drive_sign_in"
+    );
+    assert_eq!(
+        code_of(
+            d.open_existing(&Storage::Drive, &password(), "garbage", false)
+                .unwrap_err()
+        ),
+        "bad_secret_key",
+        "a bad Secret Key is reported before Drive is touched"
+    );
+    assert_eq!(d.state().unwrap().phase, "none");
+
+    // Signed in (a made-up token: nothing here talks to Google).
+    config::save_drive_token(&password()).unwrap();
+    assert!(drive::status().unwrap().signed_in);
+    assert_eq!(
+        storage_spec(&Storage::Drive, true).unwrap(),
+        StoreSpec::Drive
+    );
+
+    // A damaged token file is removed on sign-out, with nothing to revoke at Google.
+    let token = config::home().unwrap().join("drive-token.json");
+    std::fs::write(&token, b"{not json").unwrap();
+    assert!(!drive::sign_out().unwrap().revoked);
+    assert!(!token.exists());
+    assert!(!drive::status().unwrap().signed_in);
+
+    // Signing out when signed out is harmless.
+    assert!(!drive::sign_out().unwrap().revoked);
+}
+
+#[test]
+fn the_window_names_a_storage_by_kind() {
+    let f: Storage = serde_json::from_str(r#"{"kind":"folder","path":"/tmp/v"}"#).unwrap();
+    assert_eq!(f, folder("/tmp/v"));
+    let d: Storage = serde_json::from_str(r#"{"kind":"drive"}"#).unwrap();
+    assert_eq!(d, Storage::Drive);
+    assert!(serde_json::from_str::<Storage>(r#"{"kind":"dropbox"}"#).is_err());
 }

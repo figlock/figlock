@@ -4,6 +4,7 @@
 pub mod clipboard;
 pub mod config;
 pub mod docfile;
+pub mod drive;
 pub mod error;
 pub mod join;
 pub mod keystore;
