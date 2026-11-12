@@ -171,7 +171,7 @@ async fn revoke_device(
     app: AppHandle,
     device: String,
     password: String,
-    secret_key: String,
+    secret_key: Option<String>,
     new_password: Option<String>,
 ) -> CmdRes<Vec<DeviceRow>> {
     let rows = tauri::async_runtime::spawn_blocking({
@@ -180,7 +180,7 @@ async fn revoke_device(
             tauri::Manager::state::<Desk>(&app).revoke_device(
                 &device,
                 &password,
-                &secret_key,
+                secret_key.as_deref(),
                 new_password.as_deref(),
             )
         }
@@ -216,9 +216,35 @@ async fn join_finish(
     desk.join_finish(&password, touch_id)
 }
 
+/// `secret_key` is blank when this device keeps it. The kept key is read after Touch ID, which can wait for the
+/// person, so this runs off the async workers.
 #[tauri::command]
-async fn unlock(desk: State<'_, Desk>, password: String, secret_key: String) -> CmdRes<VaultState> {
-    desk.unlock(&password, &secret_key)
+async fn unlock(
+    app: AppHandle,
+    password: String,
+    secret_key: Option<String>,
+) -> CmdRes<VaultState> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tauri::Manager::state::<Desk>(&app).unlock(&password, secret_key.as_deref())
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Unlocking stopped unexpectedly. Try again."))?
+}
+
+/// The Secret Key kept on this device, after Touch ID or the device password.
+#[tauri::command]
+async fn show_secret_key(app: AppHandle) -> CmdRes<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tauri::Manager::state::<Desk>(&app).show_secret_key()
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Showing the key stopped unexpectedly. Try again."))?
+}
+
+/// Stop keeping the Secret Key on this device.
+#[tauri::command]
+async fn forget_secret_key(desk: State<'_, Desk>) -> CmdRes<VaultState> {
+    desk.forget_secret_key()
 }
 
 #[tauri::command]
@@ -423,6 +449,8 @@ pub fn run() {
             join_cancel,
             join_finish,
             unlock,
+            show_secret_key,
+            forget_secret_key,
             quick_unlock,
             lock,
             activity,

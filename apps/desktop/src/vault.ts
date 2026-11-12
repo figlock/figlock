@@ -10,6 +10,10 @@ export type VaultState = {
   quickUnlock: boolean;
   /** This Mac can ask for Touch ID. */
   touchAvailable: boolean;
+  /** This Mac keeps the Secret Key, so unlocking asks for the master password only (ADR-0027). */
+  secretKeyKept: boolean;
+  /** How the kept key is protected, when there is one. */
+  secretKeyProtection: "secure-enclave" | "keychain" | null;
   autolockSecs: number;
 };
 
@@ -63,8 +67,12 @@ export const joinCancel = () => invoke<void>("join_cancel");
 export const joinFinish = (password: string, touchId: boolean) =>
   invoke<VaultState>("join_finish", { password, touchId });
 
-export const unlock = (password: string, secretKey: string) =>
-  invoke<VaultState>("unlock", { password, secretKey });
+/** `secretKey` is left out when this Mac keeps it; `needs_secret_key` says the kept one did not open the vault. */
+export const unlock = (password: string, secretKey?: string) =>
+  invoke<VaultState>("unlock", { password, secretKey: secretKey || null });
+/** The kept Secret Key, after Touch ID or the device password. */
+export const showSecretKey = () => invoke<string>("show_secret_key");
+export const forgetSecretKey = () => invoke<VaultState>("forget_secret_key");
 export const quickUnlock = () => invoke<VaultState>("quick_unlock");
 export const lock = () => invoke<void>("lock");
 export const activity = () => invoke<void>("activity");

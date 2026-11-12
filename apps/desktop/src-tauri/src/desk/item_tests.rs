@@ -187,7 +187,7 @@ fn login_lifecycle_inner() {
 
     // It was written to the vault: a fresh unlock still has it.
     d.lock();
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
     assert_eq!(titles(&d, ""), ["Cloudflare DNS"]);
     assert_eq!(d.reveal_field(&id, "password").unwrap(), fresh);
 }
@@ -590,7 +590,7 @@ fn write_failure_inner() {
 
     // What was written is what a fresh unlock sees.
     d.lock();
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
     assert_eq!(sorted(&d), ["Next", "Renamed"]);
     assert_eq!(d.reveal_field(&id, "password").unwrap(), secret);
 }

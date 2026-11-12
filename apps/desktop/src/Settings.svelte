@@ -2,6 +2,7 @@
   import { Alert, Button, ConfirmDialog, Icon } from "@figlock/ui";
 
   import Devices from "./Devices.svelte";
+  import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import { ago } from "./sync";
   import { lock } from "./vault";
   import { getWorkspace } from "./workspace";
@@ -141,6 +142,8 @@
       {/if}
     {/if}
   </section>
+
+  <SecretKeyPanel />
 
   <Devices />
 </div>

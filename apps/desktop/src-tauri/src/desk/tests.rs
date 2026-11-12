@@ -150,24 +150,24 @@ fn create_lock_and_unlock_inner() {
 
     let other = SecretKey::random().unwrap().format().to_string();
     assert_eq!(
-        code_of(d.unlock(&wrong, &key).unwrap_err()),
+        code_of(d.unlock(&wrong, Some(&key)).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.unlock(&pw, &other).unwrap_err()),
+        code_of(d.unlock(&pw, Some(&other)).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.unlock(&pw, "FL1-nope").unwrap_err()),
+        code_of(d.unlock(&pw, Some("FL1-nope")).unwrap_err()),
         "bad_secret_key"
     );
     assert_eq!(
-        code_of(d.unlock(&pw[..0], &key).unwrap_err()),
+        code_of(d.unlock(&pw[..0], Some(&key)).unwrap_err()),
         "empty_password"
     );
     assert_eq!(d.state().unwrap().phase, "locked");
 
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
     // Touch ID was never turned on, so it cannot unlock, and says to type the credentials.
     d.lock();
     assert_eq!(code_of(d.quick_unlock().unwrap_err()), "quick_unavailable");
@@ -545,6 +545,6 @@ fn sync_needs_unlock_inner() {
     d.flag_needs_unlock_for_test();
     assert!(d.sync_status().unwrap().needs_unlock);
     d.lock();
-    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
     assert!(!d.sync_status().unwrap().needs_unlock);
 }

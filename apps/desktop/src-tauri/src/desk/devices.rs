@@ -3,8 +3,8 @@
 //! the window is names, fingerprints and dates, never keys.
 
 use figlock_core::{CredentialChange, DeviceId, DeviceInfo};
-use figlock_session::quick;
 use figlock_session::session::now_ms;
+use figlock_session::{quick, secret_key_store};
 use serde::Serialize;
 
 use super::{CmdError, CmdRes, Desk, parse_secret_key, wrong_credentials};
@@ -61,10 +61,24 @@ impl Desk {
         &self,
         device: &str,
         password: &str,
-        secret_key: &str,
+        secret_key: Option<&str>,
         new_password: Option<&str>,
     ) -> CmdRes<Vec<DeviceRow>> {
-        let secret_key = parse_secret_key(secret_key)?;
+        // Typed, or the one this device keeps (after Touch ID); the window asks for it only when neither exists.
+        let secret_key = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
+            Some(text) => parse_secret_key(text)?,
+            None => {
+                let vault = figlock_session::session::peek_vault_id()?;
+                secret_key_store::system()?
+                    .get(&vault, "revoke a device")?
+                    .ok_or_else(|| {
+                        CmdError::new(
+                            "needs_secret_key",
+                            "Type your Secret Key from your Emergency Kit to revoke a device.",
+                        )
+                    })?
+            }
+        };
         let target: DeviceId = hex::decode(device)
             .ok()
             .and_then(|b| b.try_into().ok())

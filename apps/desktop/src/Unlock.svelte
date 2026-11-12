@@ -10,6 +10,10 @@
   let password = $state("");
   let secretKey = $state("");
   let shown = $state(false);
+  /** The kept key did not open the vault, so the person is asked for it. */
+  let keyRefused = $state(false);
+  /** The Secret Key field shows when this Mac keeps none, or when the kept one did not open the vault. */
+  const askKey = $derived(keyRefused || !vault.secretKeyKept);
   let busy = $state<"" | "unlocking" | "touch">("");
   let error = $state("");
   let fieldError = $state<{ password?: string; key?: string }>({});
@@ -24,20 +28,26 @@
     error = "";
     fieldError = {};
     if (!password) fieldError.password = "Enter your master password.";
-    if (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0)) {
+    if (
+      askKey &&
+      (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0))
+    ) {
       fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
     if (fieldError.password || fieldError.key) return;
     busy = "unlocking";
     try {
-      const next = await unlock(password, secretKey);
+      const next = await unlock(password, askKey ? secretKey : undefined);
       password = "";
       secretKey = "";
       ondone(next);
     } catch (e) {
       const err = errorOf(e);
       if (err.code === "bad_secret_key") fieldError.key = err.message;
-      else error = err.message;
+      else if (err.code === "needs_secret_key") {
+        keyRefused = true;
+        error = err.message;
+      } else error = err.message;
     } finally {
       busy = "";
     }
@@ -72,12 +82,18 @@
         <Button onclick={() => (shown = !shown)}>{shown ? "Hide" : "Show"}</Button>
       {/snippet}
     </TextField>
-    <SecretKeyField
-      bind:value={secretKey}
-      error={fieldError.key}
-      disabled={busy !== ""}
-      help="It is on your Emergency Kit. You can paste the whole key into any box."
-    />
+    {#if askKey}
+      <SecretKeyField
+        bind:value={secretKey}
+        error={fieldError.key}
+        disabled={busy !== ""}
+        help="It is on your Emergency Kit. You can paste the whole key into any box."
+      />
+    {:else}
+      <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
+        This Mac keeps your Secret Key, so you only need your master password.
+      </p>
+    {/if}
     <Button variant="primary" type="submit" block disabled={busy !== ""}>
       {busy === "unlocking" ? "Unlocking..." : "Unlock"}
     </Button>
