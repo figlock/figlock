@@ -40,6 +40,9 @@ impl Desk {
 
     /// Stop keeping the Secret Key on this Mac. The next full unlock asks for it.
     pub fn forget_secret_key(&self) -> CmdRes<VaultState> {
+        if self.inner().session.is_none() {
+            return Err(locked());
+        }
         secret_key_store::system()?.forget(&peek_vault_id()?)?;
         self.state()
     }

@@ -161,6 +161,7 @@ fn no_kept_key_inner() {
     let d = desk();
     // Locked: nothing can be shown.
     assert_eq!(code_of(d.show_secret_key().unwrap_err()), "locked");
+    assert_eq!(code_of(d.forget_secret_key().unwrap_err()), "locked");
     let (pw, key) = unlocked(&d);
     let state = d.state().unwrap();
     assert!(!state.secret_key_kept && state.secret_key_protection.is_none());
@@ -192,4 +193,16 @@ fn no_kept_key_inner() {
     );
     assert!(d.devices().unwrap().iter().all(|r| !r.revoked));
     d.revoke_device(&phone, &pw, Some(&key), None).unwrap();
+}
+
+#[test]
+fn a_failed_kept_key_revoke_asks_for_the_key_and_a_failed_typed_key_does_not() {
+    assert_eq!(
+        code_of(super::devices::revoke_credentials_error(false)),
+        "needs_secret_key"
+    );
+    assert_eq!(
+        code_of(super::devices::revoke_credentials_error(true)),
+        "wrong_credentials"
+    );
 }

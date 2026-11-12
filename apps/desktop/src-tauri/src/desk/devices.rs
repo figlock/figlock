@@ -37,6 +37,19 @@ fn row(d: &DeviceInfo, this: &DeviceId) -> DeviceRow {
     }
 }
 
+/// Credentials that did not open the vault for a revocation. A kept key that fails cannot be told apart from a
+/// wrong password, so the window is asked to show the key field; a typed key that fails is a plain mismatch.
+pub(super) fn revoke_credentials_error(key_was_typed: bool) -> CmdError {
+    if key_was_typed {
+        wrong_credentials()
+    } else {
+        CmdError::new(
+            "needs_secret_key",
+            "The kept Secret Key or the password did not open the vault. If the password is right, the Secret Key was changed: type the new one from your Emergency Kit.",
+        )
+    }
+}
+
 impl Desk {
     /// The devices that can open this vault, then the revoked ones. This device comes first.
     pub fn devices(&self) -> CmdRes<Vec<DeviceRow>> {
@@ -65,7 +78,8 @@ impl Desk {
         new_password: Option<&str>,
     ) -> CmdRes<Vec<DeviceRow>> {
         // Typed, or the one this device keeps (after Touch ID); the window asks for it only when neither exists.
-        let secret_key = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
+        let typed = secret_key.map(str::trim).filter(|k| !k.is_empty());
+        let secret_key = match typed {
             Some(text) => parse_secret_key(text)?,
             None => {
                 let vault = figlock_session::session::peek_vault_id()?;
@@ -137,7 +151,7 @@ impl Desk {
                 .vault
                 .revoke_device(password, &secret_key, &target, now),
         }
-        .map_err(|_| wrong_credentials())?;
+        .map_err(|_| revoke_credentials_error(typed.is_some()))?;
         if session.write_revocation(&revocation).is_err() {
             // Part of the revocation may be stored and this vault already moved on: lock, so the next unlock
             // reads what is really there, and let the person look at the list again.
