@@ -160,7 +160,7 @@ impl Desk {
     }
 
     /// Run one sync and record how it went. Returns false when none was run (sync is off).
-    fn run_sync(&self, reupload: bool) -> bool {
+    pub(super) fn run_sync(&self, reupload: bool) -> bool {
         let Ok(cfg) = config::load() else {
             return false;
         };

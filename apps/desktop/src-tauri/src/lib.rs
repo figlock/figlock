@@ -5,6 +5,7 @@ mod desk;
 
 use std::time::Duration;
 
+use desk::devices::DeviceRow;
 use desk::drive::{DriveView, SignedOut};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
@@ -156,6 +157,43 @@ async fn sync_enable(app: AppHandle) -> CmdRes<SyncView> {
 #[tauri::command]
 async fn sync_disable(desk: State<'_, Desk>) -> CmdRes<SyncView> {
     desk.sync_disable()
+}
+
+/// The devices that can open this vault, then the revoked ones.
+#[tauri::command]
+async fn devices(desk: State<'_, Desk>) -> CmdRes<Vec<DeviceRow>> {
+    desk.devices()
+}
+
+/// Revoke a device. `new_password` also changes the master password in the same write.
+#[tauri::command]
+async fn revoke_device(
+    app: AppHandle,
+    device: String,
+    password: String,
+    secret_key: String,
+    new_password: Option<String>,
+) -> CmdRes<Vec<DeviceRow>> {
+    let rows = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || {
+            tauri::Manager::state::<Desk>(&app).revoke_device(
+                &device,
+                &password,
+                &secret_key,
+                new_password.as_deref(),
+            )
+        }
+    })
+    .await
+    .map_err(|_| {
+        CmdError::new(
+            "failed",
+            "Revoking stopped unexpectedly. Check the device list.",
+        )
+    })??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(rows)
 }
 
 #[tauri::command]
@@ -379,6 +417,8 @@ pub fn run() {
             sync_now,
             sync_enable,
             sync_disable,
+            devices,
+            revoke_device,
             join_answered,
             join_cancel,
             join_finish,

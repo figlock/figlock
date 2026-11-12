@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Alert, Button, ConfirmDialog, Icon } from "@figlock/ui";
 
+  import Devices from "./Devices.svelte";
   import { ago } from "./sync";
   import { lock } from "./vault";
   import { getWorkspace } from "./workspace";
@@ -140,6 +141,8 @@
       {/if}
     {/if}
   </section>
+
+  <Devices />
 </div>
 
 {#if confirming === "off"}
