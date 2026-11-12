@@ -25,8 +25,11 @@ export const vaultState = () => invoke<VaultState>("vault_state");
 export const suggestedFolder = () => invoke<string | null>("suggested_folder");
 export const chooseFolder = () => invoke<string | null>("choose_folder");
 
-/** Where a vault is kept: a folder the person chose, or the hidden app folder in their Google Drive. */
-export type Storage = { kind: "folder"; path: string } | { kind: "drive" };
+/**
+ * Where a vault is kept (ADR-0026): always a folder on this Mac, and optionally synced to the hidden app
+ * folder in the person's Google Drive. `drive` without a `path` means the default folder.
+ */
+export type Storage = { path?: string; drive?: boolean };
 
 /** `canSignIn` is false in a build without a Google client (source builds, ADR-0021). */
 export type DriveStatus = { canSignIn: boolean; signedIn: boolean };

@@ -615,6 +615,7 @@ impl Desk {
         match change(&mut *session).and_then(|v| session.commit().map(|()| v)) {
             Ok(v) => {
                 inner.cache = None;
+                inner.dirty = true;
                 Ok(v)
             }
             Err(_) if session.is_uncertain() => {

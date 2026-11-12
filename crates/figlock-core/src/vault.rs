@@ -683,6 +683,15 @@ impl Vault {
         Ok(())
     }
 
+    /// The highest op sequence of `device` applied here, this device's own included; 0 when there is none.
+    pub fn applied_seq(&self, device: &DeviceId) -> u64 {
+        if *device == self.device.device_id {
+            self.own_seq
+        } else {
+            self.applied.get(device).map_or(0, |(seq, _)| *seq)
+        }
+    }
+
     /// The current `key_epoch`.
     pub fn epoch(&self) -> u32 {
         self.epoch

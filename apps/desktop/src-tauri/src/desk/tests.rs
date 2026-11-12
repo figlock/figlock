@@ -64,8 +64,17 @@ pub(super) fn desk() -> Desk {
 
 /// A folder as the window sends it.
 pub(super) fn folder(path: &str) -> Storage {
-    Storage::Folder {
-        path: path.to_owned(),
+    Storage {
+        path: Some(path.to_owned()),
+        drive: false,
+    }
+}
+
+/// Drive with the default local folder, as the window sends it for "open from Google Drive".
+fn drive_only() -> Storage {
+    Storage {
+        path: None,
+        drive: true,
     }
 }
 
@@ -280,16 +289,16 @@ fn drive_inner() {
 
     // Not signed in: every way of picking Drive says so, and nothing is set up.
     assert_eq!(
-        code_of(storage_place(&Storage::Drive, true).unwrap_err()),
+        code_of(storage_place(&drive_only(), true).unwrap_err()),
         "drive_sign_in"
     );
     assert_eq!(
-        code_of(d.create(&Storage::Drive, &password()).unwrap_err()),
+        code_of(d.create(&drive_only(), &password()).unwrap_err()),
         "drive_sign_in"
     );
     assert_eq!(
         code_of(
-            d.open_existing(&Storage::Drive, &password(), "garbage", false)
+            d.open_existing(&drive_only(), &password(), "garbage", false)
                 .unwrap_err()
         ),
         "bad_secret_key",
@@ -301,7 +310,7 @@ fn drive_inner() {
     config::save_drive_token(&password()).unwrap();
     assert!(drive::status().unwrap().signed_in);
     assert_eq!(
-        storage_place(&Storage::Drive, true).unwrap().remote,
+        storage_place(&drive_only(), true).unwrap().remote,
         Some(Remote::Drive)
     );
 
@@ -317,10 +326,200 @@ fn drive_inner() {
 }
 
 #[test]
-fn the_window_names_a_storage_by_kind() {
-    let f: Storage = serde_json::from_str(r#"{"kind":"folder","path":"/tmp/v"}"#).unwrap();
+fn the_window_sends_a_folder_and_whether_to_sync_it() {
+    let f: Storage = serde_json::from_str(r#"{"path":"/tmp/v"}"#).unwrap();
     assert_eq!(f, folder("/tmp/v"));
-    let d: Storage = serde_json::from_str(r#"{"kind":"drive"}"#).unwrap();
-    assert_eq!(d, Storage::Drive);
-    assert!(serde_json::from_str::<Storage>(r#"{"kind":"dropbox"}"#).is_err());
+    let d: Storage = serde_json::from_str(r#"{"drive":true}"#).unwrap();
+    assert_eq!(d, drive_only());
+    let both: Storage = serde_json::from_str(r#"{"path":"/tmp/v","drive":true}"#).unwrap();
+    assert_eq!((both.path.as_deref(), both.drive), (Some("/tmp/v"), true));
+    assert_eq!(there(&d), "this Google Drive");
+    assert_eq!(there(&f), "that folder");
+}
+
+fn there(s: &Storage) -> &'static str {
+    s.there()
+}
+
+#[test]
+fn picking_neither_a_folder_nor_drive_is_refused() {
+    let none = Storage {
+        path: None,
+        drive: false,
+    };
+    assert_eq!(code_of(storage_place(&none, true).unwrap_err()), "folder");
+    let blank = Storage {
+        path: Some("  ".into()),
+        drive: false,
+    };
+    assert_eq!(code_of(storage_place(&blank, true).unwrap_err()), "folder");
+}
+
+#[test]
+fn sync_is_off_until_turned_on_and_turning_it_on_needs_a_sign_in() {
+    scenario("sync_off_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn sync_off_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    assert!(
+        d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+            .unwrap()
+    );
+    d.finish_create(false).unwrap();
+
+    let v = d.sync_status().unwrap();
+    assert!(!v.enabled);
+    assert_eq!(v.state, "off");
+    assert_eq!(v.message, None);
+    assert_eq!(
+        v.local_folder.as_deref(),
+        Some(canonical(&vault_dir()).as_str())
+    );
+    assert!(!d.sync_tick(), "no sync runs while it is off");
+    assert_eq!(d.sync_now(false).unwrap().state, "off");
+
+    // Not signed in: nothing is changed.
+    assert_eq!(code_of(d.sync_enable().unwrap_err()), "drive_sign_in");
+    assert!(config::load().unwrap().place.remote.is_none());
+
+    // Signed in with a made-up token but a build with no Google client (like a source build): the first sync
+    // fails, so sync is not left on.
+    config::save_drive_token(&password()).unwrap();
+    assert_eq!(code_of(d.sync_enable().unwrap_err()), "sync_failed");
+    assert_eq!(config::load().unwrap().place.remote, None);
+    assert_eq!(d.sync_status().unwrap().state, "off");
+
+    // Turning it off when it is off is harmless.
+    assert_eq!(d.sync_disable().unwrap().state, "off");
+}
+
+fn canonical(p: &str) -> String {
+    std::fs::canonicalize(p).unwrap().display().to_string()
+}
+
+#[test]
+fn a_failing_remote_shows_as_a_state_and_backs_off_without_touching_the_vault() {
+    scenario("sync_failing_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn sync_failing_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.finish_create(false).unwrap();
+    // A device with sync on and no working sign-in, as after the sign-in was revoked.
+    config::set_remote(Some(Remote::Drive)).unwrap();
+
+    let v = d.sync_status().unwrap();
+    assert!(v.enabled);
+    assert_eq!(v.state, "idle", "nothing has failed yet");
+
+    assert_eq!(d.sync_now(false).unwrap().state, "failed");
+    let v = d.sync_status().unwrap();
+    assert!(v.message.is_some());
+    assert!(!d.sync_tick(), "backing off: not due again yet");
+    // The vault itself is untouched and still opens.
+    assert_eq!(d.state().unwrap().phase, "unlocked");
+    assert!(d.list_items("").unwrap().is_empty());
+}
+
+#[test]
+fn what_another_device_synced_shows_up_in_the_open_vault() {
+    scenario("sync_pull_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn sync_pull_inner() {
+    use figlock_store::{BlobStore, LocalFolder};
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.finish_create(false).unwrap();
+    assert!(d.list_items("").unwrap().is_empty());
+
+    // A second device of the same vault writes into the folder, as a sync would leave it.
+    let store = LocalFolder::open(std::path::Path::new(&vault_dir())).unwrap();
+    let vault_json = store.get("vault.json").unwrap();
+    let records: Vec<Vec<u8>> = store
+        .list("devices/")
+        .unwrap()
+        .iter()
+        .map(|e| store.get(&e.path).unwrap())
+        .collect();
+    let key = figlock_core::SecretKey::parse(&key).unwrap();
+    let auk = Vault::unlock_key(&vault_json, &pw, &key).unwrap();
+    let (mut other, record) = Vault::unlock_with_key(
+        &vault_json,
+        &auk,
+        figlock_core::DeviceKeys::generate().unwrap(),
+        "Other Mac",
+        &records,
+        now_ms(),
+    )
+    .unwrap();
+    store
+        .put_new(
+            &format!("devices/{}.json", hex::encode(other.device_id())),
+            &record.unwrap(),
+        )
+        .unwrap();
+    other
+        .add_item(
+            figlock_core::ItemType::Login,
+            "Personal",
+            &[("title", "From the other Mac")],
+            now_ms(),
+        )
+        .unwrap();
+    let file = other.commit().unwrap().unwrap();
+    store.put_new(&file.path, &file.bytes).unwrap();
+
+    // What the sync thread does after a pull.
+    assert!(!d.absorb_pull_for_test(), "nothing to flag: a clean pull");
+    let titles: Vec<String> = d
+        .list_items("")
+        .unwrap()
+        .into_iter()
+        .map(|i| i.title)
+        .collect();
+    assert_eq!(titles, vec!["From the other Mac".to_owned()]);
+}
+
+#[test]
+fn unlocking_again_clears_the_lock_and_unlock_notice() {
+    scenario("sync_needs_unlock_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn sync_needs_unlock_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.finish_create(false).unwrap();
+    config::set_remote(Some(Remote::Drive)).unwrap();
+
+    d.flag_needs_unlock_for_test();
+    assert!(d.sync_status().unwrap().needs_unlock);
+    d.lock();
+    assert_eq!(d.unlock(&pw, &key).unwrap().phase, "unlocked");
+    assert!(!d.sync_status().unwrap().needs_unlock);
 }
