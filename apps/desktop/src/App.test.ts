@@ -101,6 +101,41 @@ test("a pasted Secret Key fills every group, and a wrong password shows the erro
   expect(state.unlock).toHaveBeenCalledWith("wrong password", KEY);
 });
 
+test("a Mac that keeps the Secret Key asks for the master password only", async () => {
+  state.current = { ...state.current, phase: "locked", secretKeyKept: true };
+  state.unlock.mockResolvedValue({ ...state.current, phase: "unlocked" });
+  const user = userEvent.setup();
+  render(App);
+  await user.type(await screen.findByLabelText("Master password"), "correct horse battery 42");
+  expect(screen.queryByLabelText("Secret Key group 1 of 8")).toBeNull();
+  expect(screen.getByText(/keeps your Secret Key/)).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+  await waitFor(() =>
+    expect(state.unlock).toHaveBeenCalledWith("correct horse battery 42", undefined),
+  );
+});
+
+test("when the kept key does not open the vault the Secret Key is asked for, and a retry sends it", async () => {
+  state.current = { ...state.current, phase: "locked", secretKeyKept: true };
+  state.unlock.mockRejectedValueOnce({
+    code: "needs_secret_key",
+    message:
+      "That did not open the vault. If your master password is right, the Secret Key was changed.",
+  });
+  const user = userEvent.setup();
+  render(App);
+  await user.type(await screen.findByLabelText("Master password"), "correct horse battery 42");
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+  expect(await screen.findByText(/the Secret Key was changed/)).toBeTruthy();
+  await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
+  await user.paste(KEY);
+  state.unlock.mockResolvedValueOnce({ ...state.current, phase: "unlocked" });
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+  await waitFor(() =>
+    expect(state.unlock).toHaveBeenLastCalledWith("correct horse battery 42", KEY),
+  );
+});
+
 test("Touch ID is only offered when quick unlock is on, and its failure asks for the credentials", async () => {
   state.current = { ...state.current, phase: "locked" };
   const user = userEvent.setup();

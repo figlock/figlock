@@ -6,17 +6,22 @@
 
   type Props = {
     device: Device;
+    /** This Mac keeps the Secret Key, so only the master password is asked for. */
+    keyKept: boolean;
     /** Resolves when the device is revoked; a rejection is shown in the dialog. */
     onrevoke: (password: string, secretKey: string, newPassword: string | null) => Promise<void>;
     oncancel: () => void;
   };
 
-  let { device, onrevoke, oncancel }: Props = $props();
+  let { device, keyKept, onrevoke, oncancel }: Props = $props();
 
   const titleId = $props.id();
   let dialog = $state<HTMLDialogElement>();
   let password = $state("");
   let secretKey = $state("");
+  let keyRefused = $state(false);
+  /** The key field shows when none is kept, or when the kept one was not enough. */
+  const askKey = $derived(keyRefused || !keyKept);
   let compromised = $state(false);
   let newPassword = $state("");
   let repeat = $state("");
@@ -33,7 +38,10 @@
     error = "";
     fieldError = {};
     if (!password) fieldError.password = "Enter your master password.";
-    if (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0)) {
+    if (
+      askKey &&
+      (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0))
+    ) {
       fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
     if (compromised) {
@@ -43,10 +51,13 @@
     if (Object.keys(fieldError).length > 0) return;
     busy = true;
     try {
-      await onrevoke(password, secretKey, compromised ? newPassword : null);
+      await onrevoke(password, askKey ? secretKey : "", compromised ? newPassword : null);
     } catch (e) {
       const err = errorOf(e);
-      if (err.code === "bad_secret_key") fieldError.key = err.message;
+      if (err.code === "needs_secret_key") {
+        keyRefused = true;
+        error = err.message;
+      } else if (err.code === "bad_secret_key") fieldError.key = err.message;
       else if (err.code === "weak_password") fieldError.new = err.message;
       else error = err.message;
       busy = false;
@@ -70,8 +81,9 @@
       </h2>
       <p class="text-text-secondary">
         It can no longer open anything written from now on. A copy of the vault it already has stays
-        readable, and so does anything it copied out. Enter your master password and Secret Key to
-        confirm.
+        readable, and so does anything it copied out. Enter your master password to confirm{askKey
+          ? ", and your Secret Key"
+          : ""}.
       </p>
     </div>
     {#if error}<Alert>{error}</Alert>{/if}
@@ -83,7 +95,9 @@
       disabled={busy}
       focus
     />
-    <SecretKeyField bind:value={secretKey} error={fieldError.key} disabled={busy} />
+    {#if askKey}
+      <SecretKeyField bind:value={secretKey} error={fieldError.key} disabled={busy} />
+    {/if}
     <label class="flex items-start gap-2">
       <input type="checkbox" bind:checked={compromised} disabled={busy} class="mt-1" />
       <span>

@@ -3,7 +3,7 @@
 
   import { listDevices, revokeDevice, type Device } from "./devices";
   import RevokeDialog from "./RevokeDialog.svelte";
-  import { errorOf, lock } from "./vault";
+  import { errorOf, lock, vaultState } from "./vault";
   import { failure, getWorkspace } from "./workspace";
 
   const w = getWorkspace();
@@ -12,6 +12,7 @@
   let error = $state("");
   let done = $state("");
   let revoking = $state<Device | null>(null);
+  let keyKept = $state(false);
 
   async function load() {
     try {
@@ -26,6 +27,17 @@
     void w.sync.view?.lastSyncSecsAgo;
     void load();
   });
+
+  /** Asks whether this Mac keeps the Secret Key first, so the dialog only asks for it when it must. */
+  async function startRevoke(d: Device) {
+    done = "";
+    try {
+      keyKept = (await vaultState()).secretKeyKept;
+    } catch {
+      keyKept = false;
+    }
+    revoking = d;
+  }
 
   async function revoke(password: string, secretKey: string, newPassword: string | null) {
     if (!revoking) return;
@@ -85,10 +97,7 @@
             <button
               type="button"
               class="inline-flex h-(--control-height-md) items-center justify-center rounded-(--radius-sm) border border-border px-4 text-(length:--text-sm) font-medium text-danger transition-colors duration-(--duration-fast) hover:bg-danger-subtle"
-              onclick={() => {
-                done = "";
-                revoking = d;
-              }}
+              onclick={() => void startRevoke(d)}
               aria-label="Revoke {d.name ?? 'device'}"
             >
               Revoke
@@ -101,5 +110,5 @@
 </section>
 
 {#if revoking}
-  <RevokeDialog device={revoking} onrevoke={revoke} oncancel={() => (revoking = null)} />
+  <RevokeDialog device={revoking} {keyKept} onrevoke={revoke} oncancel={() => (revoking = null)} />
 {/if}

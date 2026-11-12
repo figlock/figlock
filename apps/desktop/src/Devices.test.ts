@@ -13,6 +13,7 @@ const core = vi.hoisted(() => ({
   onSynced: vi.fn(),
   listItems: vi.fn(),
   lock: vi.fn(),
+  vaultState: vi.fn(),
 }));
 
 vi.mock("./devices", () => ({ listDevices: core.listDevices, revokeDevice: core.revokeDevice }));
@@ -26,7 +27,11 @@ vi.mock("./items", async (original) => ({
   listItems: core.listItems,
   listDeleted: () => Promise.resolve([]),
 }));
-vi.mock("./vault", () => ({ errorOf: (e: unknown) => e, lock: core.lock }));
+vi.mock("./vault", () => ({
+  errorOf: (e: unknown) => e,
+  lock: core.lock,
+  vaultState: core.vaultState,
+}));
 
 import Workspace from "./Workspace.svelte";
 
@@ -66,6 +71,7 @@ beforeEach(() => {
     localFolder: null,
   } satisfies SyncView);
   core.listDevices.mockResolvedValue([mac, phone]);
+  core.vaultState.mockResolvedValue({ secretKeyKept: false, secretKeyProtection: null });
 });
 
 async function toDevices() {
@@ -153,4 +159,34 @@ test("a refusal because settings changed elsewhere locks the vault and relocks",
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
   await waitFor(() => expect(user.onlocked).toHaveBeenCalledWith(message));
   expect(core.lock).toHaveBeenCalledTimes(1);
+});
+
+test("a Mac that keeps the Secret Key revokes with the master password only", async () => {
+  core.vaultState.mockResolvedValue({ secretKeyKept: true, secretKeyProtection: "secure-enclave" });
+  const user = await toDevices();
+  await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
+  core.revokeDevice.mockResolvedValue([mac, { ...phone, name: null, revoked: true }]);
+  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
+  await waitFor(() =>
+    expect(core.revokeDevice).toHaveBeenCalledWith("bb", "correct horse battery 42", "", null),
+  );
+});
+
+test("when the kept key is not enough the dialog asks for it", async () => {
+  core.vaultState.mockResolvedValue({ secretKeyKept: true, secretKeyProtection: "keychain" });
+  const user = await toDevices();
+  await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
+  const dialog = screen.getByRole("dialog");
+  core.revokeDevice.mockRejectedValueOnce({
+    code: "needs_secret_key",
+    message: "Type your Secret Key from your Emergency Kit to revoke a device.",
+  });
+  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
+  expect(await screen.findByText(/Type your Secret Key from your Emergency Kit/)).toBeTruthy();
+  expect(within(dialog).getByLabelText("Secret Key group 1 of 8")).toBeTruthy();
+  expect(screen.getByRole("dialog")).toBeTruthy();
 });

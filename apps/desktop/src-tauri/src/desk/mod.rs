@@ -12,7 +12,7 @@ use figlock_core::{
 use figlock_session::config::{self, Config, Place, Remote};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::{Session, Ui, now_ms};
-use figlock_session::{join, quick};
+use figlock_session::{join, quick, secret_key_store};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
@@ -59,6 +59,10 @@ pub struct VaultState {
     pub quick_unlock: bool,
     /// This Mac can ask for Touch ID or the device password.
     pub touch_available: bool,
+    /// This device keeps the Secret Key, so unlocking asks for the master password only (ADR-0027).
+    pub secret_key_kept: bool,
+    /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
+    pub secret_key_protection: Option<&'static str>,
     pub autolock_secs: u64,
 }
 
@@ -120,7 +124,8 @@ impl Inner {
 /// Answers a full unlock with what the person typed.
 struct Typed {
     password: Zeroizing<String>,
-    secret_key: SecretKey,
+    /// Blank when this device keeps the Secret Key; asked for only if the kept one does not open the vault.
+    secret_key: Option<SecretKey>,
 }
 
 impl Ui for Typed {
@@ -128,10 +133,31 @@ impl Ui for Typed {
         Ok(self.password.clone())
     }
     fn secret_key(&self) -> Res<SecretKey> {
-        Ok(SecretKey::from_bytes(*self.secret_key.expose()))
+        self.secret_key
+            .as_ref()
+            .map(|k| SecretKey::from_bytes(*k.expose()))
+            .ok_or_else(|| Fail::new(NEEDS_SECRET_KEY))
     }
     fn notice(&self, _: &str) {}
     fn warn(&self, _: &str) {}
+}
+
+/// What a full unlock reports when it needs the Secret Key typed and none was given.
+const NEEDS_SECRET_KEY: &str = "needs secret key";
+
+/// The failure of a full unlock, for the window: a key that was needed and not given is its own code, so the
+/// unlock form can ask for it.
+fn unlock_error(f: Fail) -> CmdError {
+    if f.0.starts_with("could not unlock") {
+        wrong_credentials()
+    } else if f.0 == NEEDS_SECRET_KEY {
+        CmdError::new(
+            "needs_secret_key",
+            "That did not open the vault. If your master password is right, the Secret Key was changed on another device: type the new one from your Emergency Kit.",
+        )
+    } else {
+        f.into()
+    }
 }
 
 /// Answers nothing: a quick unlock that cannot finish on its own falls back to the unlock form.
@@ -152,6 +178,19 @@ impl Ui for NoCredentials {
         }
     }
     fn warn(&self, _: &str) {}
+}
+
+/// What a full unlock needs typed on this device: the Secret Key too only when none is kept.
+fn what_to_type() -> &'static str {
+    let kept = secret_key_store::system()
+        .ok()
+        .zip(figlock_session::session::peek_vault_id().ok())
+        .is_some_and(|(keys, vault)| keys.has(&vault));
+    if kept {
+        "your master password"
+    } else {
+        "your master password and Secret Key"
+    }
 }
 
 fn wrong_credentials() -> CmdError {
@@ -250,11 +289,21 @@ impl Desk {
             ),
             Err(_) => (false, false),
         };
+        let (secret_key_kept, secret_key_protection) = match initialised
+            .then(secret_key_store::system)
+            .and_then(Result::ok)
+            .zip(figlock_session::session::peek_vault_id().ok())
+        {
+            Some((keys, vault)) => (keys.has(&vault), keys.protection(&vault)),
+            None => (false, None),
+        };
         Ok(VaultState {
             phase,
             version: env!("CARGO_PKG_VERSION"),
             quick_unlock,
             touch_available,
+            secret_key_kept,
+            secret_key_protection,
             autolock_secs: self.autolock.as_secs(),
         })
     }
@@ -409,7 +458,7 @@ impl Desk {
         self.enter(
             Typed {
                 password: c.password,
-                secret_key: key,
+                secret_key: Some(key),
             },
             touch_id,
         )
@@ -454,7 +503,7 @@ impl Desk {
         self.enter(
             Typed {
                 password: Zeroizing::new(password.to_owned()),
-                secret_key: key,
+                secret_key: Some(key),
             },
             touch_id,
         )
@@ -499,7 +548,7 @@ impl Desk {
         config::save(&cfg, joined.vault.device_keys())?;
         let typed = Typed {
             password: Zeroizing::new(password.to_owned()),
-            secret_key: joined.secret_key,
+            secret_key: Some(joined.secret_key),
         };
         self.enter(typed, touch_id)
             .inspect_err(|_| config::forget())
@@ -507,26 +556,24 @@ impl Desk {
 
     // ---- unlock and lock ----
 
-    /// Unlock with the master password and Secret Key.
-    pub fn unlock(&self, password: &str, secret_key: &str) -> CmdRes<VaultState> {
+    /// Unlock with the master password, and the Secret Key unless this device keeps it. `secret_key` blank
+    /// means "use the one kept here"; if that does not open the vault the answer is `needs_secret_key`.
+    pub fn unlock(&self, password: &str, secret_key: Option<&str>) -> CmdRes<VaultState> {
         if password.is_empty() {
             return Err(CmdError::new(
                 "empty_password",
                 "Enter your master password.",
             ));
         }
-        let key = parse_secret_key(secret_key)?;
+        let key = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
+            Some(text) => Some(parse_secret_key(text)?),
+            None => None,
+        };
         let typed = Typed {
             password: Zeroizing::new(password.to_owned()),
             secret_key: key,
         };
-        let (session, _) = Session::open_full(Box::new(typed)).map_err(|f| {
-            if f.0.starts_with("could not unlock") {
-                wrong_credentials()
-            } else {
-                f.into()
-            }
-        })?;
+        let (session, _) = Session::open_full(Box::new(typed)).map_err(unlock_error)?;
         self.install(session);
         self.state()
     }
@@ -545,8 +592,19 @@ impl Desk {
                 Err(CmdError::new(
                     "quick_unavailable",
                     reason.map_or_else(
-                        || "Touch ID did not unlock the vault. Type your master password and Secret Key.".to_owned(),
-                        |r| format!("{}. Type your master password and Secret Key.", capitalise(&r.replace("; enter the master password", ""))),
+                        || {
+                            format!(
+                                "Touch ID did not unlock the vault. Type {}.",
+                                what_to_type()
+                            )
+                        },
+                        |r| {
+                            format!(
+                                "{}. Type {}.",
+                                capitalise(&r.replace("; enter the master password", "")),
+                                what_to_type()
+                            )
+                        },
                     ),
                 ))
             }
@@ -556,13 +614,7 @@ impl Desk {
 
     /// A full unlock with the details just typed, then optionally turn on Touch ID.
     fn enter(&self, typed: Typed, touch_id: bool) -> CmdRes<VaultState> {
-        let (session, auk) = Session::open_full(Box::new(typed)).map_err(|f| {
-            if f.0.starts_with("could not unlock") {
-                wrong_credentials()
-            } else {
-                f.into()
-            }
-        })?;
+        let (session, auk) = Session::open_full(Box::new(typed)).map_err(unlock_error)?;
         if touch_id {
             // Touch ID is a convenience: failing to turn it on never undoes the setup.
             if let (Ok(vault), Ok(q)) = (figlock_session::session::peek_vault_id(), quick::system())
@@ -692,6 +744,7 @@ pub mod devices;
 pub mod drive;
 pub mod generate;
 pub mod items;
+pub mod secret_key;
 pub mod sync;
 
 #[cfg(test)]
