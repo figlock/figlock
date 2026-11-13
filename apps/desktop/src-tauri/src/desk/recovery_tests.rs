@@ -266,7 +266,9 @@ fn settings_inner() {
         "recovery_not_confirmed"
     );
     assert!(d.recovery_check(&answers(&first)).unwrap());
-    // This device keeps no Secret Key in tests, so it is asked for; wrong ones change nothing.
+    // This device keeps no Secret Key in tests and, with the held one dropped (ADR-0030), it is asked for;
+    // wrong ones change nothing.
+    d.inner().held_key = None;
     assert_eq!(
         code_of(d.recovery_enable(&pw, None).unwrap_err()),
         "needs_secret_key"

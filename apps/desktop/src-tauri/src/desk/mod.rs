@@ -63,6 +63,9 @@ pub struct VaultState {
     pub secret_key_kept: bool,
     /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
     pub secret_key_protection: Option<&'static str>,
+    /// This unlocked session holds the Secret Key it was unlocked with, so steps that rewrap the vault key
+    /// need not ask for it again (ADR-0030). Gone when the vault locks; says nothing about a restart.
+    pub secret_key_held: bool,
     pub autolock_secs: u64,
     /// The vault has a Recovery Key (`vault.json` carries `rk_pub`). Only while unlocked.
     pub recovery_enabled: bool,
@@ -100,6 +103,9 @@ struct Reissued {
 
 struct Inner {
     session: Option<Session>,
+    /// The Secret Key this session was unlocked with, kept in memory until it locks (ADR-0030). Set by a full
+    /// unlock, create, open or join that had the key, replaced when the key rotates, dropped with the session.
+    held_key: Option<SecretKey>,
     /// List rows and the search index of the unlocked vault; rebuilt after any change.
     cache: Option<items::Cache>,
     /// Files chosen for a document item, until it is saved or the editor closes.
@@ -137,6 +143,7 @@ impl Inner {
             c.clear();
         }
         self.session = None;
+        self.held_key = None;
         self.inviting = None;
         self.recovery = None;
         self.recovering = None;
@@ -150,6 +157,15 @@ struct Typed {
     password: Zeroizing<String>,
     /// Blank when this device keeps the Secret Key; asked for only if the kept one does not open the vault.
     secret_key: Option<SecretKey>,
+}
+
+impl Typed {
+    /// A copy of the typed Secret Key for the session to hold, if one was given.
+    fn copy_secret_key(&self) -> Option<SecretKey> {
+        self.secret_key
+            .as_ref()
+            .map(|k| SecretKey::from_bytes(*k.expose()))
+    }
 }
 
 impl Ui for Typed {
@@ -300,6 +316,7 @@ impl Desk {
         Desk {
             inner: Mutex::new(Inner {
                 session: None,
+                held_key: None,
                 cache: None,
                 staged: std::collections::HashMap::new(),
                 copied: None,
@@ -326,12 +343,13 @@ impl Desk {
 
     pub fn state(&self) -> CmdRes<VaultState> {
         let initialised = config::is_initialised()?;
-        let (unlocked, pending_kit, recovery_enabled) = {
+        let (unlocked, pending_kit, recovery_enabled, secret_key_held) = {
             let mut inner = self.inner();
             if !initialised {
                 inner.reissued = None;
             }
             let unlocked = inner.session.is_some();
+            let held = inner.held_key.is_some();
             let pending = inner
                 .reissued
                 .as_ref()
@@ -341,7 +359,7 @@ impl Desk {
                 .session
                 .as_ref()
                 .is_some_and(|s| s.vault.has_recovery());
-            (unlocked, pending, recovery)
+            (unlocked, pending, recovery, held)
         };
         let phase = match (initialised, unlocked) {
             (false, _) => "none",
@@ -373,6 +391,7 @@ impl Desk {
             touch_available,
             secret_key_kept,
             secret_key_protection,
+            secret_key_held,
             autolock_secs: self.autolock.as_secs(),
             recovery_enabled,
             pending_kit,
@@ -666,8 +685,9 @@ impl Desk {
             password: Zeroizing::new(password.to_owned()),
             secret_key: key,
         };
+        let held = typed.copy_secret_key();
         let (session, _) = Session::open_full(Box::new(typed)).map_err(unlock_error)?;
-        self.install(session);
+        self.install_holding(session, held);
         self.state()
     }
 
@@ -707,6 +727,7 @@ impl Desk {
 
     /// A full unlock with the details just typed, then optionally turn on Touch ID.
     fn enter(&self, typed: Typed, touch_id: bool) -> CmdRes<VaultState> {
+        let held = typed.copy_secret_key();
         let (session, auk) = Session::open_full(Box::new(typed)).map_err(unlock_error)?;
         if touch_id {
             // Touch ID is a convenience: failing to turn it on never undoes the setup.
@@ -715,14 +736,21 @@ impl Desk {
                 let _ = q.enable(&vault, &auk, now_ms() / 1000);
             }
         }
-        self.install(session);
+        self.install_holding(session, held);
         self.state()
     }
 
     fn install(&self, session: Session) {
+        self.install_holding(session, None);
+    }
+
+    /// Make `session` the unlocked one. `held` is the Secret Key it was unlocked with, when the person typed it
+    /// or it came with the pairing answer (ADR-0030).
+    fn install_holding(&self, session: Session, held: Option<SecretKey>) {
         let mut inner = self.inner();
         inner.drop_session();
         inner.session = Some(session);
+        inner.held_key = held;
         inner.active_at = Instant::now();
         inner.ticked_at = Instant::now();
         drop(inner);

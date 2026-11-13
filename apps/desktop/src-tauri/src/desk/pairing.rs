@@ -8,7 +8,7 @@ use figlock_session::session::now_ms as wall_ms;
 use figlock_session::{config, sync};
 use serde::Serialize;
 
-use super::devices::{DeviceRow, credentials_key};
+use super::devices::DeviceRow;
 use super::sync::Kind;
 use super::{CmdError, CmdRes, Desk, parse_secret_key, wrong_credentials};
 
@@ -167,8 +167,9 @@ impl Desk {
         })
     }
 
-    /// Approve the request: Touch ID (or the device password) releases the Secret Key this device keeps. A
-    /// device that keeps none asks for the master password and Secret Key instead, and both must open the vault.
+    /// Approve the request. A typed Secret Key, or the one the session holds (ADR-0030), must open the vault
+    /// together with the master password. With neither, Touch ID (or the device password) releases the Secret
+    /// Key this device keeps.
     pub fn add_device_approve(
         &self,
         password: Option<&str>,
@@ -183,9 +184,17 @@ impl Desk {
             return Err(no_invite());
         }
         let typed = secret_key.map(str::trim).filter(|k| !k.is_empty());
-        let key: SecretKey = match typed {
-            Some(text) => {
-                let key = parse_secret_key(text)?;
+        let held = self
+            .inner()
+            .held_key
+            .as_ref()
+            .map(|k| SecretKey::from_bytes(*k.expose()));
+        let checked = match typed {
+            Some(text) => Some(parse_secret_key(text)?),
+            None => held,
+        };
+        let key: SecretKey = match checked {
+            Some(key) => {
                 let vault_json = {
                     let inner = self.inner();
                     inner.session.as_ref().ok_or_else(locked)?.vault_json()?
@@ -206,7 +215,7 @@ impl Desk {
                 opened.map_err(|_| wrong_credentials())?;
                 key
             }
-            None => credentials_key(None, "add a device").map(|(k, _)| k)?,
+            None => self.credentials_key(None, "add a device").map(|(k, _)| k)?,
         };
         let mut guard = self.inner();
         let inner = &mut *guard;

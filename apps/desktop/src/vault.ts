@@ -14,6 +14,8 @@ export type VaultState = {
   secretKeyKept: boolean;
   /** How the kept key is protected, when there is one. */
   secretKeyProtection: "secure-enclave" | "keychain" | null;
+  /** This unlocked session holds the Secret Key it was unlocked with, until the vault locks (ADR-0030). */
+  secretKeyHeld: boolean;
   autolockSecs: number;
   /** The vault has a Recovery Key. Only while unlocked. */
   recoveryEnabled: boolean;

@@ -163,6 +163,30 @@ test("a Mac that keeps no Secret Key asks for the password and key to approve", 
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
 
+test("a session that holds the Secret Key asks for the master password only, with no key field or Touch ID step", async () => {
+  core.vaultState.mockResolvedValue({
+    secretKeyKept: false,
+    secretKeyHeld: true,
+    secretKeyProtection: null,
+  });
+  const user = await openDialog();
+  core.addDeviceStatus.mockResolvedValue(asked);
+  await vi.advanceTimersByTimeAsync(3100);
+  const dialog = await screen.findByRole("dialog");
+  await within(dialog).findByText('Add "Home Laptop"?');
+  expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
+  expect(within(dialog).queryByText(/Touch ID/)).toBeNull();
+  core.addDeviceApprove.mockResolvedValue([]);
+  await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+  expect(await within(dialog).findByText("Enter your master password.")).toBeTruthy();
+  expect(core.addDeviceApprove).not.toHaveBeenCalled();
+  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+  await waitFor(() =>
+    expect(core.addDeviceApprove).toHaveBeenCalledWith("correct horse battery 42", ""),
+  );
+});
+
 test("a code that ran out offers a new one", async () => {
   const user = await openDialog();
   core.addDeviceStatus.mockResolvedValue({ ...waiting, state: "expired" });

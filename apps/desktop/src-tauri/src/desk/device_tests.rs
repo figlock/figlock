@@ -186,8 +186,10 @@ fn no_kept_key_inner() {
     );
     assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
 
-    // Revoking with no key typed and none kept asks for it, and revokes nothing.
+    // Revoking with no key typed, none kept and none held asks for it, and revokes nothing. (The typed unlock
+    // above made the session hold the key, ADR-0030; take it away to see the device-only case.)
     let phone = add_device(&d, &key, "Phone");
+    d.inner().held_key = None;
     assert_eq!(
         code_of(d.revoke_device(&phone, &pw, None, None).unwrap_err()),
         "needs_secret_key"
@@ -206,4 +208,72 @@ fn a_failed_kept_key_revoke_asks_for_the_key_and_a_failed_typed_key_does_not() {
         code_of(super::devices::revoke_credentials_error(true)),
         "wrong_credentials"
     );
+}
+
+#[test]
+fn a_session_that_holds_the_secret_key_does_not_ask_for_it_again() {
+    scenario("held_key_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn held_key_inner() {
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    // Creating the vault had the key, so this session holds it; the device keeps none (headless tests).
+    let state = d.state().unwrap();
+    assert!(state.secret_key_held && !state.secret_key_kept);
+
+    // A wrong master password with a held key is a plain mismatch, not a request for the key.
+    let phone = add_device(&d, &key, "Phone");
+    assert_eq!(
+        code_of(
+            d.revoke_device(&phone, &password(), None, None)
+                .unwrap_err()
+        ),
+        "wrong_credentials"
+    );
+    assert!(d.devices().unwrap().iter().all(|r| !r.revoked));
+    // The right one revokes with no key typed.
+    let rows = d.revoke_device(&phone, &pw, None, None).unwrap();
+    assert!(rows.iter().find(|r| r.id == phone).unwrap().revoked);
+
+    // Locking drops it: the next unlock without the key cannot open the vault, and a typed one holds it again.
+    d.lock();
+    assert!(!d.state().unwrap().secret_key_held);
+    assert_eq!(
+        code_of(d.unlock(&pw, None).unwrap_err()),
+        "needs_secret_key"
+    );
+    assert!(!d.state().unwrap().secret_key_held);
+    assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
+    assert!(d.state().unwrap().secret_key_held);
+    let tablet = add_device(&d, &key, "Tablet");
+    d.revoke_device(&tablet, &pw, None, None).unwrap();
+}
+
+#[test]
+fn rotating_the_secret_key_replaces_the_one_the_session_holds() {
+    scenario("held_key_rotation_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn held_key_rotation_inner() {
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    // Rotating with no key typed uses the held one, and the new key is held in its place.
+    let changed = d.change_credentials(&pw, None, None, true).unwrap();
+    let new_key = changed.secret_key.expect("the new key is shown once");
+    assert_ne!(new_key, key);
+    assert!(d.state().unwrap().secret_key_held);
+    // The old key opens nothing now. A step with no key typed must use the new one: the revoke succeeds.
+    let tablet = add_device(&d, &new_key, "Tablet");
+    d.revoke_device(&tablet, &pw, None, None).unwrap();
+    d.lock();
+    assert_eq!(
+        code_of(d.unlock(&pw, Some(&key)).unwrap_err()),
+        "wrong_credentials"
+    );
+    assert_eq!(d.unlock(&pw, Some(&new_key)).unwrap().phase, "unlocked");
 }

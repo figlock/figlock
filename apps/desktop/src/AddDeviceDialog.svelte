@@ -16,13 +16,15 @@
   type Props = {
     /** This Mac keeps the Secret Key, so Touch ID approves. Otherwise the password and key are typed. */
     keyKept: boolean;
+    /** The session holds the key and nothing prompts for it, so there is no Touch ID step (ADR-0030). */
+    keyHeld?: boolean;
     /** The vault locked or another device changed it: the dialog has nothing left to do. */
     onerror: (code: string, message: string) => void;
     /** The new device was approved; `devices` is the refreshed list. */
     onadded: (devices: Device[], name: string) => void;
     onclose: () => void;
   };
-  let { keyKept, onerror, onadded, onclose }: Props = $props();
+  let { keyKept, keyHeld = false, onerror, onadded, onclose }: Props = $props();
 
   /** The new device is asked about every 3 seconds, as the pairing spec says. */
   const POLL_MS = 3000;
@@ -39,6 +41,7 @@
   /** The key fields show when none is kept, or when Touch ID did not release it. */
   let typeKey = $state(false);
   const askKey = $derived(typeKey || !keyKept);
+  const askPassword = $derived(!askKey && keyHeld);
   let fieldError = $state<{ password?: string; key?: string }>({});
 
   const expired = $derived(status?.state === "expired");
@@ -113,11 +116,17 @@
         fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
       }
       if (Object.keys(fieldError).length > 0) return;
+    } else if (askPassword && !password) {
+      fieldError.password = "Enter your master password.";
+      return;
     }
     busy = true;
     const name = status?.deviceName ?? "The new device";
     try {
-      const devices = await addDeviceApprove(askKey ? password : "", askKey ? secretKey : "");
+      const devices = await addDeviceApprove(
+        askKey || askPassword ? password : "",
+        askKey ? secretKey : "",
+      );
       onadded(devices, name);
     } catch (e) {
       const err = errorOf(e);
@@ -182,6 +191,18 @@
             focus
           />
           <SecretKeyField bind:value={secretKey} error={fieldError.key} disabled={busy} />
+        {:else if askPassword}
+          <p class="text-text-secondary">
+            Approving sends your Secret Key to the new device. It still needs your master password.
+          </p>
+          <TextField
+            label="Master password"
+            type="password"
+            bind:value={password}
+            error={fieldError.password}
+            disabled={busy}
+            focus
+          />
         {:else}
           <p class="text-text-secondary">
             Approving asks for Touch ID, then sends your Secret Key to the new device. It still
@@ -191,7 +212,7 @@
         <div class="grid grid-cols-2 gap-2">
           <Button onclick={decline} disabled={busy}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={busy}>
-            {busy ? "Approving..." : askKey ? "Approve" : "Approve with Touch ID"}
+            {busy ? "Approving..." : askKey || askPassword ? "Approve" : "Approve with Touch ID"}
           </Button>
         </div>
       </form>

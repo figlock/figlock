@@ -50,23 +50,39 @@ pub(super) fn revoke_credentials_error(key_was_typed: bool) -> CmdError {
     }
 }
 
-/// The Secret Key for a step that rewraps the vault key: typed, or the one this device keeps (after Touch ID).
-/// The flag says it was typed; the window asks for it only when neither exists.
-pub(super) fn credentials_key(typed: Option<&str>, why: &str) -> CmdRes<(SecretKey, bool)> {
-    let typed = typed.map(str::trim).filter(|k| !k.is_empty());
-    if let Some(text) = typed {
-        return Ok((parse_secret_key(text)?, true));
+impl Desk {
+    /// The Secret Key for a step that rewraps the vault key, in the order of ADR-0030: typed in the window,
+    /// held by this unlocked session, or the one this device keeps (after Touch ID). The flag says the key
+    /// came from the person or the session, so a failure is a plain mismatch rather than a stale kept key.
+    /// The window asks for the key only when none of the three exists.
+    pub(super) fn credentials_key(
+        &self,
+        typed: Option<&str>,
+        why: &str,
+    ) -> CmdRes<(SecretKey, bool)> {
+        let typed = typed.map(str::trim).filter(|k| !k.is_empty());
+        if let Some(text) = typed {
+            return Ok((parse_secret_key(text)?, true));
+        }
+        if let Some(held) = self
+            .inner()
+            .held_key
+            .as_ref()
+            .map(|k| SecretKey::from_bytes(*k.expose()))
+        {
+            return Ok((held, true));
+        }
+        let vault = figlock_session::session::peek_vault_id()?;
+        let key = secret_key_store::system()?
+            .get(&vault, why)?
+            .ok_or_else(|| {
+                CmdError::new(
+                    "needs_secret_key",
+                    "Type your Secret Key from your Emergency Kit to continue.",
+                )
+            })?;
+        Ok((key, false))
     }
-    let vault = figlock_session::session::peek_vault_id()?;
-    let key = secret_key_store::system()?
-        .get(&vault, why)?
-        .ok_or_else(|| {
-            CmdError::new(
-                "needs_secret_key",
-                "Type your Secret Key from your Emergency Kit to continue.",
-            )
-        })?;
-    Ok((key, false))
 }
 
 impl Desk {
@@ -96,7 +112,7 @@ impl Desk {
         secret_key: Option<&str>,
         new_password: Option<&str>,
     ) -> CmdRes<Vec<DeviceRow>> {
-        let (secret_key, typed) = credentials_key(secret_key, "revoke a device")?;
+        let (secret_key, typed) = self.credentials_key(secret_key, "revoke a device")?;
         let target: DeviceId = hex::decode(device)
             .ok()
             .and_then(|b| b.try_into().ok())

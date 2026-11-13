@@ -14,6 +14,8 @@
   let done = $state("");
   let revoking = $state<Device | null>(null);
   let keyKept = $state(false);
+  /** The session holds the key and the device does not keep one, so nothing prompts (ADR-0030). */
+  let keyHeld = $state(false);
   let adding = $state(false);
 
   async function load() {
@@ -30,24 +32,28 @@
     void load();
   });
 
-  /** Asks whether this Mac keeps the Secret Key first, so the dialog only asks for it when it must. */
-  async function startRevoke(d: Device) {
-    done = "";
+  /** Asks whether the Secret Key is on hand first, so the dialog only asks for it when it must. */
+  async function readKey() {
     try {
-      keyKept = (await vaultState()).secretKeyKept;
+      const s = await vaultState();
+      // Kept by this Mac (Touch ID releases it) or held by this session (ADR-0030): no typed key either way.
+      keyKept = s.secretKeyKept || s.secretKeyHeld;
+      keyHeld = s.secretKeyHeld;
     } catch {
       keyKept = false;
+      keyHeld = false;
     }
+  }
+
+  async function startRevoke(d: Device) {
+    done = "";
+    await readKey();
     revoking = d;
   }
 
   async function startAdd() {
     done = "";
-    try {
-      keyKept = (await vaultState()).secretKeyKept;
-    } catch {
-      keyKept = false;
-    }
+    await readKey();
     adding = true;
   }
 
@@ -143,7 +149,13 @@
 </section>
 
 {#if adding}
-  <AddDeviceDialog {keyKept} onerror={addFailed} onadded={added} onclose={() => (adding = false)} />
+  <AddDeviceDialog
+    {keyKept}
+    {keyHeld}
+    onerror={addFailed}
+    onadded={added}
+    onclose={() => (adding = false)}
+  />
 {/if}
 
 {#if revoking}

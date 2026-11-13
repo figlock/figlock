@@ -175,6 +175,24 @@ test("a Mac that keeps the Secret Key revokes with the master password only", as
   );
 });
 
+test("a session that holds the Secret Key revokes with the master password only, with no key field", async () => {
+  core.vaultState.mockResolvedValue({
+    secretKeyKept: false,
+    secretKeyHeld: true,
+    secretKeyProtection: null,
+  });
+  const user = await toDevices();
+  await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
+  core.revokeDevice.mockResolvedValue([mac, { ...phone, name: null, revoked: true }]);
+  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
+  await waitFor(() =>
+    expect(core.revokeDevice).toHaveBeenCalledWith("bb", "correct horse battery 42", "", null),
+  );
+});
+
 test("when the kept key is not enough the dialog asks for it", async () => {
   core.vaultState.mockResolvedValue({ secretKeyKept: true, secretKeyProtection: "keychain" });
   const user = await toDevices();

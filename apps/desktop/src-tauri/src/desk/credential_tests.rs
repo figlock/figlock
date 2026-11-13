@@ -68,6 +68,8 @@ fn change_password_inner() {
         ),
         "wrong_credentials"
     );
+    // No key typed, none kept and none held (ADR-0030; the create held one): it is asked for.
+    let held = d.inner().held_key.take();
     assert_eq!(
         code_of(
             d.change_credentials(&pw, None, Some(&new_pw), false)
@@ -75,6 +77,7 @@ fn change_password_inner() {
         ),
         "needs_secret_key"
     );
+    d.inner().held_key = held;
 
     let changed = d
         .change_credentials(&pw, Some(&key), Some(&new_pw), false)

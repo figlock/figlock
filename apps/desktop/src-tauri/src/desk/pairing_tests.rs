@@ -84,7 +84,9 @@ fn join_inner() {
     assert_eq!(d.add_device_status().unwrap(), status);
     let before = d.devices().unwrap().len();
 
-    // Approval needs the credentials on a device that keeps no key, and a wrong pair changes nothing.
+    // Approval needs the credentials on a device that keeps no key and whose session holds none (ADR-0030;
+    // the create that unlocked it held one), and a wrong pair changes nothing.
+    d.inner().held_key = None;
     assert_eq!(
         code_of(d.add_device_approve(None, None).unwrap_err()),
         "needs_secret_key"
@@ -121,6 +123,37 @@ fn join_inner() {
     assert_eq!(joined.secret_key.format().to_string(), key);
     // The invite and the request are cleared; the answer stays for the new device.
     assert_eq!(inbox(), [attempt.resp_path()]);
+}
+
+#[test]
+fn a_held_key_still_needs_the_master_password_to_approve() {
+    scenario("held_approve_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn held_approve_inner() {
+    let d = desk();
+    let (pw, _key) = unlocked(&d);
+    assert!(d.inner().held_key.is_some());
+    let invite = d.add_device_start().unwrap();
+    request(&invite.code, "Work MacBook");
+    d.add_device_status().unwrap();
+    let before = d.devices().unwrap().len();
+
+    assert_eq!(
+        code_of(d.add_device_approve(None, None).unwrap_err()),
+        "wrong_credentials"
+    );
+    assert_eq!(
+        code_of(d.add_device_approve(Some(&password()), None).unwrap_err()),
+        "wrong_credentials"
+    );
+    assert_eq!(d.devices().unwrap().len(), before);
+    assert_eq!(d.add_device_status().unwrap().state, "request");
+
+    let rows = d.add_device_approve(Some(&pw), None).unwrap();
+    assert_eq!(rows.len(), before + 1);
 }
 
 #[test]
