@@ -324,9 +324,14 @@ async fn password_strength(value: String) -> StrengthView {
 /// Weak, reused and old passwords, and with `check_breaches` also the ones in known breaches. That check sends
 /// only the first 5 hex characters of each password's SHA-1 to the breach service.
 #[tauri::command]
-async fn health_report(desk: State<'_, Desk>, check_breaches: bool) -> CmdRes<HealthReport> {
-    let source = PwnedPasswords::new();
-    desk.health_report(check_breaches.then_some(&source as &dyn RangeSource))
+async fn health_report(app: AppHandle, check_breaches: bool) -> CmdRes<HealthReport> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let source = PwnedPasswords::new();
+        tauri::Manager::state::<Desk>(&app)
+            .health_report(check_breaches.then_some(&source as &dyn RangeSource))
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "The health check stopped unexpectedly. Try again."))?
 }
 
 #[tauri::command]
