@@ -43,14 +43,14 @@ fn login(d: &Desk, title: &str, pw: &str) -> String {
     .unwrap()
 }
 
-/// Knows one breached password, the published example of the range API: SHA-1("P@ssw0rd") is
-/// 21BD12DC183F740EE76F27B78EB39C8AD972A757. Remembers every prefix it was asked for.
+/// Knows one breached password that is not weak on its own: SHA-1 of `BREACHED` is
+/// 4F639B0FCE9E4D86EA9B29F681C1664EF3B7184A. Remembers every prefix it was asked for.
 struct Recorder {
     asked: RefCell<Vec<String>>,
     fail: bool,
 }
 
-const BREACHED: &str = "P@ssw0rd";
+const BREACHED: &str = "k7#Qv9!xLm2$Zp4wRt";
 
 impl RangeSource for Recorder {
     fn range(&self, prefix: &str) -> Result<String, ()> {
@@ -58,8 +58,8 @@ impl RangeSource for Recorder {
         if self.fail {
             return Err(());
         }
-        Ok(if prefix == "21BD1" {
-            "003D68EB55068C33ACE09247EE4C639306B:0\r\n2DC183F740EE76F27B78EB39C8AD972A757:52579\r\n"
+        Ok(if prefix == "4F639" {
+            "003D68EB55068C33ACE09247EE4C639306B:0\r\nB0FCE9E4D86EA9B29F681C1664EF3B7184A:52579\r\n"
         } else {
             "003D68EB55068C33ACE09247EE4C639306B:0\r\n"
         }

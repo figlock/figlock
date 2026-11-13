@@ -108,6 +108,17 @@ impl Strength {
         };
         Self { bits, level }
     }
+
+    /// Level for a typed password's guess estimate. zxcvbn counts guesses an attacker needs, not
+    /// entropy, and saturates near 2^64, so the bands are lower than `from_bits` and top out at 64.
+    fn from_guess_bits(bits: u32) -> Self {
+        let level = match bits {
+            0..33 => Level::Weak,
+            33..50 => Level::Fair,
+            _ => Level::Strong,
+        };
+        Self { bits, level }
+    }
 }
 
 fn below(n: usize) -> Result<usize> {
@@ -198,43 +209,21 @@ pub fn passphrase(o: &PassphraseOptions) -> Result<Zeroizing<String>> {
     Ok(joined)
 }
 
-/// Strength of a password someone typed or pasted: the size of the character pool it draws on, with a
-/// discount for the common shape of one word plus a few digits and a symbol.
+/// Longest input the estimator looks at; zxcvbn's matching cost grows quickly with length and anything
+/// this long is already Strong.
+const ESTIMATE_MAX_CHARS: usize = 100;
+
+/// Strength of a password someone typed or pasted, from zxcvbn's guess estimate: it finds dictionary
+/// words, common passwords, keyboard walks, repeats, sequences and dates, so `qwertyuiop` and
+/// `passwordpassword` rate Weak however long they are. `bits` is log2 of the estimated
+/// guesses, capped near 64 by zxcvbn.
 pub fn password_strength(pw: &str) -> Strength {
     if pw.is_empty() {
         return Strength::from_bits(0);
     }
-    let mut pool = 0u32;
-    if pw.chars().any(|c| c.is_ascii_lowercase()) {
-        pool += 26;
-    }
-    if pw.chars().any(|c| c.is_ascii_uppercase()) {
-        pool += 26;
-    }
-    if pw.chars().any(|c| c.is_ascii_digit()) {
-        pool += 10;
-    }
-    if pw.chars().any(|c| !c.is_ascii_alphanumeric()) {
-        pool += 33;
-    }
-    let len = pw.chars().count() as f64;
-    let mut bits = len * f64::from(pool.max(1)).log2();
-    if is_word_plus_digits(pw) {
-        bits *= 0.5;
-    }
-    Strength::from_bits(bits.round() as u32)
-}
-
-/// Letters, then up to four digits, then at most one of `!@#$`.
-fn is_word_plus_digits(pw: &str) -> bool {
-    let b = pw.as_bytes();
-    let letters = b.iter().take_while(|c| c.is_ascii_alphabetic()).count();
-    let digits = b[letters..]
-        .iter()
-        .take_while(|c| c.is_ascii_digit())
-        .count();
-    let tail = &pw[letters + digits..];
-    letters > 0 && digits <= 4 && (tail.is_empty() || matches!(tail, "!" | "@" | "#" | "$"))
+    let head: String = pw.chars().take(ESTIMATE_MAX_CHARS).collect();
+    let guesses_log10 = zxcvbn::zxcvbn(&head, &[]).guesses_log10();
+    Strength::from_guess_bits((guesses_log10 * std::f64::consts::LOG2_10).round() as u32)
 }
 
 /// Strength of a passphrase the generator makes with these options. Conservative: it counts only the
@@ -389,6 +378,8 @@ mod tests {
         assert_eq!(password_strength("").level, Level::Weak);
         assert_eq!(password_strength("password1").level, Level::Weak);
         assert_eq!(password_strength("Summer2024!").level, Level::Weak);
+        assert_eq!(password_strength("kT8#vQ2m").level, Level::Weak);
+        assert_eq!(password_strength("kT8#vQ2mXr9$Lw4n").level, Level::Strong);
         assert_eq!(
             password_strength(&password(&opts(24)).unwrap()).level,
             Level::Strong
@@ -402,5 +393,30 @@ mod tests {
         assert_eq!(p(3).level, Level::Weak);
         assert_eq!(p(4).level, Level::Fair);
         assert_eq!(p(6).level, Level::Strong);
+    }
+
+    #[test]
+    fn typed_patterns_are_not_strong() {
+        for weak in [
+            "aaaaaaaaaaaaaaaa",
+            "qwertyuiopasdfgh",
+            "passwordpasswordpassword",
+            "1234567890123456",
+            "abcdefghijklmnop",
+        ] {
+            assert_eq!(password_strength(weak).level, Level::Weak, "{weak}");
+        }
+    }
+
+    #[test]
+    fn typed_random_and_long_inputs_rate_by_content() {
+        assert_eq!(
+            password_strength("vK7#mQ2!xR9$wL4@nB6&").level,
+            Level::Strong
+        );
+        let long = "aB3$".repeat(5000);
+        assert!(password_strength(&long).bits > 0);
+        let multibyte = "pässwörd-日本語-κλειδί-7Qz!".to_string();
+        assert!(password_strength(&multibyte).bits > 0);
     }
 }
