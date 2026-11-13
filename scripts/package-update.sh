@@ -37,8 +37,11 @@ case "$archs" in
 esac
 codesign --verify --deep --strict "$app"
 
-name="FigLock-$version-universal.app.tar.gz"
+# Absolute: the signer below runs from another directory, and a relative path would not find the archive.
 mkdir -p "$out"
+out=$(cd "$out" && pwd)
+
+name="FigLock-$version-universal.app.tar.gz"
 rm -f "$out/$name" "$out/$name.sig"
 COPYFILE_DISABLE=1 tar -czf "$out/$name" -C "$(dirname "$app")" "$(basename "$app")"
 
@@ -54,7 +57,7 @@ if grep -qvE '^FigLock\.app(/|$)' <<<"$entries"; then
 fi
 
 here=$(cd "$(dirname "$0")/.." && pwd)
-(cd "$here/apps/desktop" && pnpm tauri signer sign --app-version "$version" "$(cd "$out" && pwd)/$name") >&2
+(cd "$here/apps/desktop" && pnpm tauri signer sign --app-version "$version" "$out/$name") >&2
 [ -s "$out/$name.sig" ] || { echo "signing wrote no signature" >&2; exit 1; }
 
 python3 - "$out" "$name" "$version" "$base" "${FIGLOCK_UPDATE_NOTES:-FigLock $version}" "$platforms" <<'PY'
