@@ -160,6 +160,27 @@ fn persistent_failure_is_unavailable_not_notfound() {
 }
 
 #[test]
+fn a_small_create_costs_one_upload_and_one_name_listing() {
+    let fake = FakeDrive::start();
+    let d = drive(&fake);
+    d.put_new("log/aa/00000001.op", b"x").unwrap();
+    let hits = fake.hits();
+    assert_eq!(
+        hits, 2,
+        "the create and the check that we won, no lookup first"
+    );
+    assert_eq!(count(&fake, "POST", "/upload"), 1);
+}
+
+#[test]
+fn a_refused_create_is_not_followed_by_a_listing() {
+    let fake = FakeDrive::start();
+    let d = GoogleDrive::with_endpoint(&fake.base, StaticToken("revoked".into())).unwrap();
+    assert_eq!(d.put_new("vault.json", b"x"), Err(StoreError::Unauthorized));
+    assert_eq!(count(&fake, "GET", "/drive/v3/files"), 0);
+}
+
+#[test]
 fn a_create_whose_response_was_lost_is_not_repeated() {
     let fake = FakeDrive::start();
     let d = drive(&fake);

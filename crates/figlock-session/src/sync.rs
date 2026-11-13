@@ -11,12 +11,17 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use figlock_store::{BlobStore, StoreError};
 use sha2::{Digest, Sha256};
 
 use crate::config::{self, Config, Place};
 use crate::error::Fail;
+
+/// Files copied at once. Enough to hide Drive's per-request latency, few enough to stay under its rate limits.
+const PARALLEL_COPIES: usize = 6;
 
 /// Directories whose files are written once and never replaced.
 const CREATE_ONLY: [&str; 3] = ["log/", "snap/", "inbox/"];
@@ -166,6 +171,18 @@ fn under(all: &BTreeMap<String, bool>, prefix: &str) -> BTreeMap<String, bool> {
         .collect()
 }
 
+/// Copy `path` from one store to the other unless the destination already has it. `Ok(true)` when written.
+fn copy_new(from: &dyn BlobStore, to: &dyn BlobStore, path: &str) -> Result<bool, SyncError> {
+    let Some(bytes) = read(from, path)? else {
+        return Ok(false);
+    };
+    match to.put_new(path, &bytes) {
+        Ok(()) => Ok(true),
+        Err(StoreError::Exists) => Ok(false),
+        Err(e) => Err(e.into()),
+    }
+}
+
 struct Mirror<'a> {
     local: &'a dyn BlobStore,
     remote: &'a dyn BlobStore,
@@ -193,18 +210,47 @@ impl Mirror<'_> {
         }
     }
 
-    /// Copy a file that must not exist at the destination yet. Someone else having written it first is fine.
-    fn create(&mut self, into_local: bool, path: &str) -> Result<(), SyncError> {
-        let (from, to) = self.sides(into_local);
-        let Some(bytes) = read(from, path)? else {
-            return Ok(());
-        };
-        match to.put_new(path, &bytes) {
-            Ok(()) => self.count(into_local),
-            Err(StoreError::Exists) => {}
-            Err(e) => return Err(e.into()),
+    /// Copy files that must not exist at the destination yet, a few at a time (`jobs` is `(into_local, path)`).
+    /// Someone else having written one first is fine. Each file is its own request chain and Drive answers in
+    /// about a second, so a first upload of many files is dominated by waiting; the files have distinct
+    /// names, so they cannot interfere. Stops at the first error (the lowest-numbered job's, for a stable
+    /// report); files already copied stay, and the next sync finishes the rest.
+    fn create_all(&mut self, jobs: Vec<(bool, String)>) -> Result<(), SyncError> {
+        let next = AtomicUsize::new(0);
+        let failed = AtomicBool::new(false);
+        let done: Mutex<Vec<(usize, Result<bool, SyncError>)>> = Mutex::new(Vec::new());
+        let (local, remote) = (self.local, self.remote);
+        std::thread::scope(|scope| {
+            for _ in 0..PARALLEL_COPIES.min(jobs.len()) {
+                scope.spawn(|| {
+                    while !failed.load(Ordering::Relaxed) {
+                        let i = next.fetch_add(1, Ordering::Relaxed);
+                        let Some((into_local, path)) = jobs.get(i) else {
+                            break;
+                        };
+                        let (from, to) = if *into_local {
+                            (remote, local)
+                        } else {
+                            (local, remote)
+                        };
+                        let r = copy_new(from, to, path);
+                        failed.fetch_or(r.is_err(), Ordering::Relaxed);
+                        done.lock().unwrap_or_else(|e| e.into_inner()).push((i, r));
+                    }
+                });
+            }
+        });
+        let mut done = done.into_inner().unwrap_or_else(|e| e.into_inner());
+        done.sort_by_key(|(i, _)| *i);
+        let mut first_err = None;
+        for (i, r) in done {
+            match r {
+                Ok(true) => self.count(jobs[i].0),
+                Ok(false) => {}
+                Err(e) => first_err = first_err.or(Some(e)),
+            }
         }
-        Ok(())
+        first_err.map_or(Ok(()), Err)
     }
 
     fn replace(&mut self, into_local: bool, path: &str) -> Result<(), SyncError> {
@@ -224,17 +270,18 @@ impl Mirror<'_> {
             under(&self.local_all, prefix),
             under(&self.remote_all, prefix),
         );
+        let mut jobs = Vec::new();
         for (path, available) in &r {
             if *available && !l.contains_key(path) {
-                self.create(true, path)?;
+                jobs.push((true, path.clone()));
             }
         }
         for (path, available) in &l {
             if *available && !r.contains_key(path) && pushable(path, prefix, opts) {
-                self.create(false, path)?;
+                jobs.push((false, path.clone()));
             }
         }
-        Ok(())
+        self.create_all(jobs)
     }
 
     /// The authority's `devices/` records win outright: a rotation re-signs them and a revocation removes one.
@@ -245,16 +292,18 @@ impl Mirror<'_> {
         );
         match winner {
             Winner::Same => {
+                let mut jobs = Vec::new();
                 for (path, available) in &r {
                     if *available && !l.contains_key(path) {
-                        self.create(true, path)?;
+                        jobs.push((true, path.clone()));
                     }
                 }
                 for (path, available) in &l {
                     if *available && !r.contains_key(path) {
-                        self.create(false, path)?;
+                        jobs.push((false, path.clone()));
                     }
                 }
+                self.create_all(jobs)?;
             }
             w => {
                 let into_local = w == Winner::Remote;
@@ -902,5 +951,81 @@ mod tests {
         assert_eq!(remote.lists.load(Ordering::SeqCst), 1);
         mirror(&la, &remote, &opts(Some(A), false)).unwrap();
         assert_eq!(remote.lists.load(Ordering::SeqCst), 2, "one per sync");
+    }
+
+    /// Blocks in `put_new` long enough for the others to overlap, and records how many were inside at once.
+    struct Overlap<'a> {
+        inner: &'a LocalFolder,
+        inside: AtomicUsize,
+        most: AtomicUsize,
+    }
+
+    impl BlobStore for Overlap<'_> {
+        fn get(&self, p: &str) -> Result<Vec<u8>, StoreError> {
+            self.inner.get(p)
+        }
+        fn put_new(&self, p: &str, b: &[u8]) -> Result<(), StoreError> {
+            let now = self.inside.fetch_add(1, Ordering::SeqCst) + 1;
+            self.most.fetch_max(now, Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(20));
+            self.inside.fetch_sub(1, Ordering::SeqCst);
+            self.inner.put_new(p, b)
+        }
+        fn put_replace(&self, p: &str, b: &[u8]) -> Result<(), StoreError> {
+            self.inner.put_replace(p, b)
+        }
+        fn list(&self, p: &str) -> Result<Vec<Entry>, StoreError> {
+            self.inner.list(p)
+        }
+        fn delete(&self, p: &str) -> Result<(), StoreError> {
+            self.inner.delete(p)
+        }
+    }
+
+    #[test]
+    fn files_are_copied_a_few_at_a_time_and_all_of_them_arrive() {
+        let (_a, la) = device_a();
+        for i in 2..=40 {
+            put(
+                &la,
+                &format!("log/aa/{i:08}.op"),
+                format!("op-{i}").as_bytes(),
+            );
+        }
+        let (_r, inner) = store();
+        let remote = Overlap {
+            inner: &inner,
+            inside: AtomicUsize::new(0),
+            most: AtomicUsize::new(0),
+        };
+        let r = mirror(&la, &remote, &opts(Some(A), true)).unwrap();
+        assert_eq!(r.pushed, 42);
+        assert_eq!(all(&inner), all(&la));
+        let most = remote.most.load(Ordering::SeqCst);
+        assert!(most > 1, "uploads overlapped");
+        assert!(most <= PARALLEL_COPIES, "and stayed bounded, got {most}");
+    }
+
+    #[test]
+    fn a_failure_among_parallel_copies_is_reported_and_the_rest_finish_next_time() {
+        let (_a, la) = device_a();
+        for i in 2..=30 {
+            put(&la, &format!("log/aa/{i:08}.op"), b"op");
+        }
+        let (_r, inner) = store();
+        for budget in [3, 11, 25] {
+            let (_f, fresh) = store();
+            let remote = Dies {
+                inner: fresh,
+                budget: AtomicUsize::new(budget),
+                error: StoreError::Unauthorized,
+            };
+            assert_eq!(
+                mirror(&la, &remote, &opts(Some(A), true)),
+                Err(SyncError::SignIn)
+            );
+        }
+        mirror(&la, &inner, &opts(Some(A), true)).unwrap();
+        assert_eq!(all(&inner), all(&la));
     }
 }
