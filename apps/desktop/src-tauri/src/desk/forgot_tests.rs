@@ -136,10 +136,7 @@ fn code_inner() {
         "recovery_failed"
     );
     assert_eq!(
-        code_of(
-            d.forgot_prepare("a long enough password", false)
-                .unwrap_err()
-        ),
+        code_of(d.forgot_prepare(&password(), false).unwrap_err()),
         "failed"
     );
 
@@ -153,14 +150,11 @@ fn code_inner() {
     assert!(found.last_change_ms.is_some());
 
     assert_eq!(
-        code_of(d.forgot_prepare("short", false).unwrap_err()),
+        code_of(d.forgot_prepare(&password()[..4], false).unwrap_err()),
         "weak_password"
     );
     assert_eq!(
-        code_of(
-            d.forgot_prepare("a long enough password", true)
-                .unwrap_err()
-        ),
+        code_of(d.forgot_prepare(&password(), true).unwrap_err()),
         "failed",
         "a new Recovery Key was asked for and none was made"
     );
