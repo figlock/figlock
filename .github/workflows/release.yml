@@ -1,8 +1,9 @@
 name: Release
 
-# On a version tag: build the Linux binaries, sign and notarize the macOS one (release-macos.yml), then publish
-# archives, SHA256SUMS and the Homebrew formula to a GitHub release. install.sh on figlock.com and the Homebrew
-# tap both read from that release. The tag must match the workspace version in Cargo.toml.
+# On a version tag: build the Linux binaries, sign and notarize the macOS CLI and desktop app (release-macos.yml),
+# then publish archives, the desktop dmg, SHA256SUMS and the Homebrew formula to a GitHub release. install.sh on
+# figlock.com and the Homebrew tap both read from that release. The tag must match the workspace version in
+# Cargo.toml.
 on:
   push:
     tags: ['v*']
@@ -104,6 +105,9 @@ jobs:
           cp artifacts/figlock-x86_64-unknown-linux-musl/figlock inputs/x86_64-unknown-linux-musl/
           cp artifacts/figlock-aarch64-unknown-linux-musl/figlock inputs/aarch64-unknown-linux-musl/
           scripts/package-release.sh "$VERSION" inputs release
+          # The desktop app's dmg goes next to the CLI archives, with its checksum in the same file.
+          cp artifacts/figlock-desktop-macos-universal/FigLock-*-universal.dmg release/
+          (cd release && shasum -a 256 FigLock-*-universal.dmg >> SHA256SUMS)
 
       - name: Publish the GitHub release
         env:

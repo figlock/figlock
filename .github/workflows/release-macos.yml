@@ -1,6 +1,7 @@
 name: Release (macOS)
 
-# Builds a universal figlock binary, signs it with the Developer ID certificate and notarizes it.
+# Builds a universal figlock binary and the universal desktop app (with that CLI inside it), signs them with the
+# Developer ID certificate, notarizes them and packs the app into a signed, notarized, stapled dmg.
 # Run it by hand to check signing, or let release.yml call it on a version tag, which publishes the result.
 # Setup is in docs/macos-signing.md.
 on:
@@ -92,6 +93,31 @@ jobs:
         with:
           name: figlock-macos-universal
           path: dist/figlock.zip
+          if-no-files-found: error
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the desktop app with the CLI inside
+        env:
+          FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET: ${{ secrets.FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET }}
+        run: scripts/build-desktop.sh universal-apple-darwin
+
+      - name: Sign and notarize the desktop app and build the dmg
+        env:
+          NOTARY_KEY_PATH: ${{ runner.temp }}/notary.p8
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+        run: |
+          scripts/sign-macos-app.sh target/universal-apple-darwin/release/bundle/macos/FigLock.app dist
+
+      - name: Verify the dmg
+        run: scripts/verify-macos-app.sh dist/FigLock-*-universal.dmg
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: figlock-desktop-macos-universal
+          path: dist/FigLock-*-universal.dmg
           if-no-files-found: error
 
       - name: Remove signing material

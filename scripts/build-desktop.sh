@@ -22,6 +22,10 @@ case "$target" in
     rustup target add aarch64-apple-darwin x86_64-apple-darwin
     build_cli aarch64-apple-darwin
     build_cli x86_64-apple-darwin
+    # Tauri builds each architecture on its own and then joins them, so it looks for a sidecar per
+    # architecture as well as the universal one.
+    cp target/aarch64-apple-darwin/release/figlock "$bins/figlock-aarch64-apple-darwin"
+    cp target/x86_64-apple-darwin/release/figlock "$bins/figlock-x86_64-apple-darwin"
     lipo -create -output "$bins/figlock-$target" \
       target/aarch64-apple-darwin/release/figlock \
       target/x86_64-apple-darwin/release/figlock
