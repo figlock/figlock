@@ -15,6 +15,8 @@ pub struct Join {
     place: Place,
     device_name: String,
     fingerprint: String,
+    /// Where the trusted device stores this device's record, which `finish` needs next to the answer.
+    own_record: String,
 }
 
 fn bad_invite() -> Fail {
@@ -37,6 +39,7 @@ pub fn begin(place: Place, code: &str, device_name: &str, now_ms: u64) -> Res<Jo
     })?;
     let device = DeviceKeys::generate()?;
     let fingerprint = device_fingerprint(&device.sign_public());
+    let own_record = format!("devices/{}.json", hex::encode(device.device_id));
     let (attempt, request) =
         JoinAttempt::begin(code, &inv, device, device_name, now_ms).map_err(|_| bad_invite())?;
     match store.put_new(&request.path, &request.bytes) {
@@ -55,6 +58,7 @@ pub fn begin(place: Place, code: &str, device_name: &str, now_ms: u64) -> Res<Jo
         place,
         device_name: device_name.to_owned(),
         fingerprint,
+        own_record,
     })
 }
 
@@ -64,14 +68,19 @@ impl Join {
         &self.fingerprint
     }
 
-    /// Whether the trusted device has answered.
+    /// Whether the trusted device has answered. The answer and this device's record are two files, and a
+    /// remote can show the answer first (Drive lists and uploads them in no fixed order); unlocking without
+    /// the record is refused, so an answer only counts once both are here.
     pub fn answered(&self) -> Res<bool> {
         crate::sync::exchange(&self.place, false)?;
-        match self.store.get(&self.attempt.resp_path()) {
-            Ok(_) => Ok(true),
-            Err(StoreError::NotFound) => Ok(false),
-            Err(e) => Err(e.into()),
+        for path in [self.attempt.resp_path(), self.own_record.clone()] {
+            match self.store.get(&path) {
+                Ok(_) => {}
+                Err(StoreError::NotFound) => return Ok(false),
+                Err(e) => return Err(e.into()),
+            }
         }
+        Ok(true)
     }
 
     /// Unlock with the answer and the master password. Returns the unlocked vault and the config to save.
@@ -159,6 +168,38 @@ mod tests {
         let (joined, cfg) = join.finish(&pw, T0 + 4).unwrap();
         assert_eq!(joined.vault.vault_id(), vault.vault_id());
         assert_eq!(cfg.device_name, "second");
+    }
+
+    /// A remote can deliver the answer before the new device's record; the join must wait for both rather
+    /// than fail with a misleading "wrong master password" (found against a real Drive).
+    #[test]
+    fn an_answer_that_arrives_before_the_new_devices_record_is_not_yet_an_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = LocalFolder::open(dir.path()).unwrap();
+        let pw = password();
+        let (mut vault, created) = Vault::create(&pw, "first", KdfParams::FLOOR, T0).unwrap();
+        store.put_new("vault.json", &created.vault_json).unwrap();
+        let own = format!("devices/{}.json", hex::encode(vault.device_id()));
+        store.put_new(&own, &created.device_record).unwrap();
+        let (mut invite, offer) = Invite::create(vault.vault_id(), T0).unwrap();
+        store.put_new(&offer.inv_path, &offer.inv).unwrap();
+        let join = begin(folder(dir.path()), &offer.code, "second", T0 + 1).unwrap();
+        let req = invite
+            .open_request(&store.get(&invite.req_path()).unwrap(), T0 + 2)
+            .unwrap();
+        let approval = vault
+            .approve_join(&invite, &req, &created.secret_key, T0 + 3)
+            .unwrap();
+
+        store
+            .put_new(&approval.response.path, &approval.response.bytes)
+            .unwrap();
+        assert!(!join.answered().unwrap(), "the record is not here yet");
+        store
+            .put_new(&approval.record.path, &approval.record.bytes)
+            .unwrap();
+        assert!(join.answered().unwrap());
+        assert!(join.finish(&pw, T0 + 4).is_ok());
     }
 
     #[test]
