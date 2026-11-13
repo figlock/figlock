@@ -47,7 +47,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     // an empty one, or a second vault could be created next to the first. Nothing is created before this.
     if figlock_session::store::vault_exists(&place)? {
         return Err(Fail::new(
-            "a vault already exists there; use the device pairing flow to add this device",
+            "a vault already exists there; run `figlock join <code>` to add this device, or `figlock open` to open it with your Secret Key",
         ));
     }
     std::fs::create_dir_all(&place.local)?;
@@ -110,7 +110,14 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
             "The vault is saved on this device, but the first sync to Google Drive failed: {e}."
         );
     }
-    offer_quick_unlock(choice, json, &created, &password);
+    let unlock_key = || {
+        Vault::unlock_key(&created.vault_json, &password, &created.secret_key)
+            .map_err(|_| Fail::new("could not derive the unlock key"))
+    };
+    match session::vault_id_of(&created.vault_json) {
+        Ok(vault) => offer_quick_unlock(choice, json, &vault, unlock_key),
+        Err(e) => eprintln!("warning: quick unlock was not turned on: {e}"),
+    }
     Ok(())
 }
 
@@ -128,28 +135,24 @@ fn keep_secret_key(created: &figlock_core::Created) {
     }
 }
 
-/// The last step of `init`: offer quick unlock (`docs/adr/0025`, amendment FIG-79). The vault and the Secret
-/// Key are already out, so nothing here may fail the command.
-fn offer_quick_unlock(
+/// The last step of `init`, `join` and `open`: offer quick unlock (`docs/adr/0025`, amendment FIG-79). The vault
+/// and the Secret Key are already out, so nothing here may fail the command. `auk` derives the unlock key and
+/// only runs once enrolment is going ahead.
+pub(crate) fn offer_quick_unlock(
     choice: quick::InitChoice,
     json: bool,
-    created: &figlock_core::Created,
-    password: &str,
+    vault: &str,
+    auk: impl FnOnce() -> Res<figlock_core::Key>,
 ) {
     let interactive = !json && std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
     let attempt = || -> Res<quick::InitOutcome> {
         let quick = quick::system()?;
-        let vault = session::vault_id_of(&created.vault_json)?;
-        let auk = || {
-            Vault::unlock_key(&created.vault_json, password, &created.secret_key)
-                .map_err(|_| Fail::new("could not derive the unlock key"))
-        };
         let ask = || {
             prompt::confirm_default_yes(
                 "Unlock this device with Touch ID instead of your master password?",
             )
         };
-        Ok(quick.offer_at_init(choice, interactive, ask, &vault, auk, now_ms() / 1000))
+        Ok(quick.offer_at_init(choice, interactive, ask, vault, auk, now_ms() / 1000))
     };
     let retry = "run `figlock quick-unlock enable` to try again";
     match attempt() {

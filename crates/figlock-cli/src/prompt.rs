@@ -34,6 +34,11 @@ pub fn password() -> Res<Zeroizing<String>> {
     hidden("Master password: ")
 }
 
+/// True when the master password is typed at a terminal, so a wrong one can be asked for again.
+pub fn can_retry_password() -> bool {
+    from_env("FIGLOCK_PASSWORD").is_none() && io::stdin().is_terminal()
+}
+
 /// A new master password, typed twice.
 pub fn new_password() -> Res<Zeroizing<String>> {
     if let Some(p) = from_env("FIGLOCK_PASSWORD") {
@@ -103,6 +108,48 @@ pub fn confirm_default_yes(question: &str) -> Res<bool> {
     }
     let answer = line.trim().to_ascii_lowercase();
     Ok(answer.is_empty() || answer == "y" || answer == "yes")
+}
+
+/// A yes/no question on the terminal where Enter means No, for approvals. A closed input is a No.
+pub fn confirm_default_no(question: &str) -> Res<bool> {
+    let mut err = io::stderr();
+    err.write_all(format!("{question} [y/N] ").as_bytes())?;
+    err.flush()?;
+    let mut line = String::new();
+    if io::stdin().lock().read_line(&mut line)? == 0 {
+        return Ok(false);
+    }
+    let answer = line.trim().to_ascii_lowercase();
+    Ok(answer == "y" || answer == "yes")
+}
+
+/// Credentials already in hand (just typed for a join or an open), so the unlock that follows does not ask
+/// again.
+struct Known {
+    password: Zeroizing<String>,
+    secret_key: SecretKey,
+}
+
+impl figlock_session::Ui for Known {
+    fn password(&self) -> Res<Zeroizing<String>> {
+        Ok(self.password.clone())
+    }
+    fn secret_key(&self) -> Res<SecretKey> {
+        Ok(SecretKey::from_bytes(*self.secret_key.expose()))
+    }
+    fn notice(&self, message: &str) {
+        eprintln!("{message}");
+    }
+    fn warn(&self, message: &str) {
+        eprintln!("warning: {message}");
+    }
+}
+
+pub fn known(password: &str, secret_key: SecretKey) -> Box<dyn figlock_session::Ui> {
+    Box::new(Known {
+        password: Zeroizing::new(password.to_owned()),
+        secret_key,
+    })
 }
 
 /// The terminal as the session's way of asking and reporting.
