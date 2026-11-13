@@ -331,7 +331,12 @@ async fn health_report(app: AppHandle, check_breaches: bool) -> CmdRes<HealthRep
             .health_report(check_breaches.then_some(&source as &dyn RangeSource))
     })
     .await
-    .map_err(|_| CmdError::new("failed", "The health check stopped unexpectedly. Try again."))?
+    .map_err(|_| {
+        CmdError::new(
+            "failed",
+            "The health check stopped unexpectedly. Try again.",
+        )
+    })?
 }
 
 #[tauri::command]
