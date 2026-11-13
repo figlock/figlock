@@ -103,6 +103,17 @@ jobs:
           else
             echo "No JS workspace yet"
           fi
+      - name: Desktop end-to-end and accessibility (Playwright, axe)
+        run: |
+          pnpm --filter @figlock/desktop exec playwright install --with-deps chromium
+          pnpm --filter @figlock/desktop run e2e
+      - name: Keep the Playwright traces of a failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-traces
+          path: apps/desktop/test-results/
+          if-no-files-found: ignore
 
   vectors:
     needs: changes

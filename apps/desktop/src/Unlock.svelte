@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Alert, Button, SecretKeyField, TextField } from "@figlock/ui";
+  import { tick } from "svelte";
 
   import Shell from "./Shell.svelte";
   import { errorOf, quickUnlock, unlock, type VaultState } from "./vault";
@@ -17,6 +18,13 @@
   let busy = $state<"" | "unlocking" | "touch">("");
   let error = $state("");
   let fieldError = $state<{ password?: string; key?: string }>({});
+  /** Turned off and on again to put the cursor back in the password box after a refusal. */
+  let focusPassword = $state(true);
+  async function refocus() {
+    focusPassword = false;
+    await tick();
+    focusPassword = true;
+  }
 
   const minutes = $derived(Math.round(vault.autolockSecs / 60));
   const timeout = $derived(
@@ -48,6 +56,7 @@
         keyRefused = true;
         error = err.message;
       } else error = err.message;
+      if (err.code !== "bad_secret_key") void refocus();
     } finally {
       busy = "";
     }
@@ -76,7 +85,7 @@
       bind:value={password}
       error={fieldError.password}
       disabled={busy !== ""}
-      focus
+      focus={focusPassword}
     >
       {#snippet trailing()}
         <Button onclick={() => (shown = !shown)}>{shown ? "Hide" : "Show"}</Button>
