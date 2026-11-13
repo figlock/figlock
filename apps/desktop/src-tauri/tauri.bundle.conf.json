@@ -2,8 +2,24 @@
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
     "active": true,
-    "targets": ["app"],
-    "externalBin": ["binaries/figlock"],
-    "icon": ["icons/icon.icns", "icons/icon.png"]
+    "targets": [
+      "app"
+    ],
+    "externalBin": [
+      "binaries/figlock"
+    ],
+    "icon": [
+      "icons/icon.icns",
+      "icons/icon.png"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYxMDY2RUZCMTFDNzA4M0UKUldRK0NNY1IrMjRHOGRhSmRJM0VQS2JDK3ZETUh1WCtWd3RVZWtKNnRqTGxCdkNRbUFhSHR5OGgK",
+      "endpoints": [
+        "https://figlock.com/update/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
   }
 }
