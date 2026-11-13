@@ -245,9 +245,20 @@ mod tests {
         // A live broker answers: refuse.
         let e = bind(&path).err().unwrap();
         assert!(e.0.contains("already running"), "{e}");
-        // Dead: replaced.
+        // Dead: replaced. Another test thread may be between fork and exec of a child process that still
+        // holds a copy of the closed listener, which keeps it answering for a few milliseconds, so retry.
         drop(first);
-        let _again = bind(&path).unwrap();
+        let started = std::time::Instant::now();
+        let _again = loop {
+            match bind(&path) {
+                Ok(l) => break l,
+                Err(e) if started.elapsed() < std::time::Duration::from_secs(5) => {
+                    assert!(e.0.contains("already running"), "{e}");
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Err(e) => panic!("{e}"),
+            }
+        };
         // Something that is not a socket is never deleted.
         let other = tmp.path().join("run").join("file");
         fs::write(&other, b"x").unwrap();
