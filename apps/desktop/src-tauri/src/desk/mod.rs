@@ -881,6 +881,7 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
     Ok(canonical)
 }
 
+pub mod cli_tool;
 pub mod credentials;
 pub mod devices;
 pub mod drive;
@@ -893,6 +894,8 @@ pub mod recovery;
 pub mod secret_key;
 pub mod sync;
 
+#[cfg(test)]
+mod cli_tool_tests;
 #[cfg(test)]
 mod credential_tests;
 #[cfg(test)]

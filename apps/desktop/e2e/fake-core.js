@@ -30,6 +30,7 @@
     },
     health: opts.health ?? null,
     failNext: null,
+    cli: { state: "not_installed", ...(opts.cli ?? {}) },
   });
 
   const now = Date.now();
@@ -104,6 +105,12 @@
     "orchid",
     "pebble",
   ];
+
+  const cliView = () => ({
+    state: core.cli.state,
+    link: "~/.local/bin/figlock",
+    dir: "~/.local/bin",
+  });
 
   const commands = {
     vault_state: () => state(),
@@ -219,6 +226,15 @@
       return { checked: core.items.size, rows, breachChecked: checkBreaches, breachFailed: false };
     },
     sync_status: () => ({ ...core.sync }),
+    cli_tool_status: () => cliView(),
+    install_cli_tool: () => {
+      core.cli.state = "installed";
+      return cliView();
+    },
+    remove_cli_tool: () => {
+      core.cli.state = "not_installed";
+      return cliView();
+    },
     sync_now: () => {
       core.sync = { ...core.sync, state: "idle", lastSyncSecsAgo: 0, message: null };
       return { ...core.sync };

@@ -16,6 +16,7 @@ export type Options = {
   items?: Seed[];
   sync?: Record<string, unknown>;
   health?: unknown;
+  cli?: { state: string };
 };
 
 export const GITHUB: Seed = {

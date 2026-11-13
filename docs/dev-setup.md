@@ -56,6 +56,16 @@ cd apps/desktop && pnpm tauri dev    # window with hot reload
 takes a few minutes. On Linux, install the WebKitGTK build libraries first (the same list CI uses):
 `libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev librsvg2-dev libayatana-appindicator3-dev`.
 
+### The app with the command line tool inside
+
+`scripts/build-desktop.sh [target]` builds the `figlock` CLI from the same commit, puts it where Tauri expects a
+sidecar and bundles the app, so `FigLock.app/Contents/MacOS/figlock` is the tool. Use `universal-apple-darwin`
+for a universal macOS build. The bundle settings live in `apps/desktop/src-tauri/tauri.bundle.conf.json` and are
+merged only by that script, so `pnpm tauri dev`, tests and lint need no sidecar binary. In a build without the
+tool, Settings says so; in one with it, Settings offers an opt-in "Install command line tool" that links it at
+`~/.local/bin/figlock` and never changes PATH. The output is unsigned; signing and the dmg are the release
+workflow's job.
+
 ## Google Drive sign-in in a local build
 
 Source builds have no Google client secret (ADR-0021). To try `figlock drive login` or Google Drive in the desktop app locally, set it for the run
