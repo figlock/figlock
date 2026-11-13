@@ -123,7 +123,10 @@
     busy = true;
     const name = status?.deviceName ?? "The new device";
     try {
-      const devices = await addDeviceApprove(askKey || askPassword ? password : "", askKey ? secretKey : "");
+      const devices = await addDeviceApprove(
+        askKey || askPassword ? password : "",
+        askKey ? secretKey : "",
+      );
       onadded(devices, name);
     } catch (e) {
       const err = errorOf(e);
