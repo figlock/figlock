@@ -110,6 +110,7 @@
     state: core.cli.state,
     link: "~/.local/bin/figlock",
     dir: "~/.local/bin",
+    external: core.cli.state === "external" ? "/opt/homebrew/bin/figlock" : null,
   });
 
   const commands = {

@@ -54,6 +54,14 @@
             <span class="font-mono break-all">{info.link}</span> points at a copy of FigLock that was
             moved or removed.
           </p>
+        {:else if info.state === "external"}
+          <p class="font-medium">Already installed</p>
+          <p class="text-(length:--text-sm) text-text-secondary" data-testid="cli-external">
+            The command line tool is already on this Mac at
+            <span class="font-mono break-all">{info.external}</span>, so FigLock does not add
+            another copy. Update it the way you installed it, for example with
+            <span class="font-mono">brew upgrade figlock</span>.
+          </p>
         {:else if info.state === "conflict"}
           <p class="font-medium">Not installed</p>
           <p class="text-(length:--text-sm) text-text-secondary">

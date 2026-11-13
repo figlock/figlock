@@ -17,7 +17,12 @@ vi.mock("./cliTool", () => ({
 
 import CommandLinePanel from "./CommandLinePanel.svelte";
 
-const view = (state: string) => ({ state, link: "~/.local/bin/figlock", dir: "~/.local/bin" });
+const view = (state: string, external: string | null = null) => ({
+  state,
+  link: "~/.local/bin/figlock",
+  dir: "~/.local/bin",
+  external,
+});
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -70,6 +75,16 @@ test("something else at the link's path is called out and never offered for repl
   expect(await screen.findByRole("alert")).toBeTruthy();
   expect(screen.getByText(/left it alone/)).toBeTruthy();
   expect(screen.queryByRole("button")).toBeNull();
+});
+
+test("a command line tool installed on its own is named and no second copy is offered", async () => {
+  core.status.mockResolvedValue(view("external", "/opt/homebrew/bin/figlock"));
+  render(CommandLinePanel);
+  expect((await screen.findByTestId("cli-external")).textContent).toContain(
+    "/opt/homebrew/bin/figlock",
+  );
+  expect(screen.queryByRole("button")).toBeNull();
+  expect(core.install).not.toHaveBeenCalled();
 });
 
 test("a failed install shows the reason and leaves the install button available", async () => {

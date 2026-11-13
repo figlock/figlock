@@ -34,4 +34,12 @@ test.describe("command line tool", () => {
     await expect(page.getByRole("button", { name: "Install command line tool" })).toHaveCount(0);
     await expectAccessible(page);
   });
+
+  test("a command line tool installed on its own is named and not duplicated", async ({ page }) => {
+    await openApp(page, { cli: { state: "external" } });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByTestId("cli-external")).toContainText("/opt/homebrew/bin/figlock");
+    await expect(page.getByRole("button", { name: "Install command line tool" })).toHaveCount(0);
+    await expectAccessible(page);
+  });
 });

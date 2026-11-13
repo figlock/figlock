@@ -3,6 +3,7 @@
 //! never edits a shell profile or PATH, never needs admin rights, and never touches a file or link it did not
 //! make. The functions take their paths as arguments so the rules are tested without a real app bundle.
 
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -27,6 +28,9 @@ pub enum LinkState {
     Moved,
     /// Something else is at the link's path; it is left alone.
     Conflict,
+    /// A `figlock` that is not from this app is already installed elsewhere (Homebrew, the install script), so
+    /// a second copy is not added.
+    External,
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
@@ -37,6 +41,8 @@ pub struct CliToolView {
     pub link: String,
     /// The folder to put on PATH if `figlock` is not found in a new Terminal window.
     pub dir: String,
+    /// Where the other `figlock` is, when `state` is `External`.
+    pub external: Option<String>,
 }
 
 /// The tool next to the app's own executable, or none in a build that does not bundle it.
@@ -62,12 +68,51 @@ fn is_app_copy(target: &Path) -> bool {
             .any(|c| c.as_os_str().to_string_lossy().ends_with(".app"))
 }
 
-pub fn state(bundled: Option<&Path>, link: &Path) -> LinkState {
+/// Folders a `figlock` from another install is likely in: the ones on this process's PATH (short when the app is
+/// opened from Finder) and the usual places Homebrew, the install script and cargo put it.
+pub fn search_dirs(home: &Path, path_env: Option<&OsStr>) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = path_env
+        .map(std::env::split_paths)
+        .into_iter()
+        .flatten()
+        .collect();
+    dirs.extend([
+        home.join(LINK_DIR),
+        home.join("bin"),
+        home.join(".cargo/bin"),
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/usr/bin"),
+    ]);
+    dirs
+}
+
+/// A `figlock` in one of `dirs` that this app did not put there and that is not the bundled tool itself.
+pub fn external(bundled: &Path, link: &Path, dirs: &[PathBuf]) -> Option<PathBuf> {
+    let bundled = fs::canonicalize(bundled).ok();
+    dirs.iter()
+        .filter(|d| d.is_absolute())
+        .map(|d| d.join(NAME))
+        .filter(|p| p != link && p.is_file())
+        .find(|p| {
+            let ours = fs::read_link(p).is_ok_and(|t| is_app_copy(&t))
+                || (bundled.is_some() && fs::canonicalize(p).ok() == bundled);
+            !ours
+        })
+}
+
+pub fn state(bundled: Option<&Path>, link: &Path, search: &[PathBuf]) -> LinkState {
     let Some(bundled) = bundled else {
         return LinkState::Unavailable;
     };
     match fs::symlink_metadata(link) {
-        Err(e) if e.kind() == io::ErrorKind::NotFound => LinkState::NotInstalled,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            if external(bundled, link, search).is_some() {
+                LinkState::External
+            } else {
+                LinkState::NotInstalled
+            }
+        }
         Err(_) => LinkState::Conflict,
         Ok(m) if m.file_type().is_symlink() => match fs::read_link(link) {
             Ok(t) if t == bundled => LinkState::Installed,
@@ -99,16 +144,26 @@ fn make_link(_bundled: &Path, _link: &Path) -> io::Result<()> {
 }
 
 /// Link the bundled tool at `link`. Repeating it is fine; a link of ours to a moved app is repaired.
-pub fn install(bundled: Option<&Path>, link: &Path) -> CmdRes<LinkState> {
+pub fn install(bundled: Option<&Path>, link: &Path, search: &[PathBuf]) -> CmdRes<LinkState> {
     let Some(bundled) = bundled else {
         return Err(CmdError::new(
             "unavailable",
             "This build of FigLock does not include the command line tool.",
         ));
     };
-    match state(Some(bundled), link) {
+    match state(Some(bundled), link, search) {
         LinkState::Installed => return Ok(LinkState::Installed),
         LinkState::Conflict => return Err(conflict(link)),
+        LinkState::External => {
+            let other = external(bundled, link, search).unwrap_or_default();
+            return Err(CmdError::new(
+                "external",
+                format!(
+                    "FigLock's command line tool is already installed at {}, so a second copy was not added.",
+                    other.display()
+                ),
+            ));
+        }
         LinkState::Moved => fs::remove_file(link).map_err(failed)?,
         LinkState::NotInstalled | LinkState::Unavailable => {}
     }
@@ -150,12 +205,18 @@ fn tilde(path: &Path, home: &Path) -> String {
     )
 }
 
-pub fn view(bundled: Option<&Path>, home: &Path) -> CliToolView {
+pub fn view(bundled: Option<&Path>, home: &Path, search: &[PathBuf]) -> CliToolView {
     let link = link_path(home);
+    let state = state(bundled, &link, search);
+    let external = match (state, bundled) {
+        (LinkState::External, Some(b)) => external(b, &link, search).map(|p| tilde(&p, home)),
+        _ => None,
+    };
     CliToolView {
-        state: state(bundled, &link),
+        state,
         link: tilde(&link, home),
         dir: tilde(&home.join(LINK_DIR), home),
+        external,
     }
 }
 
@@ -170,13 +231,17 @@ fn bundled() -> Option<PathBuf> {
     bundled_cli(&std::env::current_exe().ok()?)
 }
 
+fn search() -> CmdRes<Vec<PathBuf>> {
+    Ok(search_dirs(&home()?, std::env::var_os("PATH").as_deref()))
+}
+
 pub fn status() -> CmdRes<CliToolView> {
-    Ok(view(bundled().as_deref(), &home()?))
+    Ok(view(bundled().as_deref(), &home()?, &search()?))
 }
 
 pub fn install_here() -> CmdRes<CliToolView> {
     let home = home()?;
-    install(bundled().as_deref(), &link_path(&home))?;
+    install(bundled().as_deref(), &link_path(&home), &search()?)?;
     status()
 }
 
