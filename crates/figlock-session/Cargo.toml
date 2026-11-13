@@ -20,9 +20,6 @@ zeroize.workspace = true
 [target.'cfg(target_os = "macos")'.dependencies]
 security-framework = "3"
 
-[target.'cfg(unix)'.dependencies]
-nix.workspace = true
-
 [dev-dependencies]
 tempfile.workspace = true
 p256.workspace = true

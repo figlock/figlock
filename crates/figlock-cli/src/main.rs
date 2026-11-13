@@ -13,6 +13,7 @@ mod drive;
 #[cfg(unix)]
 mod http;
 mod import;
+mod pairing;
 mod prompt;
 mod quick;
 mod render;
@@ -37,6 +38,11 @@ Getting started:
   figlock find github                               Search (fuzzy)
   figlock get github --reveal                       Show an item with its secrets
   figlock copy github                               Copy the password; the clipboard is cleared after 30 seconds
+
+Adding another device:
+  figlock device add                                On a device that has the vault: show an invite code, approve
+  figlock join <code> --store <folder>              On the new device (--drive for a vault in Google Drive)
+  figlock open --store <folder>                     No device at hand: master password and Secret Key instead
 
 Giving an agent access without handing it the secret:
   figlock broker start                              Unlock once and approve requests (Touch ID)
@@ -105,6 +111,10 @@ enum Command {
         #[command(subcommand)]
         action: PasswordCmd,
     },
+    /// Add this device to a vault that already exists, using an invite code from a device that has it.
+    Join(JoinArgs),
+    /// Open a vault that already exists with your master password and Secret Key, when no other device is at hand.
+    Open(OpenArgs),
     /// Replace, show or forget the Secret Key.
     SecretKey {
         #[command(subcommand)]
@@ -151,6 +161,8 @@ enum SecretKeyCmd {
 enum DeviceCmd {
     /// List the devices, newest records included, and mark this one.
     List,
+    /// Add a device: show an invite code, then approve the device that uses it.
+    Add(DeviceAddArgs),
     /// Stop a device from opening anything written from now on.
     Revoke(RevokeArgs),
 }
@@ -361,6 +373,51 @@ pub enum KdfProfile {
     /// The lowest cost the spec allows. For tests and slow machines only.
     #[value(hide = true)]
     Floor,
+}
+
+/// Where an existing vault is, for `join` and `open`.
+#[derive(Args)]
+pub struct WhereArgs {
+    /// Folder that holds the encrypted vault (a synced folder works). Defaults to a folder in the FigLock
+    /// config directory, which is where a Drive copy is downloaded.
+    #[arg(long)]
+    pub store: Option<PathBuf>,
+    /// The vault is in your Google Drive (run `figlock drive login` first).
+    #[arg(long)]
+    pub drive: bool,
+    /// Name shown for this device.
+    #[arg(long, default_value = "cli")]
+    pub device_name: String,
+    /// Turn on quick unlock (Touch ID) for this device without asking.
+    #[arg(long, conflicts_with = "no_quick_unlock")]
+    pub quick_unlock: bool,
+    /// Do not turn on quick unlock and do not ask.
+    #[arg(long)]
+    pub no_quick_unlock: bool,
+}
+
+#[derive(Args)]
+pub struct JoinArgs {
+    /// The invite code shown on the device that already has the vault.
+    pub code: String,
+    #[command(flatten)]
+    pub at: WhereArgs,
+    /// Seconds to wait for the other device to approve before giving up.
+    #[arg(long, default_value_t = 600)]
+    pub timeout: u64,
+}
+
+#[derive(Args)]
+pub struct OpenArgs {
+    #[command(flatten)]
+    pub at: WhereArgs,
+}
+
+#[derive(Args)]
+pub struct DeviceAddArgs {
+    /// Approve the device that answers without asking, after you have checked its fingerprint yourself.
+    #[arg(long)]
+    pub yes: bool,
 }
 
 #[derive(Args)]
@@ -658,6 +715,8 @@ fn main() -> ExitCode {
     let ok = |r: error::Res<()>| r.map(|()| 0);
     let result = match cli.command {
         Command::Init(a) => ok(commands::init(a, json)),
+        Command::Join(a) => ok(pairing::join(a, json)),
+        Command::Open(a) => ok(pairing::open(a, json)),
         Command::Add(a) => ok(commands::add(a, json)),
         Command::Edit(a) => ok(commands::edit(a, json)),
         Command::Find(a) => ok(commands::find(a, json)),
@@ -682,6 +741,7 @@ fn main() -> ExitCode {
         }),
         Command::Device { action } => ok(match action {
             DeviceCmd::List => credentials::device_list(json),
+            DeviceCmd::Add(a) => pairing::device_add(&a, json),
             DeviceCmd::Revoke(a) => {
                 credentials::device_revoke(&a.device, a.change_password, a.rotate_secret_key, json)
             }

@@ -1317,7 +1317,6 @@ dependencies = [
  "figlock-store",
  "getrandom 0.4.3",
  "hex",
- "nix",
  "p256",
  "security-framework",
  "serde_json",
