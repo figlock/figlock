@@ -135,6 +135,9 @@ struct RecoveryWrap {
     wrapped: Vec<u8>,
 }
 
+/// Length of `wrapped_vk_rk`: `eph_pub(32) || 0x01 || nonce(24) || VK(32) || tag(16)`.
+const WRAPPED_VK_RK_LEN: usize = 32 + 1 + crate::aead::NONCE_LEN + 32 + crate::aead::TAG_LEN;
+
 /// `seal_to(rk_pub, VK, aad("vk-wrap-rk", vault_id, u32(epoch)))`.
 fn wrap_vk_for_recovery(
     rk_pub: &[u8; 32],
@@ -347,10 +350,16 @@ impl Header {
         // so a client that predates them refuses the file instead of dropping the key when it rewrites it.
         let recovery = match (o.get("rk_pub"), o.get("wrapped_vk_rk")) {
             (None, None) => None,
-            (Some(p), Some(w)) => Some(RecoveryWrap {
-                rk_pub: unhex::<32>(p)?,
-                wrapped: unhex_vec(w)?,
-            }),
+            (Some(p), Some(w)) => {
+                let wrapped = unhex_vec(w)?;
+                if wrapped.len() != WRAPPED_VK_RK_LEN {
+                    return Err(Error);
+                }
+                Some(RecoveryWrap {
+                    rk_pub: unhex::<32>(p)?,
+                    wrapped,
+                })
+            }
             _ => return Err(Error),
         };
         let min_version = if recovery.is_some() { 2 } else { 1 };
@@ -1997,6 +2006,39 @@ mod tests {
     use super::*;
 
     const T0: u64 = 1_700_000_000_000;
+
+    #[test]
+    fn recovery_wrap_length_matches_a_real_wrap() {
+        let wrap =
+            wrap_vk_for_recovery(&[7u8; 32], &Key::random().unwrap(), &[1u8; 16], 1).unwrap();
+        assert_eq!(wrap.len(), WRAPPED_VK_RK_LEN);
+    }
+
+    #[test]
+    fn a_header_with_a_truncated_or_empty_recovery_wrap_is_refused() {
+        let vk = Key::random().unwrap();
+        let header = |wrapped: &[u8]| {
+            let Json::Object(o) = json!({
+                "v": 1,
+                "suite": "fl1",
+                "min_format_version": 2,
+                "rk_pub": hexs(&[7u8; 32]),
+                "wrapped_vk_rk": hexs(wrapped),
+                "kdf": {"m_kib": 1, "t": 1, "p": 1, "salt": hexs(&[0u8; 16])},
+                "vault_id": hexs(&[1u8; 16]),
+                "key_epoch": 1,
+            }) else {
+                unreachable!()
+            };
+            Header::parse(&o)
+        };
+        let wrap = wrap_vk_for_recovery(&[7u8; 32], &vk, &[1u8; 16], 1).unwrap();
+        assert!(header(&wrap[..wrap.len() - 1]).is_err());
+        assert!(header(&[]).is_err());
+        let mut long = wrap.clone();
+        long.push(0);
+        assert!(header(&long).is_err());
+    }
 
     fn pw() -> &'static str {
         static PW: std::sync::OnceLock<String> = std::sync::OnceLock::new();
