@@ -28,3 +28,34 @@ export const revokeDevice = (
     secretKey: secretKey || null,
     newPassword,
   });
+
+/** An open invite: the code to type or scan on the new device. Shown once, never stored. */
+export type Invite = {
+  /** `XXXX-XXXX-XXXX-XXXX-XXXX`. */
+  code: string;
+  /** QR modules of the code, one string of `1` and `0` per row. */
+  qr: string[];
+  expiresAtMs: number;
+};
+
+/** `request` means the new device answered; its name and fingerprint are then set. */
+export type PairingStatus = {
+  state: "none" | "waiting" | "request" | "expired";
+  expiresAtMs: number | null;
+  deviceName: string | null;
+  fingerprint: string | null;
+};
+
+/** Opens an invite, replacing any that is open. */
+export const addDeviceStart = () => invoke<Invite>("add_device_start");
+export const addDeviceStatus = () => invoke<PairingStatus>("add_device_status");
+/**
+ * Approves the new device. With no `secretKey`, Touch ID releases the Secret Key this Mac keeps; otherwise the
+ * master password and the typed key must open the vault.
+ */
+export const addDeviceApprove = (password: string, secretKey: string) =>
+  invoke<Device[]>("add_device_approve", {
+    password: password || null,
+    secretKey: secretKey || null,
+  });
+export const addDeviceCancel = () => invoke<void>("add_device_cancel");

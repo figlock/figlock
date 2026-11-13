@@ -105,6 +105,8 @@ struct Inner {
     creating: Option<Creating>,
     reissued: Option<Reissued>,
     joining: Option<join::Join>,
+    /// The invite this device has open for a new device to join with, until it is used, expires or is cancelled.
+    inviting: Option<pairing::Inviting>,
     /// A save happened since the last sync tick, so the next tick syncs soon instead of waiting its turn.
     dirty: bool,
     active_at: Instant,
@@ -127,6 +129,7 @@ impl Inner {
             c.clear();
         }
         self.session = None;
+        self.inviting = None;
         self.cache = None;
         self.staged.clear();
     }
@@ -289,6 +292,7 @@ impl Desk {
                 creating: None,
                 reissued: None,
                 joining: None,
+                inviting: None,
                 dirty: false,
                 active_at: now,
                 ticked_at: now,
@@ -783,6 +787,7 @@ pub mod drive;
 pub mod generate;
 pub mod health;
 pub mod items;
+pub mod pairing;
 pub mod secret_key;
 pub mod sync;
 
@@ -794,5 +799,7 @@ mod device_tests;
 mod health_tests;
 #[cfg(test)]
 mod item_tests;
+#[cfg(test)]
+mod pairing_tests;
 #[cfg(test)]
 mod tests;

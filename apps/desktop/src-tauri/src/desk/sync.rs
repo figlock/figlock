@@ -34,7 +34,7 @@ pub(super) enum Kind {
 
 pub(super) struct SyncState {
     running: bool,
-    kind: Kind,
+    pub(super) kind: Kind,
     message: Option<String>,
     fork: bool,
     needs_unlock: bool,
@@ -109,7 +109,7 @@ fn kind_of(e: &SyncError) -> Kind {
 }
 
 impl Desk {
-    fn sync_state(&self) -> std::sync::MutexGuard<'_, SyncState> {
+    pub(super) fn sync_state(&self) -> std::sync::MutexGuard<'_, SyncState> {
         self.sync.lock().unwrap_or_else(|p| p.into_inner())
     }
 

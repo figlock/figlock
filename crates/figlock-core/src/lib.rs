@@ -28,6 +28,7 @@ mod kit;
 mod merge;
 mod pairing;
 mod payload;
+mod qr;
 mod quick_se;
 mod reader;
 mod schema;
@@ -69,6 +70,7 @@ pub use pairing::{
     x25519_public,
 };
 pub use payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem, padded_size};
+pub use qr::qr_rows;
 pub use quick_se::{
     QUICK_SE_POINT_LEN, open_quick_unlock_se, quick_unlock_se_ephemeral_public,
     seal_quick_unlock_se,

@@ -475,6 +475,21 @@ fn pull_into(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<(), SyncEr
     Ok(())
 }
 
+/// Take files out of the remote too. Files in `inbox/` are mirrored create-only, so one deleted only here
+/// would be pulled straight back. Best effort: a file that stays is only clutter, and never an open invite
+/// (the invite itself is gone from memory).
+pub fn remove_remote(place: &Place, paths: &[String]) {
+    let Some(kind) = place.remote else {
+        return;
+    };
+    let Ok(remote) = crate::store::open_remote(kind) else {
+        return;
+    };
+    for path in paths {
+        let _ = remote.delete(path);
+    }
+}
+
 /// Push and pull for a join in progress, before this device has a config or id: it sends its request and
 /// collects the answer. Only the `first` exchange pushes every local file; later ones push the inbox only.
 pub fn exchange(place: &Place, first: bool) -> Result<Report, SyncError> {
