@@ -23,8 +23,9 @@ operations may change it.
   changes leave them alone.
 - **Who may change it.** Enabling or replacing the Recovery Key needs the master password and Secret Key, as a
   credential change does, because the unlocked vault does not keep `VK` (it is opened from `wrapped_vk` and sealed
-  to the new public key). Removing it needs neither. The app also asks for Touch ID or the master password
-  before any of these.
+  to the new public key). Removing it needs neither in the core, but the desktop app asks for the master
+  password before turning it off, deliberately, because it is a downgrade; Touch ID releases the kept Secret Key
+  for setting up or replacing.
 - **Recovery.** Opens `wrapped_vk_rk` with `rk_priv`, then follows the unlock checks (authority key derived from
   `VK`, signature, `authority_pub`) and writes a new `vault.json` under a new master password and a new Secret
   Key in one write, optionally with a new Recovery Key.
