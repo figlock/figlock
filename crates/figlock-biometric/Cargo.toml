@@ -16,6 +16,9 @@ objc2 = "0.6"
 objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSString", "NSError", "NSObject"] }
 objc2-local-authentication = { version = "0.3", default-features = false, features = ["std", "block2", "LAContext", "LAError"] }
 block2 = "0.6"
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+security-framework-sys = "2"
 
 # This crate is the one place that calls into the operating system's UI frameworks, which needs `unsafe`.
 # The rest of the workspace keeps `unsafe_code = "forbid"`.

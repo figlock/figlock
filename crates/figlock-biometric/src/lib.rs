@@ -5,6 +5,8 @@
 use std::time::Duration;
 
 pub mod enclave;
+#[cfg(target_os = "macos")]
+pub mod keychain;
 
 /// What the person did.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

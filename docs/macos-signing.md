@@ -86,6 +86,22 @@ For the dmg: download `FigLock-<version>-universal.dmg` from the workflow run, o
 Applications and open it. There must be no Gatekeeper warning, also with the network off (the tickets are
 stapled). In Settings, "Install command line tool" links the CLI inside the app.
 
+## Checking that the CLI and the app share the keychain (FIG-106, ADR-0031)
+
+Use the signed dmg, in a throwaway home so no real vault is touched:
+
+```sh
+export FIGLOCK_HOME=$(mktemp -d) FIGLOCK_PASSWORD=$(openssl rand -hex 12)
+/Volumes/FigLock/FigLock.app/Contents/MacOS/figlock init --no-quick-unlock --store "$FIGLOCK_HOME/vault"
+/Volumes/FigLock/FigLock.app/Contents/MacOS/figlock-desktop     # same FIGLOCK_HOME; type the password, Unlock
+```
+
+Unlocking in the app must show no keychain password prompt. To see the access list of the item the CLI made:
+`security dump-keychain -a`, find the item with service `com.figlock.cli.device`: the entry that lists `decrypt`
+shows `applications: <null>` and the `partition_id` entry shows `teamid:<team>`. A process from another team
+must still be prompted: `security find-generic-password -s com.figlock.cli.device -a <account> -w` blocks on the
+dialog (press Deny). Delete the throwaway items afterwards with `security delete-generic-password`.
+
 ## If notarization is rejected
 
 The script prints the notary log. Common causes: missing secure timestamp, hardened runtime not enabled, or

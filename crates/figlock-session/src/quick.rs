@@ -329,7 +329,7 @@ impl Backend for System {
     }
 
     fn put_key(&self, vault: &str, key: &[u8; 32]) -> Res<()> {
-        security_framework::passwords::set_generic_password(self.service, vault, key)
+        crate::keychain::put(self.service, vault, key)
             .map_err(|_| Fail::new("could not save the key in the macOS keychain"))
     }
 
