@@ -41,6 +41,7 @@
   /** The key fields show when none is kept, or when Touch ID did not release it. */
   let typeKey = $state(false);
   const askKey = $derived(typeKey || !keyKept);
+  const askPassword = $derived(!askKey && keyHeld);
   let fieldError = $state<{ password?: string; key?: string }>({});
 
   const expired = $derived(status?.state === "expired");
@@ -115,11 +116,14 @@
         fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
       }
       if (Object.keys(fieldError).length > 0) return;
+    } else if (askPassword && !password) {
+      fieldError.password = "Enter your master password.";
+      return;
     }
     busy = true;
     const name = status?.deviceName ?? "The new device";
     try {
-      const devices = await addDeviceApprove(askKey ? password : "", askKey ? secretKey : "");
+      const devices = await addDeviceApprove(askKey || askPassword ? password : "", askKey ? secretKey : "");
       onadded(devices, name);
     } catch (e) {
       const err = errorOf(e);
@@ -184,10 +188,18 @@
             focus
           />
           <SecretKeyField bind:value={secretKey} error={fieldError.key} disabled={busy} />
-        {:else if keyHeld}
+        {:else if askPassword}
           <p class="text-text-secondary">
             Approving sends your Secret Key to the new device. It still needs your master password.
           </p>
+          <TextField
+            label="Master password"
+            type="password"
+            bind:value={password}
+            error={fieldError.password}
+            disabled={busy}
+            focus
+          />
         {:else}
           <p class="text-text-secondary">
             Approving asks for Touch ID, then sends your Secret Key to the new device. It still
@@ -197,7 +209,7 @@
         <div class="grid grid-cols-2 gap-2">
           <Button onclick={decline} disabled={busy}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={busy}>
-            {busy ? "Approving..." : askKey || keyHeld ? "Approve" : "Approve with Touch ID"}
+            {busy ? "Approving..." : askKey || askPassword ? "Approve" : "Approve with Touch ID"}
           </Button>
         </div>
       </form>

@@ -38,7 +38,7 @@
       const s = await vaultState();
       // Kept by this Mac (Touch ID releases it) or held by this session (ADR-0030): no typed key either way.
       keyKept = s.secretKeyKept || s.secretKeyHeld;
-      keyHeld = s.secretKeyHeld && !s.secretKeyKept;
+      keyHeld = s.secretKeyHeld;
     } catch {
       keyKept = false;
       keyHeld = false;

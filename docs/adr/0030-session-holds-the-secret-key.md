@@ -40,7 +40,8 @@ plain revocation.
 - **Steps that rewrap the vault key take the Secret Key in this order**: typed in the window, held by the
   session, kept by the device store (after Touch ID or the device password), and only then asked for. The
   window shows the Secret Key field for these steps only when none of the three exists.
-- **The master password is still asked on each of these steps.** It is memorized, not on paper, it is
+- **The master password is still asked on each of these steps, adding a device included.** The held key is
+  checked against it before it is released to a new device. It is memorized, not on paper, it is
   required by the derivation, and asking for it keeps the person at the keyboard for an action that locks
   other devices out. The Secret Key is the part people cannot recite.
 - **Nothing is cached beyond the session**, nothing is written to disk, and the CLI is unchanged: each

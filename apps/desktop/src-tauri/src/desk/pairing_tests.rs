@@ -126,6 +126,37 @@ fn join_inner() {
 }
 
 #[test]
+fn a_held_key_still_needs_the_master_password_to_approve() {
+    scenario("held_approve_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn held_approve_inner() {
+    let d = desk();
+    let (pw, _key) = unlocked(&d);
+    assert!(d.inner().held_key.is_some());
+    let invite = d.add_device_start().unwrap();
+    request(&invite.code, "Work MacBook");
+    d.add_device_status().unwrap();
+    let before = d.devices().unwrap().len();
+
+    assert_eq!(
+        code_of(d.add_device_approve(None, None).unwrap_err()),
+        "wrong_credentials"
+    );
+    assert_eq!(
+        code_of(d.add_device_approve(Some(&password()), None).unwrap_err()),
+        "wrong_credentials"
+    );
+    assert_eq!(d.devices().unwrap().len(), before);
+    assert_eq!(d.add_device_status().unwrap().state, "request");
+
+    let rows = d.add_device_approve(Some(&pw), None).unwrap();
+    assert_eq!(rows.len(), before + 1);
+}
+
+#[test]
 fn an_expired_invite_is_closed_and_its_request_refused() {
     scenario("expiry_inner");
 }

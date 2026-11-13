@@ -167,8 +167,9 @@ impl Desk {
         })
     }
 
-    /// Approve the request: Touch ID (or the device password) releases the Secret Key this device keeps. A
-    /// device that keeps none asks for the master password and Secret Key instead, and both must open the vault.
+    /// Approve the request. A typed Secret Key, or the one the session holds (ADR-0030), must open the vault
+    /// together with the master password. With neither, Touch ID (or the device password) releases the Secret
+    /// Key this device keeps.
     pub fn add_device_approve(
         &self,
         password: Option<&str>,
@@ -183,9 +184,17 @@ impl Desk {
             return Err(no_invite());
         }
         let typed = secret_key.map(str::trim).filter(|k| !k.is_empty());
-        let key: SecretKey = match typed {
-            Some(text) => {
-                let key = parse_secret_key(text)?;
+        let held = self
+            .inner()
+            .held_key
+            .as_ref()
+            .map(|k| SecretKey::from_bytes(*k.expose()));
+        let checked = match typed {
+            Some(text) => Some(parse_secret_key(text)?),
+            None => held,
+        };
+        let key: SecretKey = match checked {
+            Some(key) => {
                 let vault_json = {
                     let inner = self.inner();
                     inner.session.as_ref().ok_or_else(locked)?.vault_json()?
