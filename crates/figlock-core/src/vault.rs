@@ -1140,6 +1140,20 @@ impl Vault {
         password: &str,
         secret_key: &SecretKey,
     ) -> Result<RecoveryChange> {
+        let key = RecoveryKey::random()?;
+        let mut change = self.set_recovery_with(&key, password, secret_key)?;
+        change.key = Some(key);
+        Ok(change)
+    }
+
+    /// [`Vault::set_recovery`] for a key made earlier, so a screen can show it, have the person confirm they
+    /// saved it, and only then change the vault. The returned [`RecoveryChange`] has no `key`.
+    pub fn set_recovery_with(
+        &mut self,
+        key: &RecoveryKey,
+        password: &str,
+        secret_key: &SecretKey,
+    ) -> Result<RecoveryChange> {
         let auk = derive_auk(
             password,
             secret_key,
@@ -1157,7 +1171,6 @@ impl Vault {
         if derive_vault_keys(&vk)?.authority_public() != self.keys.authority_public() {
             return Err(Error);
         }
-        let key = RecoveryKey::random()?;
         let rk_pub = key.public();
         let wrap = RecoveryWrap {
             rk_pub,
@@ -1168,7 +1181,7 @@ impl Vault {
         self.revision += 1;
         Ok(RecoveryChange {
             vault_json,
-            key: Some(key),
+            key: None,
         })
     }
 

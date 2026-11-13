@@ -2,6 +2,7 @@
   import { Alert, Button, TextField } from "@figlock/ui";
   import { onMount } from "svelte";
 
+  import RecoverySetup from "./RecoverySetup.svelte";
   import Shell from "./Shell.svelte";
   import { StorageChoice } from "./storage.svelte";
   import StoragePicker from "./StoragePicker.svelte";
@@ -12,6 +13,8 @@
     createVault,
     errorOf,
     finishCreate,
+    recoverySkip,
+    recoveryUseDraft,
     saveEmergencyKit,
     suggestedFolder,
     type VaultState,
@@ -20,7 +23,7 @@
   type Props = { touchAvailable: boolean; onback: () => void; ondone: (s: VaultState) => void };
   let { touchAvailable, onback, ondone }: Props = $props();
 
-  let step = $state<"form" | "key">("form");
+  let step = $state<"form" | "key" | "recovery">("form");
   const storage = new StorageChoice("create");
   let password = $state("");
   let again = $state("");
@@ -31,6 +34,10 @@
   let touchId = $state(true);
   let busy = $state(false);
   let error = $state("");
+  /** Setup of a Recovery Key is open, and whether one was made and confirmed (FIG-103). */
+  let adding = $state(false);
+  let keyReady = $state(false);
+  let acknowledged = $state(false);
   let fieldError = $state<{ password?: string; again?: string; typed?: string }>({});
 
   onMount(async () => {
@@ -78,7 +85,7 @@
     }
   }
 
-  async function finish(e: Event) {
+  async function toRecovery(e: Event) {
     e.preventDefault();
     error = "";
     fieldError = {};
@@ -90,9 +97,39 @@
         };
         return;
       }
-      ondone(await finishCreate(touchAvailable && touchId));
+      step = "recovery";
     } catch (e) {
       error = errorOf(e).message;
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function useKey() {
+    error = "";
+    try {
+      await recoveryUseDraft();
+      keyReady = true;
+      adding = false;
+    } catch (e) {
+      error = errorOf(e).message;
+      adding = false;
+    }
+  }
+
+  /** The required choice is made: write the vault, with the Recovery Key or without one. */
+  async function create(withoutKey: boolean) {
+    error = "";
+    busy = true;
+    try {
+      if (withoutKey) await recoverySkip(true);
+      ondone(await finishCreate(touchAvailable && touchId));
+    } catch (e) {
+      const err = errorOf(e);
+      error = err.message;
+      if (err.code === "recovery_not_confirmed" || err.code === "recovery_choice_needed") {
+        keyReady = false;
+      }
     } finally {
       busy = false;
     }
@@ -132,12 +169,12 @@
       </div>
     </form>
   </Shell>
-{:else}
+{:else if step === "key"}
   <Shell
     title="Save your Secret Key"
     subtitle="You need it, with your master password, to open this vault on a new device."
   >
-    <form class="flex flex-col gap-4" onsubmit={finish}>
+    <form class="flex flex-col gap-4" onsubmit={toRecovery}>
       {#if error}<Alert>{error}</Alert>{/if}
       <Alert tone="warning">
         FigLock cannot recover this key. Keep your Emergency Kit somewhere safe, apart from your
@@ -170,9 +207,59 @@
         <Button onclick={back}>Back</Button>
         <div class="flex-1"></div>
         <Button variant="primary" type="submit" disabled={busy || typed.trim() === ""}>
-          {busy ? "Creating..." : "Create vault"}
+          {busy ? "Checking..." : "Continue"}
         </Button>
       </div>
     </form>
+  </Shell>
+{:else}
+  <Shell
+    title="Add a Recovery Key?"
+    subtitle="This is how you get back in if you forget your master password."
+  >
+    {#if adding}
+      <RecoverySetup onconfirmed={useKey} onback={() => (adding = false)} backLabel="Not now" />
+    {:else}
+      <div class="flex flex-col gap-4">
+        {#if error}<Alert>{error}</Alert>{/if}
+        {#if keyReady}
+          <Alert tone="info">
+            Your Recovery Key is ready. It is saved in the vault when you create it, and FigLock
+            does not keep a copy.
+          </Alert>
+          <div class="flex gap-2">
+            <Button onclick={() => (step = "key")} disabled={busy}>Back</Button>
+            <div class="flex-1"></div>
+            <Button variant="primary" onclick={() => create(false)} disabled={busy}>
+              {busy ? "Creating..." : "Create vault"}
+            </Button>
+          </div>
+        {:else}
+          <p class="text-text-secondary">
+            FigLock has no server, so nobody can reset your master password for you. A Recovery Key
+            is a code, or cards you can give to people you trust, that lets you set a new password.
+          </p>
+          <Button variant="primary" onclick={() => (adding = true)}>Add a Recovery Key</Button>
+          <div class="flex flex-col gap-3 rounded-(--radius-md) border border-border p-4">
+            <p class="font-medium">Or go without one</p>
+            <label class="flex items-start gap-2">
+              <input type="checkbox" bind:checked={acknowledged} class="mt-1" />
+              <span>
+                I understand that if I forget my master password and have no Recovery Key, my data
+                cannot be recovered.
+              </span>
+            </label>
+            <div>
+              <Button onclick={() => create(true)} disabled={busy || !acknowledged}>
+                {busy ? "Creating..." : "Create vault without a Recovery Key"}
+              </Button>
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <Button onclick={() => (step = "key")} disabled={busy}>Back</Button>
+          </div>
+        {/if}
+      </div>
+    {/if}
   </Shell>
 {/if}

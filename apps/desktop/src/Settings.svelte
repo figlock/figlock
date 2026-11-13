@@ -3,6 +3,7 @@
 
   import CredentialsPanel from "./CredentialsPanel.svelte";
   import Devices from "./Devices.svelte";
+  import RecoveryPanel from "./RecoveryPanel.svelte";
   import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import { ago } from "./sync";
   import { lock } from "./vault";
@@ -148,6 +149,8 @@
   <SecretKeyPanel />
 
   <CredentialsPanel />
+
+  <RecoveryPanel />
 
   <Devices />
 </div>
