@@ -19,7 +19,9 @@ A release is a version tag. `release.yml` does the rest and the `release` enviro
    - `figlock.rb`, the Homebrew formula with the version and checksums filled in
 
 The run fails before building if the tag does not match the workspace version, and a missing signing or
-build secret fails the first step of that job.
+build secret fails the first step of that job. The desktop app takes its version from the workspace too
+(`tauri.conf.json` deliberately has none), and the macOS job fails if the built app is not that version
+(`scripts/check-app-version.sh`) or if the CLI inside it reports a different one (`scripts/verify-macos-app.sh`).
 
 ## The in-app updater (ADR-0032)
 

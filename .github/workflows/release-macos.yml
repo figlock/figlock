@@ -108,6 +108,9 @@ jobs:
           FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET: ${{ secrets.FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET }}
         run: scripts/build-desktop.sh universal-apple-darwin
 
+      - name: Check the app carries the release version
+        run: scripts/check-app-version.sh target/universal-apple-darwin/release/bundle/macos/FigLock.app
+
       - name: Sign and notarize the desktop app and build the dmg
         env:
           NOTARY_KEY_PATH: ${{ runner.temp }}/notary.p8
