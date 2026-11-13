@@ -2055,7 +2055,7 @@ mod tests {
                 &sk,
                 DeviceKeys::generate().unwrap(),
                 "B",
-                &[c.device_record.clone()],
+                std::slice::from_ref(&c.device_record),
                 T0 + 1,
             )
             .map(|_| ())
