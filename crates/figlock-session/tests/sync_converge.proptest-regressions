@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8fea2b351cc9c665b9dd3286f7f4565f9e7e0f64cf16eb7b07b556cd9be7c1dd # shrinks to n = 3, actions = [Op(0), Op(0), Op(0), Op(1), Snap(0), Sync(3, None), Op(0), Op(1), Op(0), Sync(1, Some(Fault { budget: 3, error: Unavailable })), Compact(0, 5)]

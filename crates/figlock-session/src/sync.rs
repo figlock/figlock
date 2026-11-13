@@ -124,7 +124,10 @@ pub struct Opts<'a> {
     /// This device's id in hex. Without `push_all` only the files it wrote are pushed, so a file another
     /// device compacted away is not put back from a stale local copy.
     pub own_device: Option<&'a str>,
-    /// Push every local file: the first sync to a remote, or an approved re-upload after it was lost.
+    /// Push every local file: the first sync to a remote, or an approved re-upload after it was lost. It only
+    /// takes effect while the remote holds no `vault.json`; a remote that has one is not new or lost, so a
+    /// device that pulled files from it and then failed its first sync does not put back a file that
+    /// another device compacted away in the meantime.
     pub push_all: bool,
 }
 
@@ -379,6 +382,10 @@ pub fn mirror(
     // List first: a Drive listing also fills the id cache that makes the reads below one request each.
     let (local_all, remote_all) = (listing(local)?, listing(remote)?);
     let (lv, rv) = (read(local, "vault.json")?, read(remote, "vault.json")?);
+    let opts = &Opts {
+        own_device: opts.own_device,
+        push_all: opts.push_all && rv.is_none(),
+    };
     let winner = pick_vault_json(&lv, &rv, opts, &mut warnings)?;
     if lv.is_none() && rv.is_none() {
         return Ok(Report::default());
@@ -681,9 +688,33 @@ mod tests {
         assert!(remote.get("snap/aa-00000001-00000001.snap").is_ok());
         assert_eq!(remote.get("log/bb/00000001.op"), Err(StoreError::NotFound));
 
-        // The first sync, or an approved re-upload, pushes everything.
+        // Asking to push everything changes nothing while the remote holds a vault: it is neither new nor lost.
         mirror(&la, &remote, &opts(Some(A), true)).unwrap();
-        assert!(remote.get("log/bb/00000001.op").is_ok());
+        assert_eq!(remote.get("log/bb/00000001.op"), Err(StoreError::NotFound));
+
+        // The first sync to a new remote, or an approved re-upload to a lost one, pushes everything.
+        let (_new, empty) = store();
+        mirror(&la, &empty, &opts(Some(A), true)).unwrap();
+        assert!(empty.get("log/bb/00000001.op").is_ok());
+    }
+
+    #[test]
+    fn a_failed_first_sync_does_not_put_back_a_compacted_file() {
+        let (_a, la) = device_a();
+        let (_r, remote) = store();
+        mirror(&la, &remote, &opts(Some(A), true)).unwrap();
+
+        // B pulls A's files, but its first sync never finishes, so B is still asking to push everything.
+        let (_b, lb) = store();
+        mirror(&lb, &remote, &opts(Some(B), true)).unwrap();
+        assert!(lb.get("log/aa/00000001.op").is_ok());
+
+        // A compacts the op away on its side and on the remote; B still holds a stale copy.
+        la.delete("log/aa/00000001.op").unwrap();
+        remote.delete("log/aa/00000001.op").unwrap();
+
+        mirror(&lb, &remote, &opts(Some(B), true)).unwrap();
+        assert_eq!(remote.get("log/aa/00000001.op"), Err(StoreError::NotFound));
     }
 
     #[test]
