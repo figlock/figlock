@@ -9,15 +9,10 @@ use std::time::{Duration, Instant};
 
 use figlock_session::config::{self, Remote};
 use figlock_session::drive;
-use figlock_session::sync::{self, SyncError, Warning};
+use figlock_session::sync::{self, BACKOFF_SECS, INTERVAL, SyncError, Warning, backoff};
 use serde::Serialize;
 
 use super::{CmdError, CmdRes, Desk};
-
-/// How often a healthy sync runs (`sync.md` 10).
-const INTERVAL: Duration = Duration::from_secs(15);
-/// Waits after consecutive failures: 5 s, 15 s, 60 s, then every 5 minutes.
-const BACKOFF: [u64; 4] = [5, 15, 60, 300];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Kind {
@@ -189,7 +184,7 @@ impl Desk {
             }
             Err(SyncError::Busy) => {
                 // Another sync (the CLI's) holds the lock; it is doing this work.
-                s.next_at = Instant::now() + Duration::from_secs(BACKOFF[0]);
+                s.next_at = Instant::now() + Duration::from_secs(BACKOFF_SECS[0]);
             }
             Err(e) => {
                 s.kind = kind_of(&e);
@@ -197,9 +192,9 @@ impl Desk {
                     SyncError::Other(m) if s.kind == Kind::Failed => Some(m),
                     _ => None,
                 };
-                let wait = BACKOFF[s.failures.min(BACKOFF.len() - 1)];
+                let wait = backoff(s.failures);
                 s.failures += 1;
-                s.next_at = Instant::now() + Duration::from_secs(wait);
+                s.next_at = Instant::now() + wait;
             }
         }
         true

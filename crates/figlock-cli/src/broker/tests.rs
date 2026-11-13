@@ -7,6 +7,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use figlock_core::{ItemType, KdfParams, ZERO_PREV};
+use figlock_session::sync::SyncError;
+use figlock_store::BlobStore;
 use serde_json::{Value, json};
 
 use super::approve::{ApprovalRequest, Approver, Decision, describe};
@@ -21,6 +23,26 @@ const T: u64 = 1_700_000_000_000;
 /// The real user id: a test that goes over a real socket is only served when it matches.
 fn uid() -> u32 {
     peer::my_uid()
+}
+
+struct NoUi;
+
+impl figlock_session::session::Ui for NoUi {
+    fn password(&self) -> figlock_session::error::Res<zeroize::Zeroizing<String>> {
+        Err(figlock_session::error::Fail::new("no"))
+    }
+    fn secret_key(&self) -> figlock_session::error::Res<figlock_core::SecretKey> {
+        Err(figlock_session::error::Fail::new("no"))
+    }
+    fn notice(&self, _: &str) {}
+    fn warn(&self, _: &str) {}
+}
+
+/// A session over a vault with a folder of its own and no other device.
+fn solo(vault: figlock_core::Vault) -> Session {
+    let dir = tempfile::tempdir().unwrap().keep();
+    let store = figlock_store::LocalFolder::open(dir).unwrap();
+    Session::from_parts(vault, Box::new(store), Box::new(NoUi))
 }
 
 fn random_hex(n: usize) -> String {
@@ -210,7 +232,7 @@ fn fixture() -> Fx {
     let writer = AuditWriter::with_sink(Box::new(log.clone()), 0, 0, ZERO_PREV);
     let broker = Arc::new(
         Broker::start(
-            vault,
+            solo(vault),
             writer,
             Box::new(Shared(approver.clone())),
             env.clone(),
@@ -401,7 +423,7 @@ fn nobody_to_ask_means_no() {
     let (vault, _) = figlock_core::Vault::create(&random_hex(8), "L", KdfParams::FLOOR, T).unwrap();
     let writer = AuditWriter::with_sink(Box::new(Mem::default()), 0, 0, ZERO_PREV);
     let broker = Broker::start(
-        vault,
+        solo(vault),
         writer,
         Box::new(approve::DenyAll),
         Arc::new(TestEnv::new()),
@@ -854,7 +876,7 @@ fn over_a_real_socket_approval_use_and_lock_work_end_to_end() {
     let writer = AuditWriter::with_sink(Box::new(Mem::default()), 0, 0, ZERO_PREV);
     let broker = Arc::new(
         Broker::start(
-            vault,
+            solo(vault),
             writer,
             Box::new(Shared(approver.clone())),
             Arc::new(TestEnv::new()),
@@ -1663,4 +1685,356 @@ mod http_command {
             assert!(!log.contains(secret.as_str()) && !shown.contains(secret.as_str()));
         }
     }
+}
+
+/// Two devices of one vault over one folder, as a sync leaves them: the broker runs on `a`, `b` is the
+/// other device (a phone, or the desktop app).
+struct Duo {
+    broker: Arc<Broker>,
+    approver: Arc<Scripted>,
+    log: Mem,
+    /// Another handle on the broker's device, to read the audit log back.
+    reader: figlock_core::Vault,
+    b: Session,
+    a_id: figlock_core::DeviceId,
+    password: String,
+    secret_key: figlock_core::SecretKey,
+    _dir: tempfile::TempDir,
+}
+
+fn duo() -> Duo {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    let folder = move || figlock_store::LocalFolder::open(&root).unwrap();
+    let password = random_hex(12);
+    let (a, created) = figlock_core::Vault::create(&password, "A", KdfParams::FLOOR, T).unwrap();
+    folder().put_new("vault.json", &created.vault_json).unwrap();
+    let a_id = *a.device_id();
+    let rec_a = format!("devices/{}.json", hex::encode(a_id));
+    folder().put_new(&rec_a, &created.device_record).unwrap();
+    let secret_key = figlock_core::SecretKey::parse(&created.secret_key.format()).unwrap();
+    let auk = figlock_core::Vault::unlock_key(&created.vault_json, &password, &secret_key).unwrap();
+    let (b, record) = figlock_core::Vault::unlock_with_key(
+        &created.vault_json,
+        &auk,
+        figlock_core::DeviceKeys::generate().unwrap(),
+        "B",
+        std::slice::from_ref(&created.device_record),
+        T + 1,
+    )
+    .unwrap();
+    let rec_b = format!("devices/{}.json", hex::encode(b.device_id()));
+    folder().put_new(&rec_b, &record.unwrap()).unwrap();
+    let (reader, _) = figlock_core::Vault::unlock(
+        &created.vault_json,
+        &password,
+        &secret_key,
+        clone_device(&a),
+        "A",
+        std::slice::from_ref(&created.device_record),
+        T + 1,
+    )
+    .unwrap();
+
+    let approver = Arc::new(Scripted::default());
+    let log = Mem::default();
+    let writer = AuditWriter::with_sink(Box::new(log.clone()), 0, 0, ZERO_PREV);
+    let broker = Arc::new(
+        Broker::start(
+            Session::from_parts(a, Box::new(folder()), Box::new(NoUi)),
+            writer,
+            Box::new(Shared(approver.clone())),
+            Arc::new(TestEnv::new()),
+            uid(),
+        )
+        .unwrap()
+        .with_wait(Duration::from_secs(1)),
+    );
+    Duo {
+        broker,
+        approver,
+        log,
+        reader,
+        b: Session::from_parts(b, Box::new(folder()), Box::new(NoUi)),
+        a_id,
+        password,
+        secret_key,
+        _dir: dir,
+    }
+}
+
+impl Duo {
+    /// An item the other device adds and writes.
+    fn b_adds(&mut self, title: &str) -> ItemId {
+        let id = self
+            .b
+            .vault
+            .add_item(
+                ItemType::Token,
+                "personal",
+                &[
+                    ("title", title),
+                    ("token", "x"),
+                    ("allowed_hosts/a", "example.com"),
+                ],
+                T + 2,
+            )
+            .unwrap();
+        self.b.commit().unwrap();
+        id
+    }
+
+    fn b_deletes(&mut self, id: &ItemId) {
+        self.b.vault.delete_item(id, T + 3).unwrap();
+        self.b.commit().unwrap();
+    }
+
+    /// The other device revokes the broker's device, which rotates the vault key and rewrites `vault.json`.
+    fn b_revokes_the_broker_device(&mut self) {
+        let r = self
+            .b
+            .vault
+            .revoke_device(&self.password, &self.secret_key, &self.a_id, T + 4)
+            .unwrap();
+        self.b.write_revocation(&r).unwrap();
+    }
+
+    fn request(&self, scope: Value) -> Value {
+        let line =
+            json!({"v":1,"id":"r","op":"grant.request","scope":scope,"mode":"http","ttl":"15m"});
+        let reply = self.broker.handle_line(&peer(4242), &line.to_string());
+        serde_json::from_str(&reply.line).unwrap()
+    }
+
+    fn grant(&self, scope: Value) -> Value {
+        self.approver.will(&[Decision::Allow]);
+        self.request(scope)
+    }
+
+    fn events(&self) -> Vec<(String, Map)> {
+        let (chain, damaged) = self.reader.read_audit_log(&self.log.bytes.lock().unwrap());
+        assert!(!damaged && chain.first_bad.is_none(), "the log must verify");
+        chain.records.into_iter().map(|r| (r.ev, r.d)).collect()
+    }
+
+    fn names(&self) -> Vec<String> {
+        self.events().into_iter().map(|(e, _)| e).collect()
+    }
+
+    fn grants(&self) -> usize {
+        self.broker.grant_count()
+    }
+}
+
+#[test]
+fn an_item_another_device_adds_reaches_a_running_broker() {
+    let mut d = duo();
+    let id = d.b_adds("From the phone");
+    assert_eq!(
+        d.request(item_scope(&id))["error"]["code"],
+        "not_allowed",
+        "not known here yet"
+    );
+    assert_eq!(d.broker.absorb(), Absorbed::Updated);
+    let r = d.grant(item_scope(&id));
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(
+        d.broker.absorb(),
+        Absorbed::Same,
+        "nothing new the second time"
+    );
+}
+
+#[test]
+fn a_grant_ends_when_its_item_is_deleted_on_another_device() {
+    let mut d = duo();
+    let id = d.b_adds("Short lived");
+    d.broker.absorb();
+    let token = d.grant(item_scope(&id))["grant"]["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(
+        d.broker
+            .authorize(&token, &id, Mode::Http, Some("example.com"))
+            .is_ok()
+    );
+    d.b_deletes(&id);
+    assert_eq!(d.broker.absorb(), Absorbed::Updated);
+    assert_eq!(d.grants(), 0);
+    assert_eq!(
+        d.broker
+            .authorize(&token, &id, Mode::Http, Some("example.com"))
+            .err(),
+        Some(Code::NoGrant)
+    );
+    let events = d.events();
+    let revoked = events.iter().find(|(e, _)| e == "grant.revoked").unwrap();
+    assert_eq!(revoked.1["reason"], "item_removed");
+}
+
+#[test]
+fn a_revoked_device_locks_the_broker_and_ends_every_grant() {
+    let mut d = duo();
+    let id = d.b_adds("Prod token");
+    d.broker.absorb();
+    let token = d.grant(item_scope(&id))["grant"]["token"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(d.grants(), 1);
+
+    d.b_revokes_the_broker_device();
+    assert_eq!(d.broker.absorb(), Absorbed::Locked);
+
+    assert!(d.broker.is_locked());
+    assert_eq!(d.grants(), 0);
+    assert_eq!(
+        d.broker
+            .authorize(&token, &id, Mode::Http, Some("example.com"))
+            .err(),
+        Some(Code::Locked)
+    );
+    assert_eq!(d.request(item_scope(&id))["error"]["code"], "locked");
+    let events = d.events();
+    let lock = events.iter().find(|(e, _)| e == "broker.lock").unwrap();
+    assert_eq!(lock.1["reason"], "settings_changed");
+    assert_eq!(d.broker.absorb(), Absorbed::Locked, "stays locked");
+}
+
+#[test]
+fn a_grant_being_approved_when_the_revocation_lands_is_never_issued() {
+    let mut d = duo();
+    let id = d.b_adds("Prod token");
+    d.broker.absorb();
+    d.b_revokes_the_broker_device();
+    // The person is still looking at the prompt when the broker takes the change in.
+    let broker = d.broker.clone();
+    *d.approver.hook.lock().unwrap() = Some(Box::new(move || {
+        broker.absorb();
+    }));
+    let r = d.grant(item_scope(&id));
+    assert_eq!(r["error"]["code"], "locked", "{r}");
+    assert_eq!(d.grants(), 0);
+    assert!(
+        !d.names().contains(&"grant.approved".to_owned()),
+        "no approval was recorded"
+    );
+}
+
+#[test]
+fn a_remote_that_fails_never_blocks_a_grant() {
+    let mut d = duo();
+    let id = d.b_adds("Prod token");
+    d.broker.absorb();
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    let calls = std::cell::Cell::new(0);
+    let mut offline = || {
+        calls.set(calls.get() + 1);
+        Err(SyncError::Offline)
+    };
+    for n in 0..4 {
+        let at = t0 + Duration::from_secs(n * 400);
+        assert!(syncer.step(at, &d.broker, Some(&mut offline)));
+        assert_eq!(d.grant(item_scope(&id))["ok"], true);
+    }
+    assert_eq!(calls.get(), 4, "it keeps trying, at its own pace");
+    assert!(
+        !d.names().contains(&"sync.failed".to_owned()),
+        "being offline is not worth a record"
+    );
+}
+
+#[test]
+fn failures_back_off_and_a_healthy_sync_returns_to_fifteen_seconds() {
+    let d = duo();
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    let calls = std::cell::Cell::new(0);
+    let ok = std::cell::Cell::new(false);
+    let mut run = || {
+        calls.set(calls.get() + 1);
+        if ok.get() {
+            Ok(figlock_session::sync::Report {
+                pulled: 0,
+                pushed: 0,
+                warnings: Vec::new(),
+            })
+        } else {
+            Err(SyncError::Offline)
+        }
+    };
+    let secs = Duration::from_secs;
+    syncer.step(t0, &d.broker, Some(&mut run)); // fails: next in 5 s
+    syncer.step(t0 + secs(4), &d.broker, Some(&mut run));
+    assert_eq!(calls.get(), 1);
+    syncer.step(t0 + secs(5), &d.broker, Some(&mut run)); // fails: next in 15 s
+    syncer.step(t0 + secs(19), &d.broker, Some(&mut run));
+    assert_eq!(calls.get(), 2);
+    ok.set(true);
+    syncer.step(t0 + secs(20), &d.broker, Some(&mut run)); // works: next in 15 s
+    syncer.step(t0 + secs(34), &d.broker, Some(&mut run));
+    assert_eq!(calls.get(), 3);
+    syncer.step(t0 + secs(35), &d.broker, Some(&mut run));
+    assert_eq!(calls.get(), 4);
+}
+
+#[test]
+fn an_expired_sign_in_is_recorded_once_by_code_and_sync_stops_trying() {
+    let d = duo();
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    let calls = std::cell::Cell::new(0);
+    let mut expired = || {
+        calls.set(calls.get() + 1);
+        Err(SyncError::SignIn)
+    };
+    for n in 0..3 {
+        assert!(syncer.step(
+            t0 + Duration::from_secs(n * 600),
+            &d.broker,
+            Some(&mut expired)
+        ));
+    }
+    assert_eq!(calls.get(), 1);
+    let events = d.events();
+    let failed: Vec<_> = events.iter().filter(|(e, _)| e == "sync.failed").collect();
+    assert_eq!(failed.len(), 1);
+    assert_eq!(
+        Value::Object(failed[0].1.clone()),
+        json!({"reason": "sign_in"})
+    );
+    assert!(
+        !d.broker.is_locked(),
+        "the broker keeps serving what it has"
+    );
+}
+
+#[test]
+fn a_sync_that_brings_a_revocation_stops_the_syncer() {
+    let mut d = duo();
+    d.b_revokes_the_broker_device();
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    let mut ok = || {
+        Ok(figlock_session::sync::Report {
+            pulled: 3,
+            pushed: 0,
+            warnings: Vec::new(),
+        })
+    };
+    assert!(!syncer.step(t0, &d.broker, Some(&mut ok)));
+    assert!(syncer.locked_by_change);
+    assert!(d.broker.is_locked());
+}
+
+#[test]
+fn without_a_remote_the_local_folder_is_still_looked_at() {
+    let mut d = duo();
+    let id = d.b_adds("Written by another command");
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    assert!(syncer.step(t0 + Duration::from_secs(16), &d.broker, None));
+    assert_eq!(d.grant(item_scope(&id))["ok"], true);
 }

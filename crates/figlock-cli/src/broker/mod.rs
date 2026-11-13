@@ -13,12 +13,14 @@ pub mod http;
 pub mod peer;
 pub mod proto;
 pub mod server;
+pub mod syncer;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use figlock_core::{ItemId, ItemType, ItemView, Vault, audit_clean_text};
+use figlock_session::session::Session;
 use serde_json::{Value, json};
 use url::Url;
 use zeroize::Zeroizing;
@@ -37,21 +39,37 @@ use proto::{
 const DENY_COOLDOWN: Duration = Duration::from_secs(5);
 
 struct State {
-    /// `None` once locked: the vault and its keys are dropped.
-    vault: Option<Vault>,
+    /// `None` once locked: the vault, its keys and its store are dropped. The session (not a bare vault) is
+    /// kept so a sync can be taken in while the broker runs.
+    session: Option<Session>,
     grants: GrantTable,
     audit: AuditWriter,
     denied_until: HashMap<u32, Duration>,
 }
 
 impl State {
+    fn vault(&mut self) -> Option<&mut Vault> {
+        self.session.as_mut().map(|s| &mut s.vault)
+    }
+
     /// Write one audit record. Fails closed with `audit_failed`.
     fn log(&mut self, t: u64, ev: &str, d: Value) -> Result<(), Code> {
-        let vault = self.vault.as_ref().ok_or(Code::Locked)?;
+        let vault = &self.session.as_ref().ok_or(Code::Locked)?.vault;
         self.audit
             .append(vault, t, ev, d)
             .map_err(|()| Code::AuditFailed)
     }
+}
+
+/// What [`Broker::absorb`] found.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Absorbed {
+    /// Nothing new.
+    Same,
+    /// New items or devices were taken in.
+    Updated,
+    /// The broker is locked, now or already.
+    Locked,
 }
 
 pub struct Reply {
@@ -134,14 +152,14 @@ fn title_of(view: &ItemView) -> String {
 impl Broker {
     /// Take over an unlocked vault. Writes `broker.start`; fails if the audit log cannot be written.
     pub fn start(
-        vault: Vault,
+        session: Session,
         audit: AuditWriter,
         approver: Box<dyn Approver>,
         env: Arc<dyn Env>,
         uid: u32,
     ) -> Result<Broker, Code> {
         let mut st = State {
-            vault: Some(vault),
+            session: Some(session),
             grants: GrantTable::default(),
             audit,
             denied_until: HashMap::new(),
@@ -184,7 +202,7 @@ impl Broker {
     }
 
     pub fn is_locked(&self) -> bool {
-        self.lock_state().vault.is_none()
+        self.lock_state().session.is_none()
     }
 
     #[cfg(test)]
@@ -226,7 +244,7 @@ impl Broker {
     fn status(&self) -> Value {
         let st = self.lock_state();
         json!({
-            "locked": st.vault.is_none(),
+            "locked": st.session.is_none(),
             "grants": st.grants.len(),
             "audit_seq": st.audit.seq(),
             "audit_head": hex::encode(st.audit.head()),
@@ -279,13 +297,87 @@ impl Broker {
 
     /// Forget the vault and every grant. Locking never waits on the audit log.
     fn lock(&self) {
+        self.lock_for(None);
+    }
+
+    /// [`Broker::lock`], recording why when the broker locked itself.
+    fn lock_for(&self, reason: Option<&str>) {
         let mut st = self.lock_state();
         let t = self.env.unix_ms();
-        let _ = st.log(t, "broker.lock", json!({}));
+        let d = reason.map_or_else(|| json!({}), |r| json!({ "reason": r }));
+        let _ = st.log(t, "broker.lock", d);
         st.grants.clear();
-        if let Some(v) = st.vault.take() {
-            v.lock();
+        if let Some(s) = st.session.take() {
+            s.vault.lock();
         }
+    }
+
+    /// Take in what the local folder now holds (a sync pulled it, or another command on this machine wrote
+    /// it) so an agent never uses a stale vault (`broker.md` 1).
+    ///
+    /// New items and devices are applied and grants on items that are gone end. A change to `vault.json`
+    /// (a password or Secret Key change, a rotation, a revoked device) cannot be absorbed by an open vault,
+    /// and neither can a folder that cannot be read: the broker locks, so every grant ends with it, and a
+    /// fresh start is the fresh unlock. Failing closed here is what makes a revocation reach a running broker.
+    pub fn absorb(&self) -> Absorbed {
+        let mut st = self.lock_state();
+        let Some(session) = st.session.as_mut() else {
+            return Absorbed::Locked;
+        };
+        let reason = match session.refresh() {
+            Ok(r) if r.settings_changed => "settings_changed",
+            Ok(r) => {
+                if r.applied > 0 {
+                    self.end_grants_on_gone_items(&mut st);
+                    return Absorbed::Updated;
+                }
+                return Absorbed::Same;
+            }
+            Err(_) => "refresh_failed",
+        };
+        drop(st);
+        self.lock_for(Some(reason));
+        Absorbed::Locked
+    }
+
+    /// End the grants whose single item was deleted elsewhere. A record that cannot be written does not keep
+    /// a grant alive (refusing is always safe).
+    fn end_grants_on_gone_items(&self, st: &mut State) {
+        let held: Vec<(String, ItemId)> = st
+            .grants
+            .iter()
+            .filter_map(|g| match &g.scope {
+                Scope::Item(id) => Some((g.id.clone(), *id)),
+                _ => None,
+            })
+            .collect();
+        for (id, item) in held {
+            let alive = st
+                .vault()
+                .is_some_and(|v| v.item(&item).is_ok_and(|view| !view.deleted));
+            if alive {
+                continue;
+            }
+            let Some(g) = st.grants.find_id(&id) else {
+                continue;
+            };
+            let d = json!({
+                "grant": id, "mode": g.mode.as_str(), "scope": g.scope.label(),
+                "ttl": g.ttl.as_str(), "reason": "item_removed",
+            });
+            let t = self.env.unix_ms();
+            let _ = st.log(t, "grant.revoked", d);
+            st.grants.revoke(&id);
+        }
+    }
+
+    /// Record that background sync stopped because the person has to act (`why`: `sign_in`, `lost` or
+    /// `foreign`). Only that word is written, so nothing about the vault or the provider leaks. The broker keeps
+    /// serving what it holds; the grants are unaffected.
+    pub fn sync_failed(&self, why: &str) {
+        let mut st = self.lock_state();
+        let t = self.env.unix_ms();
+        let _ = st.log(t, "sync.failed", json!({ "reason": why }));
     }
 
     /// The scope in plain words, and loud warnings, written from the vault so the caller cannot word them.
@@ -364,7 +456,7 @@ impl Broker {
             return Ok(scope);
         };
         let mut st = self.lock_state();
-        let vault = st.vault.as_mut().ok_or(Code::Locked)?;
+        let vault = st.vault().ok_or(Code::Locked)?;
         let (items, _) = vault.items(false);
         let mut found = items.iter().filter(|i| {
             i.fields
@@ -415,7 +507,7 @@ impl Broker {
             if self.busy_locked(&st, peer) {
                 return Err(Code::Busy);
             }
-            let vault = st.vault.as_mut().ok_or(Code::Locked)?;
+            let vault = st.vault().ok_or(Code::Locked)?;
             let (scope_words, loud) = Self::scope_words(vault, &g.scope, g.mode)?;
             let mut d = json!({
                 "peer": audit_peer(peer), "scope": scope_label,
@@ -447,7 +539,7 @@ impl Broker {
         };
 
         let mut st = self.lock_state();
-        if st.vault.is_none() {
+        if st.session.is_none() {
             return Err(Code::Locked);
         }
         let t = self.env.unix_ms();
@@ -619,8 +711,7 @@ impl Broker {
         let mut st = self.lock_state();
         let t = self.env.unix_ms();
         let allowed = st
-            .vault
-            .as_mut()
+            .vault()
             .and_then(|v| v.item(item).ok())
             .filter(|v| !v.deleted)
             .is_some_and(|v| grants::host_allowed(&item_info(&v).hosts, host));
@@ -642,7 +733,7 @@ impl Broker {
     /// What an item hands a program when the caller names no variables. Names only, no values.
     fn default_vars(&self, item: &ItemId) -> Vec<(String, String)> {
         let mut st = self.lock_state();
-        let Some(vault) = st.vault.as_mut() else {
+        let Some(vault) = st.vault() else {
             return Vec::new();
         };
         let Ok(view) = vault.item(item) else {
@@ -709,7 +800,7 @@ impl Broker {
             code
         };
 
-        let Some(vault) = st.vault.as_mut() else {
+        let Some(vault) = st.vault() else {
             return Err(Code::Locked);
         };
         let view = vault.item(item).ok().filter(|v| !v.deleted);

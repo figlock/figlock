@@ -97,8 +97,17 @@ and named by its owner:
   failure print one warning per command (the pull stays silent when simply offline) and carry on.
 - A sync lists each side once. Drive's flat namespace makes every listing a full listing request, so listing
   once instead of once per directory cut a no-op sync from about 4.4 to about 3 seconds on a real Drive.
-- The broker daemon syncs once before it unlocks. A background loop while it runs waits until the broker can
-  reload its in-memory vault, because pulling files it never reads would add nothing.
+- The broker daemon syncs once before it unlocks, then keeps current while it runs (FIG-96). A thread runs the
+  desktop's loop (every 15 seconds, backoff 5 s, 15 s, 60 s, then 5 minutes; the numbers live in
+  `figlock_session::sync` and both use them) with no broker lock held, so a slow or dead remote never delays a
+  grant. After each sync, and every 15 seconds with or without a remote (so a change made by another command
+  on this machine or a synced folder also arrives), the broker calls `Session::refresh`. New items and
+  devices are taken in and grants whose item was deleted end. A change to `vault.json` (password or Secret
+  Key change, rotation, revoked device) cannot be absorbed by an open vault, and neither can an unreadable
+  folder: the broker locks, which ends every grant, including one waiting for approval, and exits; starting it
+  again is the fresh unlock. A sync that needs the person (sign-in expired, vault lost, a different vault)
+  stops retrying and is recorded as `sync.failed` with only that reason; the broker keeps serving what it
+  holds. Being offline is not recorded.
 
 ## Consequences
 

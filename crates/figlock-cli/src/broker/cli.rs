@@ -10,7 +10,7 @@ use super::approve::{Approver, BiometricApprover, DenyAll, TerminalApprover};
 use super::audit::{self, AuditWriter};
 use super::client::{call, expect_ok};
 use super::peer::{SystemEnv, my_uid};
-use super::{Broker, server};
+use super::{Broker, server, syncer};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::Session;
 
@@ -25,9 +25,9 @@ fn print_json(v: &Value) -> Res<()> {
 /// Unlock the vault once, then serve until someone runs `figlock broker lock`.
 pub fn start(deny_all: bool) -> Res<()> {
     crate::sync_cmd::pull_first();
-    let Session { vault, .. } = Session::open(prompt::terminal())?;
-    let log = audit::path_for(&vault)?;
-    let writer = AuditWriter::open(&log, &vault)?;
+    let session = Session::open(prompt::terminal())?;
+    let log = audit::path_for(&session.vault)?;
+    let writer = AuditWriter::open(&log, &session.vault)?;
     let socket = server::socket_path()?;
     let listener = server::bind(&socket)?;
     let approver: Box<dyn Approver> = if deny_all {
@@ -43,7 +43,7 @@ pub fn start(deny_all: bool) -> Res<()> {
         Box::new(DenyAll)
     };
     let broker = Broker::start(
-        vault,
+        session,
         writer,
         approver,
         Arc::new(SystemEnv::new()),
@@ -51,7 +51,9 @@ pub fn start(deny_all: bool) -> Res<()> {
     )
     .map_err(|_| Fail::new("could not write to the audit log"))?;
     eprintln!("broker listening on {}", socket.display());
-    let served = server::serve(&listener, &Arc::new(broker));
+    let broker = Arc::new(broker);
+    syncer::spawn(broker.clone());
+    let served = server::serve(&listener, &broker);
     drop(listener);
     let _ = fs::remove_file(&socket);
     eprintln!("broker locked");
