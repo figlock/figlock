@@ -327,3 +327,38 @@ fn talking_to_a_missing_broker_says_so() {
     let out = env.run(&["audit"], PW, Some(&env.secret_key), None);
     assert!(out.status.success(), "{}", text(&out.stderr));
 }
+
+#[test]
+fn a_password_change_made_while_the_broker_runs_locks_it() {
+    let env = Env::new();
+    let mut broker = env.start_broker();
+    assert!(env.ok(&["broker", "status"]).contains("unlocked"));
+
+    // Another command on this machine (it could as well be another device whose change a sync brought in)
+    // changes the master password. The running broker holds the old vault, so it must not keep serving it.
+    let mut change = env.command(&["password", "change"], PW, Some(&env.secret_key));
+    change
+        .env("FIGLOCK_NEW_PASSWORD", "another-test-master-password")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let out = change.spawn().unwrap().wait_with_output().unwrap();
+    assert!(out.status.success(), "{}", text(&out.stderr));
+
+    // The broker looks every 15 seconds.
+    let deadline = Instant::now() + Duration::from_secs(40);
+    let status = loop {
+        if let Some(s) = broker.try_wait().unwrap() {
+            break s;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the broker kept running after the vault changed"
+        );
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    assert!(status.success());
+    assert!(!env.socket().exists(), "the socket is removed");
+    let late = env.run(&["broker", "status"], PW, Some(&env.secret_key), None);
+    assert!(text(&late.stderr).contains("no broker is running"));
+}

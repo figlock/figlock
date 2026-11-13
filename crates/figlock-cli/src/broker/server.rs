@@ -155,7 +155,8 @@ pub fn serve(listener: &UnixListener, broker: &Arc<Broker>) -> Res<()> {
     listener.set_nonblocking(true)?;
     let stop = Arc::new(AtomicBool::new(false));
     let active = Arc::new(AtomicUsize::new(0));
-    while !stop.load(Ordering::SeqCst) {
+    // The broker can lock itself (a revocation arrived), which ends the loop too.
+    while !stop.load(Ordering::SeqCst) && !broker.is_locked() {
         let stream = match listener.accept() {
             Ok((s, _)) => s,
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {

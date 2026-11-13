@@ -22,8 +22,16 @@ MUST, SHOULD and MAY are used as in RFC 2119.
 - The broker is a per-user foreground process, started with `figlock broker start`. It unlocks the vault
   once (password and Secret Key, as for any command), keeps it in memory, and forgets it on `lock` or
   when it exits (a signal ends the process; the operating system frees its memory, and this version does not
-  scrub it first). It reads the vault once at start: changes made later on other devices appear after a
-  restart. It never writes the Vault Key, the password or any item value to disk.
+  scrub it first). It never writes the Vault Key, the password or any item value to disk.
+- **Staying current.** While running, the broker syncs in the background when a remote is configured (the
+  same loop as the desktop app, ADR-0026) and every 15 seconds takes in what the local folder holds: new items
+  and devices are applied, and a grant on one item ends when that item is deleted (`grant.revoked`, reason
+  `item_removed`). A change to `vault.json` (a password or Secret Key change, a rotation or a revoked device),
+  or a folder that cannot be read, cannot be absorbed by an open vault: the broker locks as if told to (every
+  grant ends, one waiting for approval is never issued) and records `broker.lock` with reason
+  `settings_changed` or `refresh_failed`. Starting it again is the fresh unlock. Syncing never runs under the
+  broker's state lock, so a failing remote does not delay a grant. A sync that needs the person is recorded as
+  `sync.failed` (reason `sign_in`, `lost` or `foreign`) once, and retrying stops; the broker keeps serving.
 - An agent never receives the vault key. It receives a **grant token**: an opaque handle that lets the broker
   act for it within limits. A token is not a secret value; revealing a value is a separate mode (3.2).
 - There is one broker per user and vault. A second `broker start` fails if a live broker answers on the
@@ -240,7 +248,7 @@ record cannot be written, a grant is not created and a use is refused with `audi
 
   `prev` is the SHA-256 of the previous record's container bytes (64 zeros for `seq` 1).
 - **Events.** `broker.start`, `broker.lock`, `conn.refused`, `grant.requested`, `grant.approved`,
-  `grant.denied`, `grant.revoked`, `grant.expired`, `use.allowed`, `use.refused`.
+  `grant.denied`, `grant.revoked`, `grant.expired`, `use.allowed`, `use.refused`, `sync.failed`.
 - **Detail (`d`).** Only these members, with these types, so a value cannot get in by accident:
   `peer` (`{uid, pid, exe}`), `label`, `reason` (control characters removed, at most 200 characters),
   `grant` (id), `mode`, `ttl`, `scope` (`item:<id>`, `tag:<tag>` or `vault`), `item` (id), `field` (field
@@ -299,6 +307,10 @@ Unit and end-to-end, all with generated values (`AGENTS.md`):
 - Audit: a secret value never appears in any record, decrypted or not; ciphertext has no plaintext; a
   flipped bit, a swapped, dropped or inserted middle record and a wrong key are each detected; a grant is not
   created when the log cannot be written.
+- Staying current: an item another device adds is usable after the next refresh; a deleted item ends its
+  grant; a revoked device locks the broker and ends every grant, including one being approved; a failing
+  remote never blocks a grant; backoff follows 5 s, 15 s, 60 s, 5 min; an expired sign-in is recorded once, by
+  reason only, and stops the retries.
 - Vectors for the audit record container and chain (`vectors/audit.json`).
 
 ## 9. Open questions

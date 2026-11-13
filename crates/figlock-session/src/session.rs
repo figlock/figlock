@@ -184,6 +184,16 @@ fn credentials<B: quick::Backend, T>(
 }
 
 impl Session {
+    /// A session over a vault already unlocked and the store it was read from.
+    pub fn from_parts(vault: Vault, store: Box<dyn BlobStore>, ui: Box<dyn Ui>) -> Session {
+        Session {
+            vault,
+            store,
+            ui,
+            uncertain: false,
+        }
+    }
+
     /// Unlock with quick unlock when it is on and still valid, otherwise with the master password and
     /// Secret Key.
     pub fn open(ui: Box<dyn Ui>) -> Res<Session> {

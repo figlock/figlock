@@ -37,6 +37,17 @@ pub struct Report {
     pub warnings: Vec<Warning>,
 }
 
+/// How often a healthy background sync runs (`sync.md` 10).
+pub const INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Waits after consecutive failures: 5 s, 15 s, 60 s, then every 5 minutes.
+pub const BACKOFF_SECS: [u64; 4] = [5, 15, 60, 300];
+
+/// How long to wait before the next background sync after `failures` in a row (0 is the first failure).
+pub fn backoff(failures: usize) -> std::time::Duration {
+    std::time::Duration::from_secs(BACKOFF_SECS[failures.min(BACKOFF_SECS.len() - 1)])
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum SyncError {
     /// This device has no remote.

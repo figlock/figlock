@@ -20,7 +20,7 @@ pub const ZERO_PREV: [u8; 32] = [0; 32];
 /// One record's container is at most this many bytes; a longer length prefix is treated as damage.
 const MAX_RECORD_BYTES: usize = 64 * 1024;
 
-pub const AUDIT_EVENTS: [&str; 10] = [
+pub const AUDIT_EVENTS: [&str; 11] = [
     "broker.start",
     "broker.lock",
     "conn.refused",
@@ -31,6 +31,7 @@ pub const AUDIT_EVENTS: [&str; 10] = [
     "grant.expired",
     "use.allowed",
     "use.refused",
+    "sync.failed",
 ];
 
 const MODES: [&str; 3] = ["http", "run", "reveal"];
