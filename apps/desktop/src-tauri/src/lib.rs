@@ -12,6 +12,7 @@ use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::health::{HealthReport, PwnedPasswords, RangeSource};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
 use desk::pairing::{InviteView, PairingStatus};
+use desk::recovery::RecoveryMaterial;
 use desk::sync::SyncView;
 use desk::{CmdError, CmdRes, CreatedVault, Desk, Storage, VaultState};
 use tauri::{AppHandle, Emitter, State};
@@ -72,6 +73,83 @@ async fn save_emergency_kit(app: AppHandle, desk: State<'_, Desk>) -> CmdRes<boo
         ))
     })?;
     Ok(true)
+}
+
+/// Make a new Recovery Key to show: a single code, or `count` cards of which `threshold` open the vault.
+#[tauri::command]
+async fn recovery_prepare(
+    desk: State<'_, Desk>,
+    shares: bool,
+    threshold: u8,
+    count: u8,
+) -> CmdRes<RecoveryMaterial> {
+    desk.recovery_prepare(shares, threshold, count)
+}
+
+/// The forced check that the Recovery Key shown is readable.
+#[tauri::command]
+async fn recovery_check(desk: State<'_, Desk>, answers: Vec<String>) -> CmdRes<bool> {
+    desk.recovery_check(&answers)
+}
+
+/// Ask where to save the Recovery Key pages and write them there. `false` when the person cancels.
+#[tauri::command]
+async fn save_recovery_kit(app: AppHandle, desk: State<'_, Desk>) -> CmdRes<bool> {
+    let pdf = desk.recovery_kit()?;
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_file_name("FigLock Recovery Key.pdf")
+        .add_filter("PDF", &["pdf"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(false);
+    };
+    std::fs::write(path, &*pdf).map_err(|_| {
+        CmdError::from(figlock_session::Fail::new(
+            "Could not save the Recovery Key there.",
+        ))
+    })?;
+    Ok(true)
+}
+
+#[tauri::command]
+async fn recovery_cancel(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.recovery_cancel();
+    Ok(())
+}
+
+/// Setup: no Recovery Key, with the acknowledgement that a forgotten password cannot be recovered.
+#[tauri::command]
+async fn recovery_skip(desk: State<'_, Desk>, acknowledged: bool) -> CmdRes<()> {
+    desk.recovery_skip(acknowledged)
+}
+
+/// Setup: use the confirmed Recovery Key; it is written with the vault.
+#[tauri::command]
+async fn recovery_use_draft(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.recovery_use_draft()
+}
+
+/// Settings: write the confirmed Recovery Key into the vault.
+#[tauri::command]
+async fn recovery_enable(
+    desk: State<'_, Desk>,
+    password: String,
+    secret_key: Option<String>,
+) -> CmdRes<()> {
+    desk.recovery_enable(&password, secret_key.as_deref())
+}
+
+/// Settings: turn the Recovery Key off.
+#[tauri::command]
+async fn recovery_disable(
+    desk: State<'_, Desk>,
+    password: String,
+    secret_key: Option<String>,
+) -> CmdRes<()> {
+    desk.recovery_disable(&password, secret_key.as_deref())
 }
 
 #[tauri::command]
@@ -518,6 +596,14 @@ pub fn run() {
             create_vault,
             save_emergency_kit,
             check_kit_key,
+            recovery_prepare,
+            recovery_check,
+            save_recovery_kit,
+            recovery_cancel,
+            recovery_skip,
+            recovery_use_draft,
+            recovery_enable,
+            recovery_disable,
             finish_create,
             cancel_create,
             open_existing,

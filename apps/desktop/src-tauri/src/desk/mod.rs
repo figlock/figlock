@@ -64,6 +64,8 @@ pub struct VaultState {
     /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
     pub secret_key_protection: Option<&'static str>,
     pub autolock_secs: u64,
+    /// The vault has a Recovery Key (`vault.json` carries `rk_pub`). Only while unlocked.
+    pub recovery_enabled: bool,
     /// The new Secret Key of a rotation whose Emergency Kit step is not finished. Only while unlocked: the
     /// window shows that step again until the key is confirmed.
     pub pending_kit: Option<String>,
@@ -85,6 +87,8 @@ struct Creating {
     device_name: String,
     /// The person typed the end of the Secret Key back correctly, so it was seen and saved.
     key_confirmed: bool,
+    /// The required choice about a Recovery Key (FIG-103).
+    recovery: recovery::Choice,
 }
 
 /// A Secret Key made by a rotation, held until the person has saved the new Emergency Kit.
@@ -105,6 +109,8 @@ struct Inner {
     creating: Option<Creating>,
     reissued: Option<Reissued>,
     joining: Option<join::Join>,
+    /// A Recovery Key that was made and shown, until it is confirmed and written or dropped.
+    recovery: Option<recovery::Draft>,
     /// The invite this device has open for a new device to join with, until it is used, expires or is cancelled.
     inviting: Option<pairing::Inviting>,
     /// A save happened since the last sync tick, so the next tick syncs soon instead of waiting its turn.
@@ -130,6 +136,7 @@ impl Inner {
         }
         self.session = None;
         self.inviting = None;
+        self.recovery = None;
         self.cache = None;
         self.staged.clear();
     }
@@ -224,10 +231,10 @@ fn parse_secret_key(text: &str) -> CmdRes<SecretKey> {
 }
 
 /// The Emergency Kit PDF for `key`, naming where the vault is stored.
-fn kit_pdf(place: &Place, key: &SecretKey) -> CmdRes<Zeroizing<Vec<u8>>> {
-    let storage = match place.remote {
+/// What a printed kit says about where the vault is stored, not where on this disk: a long path would not fit.
+fn kit_storage(place: &Place) -> String {
+    match place.remote {
         Some(Remote::Drive) => "Google Drive".to_owned(),
-        // The kit says what the vault is stored in, not where on this disk: a long path would not fit.
         None => {
             let name = place
                 .local
@@ -235,7 +242,11 @@ fn kit_pdf(place: &Place, key: &SecretKey) -> CmdRes<Zeroizing<Vec<u8>>> {
                 .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
             format!("Folder {}", name.chars().take(60).collect::<String>())
         }
-    };
+    }
+}
+
+fn kit_pdf(place: &Place, key: &SecretKey) -> CmdRes<Zeroizing<Vec<u8>>> {
+    let storage = kit_storage(place);
     let info = KitInfo {
         vault_name: "Personal",
         storage: &storage,
@@ -292,6 +303,7 @@ impl Desk {
                 creating: None,
                 reissued: None,
                 joining: None,
+                recovery: None,
                 inviting: None,
                 dirty: false,
                 active_at: now,
@@ -310,7 +322,7 @@ impl Desk {
 
     pub fn state(&self) -> CmdRes<VaultState> {
         let initialised = config::is_initialised()?;
-        let (unlocked, pending_kit) = {
+        let (unlocked, pending_kit, recovery_enabled) = {
             let mut inner = self.inner();
             if !initialised {
                 inner.reissued = None;
@@ -321,7 +333,11 @@ impl Desk {
                 .as_ref()
                 .filter(|_| unlocked)
                 .map(|r| r.key.format().to_string());
-            (unlocked, pending)
+            let recovery = inner
+                .session
+                .as_ref()
+                .is_some_and(|s| s.vault.has_recovery());
+            (unlocked, pending, recovery)
         };
         let phase = match (initialised, unlocked) {
             (false, _) => "none",
@@ -354,6 +370,7 @@ impl Desk {
             secret_key_kept,
             secret_key_protection,
             autolock_secs: self.autolock.as_secs(),
+            recovery_enabled,
             pending_kit,
         })
     }
@@ -420,6 +437,7 @@ impl Desk {
             place,
             device_name,
             key_confirmed: false,
+            recovery: recovery::Choice::Undecided,
         });
         Ok(CreatedVault { secret_key })
     }
@@ -450,7 +468,9 @@ impl Desk {
     }
 
     pub fn cancel_create(&self) {
-        self.inner().creating = None;
+        let mut inner = self.inner();
+        inner.creating = None;
+        inner.recovery = None;
     }
 
     /// Write the vault to storage, remember this device and unlock.
@@ -468,8 +488,27 @@ impl Desk {
                 "Confirm your Secret Key before the vault is created.",
             ));
         }
-        let c = inner.creating.take().ok_or_else(nothing_to_do)?;
+        let mut c = inner.creating.take().ok_or_else(nothing_to_do)?;
+        let draft = inner.recovery.take();
         drop(inner);
+        // The required choice about a Recovery Key (FIG-103): add the confirmed one to the first `vault.json`.
+        let vault_json = match Self::apply_recovery_at_create(
+            draft,
+            c.recovery,
+            &mut c.vault,
+            &c.password,
+            &c.created.secret_key,
+        ) {
+            Ok(json) => json,
+            Err(e) => {
+                // Nothing was written: give the setup back so the person can choose and try again.
+                self.inner().creating = Some(c);
+                return Err(e);
+            }
+        };
+        if let Some(json) = vault_json {
+            c.created.vault_json = json;
+        }
         let store = figlock_session::store::open(&c.place)?;
         let cfg = Config {
             place: c.place.clone(),
@@ -788,6 +827,7 @@ pub mod generate;
 pub mod health;
 pub mod items;
 pub mod pairing;
+pub mod recovery;
 pub mod secret_key;
 pub mod sync;
 
@@ -801,5 +841,7 @@ mod health_tests;
 mod item_tests;
 #[cfg(test)]
 mod pairing_tests;
+#[cfg(test)]
+mod recovery_tests;
 #[cfg(test)]
 mod tests;

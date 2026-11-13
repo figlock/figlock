@@ -32,6 +32,7 @@ mod qr;
 mod quick_se;
 mod reader;
 mod recovery;
+mod recovery_kit;
 mod schema;
 mod search;
 mod secret;
@@ -81,6 +82,7 @@ pub use reader::{
     LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
 pub use recovery::RecoveryKey;
+pub use recovery_kit::{RECOVERY_KIT_VERSION, RecoveryCards, render_recovery_kit};
 pub use schema::{
     ItemType, MAX_FIELDS_PER_ITEM, MAX_FILES_PER_ITEM, MAX_VALUE_BYTES, is_secret_field,
     max_value_bytes, validate_field,

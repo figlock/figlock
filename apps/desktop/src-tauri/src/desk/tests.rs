@@ -138,6 +138,7 @@ fn create_lock_and_unlock_inner() {
     );
     assert!(!d.emergency_kit().unwrap().is_empty());
 
+    d.recovery_skip(true).unwrap();
     assert_eq!(d.finish_create(false).unwrap().phase, "unlocked");
     assert!(
         std::path::Path::new(&vault_dir())
@@ -213,6 +214,7 @@ fn open_existing_inner() {
         d.check_kit_key(&groups[groups.len() - 2..].join("-"))
             .unwrap()
     );
+    d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
     d.lock();
     config::forget();
@@ -396,6 +398,7 @@ fn sync_off_inner() {
         d.check_kit_key(&groups[groups.len() - 2..].join("-"))
             .unwrap()
     );
+    d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
 
     let v = d.sync_status().unwrap();
@@ -442,6 +445,7 @@ fn sync_failing_inner() {
     let groups: Vec<&str> = key.split('-').collect();
     d.check_kit_key(&groups[groups.len() - 2..].join("-"))
         .unwrap();
+    d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
     // A device with sync on and no working sign-in, as after the sign-in was revoked.
     config::set_remote(Some(Remote::Drive)).unwrap();
@@ -474,6 +478,7 @@ fn sync_pull_inner() {
     let groups: Vec<&str> = key.split('-').collect();
     d.check_kit_key(&groups[groups.len() - 2..].join("-"))
         .unwrap();
+    d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
     assert!(d.list_items("").unwrap().is_empty());
 
@@ -539,6 +544,7 @@ fn sync_needs_unlock_inner() {
     let groups: Vec<&str> = key.split('-').collect();
     d.check_kit_key(&groups[groups.len() - 2..].join("-"))
         .unwrap();
+    d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
     config::set_remote(Some(Remote::Drive)).unwrap();
 

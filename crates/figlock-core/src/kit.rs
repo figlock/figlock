@@ -22,10 +22,10 @@ pub const KIT_VERSION: &str = "FL-KIT-1";
 
 const MAX_LABEL_CHARS: usize = 80;
 
-const PAGE_W: f32 = 595.0;
-const PAGE_H: f32 = 842.0;
-const MARGIN: f32 = 56.0;
-const QR_MODULE: f32 = 4.0;
+pub(crate) const PAGE_W: f32 = 595.0;
+pub(crate) const PAGE_H: f32 = 842.0;
+pub(crate) const MARGIN: f32 = 56.0;
+pub(crate) const QR_MODULE: f32 = 4.0;
 
 /// What the kit says about the vault it belongs to, so the user knows what it opens.
 #[derive(Debug, Clone, Copy)]
@@ -38,7 +38,7 @@ pub struct KitInfo<'a> {
     pub created: &'a str,
 }
 
-fn valid_date(s: &str) -> bool {
+pub(crate) fn valid_date(s: &str) -> bool {
     let b = s.as_bytes();
     b.len() == 10
         && b.iter().enumerate().all(|(i, c)| {
@@ -66,19 +66,19 @@ fn pdf_text(s: &str) -> Zeroizing<String> {
     out
 }
 
-fn label(s: &str) -> Result<String> {
+pub(crate) fn label(s: &str) -> Result<String> {
     if s.is_empty() || s.chars().count() > MAX_LABEL_CHARS {
         return Err(Error);
     }
     Ok(s.to_owned())
 }
 
-struct Page {
-    ops: Zeroizing<String>,
+pub(crate) struct Page {
+    pub(crate) ops: Zeroizing<String>,
 }
 
 impl Page {
-    fn text(&mut self, font: &str, size: f32, x: f32, y: f32, text: &str) {
+    pub(crate) fn text(&mut self, font: &str, size: f32, x: f32, y: f32, text: &str) {
         let _ = writeln!(
             self.ops,
             "BT /{font} {size:.1} Tf {x:.2} {y:.2} Td ({}) Tj ET",
@@ -86,11 +86,11 @@ impl Page {
         );
     }
 
-    fn rule(&mut self, x1: f32, x2: f32, y: f32) {
+    pub(crate) fn rule(&mut self, x1: f32, x2: f32, y: f32) {
         let _ = writeln!(self.ops, "0.5 w {x1:.2} {y:.2} m {x2:.2} {y:.2} l S");
     }
 
-    fn rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
+    pub(crate) fn rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let _ = writeln!(self.ops, "{x:.2} {y:.2} {w:.2} {h:.2} re f");
     }
 }
@@ -221,46 +221,77 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
     Ok(assemble(&p.ops))
 }
 
-/// Wrap a content stream in a minimal PDF 1.4 document.
+/// Wrap one content stream in a minimal PDF 1.4 document.
 fn assemble(content: &str) -> Zeroizing<Vec<u8>> {
-    let fixed = |body: &str| body.to_string();
-    let head = [
-        fixed("<< /Type /Catalog /Pages 2 0 R >>"),
-        fixed("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-        format!(
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.0} {PAGE_H:.0}] /Contents 4 0 R \
-             /Resources << /Font << /F1 5 0 R /F2 6 0 R /F3 7 0 R >> >> >>"
-        ),
-    ];
-    let fonts = [
-        fixed("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),
-        fixed(
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-        ),
-        fixed(
-            "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
-        ),
-    ];
-    let count = head.len() + 1 + fonts.len();
+    assemble_pages(&[content])
+}
 
-    let mut out = Zeroizing::new(Vec::with_capacity(content.len() + 4096));
+/// Wrap one content stream per page in a minimal PDF 1.4 document, with Helvetica (`F1`), Helvetica-Bold (`F2`)
+/// and Courier-Bold (`F3`).
+pub(crate) fn assemble_pages(pages: &[&str]) -> Zeroizing<Vec<u8>> {
+    const FONTS: [&str; 3] = [
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold /Encoding /WinAnsiEncoding >>",
+    ];
+    // Objects: 1 catalog, 2 pages, 3 to 5 fonts, then a page and its content stream for each page.
+    let first_page = 6;
+    let kids: Vec<String> = (0..pages.len())
+        .map(|i| format!("{} 0 R", first_page + 2 * i))
+        .collect();
+    let count = first_page - 1 + 2 * pages.len();
+
+    let mut out = Zeroizing::new(Vec::new());
     out.extend_from_slice(b"%PDF-1.4\n");
-    let mut offsets = Vec::with_capacity(count);
-    for (i, body) in head.iter().enumerate() {
-        offsets.push(out.len());
-        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    let mut offsets: Vec<(usize, usize)> = Vec::with_capacity(count);
+    fn object(out: &mut Vec<u8>, offsets: &mut Vec<(usize, usize)>, n: usize, body: &str) {
+        offsets.push((n, out.len()));
+        out.extend_from_slice(format!("{n} 0 obj\n{body}\nendobj\n").as_bytes());
     }
-    offsets.push(out.len());
-    out.extend_from_slice(format!("4 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes());
-    out.extend_from_slice(content.as_bytes());
-    out.extend_from_slice(b"endstream\nendobj\n");
-    for (i, body) in fonts.iter().enumerate() {
-        offsets.push(out.len());
-        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 5).as_bytes());
+    object(
+        &mut out,
+        &mut offsets,
+        1,
+        "<< /Type /Catalog /Pages 2 0 R >>",
+    );
+    object(
+        &mut out,
+        &mut offsets,
+        2,
+        &format!(
+            "<< /Type /Pages /Kids [{}] /Count {} >>",
+            kids.join(" "),
+            pages.len()
+        ),
+    );
+    for (i, body) in FONTS.iter().enumerate() {
+        object(&mut out, &mut offsets, 3 + i, body);
+    }
+    for (i, content) in pages.iter().enumerate() {
+        let (page, stream) = (first_page + 2 * i, first_page + 2 * i + 1);
+        object(
+            &mut out,
+            &mut offsets,
+            page,
+            &format!(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W:.0} {PAGE_H:.0}] /Contents {stream} 0 R \
+                 /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> >>"
+            ),
+        );
+        offsets.push((stream, out.len()));
+        out.extend_from_slice(
+            format!("{stream} 0 obj\n<< /Length {} >>\nstream\n", content.len()).as_bytes(),
+        );
+        out.extend_from_slice(content.as_bytes());
+        out.extend_from_slice(b"endstream\nendobj\n");
     }
     let xref = out.len();
     out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", count + 1).as_bytes());
-    for o in offsets {
+    for n in 1..=count {
+        let (_, o) = offsets
+            .iter()
+            .find(|(m, _)| *m == n)
+            .expect("every object is written");
         out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
     }
     out.extend_from_slice(

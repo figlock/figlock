@@ -101,6 +101,37 @@ fn common_hex(b: &[u8]) -> String {
 }
 
 #[test]
+fn a_key_made_earlier_is_set_only_when_asked() {
+    let (mut v, created) = new_vault();
+    let sk = sk_copy(&created.secret_key);
+    let key = RecoveryKey::random().unwrap();
+    // Wrong credentials change nothing, so a screen can show the key first and write it later.
+    assert!(v.set_recovery_with(&key, "nope", &sk).is_err());
+    assert!(!v.has_recovery());
+    let change = v.set_recovery_with(&key, pw(), &sk).unwrap();
+    assert!(change.key.is_none());
+    assert!(v.has_recovery());
+    assert_eq!(
+        json(&change.vault_json)["rk_pub"],
+        common_hex(&key.public())
+    );
+    let (_, out) = Vault::recover(
+        Recover {
+            vault_json: &change.vault_json,
+            recovery_key: &key,
+            new_password: NEW_PW,
+            rotate_recovery: false,
+        },
+        fresh_device(),
+        "Mac",
+        &[],
+        T0 + 1,
+    )
+    .unwrap();
+    assert!(unlock(&out.vault_json, NEW_PW, &out.secret_key).is_ok());
+}
+
+#[test]
 fn wrong_credentials_do_not_enable_it() {
     let (mut v, created) = new_vault();
     let sk = sk_copy(&created.secret_key);

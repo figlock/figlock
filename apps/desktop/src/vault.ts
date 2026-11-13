@@ -15,6 +15,8 @@ export type VaultState = {
   /** How the kept key is protected, when there is one. */
   secretKeyProtection: "secure-enclave" | "keychain" | null;
   autolockSecs: number;
+  /** The vault has a Recovery Key. Only while unlocked. */
+  recoveryEnabled: boolean;
   /** The new Secret Key of a rotation whose Emergency Kit step is not finished, while unlocked. */
   pendingKit: string | null;
 };
@@ -81,3 +83,33 @@ export const activity = () => invoke<void>("activity");
 
 /** Called when the vault locks by itself (idle, or the Mac woke from sleep). */
 export const onAutoLock = (handler: () => void) => listen("figlock://locked", handler);
+
+/** A new Recovery Key as shown once: one code, or cards of which `threshold` open the vault. */
+export type RecoveryMaterial = {
+  mode: "code" | "shares";
+  code: string | null;
+  /** The words of each card. */
+  cards: string[][];
+  threshold: number;
+  count: number;
+  /** For cards: which word (1-based) of each card the person types back. For a code, the last two groups. */
+  challenge: number[];
+};
+
+export const recoveryPrepare = (shares: boolean, threshold: number, count: number) =>
+  invoke<RecoveryMaterial>("recovery_prepare", { shares, threshold, count });
+/** Resolves `false` when what was typed does not match, so the key is not confirmed. */
+export const recoveryCheck = (answers: string[]) => invoke<boolean>("recovery_check", { answers });
+/** Resolves `false` when the person cancels the save dialog. */
+export const saveRecoveryKit = () => invoke<boolean>("save_recovery_kit");
+export const recoveryCancel = () => invoke<void>("recovery_cancel");
+/** Setup: no Recovery Key, acknowledging that a forgotten password cannot be recovered. */
+export const recoverySkip = (acknowledged: boolean) =>
+  invoke<void>("recovery_skip", { acknowledged });
+/** Setup: use the confirmed key; it is written with the vault. */
+export const recoveryUseDraft = () => invoke<void>("recovery_use_draft");
+/** Settings: write the confirmed key into the vault. A blank `secretKey` means the one this Mac keeps. */
+export const recoveryEnable = (password: string, secretKey: string) =>
+  invoke<void>("recovery_enable", { password, secretKey: secretKey || null });
+export const recoveryDisable = (password: string, secretKey: string) =>
+  invoke<void>("recovery_disable", { password, secretKey: secretKey || null });
