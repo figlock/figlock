@@ -17,6 +17,8 @@ export type Options = {
   sync?: Record<string, unknown>;
   health?: unknown;
   cli?: { state: string };
+  update?: { version: string; notes?: string };
+  updateUnavailable?: boolean;
 };
 
 export const GITHUB: Seed = {

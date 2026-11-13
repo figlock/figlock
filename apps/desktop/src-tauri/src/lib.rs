@@ -16,6 +16,7 @@ use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
 use desk::pairing::{InviteView, PairingStatus};
 use desk::recovery::RecoveryMaterial;
 use desk::sync::SyncView;
+use desk::update::UpdateView;
 use desk::{CmdError, CmdRes, CreatedVault, Desk, Storage, VaultState};
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_dialog::DialogExt;
@@ -471,6 +472,24 @@ async fn remove_cli_tool() -> CmdRes<CliToolView> {
     desk::cli_tool::remove_here()
 }
 
+/// Look for a newer version of the app. Needs no vault. A build without an update key answers `unavailable`.
+#[tauri::command]
+async fn update_check(app: AppHandle) -> CmdRes<UpdateView> {
+    desk::update::check(&app).await
+}
+
+/// Install the update the last check found, after the person asked for it. Needs no vault.
+#[tauri::command]
+async fn update_install(app: AppHandle) -> CmdRes<UpdateView> {
+    desk::update::install(&app).await
+}
+
+/// Start the app again so the installed update runs. The vault locks as the process ends.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
 /// A fresh password. Needs no vault, so it also works on the lock screen.
 #[tauri::command]
 async fn generate_password(spec: PasswordSpec) -> CmdRes<Generated> {
@@ -624,7 +643,14 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Desk::new())
+        .manage(desk::update::Pending::default())
         .setup(|app| {
+            // Only a build whose config has an update key and feed can update; the plugin cannot start without
+            // them, so a development build leaves it out and the update commands say so (FIG-112).
+            if desk::update::configured(app.handle()) {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
             let handle = app.handle().clone();
             // Locks on idle, and as the Mac wakes: a tick that arrives long after the last one means it slept.
             std::thread::spawn(move || {
@@ -697,6 +723,9 @@ pub fn run() {
             quick_unlock,
             lock,
             activity,
+            update_check,
+            update_install,
+            restart_app,
             cli_tool_status,
             install_cli_tool,
             remove_cli_tool,
