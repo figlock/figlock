@@ -14,3 +14,8 @@ numbers were removed; the words are otherwise unchanged.
 (https://github.com/satoshilabs/slips/blob/master/slip-0039/wordlist.txt), part of that specification.
 `docs/spec/vectors/slip39-official.json` is `vectors.json` from https://github.com/trezor/python-shamir-mnemonic
 at commit 9fcb9c807c185e06d6269b65f3d795d3c724da3b, unchanged. Copyright 2019 SatoshiLabs, MIT license.
+
+## zxcvbn
+
+The typed-password strength meter uses the `zxcvbn` crate (https://github.com/shssoichiro/zxcvbn-rs), a Rust
+port of Dropbox's zxcvbn, MIT license. It embeds frequency lists of common passwords, names and English words.
