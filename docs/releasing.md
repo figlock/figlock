@@ -27,10 +27,11 @@ The desktop app checks `https://figlock.com/update/latest.json` at launch and fr
 the person clicks. `site/_redirects` sends that URL to `latest.json` on the latest GitHub release and
 `/download/*` to the release's assets, so only that file knows where the release lives.
 
-- **The update key** is separate from the Apple certificate. Generate it once, on your machine:
+- **The update key** is separate from the Apple certificate. It is already generated and its public half is in the bundle
+  config; to rotate it (which strands installed apps, see ADR-0032), generate a new one on your machine:
   `cd apps/desktop && pnpm tauri signer generate -w ~/Documents/apple-creds/updater/figlock-updater.key`, set the secrets
   `TAURI_SIGNING_PRIVATE_KEY` (the key file) and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` in the `release`
-  environment, and put the public key (`.key.pub`) in `apps/desktop/src-tauri/tauri.bundle.conf.json` under
+  environment, and replace the public key (`.key.pub`) in `apps/desktop/src-tauri/tauri.bundle.conf.json` under
   `plugins.updater.pubkey`. Back the key and password up: without them no installed app can take another update.
 - **A release build must have the key and feed.** `scripts/check-update-config.sh` is the first check of the macOS
   workflow and fails it when `plugins.updater` is missing, the endpoint is not https, the key is malformed or
