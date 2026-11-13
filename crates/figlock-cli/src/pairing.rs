@@ -24,6 +24,9 @@ use crate::{DeviceAddArgs, JoinArgs, OpenArgs, WhereArgs, prompt, quick};
 /// How often to look for the other device's file.
 const POLL: Duration = Duration::from_secs(2);
 
+/// How many times `join` asks for the master password at a terminal before giving up.
+const MAX_PASSWORD_TRIES: u32 = 3;
+
 fn already_set_up() -> Fail {
     Fail::new("this device already has a vault set up")
 }
@@ -86,8 +89,7 @@ fn settle(
             "warning: the first sync with Google Drive failed: {e}. Run `figlock sync` to retry."
         );
     }
-    let vault = peek_vault_id()?;
-    offer_quick_unlock(choice(at), json, &vault, || -> Res<Key> { Ok(auk) });
+    offer_quick_unlock(choice(at), json, &vault_id, || -> Res<Key> { Ok(auk) });
     Ok(())
 }
 
@@ -112,8 +114,18 @@ pub fn join(a: JoinArgs, json: bool) -> Res<()> {
         }
         sleep(POLL);
     }
-    let password = prompt::password()?;
-    let (joined, cfg) = attempt.finish(&password, now_ms())?;
+    let mut tries = 1;
+    let (password, joined, cfg) = loop {
+        let password = prompt::password()?;
+        match attempt.finish(&password, now_ms()) {
+            Ok((joined, cfg)) => break (password, joined, cfg),
+            Err(e) if tries < MAX_PASSWORD_TRIES && prompt::can_retry_password() => {
+                eprintln!("{e}. Try again.");
+                tries += 1;
+            }
+            Err(e) => return Err(e),
+        }
+    };
     settle(
         &cfg,
         joined.vault.device_keys(),

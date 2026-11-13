@@ -34,6 +34,11 @@ pub fn password() -> Res<Zeroizing<String>> {
     hidden("Master password: ")
 }
 
+/// True when the master password is typed at a terminal, so a wrong one can be asked for again.
+pub fn can_retry_password() -> bool {
+    from_env("FIGLOCK_PASSWORD").is_none() && io::stdin().is_terminal()
+}
+
 /// A new master password, typed twice.
 pub fn new_password() -> Res<Zeroizing<String>> {
     if let Some(p) = from_env("FIGLOCK_PASSWORD") {
