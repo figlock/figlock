@@ -93,6 +93,21 @@ text  = "FL1-" + groups of 4 characters of base32(SK || check), joined by "-"
 Parsers accept lower case, ignore dashes and spaces, and map `I`, `L` to `1` and `O` to `0` (Crockford).
 A wrong check MUST be reported as "typo in Secret Key", not as a wrong password.
 
+### 4.2 Recovery Key format
+
+`RK` is a 32 byte X25519 private key (`pairing-recovery.md` 7). As a single code it is extended with a 3-byte
+check and written like the Secret Key, as Crockford base32 (56 characters, 14 groups of 4):
+
+```
+check = SHA-256("figlock/v1/rk-check" || rk_priv)[0..3]
+text  = "FLR1-" + groups of 4 characters of base32(rk_priv || check), joined by "-"
+```
+
+Parsers behave as for the Secret Key (4.1): lower case, dashes and spaces ignored, `I` and `L` read as `1` and `O`
+as `0` after the `FLR1` prefix is matched. A wrong check MUST be reported as "typo in Recovery Key". A Secret Key
+(`FL1-`) is never accepted as a Recovery Key. The same 32 bytes are what SLIP-0039 splits
+(`pairing-recovery.md` 7.2); a code and a set of shares are two ways to write down one `rk_priv`.
+
 ## 5. Key derivation
 
 Inputs: `pw`, `SK`, `vault_id`, `salt` (16 random bytes, public), Argon2 parameters `(m, t, p)` (public).
@@ -334,6 +349,32 @@ Two members are added to the signed body and are omitted while empty (epoch 1 va
 - Item keys are wrapped under `WK` with the epoch in the AAD. After a rotation a reader tries the current
   epoch first and then older epochs from the chain, so items created before the rotation still open.
   The snapshot written at the rotation carries every item key rewrapped under the new `WK`.
+
+### 9.3 Recovery Key members of `vault.json`
+
+When a Recovery Key is enabled the signed body has two more members, both present or both absent, and
+`min_format_version` is `2` instead of `1`, so a client that does not know them refuses the file instead of
+rewriting it without them (it would silently drop the Recovery Key). Without the members it stays `1`:
+
+```
+"rk_pub":        hex32   the X25519 public key of RK
+"wrapped_vk_rk": hex     seal_to(rk_pub, VK, aad("vk-wrap-rk", vault_id, u32(key_epoch)))
+```
+
+- Enabling, replacing or removing the Recovery Key writes a new `vault.json` (`revision` + 1) and nothing else.
+  Enabling or replacing needs the master password and Secret Key, like a credential change: `VK` is not kept in
+  memory, so it is opened from `wrapped_vk` and sealed to the new `rk_pub`. Removing needs neither. A new
+  `rk_pub` replaces the old one, so cards made for the old key stop working for the next `vault.json` and
+  onwards.
+- Every rotation of `VK` (9.1) rewraps `VK'` for `rk_pub` in the same write. Changing the password or the
+  Secret Key leaves both members unchanged, as `VK` does not change.
+- A reader refuses a file with only one of the two members, with the members and `min_format_version` 1, with
+  `min_format_version` 2 and no members, or with sizes that cannot hold the structures.
+  `rk_pub` is covered by the vault signature, so a storage attacker cannot swap in their own key.
+- Recovery (`pairing-recovery.md` 7.3): the holder of `rk_priv` opens `wrapped_vk_rk` to get `VK`, derives the
+  authority key and checks `authority_pub` and the signature exactly as an unlock does, then writes a new
+  `vault.json` with a fresh salt and a fresh Secret Key wrapped under the new `AUK` for the new master password,
+  and with the same or a new `RK`. An old copy of `vault.json` still opens with the old credentials.
 
 ## 10. Memory and implementation rules
 

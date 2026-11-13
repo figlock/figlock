@@ -80,6 +80,28 @@ fn secret_key() {
 }
 
 #[test]
+fn recovery_key() {
+    let cases = load("recovery-key.json");
+    assert!(cases.len() >= 6);
+    for c in cases {
+        let (i, e) = (&c["inputs"], &c["expected"]);
+        if is_reject(&c) {
+            assert_rejected(
+                fc::RecoveryKey::parse(i["text"].as_str().unwrap()),
+                name(&c),
+            );
+        } else if let Some(text) = e.get("text") {
+            let rk = fc::RecoveryKey::from_bytes(arr(&i["rk_priv"]));
+            assert_eq!(rk.format().as_str(), text.as_str().unwrap(), "{}", name(&c));
+        } else {
+            let rk = fc::RecoveryKey::parse(i["text"].as_str().unwrap()).unwrap();
+            let want = fc::RecoveryKey::from_bytes(arr(&e["rk_priv"]));
+            assert_eq!(rk.public(), want.public(), "{}", name(&c));
+        }
+    }
+}
+
+#[test]
 fn kdf() {
     for c in load("kdf.json") {
         let (i, e) = (&c["inputs"], &c["expected"]);

@@ -28,6 +28,7 @@ Vectors for every rule in `crypto.md`, `sync.md` and `pairing-recovery.md` (FIG-
 | `quick-unlock.json` | quick unlock blob, software-key variant and the Secure Enclave wrap (ECDH, HKDF, seal) |
 | `pairing.json` | invite code, keys, request, response, wrong code, swapped key |
 | `seal-to.json` | Recovery Key `seal_to`, rewrap needing only the public key |
+| `recovery-key.json` | `FLR1-` code encode, decode, confusables, check mismatch, wrong length, Secret Key refused |
 | `slip39.json` | 2-of-3 and 3-of-5 SLIP-0039 shares of a Recovery Key (generated once) |
 | `slip39-official.json` | the 45 official SLIP-0039 vectors, unchanged from upstream (ADR-0028); run by the Rust tests, not regenerated |
 | `hlc.json` | hybrid logical clock rules, overflow, drift hold |
