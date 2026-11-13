@@ -23,6 +23,16 @@ pub(super) struct Draft {
     confirmed: bool,
 }
 
+impl Draft {
+    pub(super) fn confirmed(&self) -> bool {
+        self.confirmed
+    }
+
+    pub(super) fn key(&self) -> &RecoveryKey {
+        &self.key
+    }
+}
+
 /// What setup chose: the first screen asks for one of these before a vault is created.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(super) enum Choice {
@@ -90,7 +100,8 @@ impl Desk {
         count: u8,
     ) -> CmdRes<RecoveryMaterial> {
         let mut inner = self.inner();
-        let setup_open = inner.creating.as_ref().is_some_and(|c| c.key_confirmed);
+        let setup_open =
+            inner.creating.as_ref().is_some_and(|c| c.key_confirmed) || inner.recovering.is_some();
         if !setup_open && inner.session.is_none() {
             return Err(locked());
         }
@@ -177,9 +188,10 @@ impl Desk {
     pub fn recovery_kit(&self) -> CmdRes<Zeroizing<Vec<u8>>> {
         let inner = self.inner();
         let draft = inner.recovery.as_ref().ok_or_else(nothing_to_do)?;
-        let place = match inner.creating.as_ref() {
-            Some(c) => c.place.clone(),
-            None => figlock_session::config::load()?.place,
+        let place = match (inner.creating.as_ref(), inner.recovering.as_ref()) {
+            (Some(c), _) => c.place.clone(),
+            (None, Some(r)) => r.place().clone(),
+            (None, None) => figlock_session::config::load()?.place,
         };
         let storage = kit_storage(&place);
         let info = KitInfo {

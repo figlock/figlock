@@ -47,6 +47,16 @@ pub struct Session {
     uncertain: bool,
 }
 
+/// What [`Session::preview`] found.
+pub struct Preview {
+    /// Live items (not deleted).
+    pub items: usize,
+    /// The newest change to any item, in milliseconds.
+    pub last_change_ms: Option<u64>,
+    /// Other devices that can still open the vault, not counting the one doing the preview.
+    pub devices: usize,
+}
+
 /// The vault name every item is added under, until a device holds more than one vault.
 pub const VAULT_NAME: &str = "personal";
 
@@ -386,6 +396,44 @@ impl Session {
         }
         self.store.put_replace("vault.json", &r.vault_json)?;
         Ok(())
+    }
+
+    /// What an opened vault holds, read with its op files applied and nothing changed: for showing a person
+    /// what a Recovery Key found before they commit to anything. `vault` is not saved or kept anywhere.
+    pub fn preview(vault: Vault, place: &config::Place) -> Res<Preview> {
+        struct Silent;
+        impl Ui for Silent {
+            fn password(&self) -> Res<Zeroizing<String>> {
+                Err(Fail::new("no password here"))
+            }
+            fn secret_key(&self) -> Res<SecretKey> {
+                Err(Fail::new("no Secret Key here"))
+            }
+            fn notice(&self, _: &str) {}
+            fn warn(&self, _: &str) {}
+        }
+        let mut session = Session {
+            vault,
+            store: crate::store::open(place)?,
+            ui: Box::new(Silent),
+            uncertain: false,
+        };
+        session.load_log(now_ms())?;
+        let items = session.items(false);
+        Ok(Preview {
+            items: items.len(),
+            last_change_ms: items.iter().map(|i| i.updated.wall).max(),
+            // The device the preview made up for itself is not one the vault had.
+            devices: {
+                let me = *session.vault.device_id();
+                session
+                    .vault
+                    .devices()
+                    .iter()
+                    .filter(|d| d.revoked_at.is_none() && d.device_id != me)
+                    .count()
+            },
+        })
     }
 
     /// `vault.json` as stored, for checking typed credentials against it.

@@ -111,6 +111,8 @@ struct Inner {
     joining: Option<join::Join>,
     /// A Recovery Key that was made and shown, until it is confirmed and written or dropped.
     recovery: Option<recovery::Draft>,
+    /// A Recovery Key that opened a vault on this fresh install, until the new credentials are stored.
+    recovering: Option<forgot::Recovering>,
     /// The invite this device has open for a new device to join with, until it is used, expires or is cancelled.
     inviting: Option<pairing::Inviting>,
     /// A save happened since the last sync tick, so the next tick syncs soon instead of waiting its turn.
@@ -137,6 +139,7 @@ impl Inner {
         self.session = None;
         self.inviting = None;
         self.recovery = None;
+        self.recovering = None;
         self.cache = None;
         self.staged.clear();
     }
@@ -304,6 +307,7 @@ impl Desk {
                 reissued: None,
                 joining: None,
                 recovery: None,
+                recovering: None,
                 inviting: None,
                 dirty: false,
                 active_at: now,
@@ -449,6 +453,10 @@ impl Desk {
         if let Some(c) = inner.creating.as_ref() {
             return kit_pdf(&c.place, &c.created.secret_key);
         }
+        if let Some(r) = inner.recovering.as_ref() {
+            let p = r.prepared().ok_or_else(nothing_to_do)?;
+            return kit_pdf(r.place(), p.secret_key());
+        }
         let r = inner.reissued.as_ref().ok_or_else(nothing_to_do)?;
         kit_pdf(&config::load()?.place, &r.key)
     }
@@ -459,6 +467,11 @@ impl Desk {
         if let Some(c) = inner.creating.as_mut() {
             let ok = verify_kit_groups(&c.created.secret_key, typed);
             c.key_confirmed |= ok;
+            return Ok(ok);
+        }
+        if let Some(p) = inner.recovering.as_mut().and_then(|r| r.prepared_mut()) {
+            let ok = verify_kit_groups(p.secret_key(), typed);
+            p.key_confirmed |= ok;
             return Ok(ok);
         }
         let r = inner.reissued.as_mut().ok_or_else(nothing_to_do)?;
@@ -823,6 +836,7 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
 pub mod credentials;
 pub mod devices;
 pub mod drive;
+pub mod forgot;
 pub mod generate;
 pub mod health;
 pub mod items;
@@ -835,6 +849,8 @@ pub mod sync;
 mod credential_tests;
 #[cfg(test)]
 mod device_tests;
+#[cfg(test)]
+mod forgot_tests;
 #[cfg(test)]
 mod health_tests;
 #[cfg(test)]

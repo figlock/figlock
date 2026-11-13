@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
 
   import Create from "./Create.svelte";
+  import Forgot from "./Forgot.svelte";
   import NewKitDialog from "./NewKitDialog.svelte";
   import Join from "./Join.svelte";
   import OpenExisting from "./OpenExisting.svelte";
@@ -13,7 +14,7 @@
   let vault = $state<VaultState | null>(null);
   let failed = $state(false);
   let notice = $state("");
-  let view = $state<"welcome" | "create" | "open" | "join">("welcome");
+  let view = $state<"welcome" | "create" | "open" | "join" | "forgot">("welcome");
 
   const refresh = () =>
     vaultState().then(
@@ -88,6 +89,8 @@
   />
 {:else if view === "join"}
   <Join touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
+{:else if view === "forgot"}
+  <Forgot touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
 {:else}
   <Welcome onpick={(v) => (view = v)} />
 {/if}

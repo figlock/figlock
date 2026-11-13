@@ -3,7 +3,7 @@
 
   import Shell from "./Shell.svelte";
 
-  type Props = { onpick: (view: "create" | "open" | "join") => void };
+  type Props = { onpick: (view: "create" | "open" | "join" | "forgot") => void };
   let { onpick }: Props = $props();
 </script>
 
@@ -15,6 +15,15 @@
     <Button variant="primary" block onclick={() => onpick("create")}>Create a vault</Button>
     <Button block onclick={() => onpick("open")}>Open an existing vault</Button>
     <Button block onclick={() => onpick("join")}>Add this Mac with an invite code</Button>
+  </div>
+  <div class="text-center">
+    <button
+      type="button"
+      onclick={() => onpick("forgot")}
+      class="text-(length:--text-sm) text-primary underline-offset-2 hover:underline"
+    >
+      I forgot my password
+    </button>
   </div>
   <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
     FigLock has no account and no server. Your vault is one encrypted folder that only your master

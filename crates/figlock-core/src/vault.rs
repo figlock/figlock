@@ -210,19 +210,18 @@ pub struct RecoveryChange {
 pub struct Recovered {
     pub vault_json: Vec<u8>,
     pub secret_key: SecretKey,
-    /// A new Recovery Key when it was rotated in the same write.
-    pub recovery_key: Option<RecoveryKey>,
     /// This device's own record, if it had none (a fresh install).
     pub new_record: Option<Vec<u8>>,
 }
 
 /// What [`Vault::recover`] is given besides this device: the stored `vault.json`, the Recovery Key and the new
-/// master password. With `rotate_recovery` a new Recovery Key is made in the same write.
+/// master password. With `new_recovery_key` the vault is sealed to that key instead, in the same write, so the
+/// cards just used stop working; the caller made it earlier so the person could save it first.
 pub struct Recover<'a> {
     pub vault_json: &'a [u8],
     pub recovery_key: &'a RecoveryKey,
     pub new_password: &'a str,
-    pub rotate_recovery: bool,
+    pub new_recovery_key: Option<&'a RecoveryKey>,
 }
 
 /// A local write that has not been committed: the register it replaced, and the stamp it wrote.
@@ -1125,6 +1124,15 @@ impl Vault {
         })
     }
 
+    /// Whether a stored `vault.json` has a Recovery Key, read without any key. For telling a person that the vault
+    /// they pointed at has none, before they type anything. A file that is not a valid `vault.json` is an error.
+    pub fn recovery_in(vault_json: &[u8]) -> Result<bool> {
+        let (body, _) = split_signature(vault_json)?;
+        Ok(Header::parse(body.as_object().ok_or(Error)?)?
+            .recovery
+            .is_some())
+    }
+
     /// Whether a Recovery Key is enabled (`vault.json` carries `rk_pub`).
     pub fn has_recovery(&self) -> bool {
         self.recovery.is_some()
@@ -1219,7 +1227,7 @@ impl Vault {
     /// Use the Recovery Key after the master password is lost (`pairing-recovery.md` 7.3). Opens the Vault Key
     /// from `wrapped_vk_rk`, checks it exactly as an unlock does (authority key derived from it, signature),
     /// then writes a new `vault.json` in one go: a fresh salt and a fresh Secret Key wrapped under the new
-    /// master password, with a new Recovery Key when `rotate_recovery` is set. Every wrong key, a vault without
+    /// master password, with a new Recovery Key when one is given. Every wrong key, a vault without
     /// a Recovery Key and a tampered `vault.json` are the one generic error.
     ///
     /// Other devices are not revoked: whoever held the old credentials can still open an old copy of
@@ -1235,7 +1243,7 @@ impl Vault {
             vault_json,
             recovery_key,
             new_password,
-            rotate_recovery,
+            new_recovery_key,
         } = request;
         let (body, _) = split_signature(vault_json)?;
         let h = Header::parse(body.as_object().ok_or(Error)?)?;
@@ -1265,16 +1273,15 @@ impl Vault {
             vault.epoch,
             &vault.params.bytes_with_salt(&salt),
         )?;
-        let (recovery, new_key) = if rotate_recovery {
-            let key = RecoveryKey::random()?;
-            let rk_pub = key.public();
-            let wrap = RecoveryWrap {
-                rk_pub,
-                wrapped: wrap_vk_for_recovery(&rk_pub, &vk, &vault.vault_id, vault.epoch)?,
-            };
-            (wrap, Some(key))
-        } else {
-            (wrap, None)
+        let recovery = match new_recovery_key {
+            Some(key) => {
+                let rk_pub = key.public();
+                RecoveryWrap {
+                    rk_pub,
+                    wrapped: wrap_vk_for_recovery(&rk_pub, &vk, &vault.vault_id, vault.epoch)?,
+                }
+            }
+            None => wrap,
         };
         let revision = vault.revision + 1;
         let mut body = vault_json_body_with(
@@ -1301,7 +1308,6 @@ impl Vault {
             Recovered {
                 vault_json: new_vault_json,
                 secret_key,
-                recovery_key: new_key,
                 new_record,
             },
         ))

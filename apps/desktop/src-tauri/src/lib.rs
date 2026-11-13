@@ -8,6 +8,7 @@ use std::time::Duration;
 use desk::credentials::Changed;
 use desk::devices::DeviceRow;
 use desk::drive::{DriveView, SignedOut};
+use desk::forgot::{CardInfo, Found, NewCredentials};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::health::{HealthReport, PwnedPasswords, RangeSource};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
@@ -150,6 +151,47 @@ async fn recovery_disable(
     secret_key: Option<String>,
 ) -> CmdRes<()> {
     desk.recovery_disable(&password, secret_key.as_deref())
+}
+
+/// What one Recovery Key card says: how many cards are needed, and this card's number.
+#[tauri::command]
+async fn forgot_card_info(text: String) -> CmdRes<CardInfo> {
+    Desk::forgot_card_info(&text)
+}
+
+/// "I forgot my password": open the vault in `storage` with a Recovery Key (the code, or the cards) and say
+/// what was found. Stores nothing.
+#[tauri::command]
+async fn forgot_find(
+    desk: State<'_, Desk>,
+    storage: Storage,
+    answers: Vec<String>,
+    shares: bool,
+) -> CmdRes<Found> {
+    desk.forgot_find(&storage, &answers, shares)
+}
+
+/// Choose the new master password; makes the new Secret Key (in memory) for a new Emergency Kit. With
+/// `new_recovery_key` the confirmed new Recovery Key replaces the one just used.
+#[tauri::command]
+async fn forgot_prepare(
+    desk: State<'_, Desk>,
+    new_password: String,
+    new_recovery_key: bool,
+) -> CmdRes<NewCredentials> {
+    desk.forgot_prepare(&new_password, new_recovery_key)
+}
+
+/// Store the new credentials and unlock. Needs the new Emergency Kit confirmed first.
+#[tauri::command]
+async fn forgot_commit(desk: State<'_, Desk>, touch_id: bool) -> CmdRes<VaultState> {
+    desk.forgot_commit(touch_id)
+}
+
+#[tauri::command]
+async fn forgot_cancel(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.forgot_cancel();
+    Ok(())
 }
 
 #[tauri::command]
@@ -596,6 +638,11 @@ pub fn run() {
             create_vault,
             save_emergency_kit,
             check_kit_key,
+            forgot_card_info,
+            forgot_find,
+            forgot_prepare,
+            forgot_commit,
+            forgot_cancel,
             recovery_prepare,
             recovery_check,
             save_recovery_kit,

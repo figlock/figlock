@@ -56,14 +56,14 @@ fn setup() -> Setup {
 fn recover(
     s: &Setup,
     rk: &RecoveryKey,
-    rotate: bool,
+    new_key: Option<&RecoveryKey>,
 ) -> figlock_core::Result<(Vault, figlock_core::Recovered)> {
     Vault::recover(
         Recover {
             vault_json: &s.vault_json,
             recovery_key: rk,
             new_password: NEW_PW,
-            rotate_recovery: rotate,
+            new_recovery_key: new_key,
         },
         fresh_device(),
         "Reinstalled Mac",
@@ -120,7 +120,7 @@ fn a_key_made_earlier_is_set_only_when_asked() {
             vault_json: &change.vault_json,
             recovery_key: &key,
             new_password: NEW_PW,
-            rotate_recovery: false,
+            new_recovery_key: None,
         },
         fresh_device(),
         "Mac",
@@ -151,9 +151,13 @@ fn the_code_recovers_the_vault_with_a_new_password_and_secret_key() {
 
     let code = s.rk.format().to_string();
     let typed = RecoveryKey::parse(&code.to_lowercase()).unwrap();
-    let (mut r, out) = recover(&s, &typed, false).unwrap();
+    let (mut r, out) = recover(&s, &typed, None).unwrap();
     assert_eq!(r.vault_id(), s.vault.vault_id());
-    assert!(out.recovery_key.is_none());
+    // The same Recovery Key stays in place when no new one is given.
+    assert_eq!(
+        json(&out.vault_json)["rk_pub"],
+        json(&s.vault_json)["rk_pub"]
+    );
     assert!(out.new_record.is_some(), "a fresh install gets its record");
 
     // The old files still open under the recovered keys.
@@ -181,7 +185,7 @@ fn shares_recover_it_too() {
     let s = setup();
     let shares = s.rk.split(2, 3).unwrap();
     let back = RecoveryKey::from_shares(&[&shares[0], &shares[2]]).unwrap();
-    let (_, out) = recover(&s, &back, false).unwrap();
+    let (_, out) = recover(&s, &back, None).unwrap();
     assert!(unlock(&out.vault_json, NEW_PW, &out.secret_key).is_ok());
     assert!(RecoveryKey::from_shares(&[&shares[1]]).is_err());
 }
@@ -189,7 +193,7 @@ fn shares_recover_it_too() {
 #[test]
 fn a_wrong_key_and_a_vault_without_one_recover_nothing() {
     let s = setup();
-    assert!(recover(&s, &RecoveryKey::random().unwrap(), false).is_err());
+    assert!(recover(&s, &RecoveryKey::random().unwrap(), None).is_err());
 
     // A vault that never had a Recovery Key.
     let (_, created) = new_vault();
@@ -198,7 +202,7 @@ fn a_wrong_key_and_a_vault_without_one_recover_nothing() {
             vault_json: &created.vault_json,
             recovery_key: &s.rk,
             new_password: NEW_PW,
-            rotate_recovery: false,
+            new_recovery_key: None,
         },
         fresh_device(),
         "Mac",
@@ -211,8 +215,9 @@ fn a_wrong_key_and_a_vault_without_one_recover_nothing() {
 #[test]
 fn rotating_the_recovery_key_in_the_same_write_retires_the_old_one() {
     let s = setup();
-    let (_, out) = recover(&s, &s.rk, true).unwrap();
-    let fresh = out.recovery_key.as_ref().expect("a new key was made");
+    let fresh = RecoveryKey::random().unwrap();
+    let (_, out) = recover(&s, &s.rk, Some(&fresh)).unwrap();
+    let fresh = &fresh;
     assert_ne!(fresh.public(), s.rk.public());
     assert_eq!(json(&out.vault_json)["rk_pub"], common_hex(&fresh.public()));
 
@@ -222,7 +227,7 @@ fn rotating_the_recovery_key_in_the_same_write_retires_the_old_one() {
                 vault_json: &out.vault_json,
                 recovery_key: rk,
                 new_password: "yet-another-generated-passphrase",
-                rotate_recovery: false,
+                new_recovery_key: None,
             },
             fresh_device(),
             "Mac",
@@ -243,8 +248,8 @@ fn replacing_and_removing_the_key() {
     s.vault_json = replaced.vault_json;
     assert_eq!(json(&s.vault_json)["revision"], 3);
     assert_ne!(new.public(), old.public());
-    assert!(recover(&s, &new, false).is_ok());
-    assert!(recover(&s, &old, false).is_err());
+    assert!(recover(&s, &new, None).is_ok());
+    assert!(recover(&s, &old, None).is_err());
 
     let removed = s.vault.clear_recovery().unwrap();
     assert!(removed.key.is_none());
@@ -255,7 +260,7 @@ fn replacing_and_removing_the_key() {
     assert!(!s.vault.has_recovery());
     assert!(s.vault.clear_recovery().is_err());
     s.vault_json = removed.vault_json;
-    assert!(recover(&s, &new, false).is_err());
+    assert!(recover(&s, &new, None).is_err());
     assert!(unlock(&s.vault_json, pw(), &s.sk).is_ok());
 }
 
@@ -278,7 +283,7 @@ fn a_password_change_keeps_the_recovery_key_working() {
     let v = json(&s.vault_json);
     assert_eq!(v["min_format_version"], 2);
     assert!(v.get("rk_pub").is_some());
-    assert!(recover(&s, &s.rk, false).is_ok());
+    assert!(recover(&s, &s.rk, None).is_ok());
 }
 
 #[test]
@@ -309,7 +314,7 @@ fn a_revocation_rewraps_the_new_vault_key_for_the_same_recovery_key() {
             vault_json: &rev.vault_json,
             recovery_key: &key,
             new_password: NEW_PW,
-            rotate_recovery: false,
+            new_recovery_key: None,
         },
         fresh_device(),
         "Mac",
