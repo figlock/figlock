@@ -113,3 +113,19 @@ export const recoveryEnable = (password: string, secretKey: string) =>
   invoke<void>("recovery_enable", { password, secretKey: secretKey || null });
 export const recoveryDisable = (password: string, secretKey: string) =>
   invoke<void>("recovery_disable", { password, secretKey: secretKey || null });
+
+/** What one Recovery Key card says: how many cards open the vault, and this card's number. */
+export type CardInfo = { needed: number; number: number };
+/** What a Recovery Key opened, shown before anything is changed. */
+export type Found = { name: string; items: number; lastChangeMs: number | null; devices: number };
+
+export const forgotCardInfo = (text: string) => invoke<CardInfo>("forgot_card_info", { text });
+/** Opens the vault in `storage` with the code (`shares` false, one answer) or the cards. Stores nothing. */
+export const forgotFind = (storage: Storage, answers: string[], shares: boolean) =>
+  invoke<Found>("forgot_find", { storage, answers, shares });
+/** Chooses the new master password and makes the new Secret Key, to be saved in a new Emergency Kit. */
+export const forgotPrepare = (newPassword: string, newRecoveryKey: boolean) =>
+  invoke<{ secretKey: string }>("forgot_prepare", { newPassword, newRecoveryKey });
+/** Stores the new credentials and unlocks. Needs the new Emergency Kit confirmed first. */
+export const forgotCommit = (touchId: boolean) => invoke<VaultState>("forgot_commit", { touchId });
+export const forgotCancel = () => invoke<void>("forgot_cancel");

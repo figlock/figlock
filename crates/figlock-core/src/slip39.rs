@@ -458,6 +458,27 @@ fn random_identifier() -> Result<u16> {
     Ok(u16::from_be_bytes(b) & ((1 << ID_LENGTH_BITS) - 1))
 }
 
+/// What one card says about its set, so a screen can tell the person how many more to enter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShareInfo {
+    /// Cards of this card's group needed to recover.
+    pub member_threshold: u8,
+    /// Groups needed. FigLock makes one group; cards from other tools may have more.
+    pub group_threshold: u8,
+    /// This card's number within its group, from 1.
+    pub number: u8,
+}
+
+/// Read the metadata of one mnemonic. The words are checked (list, checksum, padding) but nothing is recovered.
+pub fn info(mnemonic: &str) -> Result<ShareInfo> {
+    let s = Share::parse(mnemonic)?;
+    Ok(ShareInfo {
+        member_threshold: s.member_threshold,
+        group_threshold: s.group_threshold,
+        number: s.index + 1,
+    })
+}
+
 /// Split `master_secret` (16 to 32 bytes in steps of two) into `groups` of `(member_threshold, member_count)`,
 /// of which `group_threshold` are needed. Returns the mnemonics of each group.
 pub fn generate(

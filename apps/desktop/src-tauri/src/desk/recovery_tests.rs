@@ -52,7 +52,7 @@ fn recover_with(key: &RecoveryKey, new_password: &str) -> figlock_core::Result<(
             vault_json: &stored_vault_json(),
             recovery_key: key,
             new_password,
-            rotate_recovery: false,
+            new_recovery_key: None,
         },
         DeviceKeys::generate()?,
         "Reinstalled",
