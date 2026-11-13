@@ -10,7 +10,10 @@
   /** How long a shown key stays on screen. */
   const SHOWN_MS = 30_000;
 
-  let info = $state<Pick<VaultState, "secretKeyKept" | "secretKeyProtection"> | null>(null);
+  let info = $state<Pick<
+    VaultState,
+    "secretKeyKept" | "secretKeyProtection" | "secretKeyHeld" | "quickUnlock" | "touchAvailable"
+  > | null>(null);
   let shown = $state("");
   let busy = $state(false);
   let error = $state("");
@@ -21,6 +24,17 @@
     info?.secretKeyProtection === "secure-enclave"
       ? "in this Mac's Secure Enclave"
       : "in this Mac's keychain",
+  );
+
+  /** Why this Mac does not keep the key: no secure store, Touch ID off, or the person stopped it (ADR-0027). */
+  const notKeptWhy = $derived(
+    info === null || info.secretKeyKept
+      ? ""
+      : !info.touchAvailable
+        ? "This Mac has no secure place to keep it."
+        : info.quickUnlock
+          ? "You stopped keeping it here."
+          : "Touch ID is off, and the key is only kept with it.",
   );
 
   async function load() {
@@ -84,8 +98,9 @@
           </p>
         {:else}
           <p class="font-medium">Not kept on this Mac</p>
-          <p class="text-(length:--text-sm) text-text-secondary">
-            You type it from your Emergency Kit when you unlock. It is kept again after that.
+          <p class="text-(length:--text-sm) text-text-secondary" data-testid="key-why">
+            {notKeptWhy} You type it from your Emergency Kit each time you unlock.
+            {#if info.secretKeyHeld}This window holds it until you lock.{/if}
           </p>
         {/if}
       </div>

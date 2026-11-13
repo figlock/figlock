@@ -35,6 +35,7 @@ vi.mock("./vault", () => ({
 import Workspace from "./Workspace.svelte";
 
 const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
+const notKept = { secretKeyKept: false, secretKeyProtection: null, touchAvailable: true };
 const kept = { secretKeyKept: true, secretKeyProtection: "secure-enclave" };
 
 beforeEach(() => {
@@ -105,7 +106,7 @@ test("a shown key hides itself after 30 seconds", async () => {
 });
 
 test("stopping the key being kept asks first, then says the key is typed from now on", async () => {
-  core.forgetSecretKey.mockResolvedValue({ secretKeyKept: false, secretKeyProtection: null });
+  core.forgetSecretKey.mockResolvedValue({ ...notKept, quickUnlock: true, secretKeyHeld: true });
   const user = await toSettings();
   await user.click(await screen.findByRole("button", { name: "Stop keeping it on this Mac" }));
   expect(core.forgetSecretKey).not.toHaveBeenCalled();
@@ -115,8 +116,37 @@ test("stopping the key being kept asks first, then says the key is typed from no
 });
 
 test("a Mac that keeps no key offers no way to show one", async () => {
-  core.vaultState.mockResolvedValue({ secretKeyKept: false, secretKeyProtection: null });
+  core.vaultState.mockResolvedValue({ ...notKept, quickUnlock: false });
   await toSettings();
   expect(await screen.findByText("Not kept on this Mac")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Show Secret Key" })).toBeNull();
+});
+
+test("with Touch ID off the copy says why, and that the session holds the key until lock", async () => {
+  core.vaultState.mockResolvedValue({ ...notKept, quickUnlock: false, secretKeyHeld: true });
+  await toSettings();
+  const text = (await screen.findByTestId("key-why")).textContent ?? "";
+  expect(text).toContain("Touch ID is off");
+  expect(text).toContain("each time you unlock");
+  expect(text).toContain("holds it until you lock");
+  expect(text).not.toContain("kept again");
+});
+
+test("a Mac with no secure store says so, and holds nothing it does not hold", async () => {
+  core.vaultState.mockResolvedValue({
+    ...notKept,
+    touchAvailable: false,
+    quickUnlock: false,
+    secretKeyHeld: false,
+  });
+  await toSettings();
+  const text = (await screen.findByTestId("key-why")).textContent ?? "";
+  expect(text).toContain("no secure place");
+  expect(text).not.toContain("holds it");
+});
+
+test("after stopping the key being kept, the copy says the person did", async () => {
+  core.vaultState.mockResolvedValue({ ...notKept, quickUnlock: true, secretKeyHeld: true });
+  await toSettings();
+  expect((await screen.findByTestId("key-why")).textContent).toContain("You stopped keeping it");
 });
