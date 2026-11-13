@@ -7,6 +7,8 @@ pub mod docfile;
 pub mod drive;
 pub mod error;
 pub mod join;
+#[cfg(target_os = "macos")]
+mod keychain;
 pub mod keystore;
 pub mod quick;
 pub mod quick_se;

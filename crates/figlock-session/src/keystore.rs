@@ -44,9 +44,9 @@ const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 #[cfg(target_os = "macos")]
 impl SecretStore for Keychain {
     fn put(&self, account: &str, secret: &[u8]) -> Res<()> {
-        security_framework::passwords::set_generic_password(SERVICE, account, secret).map_err(
-            |_| crate::error::Fail::new("could not save the device keys in the macOS keychain"),
-        )
+        crate::keychain::put(SERVICE, account, secret).map_err(|_| {
+            crate::error::Fail::new("could not save the device keys in the macOS keychain")
+        })
     }
 
     fn get(&self, account: &str) -> Res<Option<Zeroizing<Vec<u8>>>> {
