@@ -2027,17 +2027,47 @@ mod tests {
                 "kdf": {"m_kib": 1, "t": 1, "p": 1, "salt": hexs(&[0u8; 16])},
                 "vault_id": hexs(&[1u8; 16]),
                 "key_epoch": 1,
+                "revision": 1,
+                "wrapped_vk": hexs(&[0u8; 8]),
             }) else {
                 unreachable!()
             };
-            Header::parse(&o)
+            Header::parse(&o).map(|_| ())
         };
         let wrap = wrap_vk_for_recovery(&[7u8; 32], &vk, &[1u8; 16], 1).unwrap();
+        assert!(header(&wrap).is_ok());
         assert!(header(&wrap[..wrap.len() - 1]).is_err());
         assert!(header(&[]).is_err());
         let mut long = wrap.clone();
         long.push(0);
         assert!(header(&long).is_err());
+    }
+
+    #[test]
+    fn a_signed_vault_json_with_a_truncated_recovery_wrap_does_not_unlock() {
+        let (mut a, c) = Vault::create(pw(), "A", KdfParams::FLOOR, T0).unwrap();
+        let sk = SecretKey::parse(&c.secret_key.format()).unwrap();
+        let change = a.set_recovery(pw(), &sk).unwrap();
+        let unlock = |json: &[u8]| {
+            Vault::unlock(
+                json,
+                pw(),
+                &sk,
+                DeviceKeys::generate().unwrap(),
+                "B",
+                &[c.device_record.clone()],
+                T0 + 1,
+            )
+            .map(|_| ())
+        };
+        assert!(unlock(&change.vault_json).is_ok());
+        for keep in [0, WRAPPED_VK_RK_LEN - 1] {
+            let (mut body, _) = split_signature(&change.vault_json).unwrap();
+            let wrap = body["wrapped_vk_rk"].as_str().unwrap()[..keep * 2].to_owned();
+            body["wrapped_vk_rk"] = Json::String(wrap);
+            let sig = sign_json(&a.keys.authority_seed, "vault-json", &body).unwrap();
+            assert!(unlock(&with_signature(body, sig).unwrap()).is_err());
+        }
     }
 
     fn pw() -> &'static str {
