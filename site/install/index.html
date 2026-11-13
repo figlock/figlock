@@ -146,6 +146,15 @@
         <pre class="code code--cmd"><code>figlock drive login</code></pre>
         <pre class="code code--cmd"><code>figlock init --drive</code></pre>
 
+        <h2 id="second-device">Add a second device</h2>
+        <p>Install FigLock on the new device, then pair it with one that already has your vault. Start on the device that has the vault:</p>
+        <pre class="code code--cmd"><code>figlock device add</code></pre>
+        <p>It shows an invite code and waits. On the new device, run <code>join</code> with that code and point it at the same vault: the synced folder, or <code>--drive</code> for a vault in Google Drive.</p>
+        <pre class="code code--cmd"><code>figlock join CODE --store ~/Documents/figlock-vault</code></pre>
+        <p>The new device shows a fingerprint. Check that the same fingerprint appears on the first device, then approve it there. The new device then asks for your master password. You don't need to type your Secret Key, because the approval carries it. The code works once and expires after 10 minutes. If it is never approved, nothing is added.</p>
+        <p>If no device that has the vault is at hand, use your Emergency Kit instead. This asks for your master password and Secret Key:</p>
+        <pre class="code code--cmd"><code>figlock open --store ~/Documents/figlock-vault</code></pre>
+
         <h2 id="platforms">What runs where</h2>
         <div class="table-wrap">
           <table class="table">
