@@ -84,7 +84,9 @@ fn join_inner() {
     assert_eq!(d.add_device_status().unwrap(), status);
     let before = d.devices().unwrap().len();
 
-    // Approval needs the credentials on a device that keeps no key, and a wrong pair changes nothing.
+    // Approval needs the credentials on a device that keeps no key and whose session holds none (ADR-0030;
+    // the create that unlocked it held one), and a wrong pair changes nothing.
+    d.inner().held_key = None;
     assert_eq!(
         code_of(d.add_device_approve(None, None).unwrap_err()),
         "needs_secret_key"

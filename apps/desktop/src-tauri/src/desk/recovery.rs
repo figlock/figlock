@@ -8,7 +8,7 @@ use figlock_session::session::now_ms;
 use serde::Serialize;
 use zeroize::Zeroizing;
 
-use super::devices::{credentials_key, revoke_credentials_error};
+use super::devices::revoke_credentials_error;
 use super::{
     CmdError, CmdRes, Desk, kit_storage, nothing_to_do, parse_secret_key, wrong_credentials,
 };
@@ -295,7 +295,7 @@ impl Desk {
                 ));
             }
         }
-        let (sk, typed) = credentials_key(secret_key, "set up the Recovery Key")?;
+        let (sk, typed) = self.credentials_key(secret_key, "set up the Recovery Key")?;
         self.run_sync(false);
         let mut guard = self.inner();
         let inner = &mut *guard;
@@ -331,7 +331,7 @@ impl Desk {
         };
         let (sk, typed) = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
             Some(text) => (parse_secret_key(text)?, true),
-            None => credentials_key(None, "turn off the Recovery Key")?,
+            None => self.credentials_key(None, "turn off the Recovery Key")?,
         };
         // Removing the key needs no credentials of the vault, so prove them here: this is a downgrade.
         Vault::unlock_key(&vault_json, password, &sk)

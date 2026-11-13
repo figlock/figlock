@@ -18,7 +18,8 @@
     try {
       const s = await vaultState();
       enabled = s.recoveryEnabled;
-      keyKept = s.secretKeyKept;
+      // Kept by this Mac or held by this session (ADR-0030): no typed key either way.
+      keyKept = s.secretKeyKept || s.secretKeyHeld;
     } catch (e) {
       const err = errorOf(e);
       if (err.code === "locked") w.relock();

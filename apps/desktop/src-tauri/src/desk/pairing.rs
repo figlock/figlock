@@ -8,7 +8,7 @@ use figlock_session::session::now_ms as wall_ms;
 use figlock_session::{config, sync};
 use serde::Serialize;
 
-use super::devices::{DeviceRow, credentials_key};
+use super::devices::DeviceRow;
 use super::sync::Kind;
 use super::{CmdError, CmdRes, Desk, parse_secret_key, wrong_credentials};
 
@@ -206,7 +206,7 @@ impl Desk {
                 opened.map_err(|_| wrong_credentials())?;
                 key
             }
-            None => credentials_key(None, "add a device").map(|(k, _)| k)?,
+            None => self.credentials_key(None, "add a device").map(|(k, _)| k)?,
         };
         let mut guard = self.inner();
         let inner = &mut *guard;

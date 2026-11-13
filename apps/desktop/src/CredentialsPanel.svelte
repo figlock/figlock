@@ -19,7 +19,9 @@
   async function start(mode: "password" | "key") {
     done = "";
     try {
-      keyKept = (await vaultState()).secretKeyKept;
+      const s = await vaultState();
+      // Kept by this Mac or held by this session (ADR-0030): no typed key either way.
+      keyKept = s.secretKeyKept || s.secretKeyHeld;
     } catch {
       keyKept = false;
     }

@@ -3,12 +3,12 @@
 //! again instead of trusting an open session. A rotation keeps the new key here until the person has saved the
 //! new Emergency Kit; other devices find out at their next unlock (`settings_changed`) and ask for the new key.
 
-use figlock_core::{CredentialChange, Vault};
+use figlock_core::{CredentialChange, SecretKey, Vault};
 use figlock_session::session::now_ms;
 use figlock_session::{quick, secret_key_store};
 use serde::Serialize;
 
-use super::devices::{credentials_key, revoke_credentials_error};
+use super::devices::revoke_credentials_error;
 use super::{CmdError, CmdRes, Desk, MIN_PASSWORD_CHARS, Reissued};
 
 /// What a credential change hands back to the window.
@@ -47,7 +47,7 @@ impl Desk {
                 "Use at least 8 characters for the new master password.",
             ));
         }
-        let (secret_key, typed) = credentials_key(secret_key, "change your credentials")?;
+        let (secret_key, typed) = self.credentials_key(secret_key, "change your credentials")?;
         let vault_id = figlock_session::session::peek_vault_id()?;
         let touch_was_on = quick::system().is_ok_and(|q| q.status(&vault_id).0);
         // Other devices may have changed the vault since the last sync; rewrapping from a stale view would
@@ -102,6 +102,8 @@ impl Desk {
             {
                 let _ = keys.forget(&vault_id);
             }
+            // The session holds the new key too: the old one opens nothing, and the person just got the new kit.
+            inner.held_key = Some(SecretKey::from_bytes(*key.expose()));
             inner.reissued = Some(Reissued {
                 key,
                 confirmed: false,

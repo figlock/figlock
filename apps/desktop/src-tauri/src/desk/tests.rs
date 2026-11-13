@@ -260,6 +260,10 @@ fn open_existing_inner() {
             .phase,
         "unlocked"
     );
+    // The key typed to open the vault is held for this session (ADR-0030), and gone when it locks.
+    assert!(d.state().unwrap().secret_key_held);
+    d.lock();
+    assert!(!d.state().unwrap().secret_key_held);
 }
 
 #[test]

@@ -16,13 +16,15 @@
   type Props = {
     /** This Mac keeps the Secret Key, so Touch ID approves. Otherwise the password and key are typed. */
     keyKept: boolean;
+    /** The session holds the key and nothing prompts for it, so there is no Touch ID step (ADR-0030). */
+    keyHeld?: boolean;
     /** The vault locked or another device changed it: the dialog has nothing left to do. */
     onerror: (code: string, message: string) => void;
     /** The new device was approved; `devices` is the refreshed list. */
     onadded: (devices: Device[], name: string) => void;
     onclose: () => void;
   };
-  let { keyKept, onerror, onadded, onclose }: Props = $props();
+  let { keyKept, keyHeld = false, onerror, onadded, onclose }: Props = $props();
 
   /** The new device is asked about every 3 seconds, as the pairing spec says. */
   const POLL_MS = 3000;
@@ -182,6 +184,10 @@
             focus
           />
           <SecretKeyField bind:value={secretKey} error={fieldError.key} disabled={busy} />
+        {:else if keyHeld}
+          <p class="text-text-secondary">
+            Approving sends your Secret Key to the new device. It still needs your master password.
+          </p>
         {:else}
           <p class="text-text-secondary">
             Approving asks for Touch ID, then sends your Secret Key to the new device. It still
@@ -191,7 +197,7 @@
         <div class="grid grid-cols-2 gap-2">
           <Button onclick={decline} disabled={busy}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={busy}>
-            {busy ? "Approving..." : askKey ? "Approve" : "Approve with Touch ID"}
+            {busy ? "Approving..." : askKey || keyHeld ? "Approve" : "Approve with Touch ID"}
           </Button>
         </div>
       </form>
