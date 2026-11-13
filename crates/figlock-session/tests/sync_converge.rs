@@ -501,9 +501,9 @@ proptest! {
         prop_assert_eq!(files(&w.devices[0].local), local.clone());
 
         // The person confirms. Everything local goes up, stale copies of compacted files included: that is
-        // what a re-upload means, so they are no longer "compacted away".
+        // what a re-upload means, so those are no longer "compacted away".
         w.devices[0].synced = false;
-        w.compacted.clear();
+        w.compacted.retain(|p| !local.contains_key(p));
         w.sync(0, None).unwrap();
         prop_assert_eq!(files(&w.remote), local);
         w.settle();
@@ -547,4 +547,22 @@ fn a_fork_is_reported_to_the_device_that_meets_it() {
     w.sync(0, None).unwrap();
     let r = w.sync(1, None).unwrap();
     assert_eq!(r.warnings, vec![Warning::VaultJsonFork]);
+}
+
+/// A stale copy of a compacted file on a device that never pushes it is not a divergence, and a confirmed
+/// re-upload from another device leaves it alone.
+#[test]
+fn a_stale_copy_survives_a_confirmed_reupload_without_resurrecting() {
+    let mut w = World::new(3);
+    w.apply(&Action::Op(0));
+    w.apply(&Action::Sync(2, None));
+    w.apply(&Action::Sync(1, None));
+    w.apply(&Action::Compact(0, 0));
+    for e in w.remote.list("").unwrap() {
+        w.remote.delete(&e.path).unwrap();
+    }
+    w.devices[0].synced = false;
+    w.sync(0, None).unwrap();
+    w.settle();
+    w.assert_converged();
 }
