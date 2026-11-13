@@ -5,6 +5,7 @@ mod desk;
 
 use std::time::Duration;
 
+use desk::cli_tool::CliToolView;
 use desk::credentials::Changed;
 use desk::devices::DeviceRow;
 use desk::drive::{DriveView, SignedOut};
@@ -453,6 +454,23 @@ async fn activity(desk: State<'_, Desk>) -> CmdRes<()> {
     Ok(())
 }
 
+/// Whether the command line tool inside this app is linked onto the person's PATH. Needs no vault.
+#[tauri::command]
+async fn cli_tool_status() -> CmdRes<CliToolView> {
+    desk::cli_tool::status()
+}
+
+/// Link the bundled command line tool at `~/.local/bin/figlock`. Only ever runs when the person asks.
+#[tauri::command]
+async fn install_cli_tool() -> CmdRes<CliToolView> {
+    desk::cli_tool::install_here()
+}
+
+#[tauri::command]
+async fn remove_cli_tool() -> CmdRes<CliToolView> {
+    desk::cli_tool::remove_here()
+}
+
 /// A fresh password. Needs no vault, so it also works on the lock screen.
 #[tauri::command]
 async fn generate_password(spec: PasswordSpec) -> CmdRes<Generated> {
@@ -679,6 +697,9 @@ pub fn run() {
             quick_unlock,
             lock,
             activity,
+            cli_tool_status,
+            install_cli_tool,
+            remove_cli_tool,
             generate_password,
             generate_passphrase,
             password_strength,

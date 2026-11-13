@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Alert, Button, ConfirmDialog, Icon } from "@figlock/ui";
 
+  import CommandLinePanel from "./CommandLinePanel.svelte";
   import CredentialsPanel from "./CredentialsPanel.svelte";
   import Devices from "./Devices.svelte";
   import RecoveryPanel from "./RecoveryPanel.svelte";
@@ -147,6 +148,8 @@
   </section>
 
   <SecretKeyPanel />
+
+  <CommandLinePanel />
 
   <CredentialsPanel />
 
