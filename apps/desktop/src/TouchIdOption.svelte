@@ -8,7 +8,8 @@
   <span>
     Unlock this Mac with Touch ID
     <span class="block text-(length:--text-xs) text-text-tertiary">
-      You still need your master password and Secret Key after a restart.
+      This Mac then keeps your Secret Key, so you unlock with your master password alone. Without it
+      you type the Secret Key each time.
     </span>
   </span>
 </label>
