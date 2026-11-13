@@ -8,9 +8,9 @@ use figlock_session::session::now_ms as wall_ms;
 use figlock_session::{config, sync};
 use serde::Serialize;
 
-use super::devices::DeviceRow;
+use super::devices::{DeviceRow, revoke_credentials_error};
 use super::sync::Kind;
-use super::{CmdError, CmdRes, Desk, parse_secret_key, wrong_credentials};
+use super::{CmdError, CmdRes, Desk, KeyFrom, parse_secret_key};
 
 /// An open invite, and the request that arrived for it. Not `Debug`: it holds the invite secret.
 pub(super) struct Inviting {
@@ -190,11 +190,11 @@ impl Desk {
             .as_ref()
             .map(|k| SecretKey::from_bytes(*k.expose()));
         let checked = match typed {
-            Some(text) => Some(parse_secret_key(text)?),
-            None => held,
+            Some(text) => Some((parse_secret_key(text)?, KeyFrom::Typed)),
+            None => held.map(|k| (k, KeyFrom::Held)),
         };
         let key: SecretKey = match checked {
-            Some(key) => {
+            Some((key, from)) => {
                 let vault_json = {
                     let inner = self.inner();
                     inner.session.as_ref().ok_or_else(locked)?.vault_json()?
@@ -212,7 +212,7 @@ impl Desk {
                             now_ms(),
                         )
                     });
-                opened.map_err(|_| wrong_credentials())?;
+                opened.map_err(|_| revoke_credentials_error(from))?;
                 key
             }
             None => self.credentials_key(None, "add a device").map(|(k, _)| k)?,

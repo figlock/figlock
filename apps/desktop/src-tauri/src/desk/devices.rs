@@ -7,7 +7,7 @@ use figlock_session::session::now_ms;
 use figlock_session::{quick, secret_key_store};
 use serde::Serialize;
 
-use super::{CmdError, CmdRes, Desk, parse_secret_key, wrong_credentials};
+use super::{CmdError, CmdRes, Desk, KeyFrom, parse_secret_key, wrong_credentials, wrong_password};
 
 /// One row of the device list.
 #[derive(Serialize, Debug, PartialEq, Eq)]
@@ -37,32 +37,33 @@ fn row(d: &DeviceInfo, this: &DeviceId) -> DeviceRow {
     }
 }
 
-/// Credentials that did not open the vault for a revocation. A kept key that fails cannot be told apart from a
-/// wrong password, so the window is asked to show the key field; a typed key that fails is a plain mismatch.
-pub(super) fn revoke_credentials_error(key_was_typed: bool) -> CmdError {
-    if key_was_typed {
-        wrong_credentials()
-    } else {
-        CmdError::new(
+/// Credentials that did not open the vault for a step that rewraps the vault key. A kept key that fails cannot
+/// be told apart from a wrong password, so the window is asked to show the key field; a typed key that fails is
+/// a plain mismatch of the pair; a held key was never asked for, so only the password is blamed.
+pub(super) fn revoke_credentials_error(from: KeyFrom) -> CmdError {
+    match from {
+        KeyFrom::Typed => wrong_credentials(),
+        KeyFrom::Held => wrong_password(),
+        KeyFrom::Kept => CmdError::new(
             "needs_secret_key",
             "The kept Secret Key or the password did not open the vault. If the password is right, the Secret Key was changed: type the new one from your Emergency Kit.",
-        )
+        ),
     }
 }
 
 impl Desk {
     /// The Secret Key for a step that rewraps the vault key, in the order of ADR-0030: typed in the window,
     /// held by this unlocked session, or the one this device keeps (after Touch ID). The flag says the key
-    /// came from the person or the session, so a failure is a plain mismatch rather than a stale kept key.
-    /// The window asks for the key only when none of the three exists.
+    /// came from, which decides how a failure reads. The window asks for the key only when none of the three
+    /// exists.
     pub(super) fn credentials_key(
         &self,
         typed: Option<&str>,
         why: &str,
-    ) -> CmdRes<(SecretKey, bool)> {
+    ) -> CmdRes<(SecretKey, KeyFrom)> {
         let typed = typed.map(str::trim).filter(|k| !k.is_empty());
         if let Some(text) = typed {
-            return Ok((parse_secret_key(text)?, true));
+            return Ok((parse_secret_key(text)?, KeyFrom::Typed));
         }
         if let Some(held) = self
             .inner()
@@ -70,7 +71,7 @@ impl Desk {
             .as_ref()
             .map(|k| SecretKey::from_bytes(*k.expose()))
         {
-            return Ok((held, true));
+            return Ok((held, KeyFrom::Held));
         }
         let vault = figlock_session::session::peek_vault_id()?;
         let key = secret_key_store::system()?
@@ -81,7 +82,7 @@ impl Desk {
                     "Type your Secret Key from your Emergency Kit to continue.",
                 )
             })?;
-        Ok((key, false))
+        Ok((key, KeyFrom::Kept))
     }
 }
 
@@ -112,7 +113,7 @@ impl Desk {
         secret_key: Option<&str>,
         new_password: Option<&str>,
     ) -> CmdRes<Vec<DeviceRow>> {
-        let (secret_key, typed) = self.credentials_key(secret_key, "revoke a device")?;
+        let (secret_key, from) = self.credentials_key(secret_key, "revoke a device")?;
         let target: DeviceId = hex::decode(device)
             .ok()
             .and_then(|b| b.try_into().ok())
@@ -171,7 +172,7 @@ impl Desk {
                 .vault
                 .revoke_device(password, &secret_key, &target, now),
         }
-        .map_err(|_| revoke_credentials_error(typed))?;
+        .map_err(|_| revoke_credentials_error(from))?;
         if session.write_revocation(&revocation).is_err() {
             // Part of the revocation may be stored and this vault already moved on: lock, so the next unlock
             // reads what is really there, and let the person look at the list again.

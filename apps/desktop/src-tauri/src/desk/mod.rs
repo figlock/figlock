@@ -233,6 +233,26 @@ fn what_to_type() -> &'static str {
     }
 }
 
+/// Where the Secret Key for a step that rewraps the vault key came from, which decides what a failed step
+/// means and what the window should ask (ADR-0030).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum KeyFrom {
+    /// The person typed it: a failure is a mismatch of the pair they typed.
+    Typed,
+    /// This unlocked session holds it and the person was never asked for it: a failure is the master
+    /// password, and the message must not blame a key nobody was asked for.
+    Held,
+    /// This device keeps it (Touch ID released it): a failure cannot be told from a stale key, so ask for it.
+    Kept,
+}
+
+fn wrong_password() -> CmdError {
+    CmdError::new(
+        "wrong_credentials",
+        "That master password does not match this vault. Check it and try again.",
+    )
+}
+
 fn wrong_credentials() -> CmdError {
     CmdError::new(
         "wrong_credentials",
