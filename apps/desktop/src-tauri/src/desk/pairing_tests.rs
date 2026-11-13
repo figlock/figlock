@@ -21,6 +21,7 @@ fn unlocked(d: &Desk) -> (String, String) {
         d.check_kit_key(&groups[groups.len() - 2..].join("-"))
             .unwrap()
     );
+    d.recovery_skip(true).unwrap();
     assert_eq!(d.finish_create(false).unwrap().phase, "unlocked");
     (pw, key)
 }
