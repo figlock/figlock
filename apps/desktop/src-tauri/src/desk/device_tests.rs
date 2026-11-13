@@ -211,7 +211,7 @@ fn a_failed_step_reads_by_where_the_key_came_from() {
     assert_eq!(code_of(typed), "wrong_credentials");
     // A held key was never asked for, so only the password is blamed.
     let held = super::devices::revoke_credentials_error(KeyFrom::Held);
-    assert!(!held.message.contains("Secret Key"), "{}", held.message);
+    assert!(!held.message.contains("Secret Key"));
     assert_eq!(code_of(held), "wrong_credentials");
 }
 
