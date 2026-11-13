@@ -9,6 +9,7 @@ use desk::credentials::Changed;
 use desk::devices::DeviceRow;
 use desk::drive::{DriveView, SignedOut};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
+use desk::health::{HealthReport, PwnedPasswords, RangeSource};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
 use desk::sync::SyncView;
 use desk::{CmdError, CmdRes, CreatedVault, Desk, Storage, VaultState};
@@ -320,6 +321,14 @@ async fn password_strength(value: String) -> StrengthView {
     desk::generate::strength(&value)
 }
 
+/// Weak, reused and old passwords, and with `check_breaches` also the ones in known breaches. That check sends
+/// only the first 5 hex characters of each password's SHA-1 to the breach service.
+#[tauri::command]
+async fn health_report(desk: State<'_, Desk>, check_breaches: bool) -> CmdRes<HealthReport> {
+    let source = PwnedPasswords::new();
+    desk.health_report(check_breaches.then_some(&source as &dyn RangeSource))
+}
+
 #[tauri::command]
 async fn list_items(desk: State<'_, Desk>, query: String) -> CmdRes<Vec<ItemSummary>> {
     desk.list_items(&query)
@@ -497,6 +506,7 @@ pub fn run() {
             generate_password,
             generate_passphrase,
             password_strength,
+            health_report,
             list_items,
             list_deleted,
             item_detail,

@@ -234,7 +234,7 @@ test("a new login is validated, saved with schema field ids, and shown", async (
 
   await user.type(screen.getByLabelText(/^Title/), "Linear");
   await user.type(screen.getByLabelText("Username"), "mira@example.test");
-  await user.type(screen.getByLabelText(/^Password/), password);
+  await user.type(screen.getByLabelText(/^Password(?! health)/), password);
   await user.type(screen.getByLabelText("Website 1"), "linear.app");
   await user.type(screen.getByLabelText("Tags"), "tracker,");
   core.state.detail.new1 = { ...core.state.detail.a1, id: "new1", fields: { title: "Linear" } };
@@ -422,7 +422,9 @@ test("the item editor generates a password inline and saves the one it used", as
   await user.click(screen.getByRole("button", { name: "Generate a password" }));
   await user.click(await screen.findByRole("button", { name: "Use this password" }));
   expect(screen.queryByTestId("generator")).toBeNull();
-  expect((screen.getByLabelText(/^Password/) as HTMLInputElement).value).toBe("Gen-erated-pass-1");
+  expect((screen.getByLabelText(/^Password(?! health)/) as HTMLInputElement).value).toBe(
+    "Gen-erated-pass-1",
+  );
   expect(await screen.findByText("Fair")).toBeTruthy();
 
   await user.type(screen.getByLabelText(/^Title/), "Linear");

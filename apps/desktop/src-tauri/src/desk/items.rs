@@ -21,7 +21,7 @@ use super::{CmdError, CmdRes, Desk, Inner};
 /// The most items one search or list returns.
 const LIST_LIMIT: usize = 10_000;
 
-fn locked() -> CmdError {
+pub(super) fn locked() -> CmdError {
     CmdError::new("locked", "The vault is locked. Unlock it to continue.")
 }
 
@@ -252,7 +252,7 @@ fn split_fields(item: &ItemView) -> (BTreeMap<String, String>, Vec<String>) {
 }
 
 impl Desk {
-    fn with_session<T>(&self, f: impl FnOnce(&mut Inner) -> CmdRes<T>) -> CmdRes<T> {
+    pub(super) fn with_session<T>(&self, f: impl FnOnce(&mut Inner) -> CmdRes<T>) -> CmdRes<T> {
         let mut inner = self.inner();
         if inner.session.is_none() {
             return Err(locked());

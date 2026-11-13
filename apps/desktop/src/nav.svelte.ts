@@ -8,6 +8,7 @@ export type Route =
   | { p: "item"; id: string; from: Filter }
   | { p: "pick"; from: Filter }
   | { p: "generator" }
+  | { p: "health" }
   | { p: "settings" }
   | { p: "edit"; id?: string; kind?: Kind; from: Filter };
 
