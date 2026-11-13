@@ -199,15 +199,20 @@ fn no_kept_key_inner() {
 }
 
 #[test]
-fn a_failed_kept_key_revoke_asks_for_the_key_and_a_failed_typed_key_does_not() {
+fn a_failed_step_reads_by_where_the_key_came_from() {
+    // A kept key that fails cannot be told from a wrong password: ask for the key.
     assert_eq!(
-        code_of(super::devices::revoke_credentials_error(false)),
+        code_of(super::devices::revoke_credentials_error(KeyFrom::Kept)),
         "needs_secret_key"
     );
-    assert_eq!(
-        code_of(super::devices::revoke_credentials_error(true)),
-        "wrong_credentials"
-    );
+    // A typed pair that fails is a mismatch of the pair.
+    let typed = super::devices::revoke_credentials_error(KeyFrom::Typed);
+    assert!(typed.message.contains("Secret Key"));
+    assert_eq!(code_of(typed), "wrong_credentials");
+    // A held key was never asked for, so only the password is blamed.
+    let held = super::devices::revoke_credentials_error(KeyFrom::Held);
+    assert!(!held.message.contains("Secret Key"));
+    assert_eq!(code_of(held), "wrong_credentials");
 }
 
 #[test]

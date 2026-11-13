@@ -9,9 +9,7 @@ use serde::Serialize;
 use zeroize::Zeroizing;
 
 use super::devices::revoke_credentials_error;
-use super::{
-    CmdError, CmdRes, Desk, kit_storage, nothing_to_do, parse_secret_key, wrong_credentials,
-};
+use super::{CmdError, CmdRes, Desk, KeyFrom, kit_storage, nothing_to_do, parse_secret_key};
 
 /// The Recovery Key being shown and checked. Not `Debug`: it holds the key.
 pub(super) struct Draft {
@@ -295,7 +293,7 @@ impl Desk {
                 ));
             }
         }
-        let (sk, typed) = self.credentials_key(secret_key, "set up the Recovery Key")?;
+        let (sk, from) = self.credentials_key(secret_key, "set up the Recovery Key")?;
         self.run_sync(false);
         let mut guard = self.inner();
         let inner = &mut *guard;
@@ -311,7 +309,7 @@ impl Desk {
         let change = session
             .vault
             .set_recovery_with(key, password, &sk)
-            .map_err(|_| revoke_credentials_error(typed))?;
+            .map_err(|_| revoke_credentials_error(from))?;
         self.write_recovery(guard, &change.vault_json)
     }
 
@@ -329,8 +327,8 @@ impl Desk {
             }
             session.vault_json()?
         };
-        let (sk, typed) = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
-            Some(text) => (parse_secret_key(text)?, true),
+        let (sk, from) = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
+            Some(text) => (parse_secret_key(text)?, KeyFrom::Typed),
             None => self.credentials_key(None, "turn off the Recovery Key")?,
         };
         // Removing the key needs no credentials of the vault, so prove them here: this is a downgrade.
@@ -345,13 +343,7 @@ impl Desk {
                     now_ms(),
                 )
             })
-            .map_err(|_| {
-                if typed {
-                    wrong_credentials()
-                } else {
-                    revoke_credentials_error(false)
-                }
-            })?;
+            .map_err(|_| revoke_credentials_error(from))?;
         self.run_sync(false);
         let mut guard = self.inner();
         let inner = &mut *guard;

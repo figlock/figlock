@@ -47,7 +47,7 @@ impl Desk {
                 "Use at least 8 characters for the new master password.",
             ));
         }
-        let (secret_key, typed) = self.credentials_key(secret_key, "change your credentials")?;
+        let (secret_key, from) = self.credentials_key(secret_key, "change your credentials")?;
         let vault_id = figlock_session::session::peek_vault_id()?;
         let touch_was_on = quick::system().is_ok_and(|q| q.status(&vault_id).0);
         // Other devices may have changed the vault since the last sync; rewrapping from a stale view would
@@ -73,7 +73,7 @@ impl Desk {
                     ..CredentialChange::default()
                 },
             )
-            .map_err(|_| revoke_credentials_error(typed))?;
+            .map_err(|_| revoke_credentials_error(from))?;
         if session.replace_vault_json(&changed.vault_json).is_err() {
             // This vault already moved on and storage may or may not have the change: lock, so the next unlock
             // reads what is really there.
