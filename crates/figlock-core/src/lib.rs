@@ -36,6 +36,7 @@ mod search;
 mod secret;
 mod secret_key;
 mod signing;
+pub mod slip39;
 mod vault;
 mod wire;
 

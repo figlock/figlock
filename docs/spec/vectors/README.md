@@ -29,6 +29,7 @@ Vectors for every rule in `crypto.md`, `sync.md` and `pairing-recovery.md` (FIG-
 | `pairing.json` | invite code, keys, request, response, wrong code, swapped key |
 | `seal-to.json` | Recovery Key `seal_to`, rewrap needing only the public key |
 | `slip39.json` | 2-of-3 and 3-of-5 SLIP-0039 shares of a Recovery Key (generated once) |
+| `slip39-official.json` | the 45 official SLIP-0039 vectors, unchanged from upstream (ADR-0028); run by the Rust tests, not regenerated |
 | `hlc.json` | hybrid logical clock rules, overflow, drift hold |
 | `merge.json` | field merge, delete versus restore, snapshot equivalence, purge horizon |
 | `audit.json` | audit key `AK`, audit record container and hash chain (broker log) |
