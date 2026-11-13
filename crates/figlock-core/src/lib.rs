@@ -3,7 +3,7 @@
 //! This crate currently holds the crypto module (`docs/spec/crypto.md`, the container and invite parts of
 //! `sync.md` and `pairing-recovery.md`) and the sync logic of `sync.md` (hybrid logical clock, field-level
 //! merge, op batch and snapshot payloads, reader decisions), plus local search over non-secret fields
-//! (`search`) the Emergency Kit PDF with its verification step (`kit`) and import of other managers' exports (`import`). Every rule is checked against the test vectors in
+//! (`search`), password health (`health`), the Emergency Kit PDF with its verification step (`kit`) and import of other managers' exports (`import`). Every rule is checked against the test vectors in
 //! `docs/spec/vectors/` by `tests/vectors.rs` and `tests/sync.rs`.
 //!
 //! Conventions, from the spec:
@@ -17,6 +17,7 @@ mod document;
 mod error;
 mod file;
 pub mod generate;
+pub mod health;
 mod hlc;
 mod import;
 mod invite;

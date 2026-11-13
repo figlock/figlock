@@ -781,6 +781,7 @@ pub mod credentials;
 pub mod devices;
 pub mod drive;
 pub mod generate;
+pub mod health;
 pub mod items;
 pub mod secret_key;
 pub mod sync;
@@ -789,6 +790,8 @@ pub mod sync;
 mod credential_tests;
 #[cfg(test)]
 mod device_tests;
+#[cfg(test)]
+mod health_tests;
 #[cfg(test)]
 mod item_tests;
 #[cfg(test)]

@@ -3,6 +3,7 @@
   import { onMount, tick } from "svelte";
 
   import GeneratorPage from "./GeneratorPage.svelte";
+  import HealthPage from "./HealthPage.svelte";
   import Settings from "./Settings.svelte";
   import { SyncStatus } from "./sync.svelte";
   import { badge } from "./sync";
@@ -39,7 +40,7 @@
   const section = $derived<Filter | null>(
     route.p === "list"
       ? route.f
-      : route.p === "generator" || route.p === "settings"
+      : route.p === "generator" || route.p === "health" || route.p === "settings"
         ? null
         : route.from,
   );
@@ -49,13 +50,15 @@
   const title = $derived(
     route.p === "generator"
       ? "Generator"
-      : route.p === "settings"
-        ? "Settings"
-        : route.p === "pick" || (route.p === "edit" && !route.id)
-          ? "New item"
-          : route.p === "edit"
-            ? "Edit item"
-            : nameOf(section ?? "all"),
+      : route.p === "health"
+        ? "Password health"
+        : route.p === "settings"
+          ? "Settings"
+          : route.p === "pick" || (route.p === "edit" && !route.id)
+            ? "New item"
+            : route.p === "edit"
+              ? "Edit item"
+              : nameOf(section ?? "all"),
   );
 
   const count = (f: Filter) =>
@@ -188,6 +191,20 @@
       </button>
       <button
         type="button"
+        onclick={() => nav.go({ p: "health" })}
+        aria-current={route.p === "health" ? "page" : undefined}
+        aria-label="Password health"
+        title="Password health"
+        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {route.p ===
+        'health'
+          ? 'bg-border text-primary'
+          : 'text-text'}"
+      >
+        <Icon name="shield-check" />
+        <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Password health</span>
+      </button>
+      <button
+        type="button"
         onclick={() => nav.go({ p: "settings" })}
         aria-current={route.p === "settings" ? "page" : undefined}
         aria-label="Settings"
@@ -281,6 +298,8 @@
             <ItemPage id={route.id} from={route.from} />
           {:else if route.p === "generator"}
             <GeneratorPage />
+          {:else if route.p === "health"}
+            <HealthPage />
           {:else if route.p === "settings"}
             <Settings />
           {:else if route.p === "pick"}
