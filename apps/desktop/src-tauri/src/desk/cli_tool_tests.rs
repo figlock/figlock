@@ -32,6 +32,17 @@ fn the_tool_is_found_beside_the_app_executable_and_not_in_a_build_without_it() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn a_development_build_beside_a_cargo_built_cli_has_no_bundled_tool() {
+    let dir = tempfile::tempdir().unwrap();
+    let debug = dir.path().join("target/debug");
+    fs::create_dir_all(&debug).unwrap();
+    fs::write(debug.join("figlock-desktop"), b"app").unwrap();
+    fs::write(debug.join("figlock"), b"cli").unwrap();
+    assert_eq!(bundled_cli(&debug.join("figlock-desktop")), None);
+}
+
+#[test]
 fn the_app_executable_is_never_mistaken_for_the_tool() {
     // A case-insensitive disk resolves `figlock` to an executable named `FigLock`.
     let (_d, macos, _home) = setup();

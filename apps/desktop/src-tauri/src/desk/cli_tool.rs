@@ -45,9 +45,15 @@ pub struct CliToolView {
     pub external: Option<String>,
 }
 
-/// The tool next to the app's own executable, or none in a build that does not bundle it.
+/// The tool next to the app's own executable, or none in a build that does not bundle it. On macOS only an
+/// executable inside an app bundle counts: a development build runs from `target/debug`, where a `figlock` built
+/// by cargo may sit beside it, and linking that would leave a link the app does not recognise as its own.
 pub fn bundled_cli(exe: &Path) -> Option<PathBuf> {
     let candidate = exe.parent()?.join(NAME);
+    #[cfg(target_os = "macos")]
+    if !is_app_copy(&candidate) {
+        return None;
+    }
     // On a case-insensitive disk an executable named `FigLock` would be found here; it is not the tool.
     let same = fs::canonicalize(&candidate).ok()? == fs::canonicalize(exe).ok()?;
     (candidate.is_file() && !same).then_some(candidate)
