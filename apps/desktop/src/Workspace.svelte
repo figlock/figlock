@@ -156,15 +156,14 @@
           type="button"
           onclick={() => select(e.f)}
           aria-current={section === e.f && route.p !== "pick" ? "page" : undefined}
-          aria-label={e.label}
           title={e.label}
-          class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {section ===
+          class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium max-[860px]:justify-center max-[860px]:px-0 {section ===
             e.f && route.p !== 'pick'
-            ? 'bg-border text-primary'
-            : 'text-text'}"
+            ? 'bg-primary-subtle text-primary'
+            : 'text-text hover:bg-border'}"
         >
           <Icon name={e.icon} />
-          <span class="min-w-0 flex-1 truncate max-[860px]:hidden">{e.label}</span>
+          <span class="min-w-0 flex-1 truncate max-[860px]:sr-only">{e.label}</span>
           <span class="text-(length:--text-xs) text-text-tertiary tabular-nums max-[860px]:hidden">
             {count(e.f)}
           </span>
@@ -179,43 +178,40 @@
         type="button"
         onclick={() => nav.go({ p: "generator" })}
         aria-current={route.p === "generator" ? "page" : undefined}
-        aria-label="Generator"
         title="Generator"
-        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {route.p ===
+        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium max-[860px]:justify-center max-[860px]:px-0 {route.p ===
         'generator'
-          ? 'bg-border text-primary'
-          : 'text-text'}"
+          ? 'bg-primary-subtle text-primary'
+          : 'text-text hover:bg-border'}"
       >
         <Icon name="dices" />
-        <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Generator</span>
+        <span class="min-w-0 flex-1 truncate max-[860px]:sr-only">Generator</span>
       </button>
       <button
         type="button"
         onclick={() => nav.go({ p: "health" })}
         aria-current={route.p === "health" ? "page" : undefined}
-        aria-label="Password health"
         title="Password health"
-        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {route.p ===
+        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium max-[860px]:justify-center max-[860px]:px-0 {route.p ===
         'health'
-          ? 'bg-border text-primary'
-          : 'text-text'}"
+          ? 'bg-primary-subtle text-primary'
+          : 'text-text hover:bg-border'}"
       >
         <Icon name="shield-check" />
-        <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Password health</span>
+        <span class="min-w-0 flex-1 truncate max-[860px]:sr-only">Password health</span>
       </button>
       <button
         type="button"
         onclick={() => nav.go({ p: "settings" })}
         aria-current={route.p === "settings" ? "page" : undefined}
-        aria-label="Settings"
         title="Settings"
-        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium hover:bg-border max-[860px]:justify-center max-[860px]:px-0 {route.p ===
+        class="flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left font-medium max-[860px]:justify-center max-[860px]:px-0 {route.p ===
         'settings'
-          ? 'bg-border text-primary'
-          : 'text-text'}"
+          ? 'bg-primary-subtle text-primary'
+          : 'text-text hover:bg-border'}"
       >
         <Icon name="settings" />
-        <span class="min-w-0 flex-1 truncate max-[860px]:hidden">Settings</span>
+        <span class="min-w-0 flex-1 truncate max-[860px]:sr-only">Settings</span>
       </button>
     </nav>
     <div class="border-t border-border p-3 max-[860px]:p-2">

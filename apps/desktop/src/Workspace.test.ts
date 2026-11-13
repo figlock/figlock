@@ -148,11 +148,11 @@ test("the sidebar counts every type and the list shows what each item is", async
   open();
   expect(await screen.findByRole("button", { name: "Cloudflare, ops@example.test" })).toBeTruthy();
   const nav = screen.getByRole("navigation", { name: "Vault" });
-  expect(within(nav).getByRole("button", { name: "All items" }).textContent).toContain("3");
-  expect(within(nav).getByRole("button", { name: "Logins" }).textContent).toContain("1");
-  expect(within(nav).getByRole("button", { name: "Recently deleted" }).textContent).toContain("1");
+  expect(within(nav).getByRole("button", { name: /^All items/ }).textContent).toContain("3");
+  expect(within(nav).getByRole("button", { name: /^Logins/ }).textContent).toContain("1");
+  expect(within(nav).getByRole("button", { name: /^Recently deleted/ }).textContent).toContain("1");
 
-  await userEvent.click(within(nav).getByRole("button", { name: "API tokens" }));
+  await userEvent.click(within(nav).getByRole("button", { name: /^API tokens/ }));
   expect(
     screen.getByRole("button", { name: "GitHub token, GitHub - api.github.com" }),
   ).toBeTruthy();
@@ -212,7 +212,7 @@ test("deleting asks first, then moves the item to Recently deleted", async () =>
 test("a deleted item can be restored but not edited", async () => {
   const user = userEvent.setup();
   open();
-  await user.click(await screen.findByRole("button", { name: "Recently deleted" }));
+  await user.click(await screen.findByRole("button", { name: /^Recently deleted/ }));
   await user.click(await screen.findByRole("button", { name: /Old forum/ }));
   expect(await screen.findByText("This item is deleted")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
@@ -392,7 +392,7 @@ test("turning every character type off says so instead of asking the core", asyn
   }
   expect(await screen.findByText("Turn on at least one character type.")).toBeTruthy();
   const calls = core.generatePassword.mock.calls.length;
-  await user.click(screen.getByRole("button", { name: "Generate another" }));
+  await user.click(screen.getByRole("button", { name: "Generate again" }));
   expect(core.generatePassword.mock.calls.length).toBe(calls);
 });
 

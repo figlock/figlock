@@ -122,7 +122,7 @@
     {:else}
       <Button variant="primary" onclick={copy} disabled={!out}><Icon name="copy" />Copy</Button>
     {/if}
-    <Button onclick={run} label="Generate another"><Icon name="refresh" />Generate again</Button>
+    <Button onclick={run} label="Generate again"><Icon name="refresh" />Generate again</Button>
     {#if onuse}
       <Button variant="ghost" onclick={copy} disabled={!out} label="Copy"
         ><Icon name="copy" /></Button
