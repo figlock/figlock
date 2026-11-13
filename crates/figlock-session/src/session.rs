@@ -4,7 +4,10 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use figlock_core::{DeviceId, Index, ItemId, ItemView, Key, Revocation, SecretKey, Vault};
+use figlock_core::{
+    Approval, DeviceId, Index, Invite, InviteOffer, ItemId, ItemView, JoinRequest, Key, Revocation,
+    SecretKey, Vault,
+};
 use figlock_store::{BlobStore, StoreError};
 use zeroize::Zeroizing;
 
@@ -383,6 +386,82 @@ impl Session {
         }
         self.store.put_replace("vault.json", &r.vault_json)?;
         Ok(())
+    }
+
+    /// `vault.json` as stored, for checking typed credentials against it.
+    pub fn vault_json(&self) -> Res<Vec<u8>> {
+        read_vault_json(self.store.as_ref())
+    }
+
+    /// Put an invite's `.inv` where a new device can find it (`pairing-recovery.md` 3.2 step 1).
+    pub fn publish_invite(&self, offer: &InviteOffer) -> Res<()> {
+        match self.store.put_new(&offer.inv_path, &offer.inv) {
+            Ok(()) => Ok(()),
+            Err(StoreError::Exists) => Err(Fail::new("that invite already exists; try again")),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    /// The `.req` a new device left for `invite`, if one is there. A file that does not open under the invite
+    /// is deleted, since anyone can write to the inbox and a stranger's file must not block the real request.
+    /// A request that opens consumes the invite and is returned.
+    pub fn take_request(&self, invite: &mut Invite, now_ms: u64) -> Res<Option<JoinRequest>> {
+        let path = invite.req_path();
+        let bytes = match self.store.get(&path) {
+            Ok(b) => b,
+            Err(StoreError::NotFound) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
+        match invite.open_request(&bytes, now_ms) {
+            Ok(req) => Ok(Some(req)),
+            Err(_) => {
+                self.remove_quietly(&path);
+                Ok(None)
+            }
+        }
+    }
+
+    /// Approve `req` and store what that produces: the signed device record first, then the sealed answer, so
+    /// the new device finds its record as soon as it can open the answer. The `.inv` and `.req` are cleared.
+    pub fn approve_join(
+        &mut self,
+        invite: &Invite,
+        req: &JoinRequest,
+        secret_key: &SecretKey,
+        now_ms: u64,
+    ) -> Res<()> {
+        let Approval { record, response } = self
+            .vault
+            .approve_join(invite, req, secret_key, now_ms)
+            .map_err(|_| Fail::new("this invite expired or this device is already in the vault"))?;
+        // The vault now lists the device in memory. If a write fails, drop the session (as for an uncertain
+        // commit) so that view is not kept.
+        let written = self
+            .store
+            .put_replace(&record.path, &record.bytes)
+            .and_then(|()| self.store.put_new(&response.path, &response.bytes));
+        if let Err(e) = written {
+            self.uncertain = true;
+            return Err(e.into());
+        }
+        self.remove_quietly(&invite.inv_path());
+        self.remove_quietly(&invite.req_path());
+        Ok(())
+    }
+
+    /// Take the `.inv` out of the inbox once a request has opened: nobody else may use the invite.
+    pub fn retire_invite(&self, invite: &Invite) {
+        self.remove_quietly(&invite.inv_path());
+    }
+
+    /// Take an invite's files out of the inbox (it expired, or the person cancelled).
+    pub fn close_invite(&self, invite: &Invite) {
+        self.remove_quietly(&invite.inv_path());
+        self.remove_quietly(&invite.req_path());
+    }
+
+    fn remove_quietly(&self, path: &str) {
+        let _ = self.store.delete(path);
     }
 
     /// Write pending changes as one op file. If the file definitely was not written the commit is taken back,

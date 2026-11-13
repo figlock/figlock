@@ -11,6 +11,7 @@ use desk::drive::{DriveView, SignedOut};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::health::{HealthReport, PwnedPasswords, RangeSource};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
+use desk::pairing::{InviteView, PairingStatus};
 use desk::sync::SyncView;
 use desk::{CmdError, CmdRes, CreatedVault, Desk, Storage, VaultState};
 use tauri::{AppHandle, Emitter, State};
@@ -199,6 +200,34 @@ async fn revoke_device(
 }
 
 /// Change the master password, rotate the Secret Key, or both. A rotation returns the new key for the kit.
+/// Open an invite for a new device: its code and QR. Replaces any invite already open.
+#[tauri::command]
+async fn add_device_start(desk: State<'_, Desk>) -> CmdRes<InviteView> {
+    desk.add_device_start()
+}
+
+/// Whether the new device has answered, polled while the invite dialog is open.
+#[tauri::command]
+async fn add_device_status(desk: State<'_, Desk>) -> CmdRes<PairingStatus> {
+    desk.add_device_status()
+}
+
+/// Approve the new device. Touch ID releases the kept Secret Key; without one, the password and key are typed.
+#[tauri::command]
+async fn add_device_approve(
+    desk: State<'_, Desk>,
+    password: Option<String>,
+    secret_key: Option<String>,
+) -> CmdRes<Vec<DeviceRow>> {
+    desk.add_device_approve(password.as_deref(), secret_key.as_deref())
+}
+
+/// Close the open invite, or turn down the device that asked.
+#[tauri::command]
+async fn add_device_cancel(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.add_device_cancel()
+}
+
 #[tauri::command]
 async fn change_credentials(
     app: AppHandle,
@@ -502,6 +531,10 @@ pub fn run() {
             sync_disable,
             devices,
             revoke_device,
+            add_device_start,
+            add_device_status,
+            add_device_approve,
+            add_device_cancel,
             change_credentials,
             end_rotation,
             join_answered,

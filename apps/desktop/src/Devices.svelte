@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { Alert, Badge, Icon } from "@figlock/ui";
+  import { Alert, Badge, Button, Icon } from "@figlock/ui";
 
+  import AddDeviceDialog from "./AddDeviceDialog.svelte";
   import { listDevices, revokeDevice, type Device } from "./devices";
   import RevokeDialog from "./RevokeDialog.svelte";
   import { errorOf, lock, vaultState } from "./vault";
@@ -13,6 +14,7 @@
   let done = $state("");
   let revoking = $state<Device | null>(null);
   let keyKept = $state(false);
+  let adding = $state(false);
 
   async function load() {
     try {
@@ -37,6 +39,32 @@
       keyKept = false;
     }
     revoking = d;
+  }
+
+  async function startAdd() {
+    done = "";
+    try {
+      keyKept = (await vaultState()).secretKeyKept;
+    } catch {
+      keyKept = false;
+    }
+    adding = true;
+  }
+
+  async function added(list: Device[], name: string) {
+    adding = false;
+    devices = list;
+    error = "";
+    done = `${name} is added. On ${name}, enter your master password to finish.`;
+  }
+
+  async function addFailed(code: string, message: string) {
+    adding = false;
+    if (code === "locked") w.relock();
+    else if (code === "needs_unlock") {
+      await lock();
+      w.relock(message);
+    } else error = message;
   }
 
   async function revoke(password: string, secretKey: string, newPassword: string | null) {
@@ -64,8 +92,13 @@
 </script>
 
 <section aria-labelledby="devices-title" class="grid gap-3">
-  <h3 id="devices-title" class="font-semibold">Devices</h3>
-  <p class="text-text-secondary">The devices that can open this vault.</p>
+  <div class="flex items-start justify-between gap-3">
+    <div class="grid gap-1">
+      <h3 id="devices-title" class="font-semibold">Devices</h3>
+      <p class="text-text-secondary">The devices that can open this vault.</p>
+    </div>
+    <Button onclick={() => void startAdd()}><Icon name="plus" />Add a device</Button>
+  </div>
 
   {#if error}<Alert>{error}</Alert>{/if}
   {#if done}<Alert tone="info">{done}</Alert>{/if}
@@ -108,6 +141,10 @@
     </ul>
   {/if}
 </section>
+
+{#if adding}
+  <AddDeviceDialog {keyKept} onerror={addFailed} onadded={added} onclose={() => (adding = false)} />
+{/if}
 
 {#if revoking}
   <RevokeDialog device={revoking} {keyKept} onrevoke={revoke} oncancel={() => (revoking = null)} />
