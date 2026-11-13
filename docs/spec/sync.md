@@ -38,7 +38,7 @@ Provider notes:
   not "missing". The adapter asks the OS to download it and the sync engine retries; it is never treated as
   a gap (section 8).
 - **Google Drive.** Names are not unique in Drive, so create-only is built on top of it. The namespace is
-  flat: the full path is the Drive file name in the appDataFolder. `put_new` looks the name up, creates the
+  flat: the full path is the Drive file name in the appDataFolder. `put_new` (for a blob over 5 MiB, after looking the name up) creates the
   file with a random nonce in its `appProperties`, then lists every file with that name. The oldest by
   `createdTime` (ties by id) wins on every client; if a file carrying our nonce won we own the path,
   otherwise we delete ours and report `Exists`. The nonce also makes a create whose response was lost safe

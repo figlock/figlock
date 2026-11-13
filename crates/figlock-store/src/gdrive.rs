@@ -524,13 +524,23 @@ impl BlobStore for GoogleDrive {
         if bytes.len() as u64 > MAX_BLOB_BYTES {
             return Err(StoreError::TooLarge);
         }
-        if self.oldest(path)?.is_some() {
+        // The listing after the create is what decides, so a small blob does not need a lookup first: if the
+        // path is taken we lose the race below, delete our copy and report `Exists`. A big one would waste
+        // a long upload, so it is looked up first.
+        if bytes.len() > MULTIPART_MAX && self.oldest(path)?.is_some() {
             return Err(StoreError::Exists);
         }
         let nonce = fresh_nonce()?;
         for _ in 0..CREATE_ATTEMPTS {
             let created = self.create(path, &nonce, bytes);
-            // Whether or not the create reported success, the listing says what landed.
+            // Only an ambiguous failure can have landed. A refusal (signed out, too large) is final and
+            // needs no listing.
+            if let Err(e) = created
+                && e != StoreError::Unavailable
+            {
+                return Err(e);
+            }
+            // Otherwise, whether or not the create reported success, the listing says what landed.
             let mut files = self.list_remote(Some(path))?;
             files.retain(|r| r.name == path);
             files.sort_by(|a, b| a.age_key().cmp(&b.age_key()));
@@ -553,12 +563,8 @@ impl BlobStore for GoogleDrive {
                     return Err(StoreError::Exists);
                 }
                 (Some(_), None) => return Err(StoreError::Exists),
-                (None, _) => match created {
-                    // Nothing landed. A hard failure is final; an ambiguous one is retried.
-                    Err(StoreError::Unavailable) => continue,
-                    Err(e) => return Err(e),
-                    Ok(()) => continue,
-                },
+                // Nothing landed: the ambiguous failure (or a create that has not shown up yet) is retried.
+                (None, _) => {}
             }
         }
         Err(StoreError::Unavailable)
