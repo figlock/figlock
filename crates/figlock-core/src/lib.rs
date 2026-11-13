@@ -31,6 +31,7 @@ mod payload;
 mod qr;
 mod quick_se;
 mod reader;
+mod recovery;
 mod schema;
 mod search;
 mod secret;
@@ -79,6 +80,7 @@ pub use quick_se::{
 pub use reader::{
     LogPlan, Warning, accept_from_revoked, accept_vault_json, check_listing, plan_log,
 };
+pub use recovery::RecoveryKey;
 pub use schema::{
     ItemType, MAX_FIELDS_PER_ITEM, MAX_FILES_PER_ITEM, MAX_VALUE_BYTES, is_secret_field,
     max_value_bytes, validate_field,
@@ -89,7 +91,7 @@ pub use secret_key::SecretKey;
 pub use signing::{sign_json, verify_json};
 pub use vault::{
     Approval, Committed, Created, CredentialChange, DeviceInfo, DeviceKeys, FieldValue, ItemView,
-    Revocation, Rotated, Vault,
+    Recover, Recovered, RecoveryChange, Revocation, Rotated, Vault,
 };
 pub use wire::{aad, hlc_bytes, u16be, u32be, u64be};
 

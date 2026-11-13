@@ -1,0 +1,65 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Recovery Key encoding",
+  "cases": [
+    {
+      "name": "encode",
+      "spec": "crypto.md 4.2",
+      "inputs": {
+        "rk_priv": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0"
+      },
+      "expected": {
+        "text": "FLR1-5EV5-92S1-ZY3E-13NH-6AWA-FE6K-ZBQ1-VK55-EA1P-MHKR-J3GY-ZTAF-1V86-DRWY"
+      }
+    },
+    {
+      "name": "decode-lowercase-and-spaces",
+      "spec": "crypto.md 4.2",
+      "inputs": {
+        "text": "flr1 5ev5 92s1 zy3e 13nh 6awa fe6k zbq1 vk55 ea1p mhkr j3gy ztaf 1v86 drwy"
+      },
+      "expected": {
+        "rk_priv": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0"
+      }
+    },
+    {
+      "name": "decode-confusables",
+      "spec": "crypto.md 4.2",
+      "inputs": {
+        "text": "FLR1-5EV5-92SI-ZY3E-I3NH-6AWA-FE6K-ZBQI-VK55-EAIP-MHKR-J3GY-ZTAF-IV86-DRWY"
+      },
+      "expected": {
+        "rk_priv": "2bb6548b21ff86e08eb132b8a7b8d3faee1dcca572836a467890e1efe94f0ed0"
+      },
+      "note": "O reads as 0, I and L read as 1 (Crockford); the FLR1 prefix is matched first"
+    },
+    {
+      "name": "check-mismatch",
+      "spec": "crypto.md 4.2",
+      "inputs": {
+        "text": "FLR1-5EV592S1ZY3E13NH6AWAFE6KZBQ1VK55EA1PMHKRJ3GYZTAF1V86DRW0"
+      },
+      "expected": "reject",
+      "why": "typo in Recovery Key, reported as such"
+    },
+    {
+      "name": "wrong-length",
+      "spec": "crypto.md 4.2",
+      "inputs": {
+        "text": "FLR1-5EV5-92S1-ZY3E-13NH-6AWA-FE6K-ZBQ1-VK55-EA1P-MHKR-J3GY-ZTAF-1V86"
+      },
+      "expected": "reject",
+      "why": "length"
+    },
+    {
+      "name": "secret-key-is-not-a-recovery-key",
+      "spec": "crypto.md 4.2",
+      "inputs": {
+        "text": "FL1-MRBV-KB1A-SY0V-HMV7-KH90-45J8-5D1Q-BMJG"
+      },
+      "expected": "reject",
+      "why": "the FL1 prefix of a Secret Key is not FLR1"
+    }
+  ]
+}

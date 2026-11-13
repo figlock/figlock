@@ -123,6 +123,27 @@ def secret_key_parse(text: str) -> bytes:
     return sk
 
 
+def recovery_key_format(rk_priv: bytes) -> str:
+    assert len(rk_priv) == 32
+    check = sha256(b"figlock/v1/rk-check", rk_priv)[:3]
+    s = b32_encode(rk_priv + check)
+    return "FLR1-" + "-".join(s[i:i + 4] for i in range(0, 56, 4))
+
+
+def recovery_key_parse(text: str) -> bytes:
+    t = text.upper().replace("-", "").replace(" ", "")
+    if not t.startswith("FLR1"):
+        raise Reject()
+    t = t[4:].replace("I", "1").replace("L", "1").replace("O", "0")
+    if len(t) != 56 or any(c not in CROCKFORD for c in t):
+        raise Reject()
+    raw = b32_decode(t)
+    rk, check = raw[:32], raw[32:]
+    if sha256(b"figlock/v1/rk-check", rk)[:3] != check:
+        raise Reject()
+    return rk
+
+
 # ---- key derivation (crypto.md 5, 6) ----
 def kdf_params_bytes(m: int, t: int, p: int, salt: bytes) -> bytes:
     return u32(m) + u32(t) + u32(p) + lp(salt)

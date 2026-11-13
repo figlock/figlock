@@ -46,7 +46,7 @@ pub(crate) fn b32_value(c: char) -> Option<u32> {
 }
 
 /// Upper case and drop dashes and spaces from a user-typed code.
-fn squash(text: &str) -> String {
+pub(crate) fn squash(text: &str) -> String {
     text.chars()
         .filter(|c| *c != '-' && !c.is_whitespace())
         .map(|c| c.to_ascii_uppercase())
@@ -54,7 +54,7 @@ fn squash(text: &str) -> String {
 }
 
 /// Map the Crockford confusables (`I` and `L` read as `1`, `O` as `0`).
-fn confusables(text: &str) -> String {
+pub(crate) fn confusables(text: &str) -> String {
     text.chars()
         .map(|c| match c {
             'I' | 'L' => '1',

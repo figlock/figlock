@@ -18,13 +18,16 @@ use crate::keys::{
     VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, unwrap_vk, wrap_vk,
 };
 use crate::merge::{DeviceId, Register, State, Write};
+use crate::pairing::{open_seal_to, seal_to};
 use crate::payload::{ItemId, Op, OpBatch, Snapshot, SnapshotField, SnapshotItem};
 use crate::reader::accept_from_revoked;
+use crate::recovery::RecoveryKey;
 use crate::schema::{
     FIELD_DELETED, FIELD_IK, FIELD_TYPE, FIELD_VAULT, ItemType, MAX_FIELDS_PER_ITEM,
     MAX_FILES_PER_ITEM, max_value_bytes, validate_field,
 };
 use crate::signing::{sign_json, verify_json};
+use crate::wire::{aad, u32be};
 use crate::{
     Error, KdfParams, Key, Result, SecretKey, open_field, seal_field, unwrap_item_key,
     wrap_item_key,
@@ -125,6 +128,27 @@ struct EpochKeyEntry {
     sealed: Vec<u8>,
 }
 
+/// The Recovery Key as `vault.json` carries it (`crypto.md` 9.3): the public key and the Vault Key sealed to it.
+#[derive(Clone)]
+struct RecoveryWrap {
+    rk_pub: [u8; 32],
+    wrapped: Vec<u8>,
+}
+
+/// `seal_to(rk_pub, VK, aad("vk-wrap-rk", vault_id, u32(epoch)))`.
+fn wrap_vk_for_recovery(
+    rk_pub: &[u8; 32],
+    vk: &Key,
+    vault_id: &[u8; 16],
+    epoch: u32,
+) -> Result<Vec<u8>> {
+    seal_to(
+        rk_pub,
+        vk.expose(),
+        &aad("vk-wrap-rk", &[vault_id, &u32be(epoch)]),
+    )
+}
+
 /// One row of the device list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeviceInfo {
@@ -169,6 +193,33 @@ pub struct CredentialChange<'a> {
 pub struct Rotated {
     pub vault_json: Vec<u8>,
     pub secret_key: Option<SecretKey>,
+}
+
+/// A new `vault.json` after the Recovery Key was enabled, replaced or removed, and the new key to write down.
+pub struct RecoveryChange {
+    pub vault_json: Vec<u8>,
+    /// Set when a Recovery Key was made: shown once, never stored.
+    pub key: Option<RecoveryKey>,
+}
+
+/// What recovering with the Recovery Key produces (`pairing-recovery.md` 7.3): replace `vault.json`, and give the
+/// person a new Emergency Kit for `secret_key`.
+pub struct Recovered {
+    pub vault_json: Vec<u8>,
+    pub secret_key: SecretKey,
+    /// A new Recovery Key when it was rotated in the same write.
+    pub recovery_key: Option<RecoveryKey>,
+    /// This device's own record, if it had none (a fresh install).
+    pub new_record: Option<Vec<u8>>,
+}
+
+/// What [`Vault::recover`] is given besides this device: the stored `vault.json`, the Recovery Key and the new
+/// master password. With `rotate_recovery` a new Recovery Key is made in the same write.
+pub struct Recover<'a> {
+    pub vault_json: &'a [u8],
+    pub recovery_key: &'a RecoveryKey,
+    pub new_password: &'a str,
+    pub rotate_recovery: bool,
 }
 
 /// A local write that has not been committed: the register it replaced, and the stamp it wrote.
@@ -241,6 +292,7 @@ pub struct Vault {
     older: BTreeMap<u32, VaultKeys>,
     salt: [u8; 16],
     wrapped_vk: Vec<u8>,
+    recovery: Option<RecoveryWrap>,
 }
 
 // ---- JSON files ----
@@ -286,13 +338,25 @@ struct Header {
     epoch: u32,
     revision: u64,
     wrapped: Vec<u8>,
+    recovery: Option<RecoveryWrap>,
 }
 
 impl Header {
     fn parse(o: &Map<String, Json>) -> Result<Header> {
+        // Version 2 is a vault with a Recovery Key (`crypto.md` 9.3): the members and the version go together,
+        // so a client that predates them refuses the file instead of dropping the key when it rewrites it.
+        let recovery = match (o.get("rk_pub"), o.get("wrapped_vk_rk")) {
+            (None, None) => None,
+            (Some(p), Some(w)) => Some(RecoveryWrap {
+                rk_pub: unhex::<32>(p)?,
+                wrapped: unhex_vec(w)?,
+            }),
+            _ => return Err(Error),
+        };
+        let min_version = if recovery.is_some() { 2 } else { 1 };
         if o.get("v") != Some(&json!(1))
             || o.get("suite") != Some(&json!("fl1"))
-            || o.get("min_format_version") != Some(&json!(1))
+            || o.get("min_format_version") != Some(&json!(min_version))
         {
             return Err(Error);
         }
@@ -311,6 +375,7 @@ impl Header {
             epoch: u32::try_from(num(o, "key_epoch")?).map_err(|_| Error)?,
             revision: num(o, "revision")?,
             wrapped: unhex_vec(o.get("wrapped_vk").ok_or(Error)?)?,
+            recovery,
         })
     }
 }
@@ -333,6 +398,7 @@ fn vault_json_body(v: &Vault, salt: &[u8; 16], wrapped_vk: &[u8]) -> Json {
         wrapped_vk,
         (v.epoch, v.revision, &v.keys.authority_public()),
         (&v.revoked, &v.epoch_keys),
+        v.recovery.as_ref(),
     )
 }
 
@@ -343,6 +409,7 @@ fn vault_json_body_with(
     wrapped_vk: &[u8],
     (epoch, revision, authority_pub): (u32, u64, &[u8; 32]),
     (revoked, epoch_keys): (&BTreeMap<DeviceId, Revoked>, &[EpochKeyEntry]),
+    recovery: Option<&RecoveryWrap>,
 ) -> Json {
     let mut body = json!({
         "v": 1, "suite": "fl1", "vault_id": hexs(&v.vault_id), "revision": revision, "key_epoch": epoch,
@@ -352,6 +419,11 @@ fn vault_json_body_with(
     });
     // Both members are omitted while empty, so a vault that was never rotated keeps its epoch 1 shape.
     if let Some(o) = body.as_object_mut() {
+        if let Some(r) = recovery {
+            o.insert("min_format_version".into(), json!(2));
+            o.insert("rk_pub".into(), json!(hexs(&r.rk_pub)));
+            o.insert("wrapped_vk_rk".into(), json!(hexs(&r.wrapped)));
+        }
         if !revoked.is_empty() {
             let list: Vec<Json> = revoked
                 .iter()
@@ -537,6 +609,28 @@ impl Vault {
         known_records: &[Vec<u8>],
         now_ms: u64,
     ) -> Result<(Vault, Option<Vec<u8>>)> {
+        let (body, _) = split_signature(vault_json)?;
+        let h = Header::parse(body.as_object().ok_or(Error)?)?;
+        let vk = unwrap_vk(
+            auk,
+            &h.wrapped,
+            &h.vault_id,
+            h.epoch,
+            &h.params.bytes_with_salt(&h.salt),
+        )?;
+        Self::open_with_vk(vault_json, &vk, device, device_name, known_records, now_ms)
+    }
+
+    /// Everything after the Vault Key is known: derive the keys, check the signature and the authority key,
+    /// open the epoch chain and take in the device records.
+    fn open_with_vk(
+        vault_json: &[u8],
+        vk: &Key,
+        device: DeviceKeys,
+        device_name: &str,
+        known_records: &[Vec<u8>],
+        now_ms: u64,
+    ) -> Result<(Vault, Option<Vec<u8>>)> {
         let (body, sig) = split_signature(vault_json)?;
         let o = body.as_object().ok_or(Error)?;
         let Header {
@@ -546,15 +640,9 @@ impl Vault {
             epoch,
             revision,
             wrapped,
+            recovery,
         } = Header::parse(o)?;
-        let vk = unwrap_vk(
-            auk,
-            &wrapped,
-            &vault_id,
-            epoch,
-            &params.bytes_with_salt(&salt),
-        )?;
-        let keys = derive_vault_keys(&vk)?;
+        let keys = derive_vault_keys(vk)?;
         // The signature is checked against the authority key *derived* from VK, not one read from storage.
         verify_json(&keys.authority_public(), "vault-json", &body, &sig)?;
         if unhex::<32>(o.get("authority_pub").ok_or(Error)?)? != keys.authority_public() {
@@ -565,7 +653,7 @@ impl Vault {
         let epoch_keys = parse_epoch_keys(o, epoch)?;
         // Open the chain newest first: each entry holds the previous epoch's VK under the next one.
         let mut older = BTreeMap::new();
-        let mut newer = vk;
+        let mut newer = Key::from_bytes(*vk.expose());
         for e in epoch_keys.iter().rev() {
             let old = open_epoch_key(&newer, &e.sealed, &vault_id, e.from, e.to)?;
             older.insert(e.from, derive_vault_keys(&old)?);
@@ -583,6 +671,7 @@ impl Vault {
         vault.older = older;
         vault.salt = salt;
         vault.wrapped_vk = wrapped;
+        vault.recovery = recovery;
         for r in known_records {
             let _ = vault.add_device_record(r);
         }
@@ -629,6 +718,7 @@ impl Vault {
             older: BTreeMap::new(),
             salt: [0; 16],
             wrapped_vk: Vec::new(),
+            recovery: None,
         }
     }
 
@@ -871,6 +961,14 @@ impl Vault {
             },
         );
 
+        // The Recovery Key keeps working: the new `VK` is sealed to the same public key (`crypto.md` 9.1).
+        let new_recovery = match &self.recovery {
+            Some(r) => Some(RecoveryWrap {
+                rk_pub: r.rk_pub,
+                wrapped: wrap_vk_for_recovery(&r.rk_pub, &new_vk, &self.vault_id, new_epoch)?,
+            }),
+            None => None,
+        };
         let revision = self.revision + 1;
         let mut body = vault_json_body_with(
             self,
@@ -878,6 +976,7 @@ impl Vault {
             &wrapped_vk,
             (new_epoch, revision, &new_keys.authority_public()),
             (&revoked, &epoch_keys),
+            new_recovery.as_ref(),
         );
         // `vault_json_body_with` reads the KDF parameters from `self`; changed ones replace them.
         body["kdf"] = json!({
@@ -919,6 +1018,7 @@ impl Vault {
         self.epoch = new_epoch;
         self.revision = revision;
         self.wrapped_vk = wrapped_vk;
+        self.recovery = new_recovery;
         self.salt = salt;
         self.params = params;
         Ok(Revocation {
@@ -994,6 +1094,7 @@ impl Vault {
             &wrapped_vk,
             (self.epoch, revision, &self.keys.authority_public()),
             (&self.revoked, &self.epoch_keys),
+            self.recovery.as_ref(),
         );
         // `vault_json_body_with` reads the KDF parameters from `self`; the new ones replace them.
         body["kdf"] = json!({
@@ -1013,6 +1114,175 @@ impl Vault {
             vault_json,
             secret_key: new_secret_key,
         })
+    }
+
+    /// Whether a Recovery Key is enabled (`vault.json` carries `rk_pub`).
+    pub fn has_recovery(&self) -> bool {
+        self.recovery.is_some()
+    }
+
+    /// Enable the Recovery Key, or replace it with a new one (`crypto.md` 9.3, ADR-0029). Returns the new
+    /// `vault.json` and the key to write down; this vault takes the change only if every step succeeds. The
+    /// master password and Secret Key are needed because the Vault Key is not kept in memory: it is opened
+    /// from the stored wrap and sealed to the new public key. After a replacement, cards of the old key stop
+    /// working for the new `vault.json` and later ones.
+    pub fn set_recovery(
+        &mut self,
+        password: &str,
+        secret_key: &SecretKey,
+    ) -> Result<RecoveryChange> {
+        let auk = derive_auk(
+            password,
+            secret_key,
+            &self.vault_id,
+            &self.salt,
+            &self.params,
+        )?;
+        let vk = unwrap_vk(
+            &auk,
+            &self.wrapped_vk,
+            &self.vault_id,
+            self.epoch,
+            &self.params.bytes_with_salt(&self.salt),
+        )?;
+        if derive_vault_keys(&vk)?.authority_public() != self.keys.authority_public() {
+            return Err(Error);
+        }
+        let key = RecoveryKey::random()?;
+        let rk_pub = key.public();
+        let wrap = RecoveryWrap {
+            rk_pub,
+            wrapped: wrap_vk_for_recovery(&rk_pub, &vk, &self.vault_id, self.epoch)?,
+        };
+        let vault_json = self.recovery_vault_json(Some(&wrap))?;
+        self.recovery = Some(wrap);
+        self.revision += 1;
+        Ok(RecoveryChange {
+            vault_json,
+            key: Some(key),
+        })
+    }
+
+    /// Turn the Recovery Key off: the next `vault.json` has no `rk_pub` and no wrap, and any card of the old
+    /// key opens nothing from then on (a copy of an older `vault.json` still opens with it).
+    pub fn clear_recovery(&mut self) -> Result<RecoveryChange> {
+        if self.recovery.is_none() {
+            return Err(Error);
+        }
+        let vault_json = self.recovery_vault_json(None)?;
+        self.recovery = None;
+        self.revision += 1;
+        Ok(RecoveryChange {
+            vault_json,
+            key: None,
+        })
+    }
+
+    /// The `vault.json` for revision + 1 with the Recovery Key members `recovery`, everything else unchanged.
+    fn recovery_vault_json(&self, recovery: Option<&RecoveryWrap>) -> Result<Vec<u8>> {
+        let body = vault_json_body_with(
+            self,
+            &self.salt,
+            &self.wrapped_vk,
+            (self.epoch, self.revision + 1, &self.keys.authority_public()),
+            (&self.revoked, &self.epoch_keys),
+            recovery,
+        );
+        with_signature(
+            body.clone(),
+            sign_json(&self.keys.authority_seed, "vault-json", &body)?,
+        )
+    }
+
+    /// Use the Recovery Key after the master password is lost (`pairing-recovery.md` 7.3). Opens the Vault Key
+    /// from `wrapped_vk_rk`, checks it exactly as an unlock does (authority key derived from it, signature),
+    /// then writes a new `vault.json` in one go: a fresh salt and a fresh Secret Key wrapped under the new
+    /// master password, with a new Recovery Key when `rotate_recovery` is set. Every wrong key, a vault without
+    /// a Recovery Key and a tampered `vault.json` are the one generic error.
+    ///
+    /// Other devices are not revoked: whoever held the old credentials can still open an old copy of
+    /// `vault.json`, which the flow tells the person.
+    pub fn recover(
+        request: Recover<'_>,
+        device: DeviceKeys,
+        device_name: &str,
+        known_records: &[Vec<u8>],
+        now_ms: u64,
+    ) -> Result<(Vault, Recovered)> {
+        let Recover {
+            vault_json,
+            recovery_key,
+            new_password,
+            rotate_recovery,
+        } = request;
+        let (body, _) = split_signature(vault_json)?;
+        let h = Header::parse(body.as_object().ok_or(Error)?)?;
+        let wrap = h.recovery.ok_or(Error)?;
+        let opened = open_seal_to(
+            recovery_key.private(),
+            &wrap.wrapped,
+            &aad("vk-wrap-rk", &[&h.vault_id, &u32be(h.epoch)]),
+        )?;
+        let vk = Key::from_slice(&opened)?;
+        let (mut vault, new_record) =
+            Self::open_with_vk(vault_json, &vk, device, device_name, known_records, now_ms)?;
+
+        let salt = random::<16>()?;
+        let secret_key = SecretKey::random()?;
+        let auk = derive_auk(
+            new_password,
+            &secret_key,
+            &vault.vault_id,
+            &salt,
+            &vault.params,
+        )?;
+        let wrapped_vk = wrap_vk(
+            &auk,
+            &vk,
+            &vault.vault_id,
+            vault.epoch,
+            &vault.params.bytes_with_salt(&salt),
+        )?;
+        let (recovery, new_key) = if rotate_recovery {
+            let key = RecoveryKey::random()?;
+            let rk_pub = key.public();
+            let wrap = RecoveryWrap {
+                rk_pub,
+                wrapped: wrap_vk_for_recovery(&rk_pub, &vk, &vault.vault_id, vault.epoch)?,
+            };
+            (wrap, Some(key))
+        } else {
+            (wrap, None)
+        };
+        let revision = vault.revision + 1;
+        let mut body = vault_json_body_with(
+            &vault,
+            &salt,
+            &wrapped_vk,
+            (vault.epoch, revision, &vault.keys.authority_public()),
+            (&vault.revoked, &vault.epoch_keys),
+            Some(&recovery),
+        );
+        body["kdf"] = json!({
+            "m_kib": vault.params.m_kib, "t": vault.params.t, "p": vault.params.p, "salt": hexs(&salt),
+        });
+        let new_vault_json = with_signature(
+            body.clone(),
+            sign_json(&vault.keys.authority_seed, "vault-json", &body)?,
+        )?;
+        vault.salt = salt;
+        vault.wrapped_vk = wrapped_vk;
+        vault.recovery = Some(recovery);
+        vault.revision = revision;
+        Ok((
+            vault,
+            Recovered {
+                vault_json: new_vault_json,
+                secret_key,
+                recovery_key: new_key,
+                new_record,
+            },
+        ))
     }
 
     /// A snapshot of the whole state sealed under `keys` for `epoch`, item keys rewrapped under its `WK`.

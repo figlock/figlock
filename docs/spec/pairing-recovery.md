@@ -214,7 +214,8 @@ For users who cannot accept R3 and R5. It is off by default and offered during s
   rotates (`crypto.md` 9.1) without knowing `rk_priv`. This resolves the open question in `crypto.md`: `RK`
   wraps `VK`, not `AUK`, and survives password changes.
 - `rk_priv` (32 bytes) is shown once and never stored by FigLock. It is presented in one of two forms:
-  a single code (`FLR1-` + Crockford base32 with a check, like the Secret Key) or a Shamir split.
+  a single code (`FLR1-` + Crockford base32 with a check, like the Secret Key; the exact format is `crypto.md`
+  4.2) or a Shamir split. The `vault.json` members are in `crypto.md` 9.3.
 
 ### 7.2 Shamir split
 

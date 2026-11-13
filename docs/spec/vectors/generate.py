@@ -81,6 +81,26 @@ def secret_key():
     return {"title": "Secret Key encoding", "cases": cases}
 
 
+def recovery_key():
+    cases = []
+    rk = fill("rk-priv", 32)
+    text = r.recovery_key_format(rk)
+    cases.append(case("encode", "crypto.md 4.2", {"rk_priv": x(rk)}, {"text": text}))
+    cases.append(case("decode-lowercase-and-spaces", "crypto.md 4.2", {"text": text.lower().replace("-", " ")},
+                      {"rk_priv": x(rk)}))
+    confusable = "FLR1-" + text[5:].replace("0", "O").replace("1", "I")
+    cases.append(case("decode-confusables", "crypto.md 4.2", {"text": confusable}, {"rk_priv": x(rk)},
+                      note="O reads as 0, I and L read as 1 (Crockford); the FLR1 prefix is matched first"))
+    chars = text.replace("-", "")
+    bad = chars[:-1] + ("0" if chars[-1] != "0" else "1")
+    cases.append(reject("check-mismatch", "crypto.md 4.2", {"text": "FLR1-" + bad[4:]},
+                        "typo in Recovery Key, reported as such"))
+    cases.append(reject("wrong-length", "crypto.md 4.2", {"text": text[:-5]}, "length"))
+    cases.append(reject("secret-key-is-not-a-recovery-key", "crypto.md 4.2", {"text": r.secret_key_format(SK)},
+                        "the FL1 prefix of a Secret Key is not FLR1"))
+    return {"title": "Recovery Key encoding", "cases": cases}
+
+
 def kdf():
     cases = []
     for name, (m, t, p) in (("default", DEFAULT), ("floor", FLOOR)):
@@ -656,7 +676,7 @@ def sync_edge_cases():
 
 
 FILES = {
-    "secret-key.json": secret_key, "kdf.json": kdf, "key-hierarchy.json": key_hierarchy, "items.json": items,
+    "secret-key.json": secret_key, "recovery-key.json": recovery_key, "kdf.json": kdf, "key-hierarchy.json": key_hierarchy, "items.json": items,
     "files.json": files, "signatures.json": signatures, "rotation.json": rotation, "quick-unlock.json": quick_unlock,
     "pairing.json": pairing, "seal-to.json": seal_to, "hlc.json": hlc, "merge.json": merge_cases,
     "sync-reader.json": sync_edge_cases, "audit.json": audit,
@@ -692,6 +712,13 @@ def verify_case(fname: str, c: dict) -> None:
             assert r.secret_key_format(b(i["sk"])) == e["text"]
         else:
             assert r.secret_key_parse(i["text"]) == b(e["sk"])
+    elif fname == "recovery-key.json":
+        if e == "reject":
+            expect_reject(lambda: r.recovery_key_parse(i["text"]))
+        elif "text" in e:
+            assert r.recovery_key_format(b(i["rk_priv"])) == e["text"]
+        else:
+            assert r.recovery_key_parse(i["text"]) == b(e["rk_priv"])
     elif fname == "kdf.json":
         if e == "reject":
             expect_reject(lambda: r.check_kdf_params(i["m_kib"], i["t"], i["p"]))
