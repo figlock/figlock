@@ -2,3 +2,9 @@ name: figlock
 paths-ignore:
   # Tests use fixed passwords and keys on purpose (published vectors, generated values).
   - crates/*/tests
+  - crates/*/src/**/tests.rs
+query-filters:
+  # The Have I Been Pwned range API is defined over SHA-1 prefixes, so the breach check must use it.
+  # Only the 5 char prefix leaves the process and nothing is stored or verified with it.
+  - exclude:
+      id: rust/weak-sensitive-data-hashing
