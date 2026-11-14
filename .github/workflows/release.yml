@@ -1,9 +1,13 @@
 name: Release
 
 # On a version tag: build the Linux binaries, sign and notarize the macOS CLI and desktop app (release-macos.yml),
-# then publish archives, the desktop dmg, SHA256SUMS and the Homebrew formula to a GitHub release. install.sh on
-# figlock.com and the Homebrew tap both read from that release. The tag must match the workspace version in
-# Cargo.toml.
+# then stage everything as a DRAFT GitHub release, verify the draft's assets (scripts/verify-release.sh) and only
+# then publish it and update the Homebrew tap. install.sh and the in-app updater (through figlock.com) both read
+# from the published release, and latest.json on the latest release is what every installed app trusts, so a
+# release that fails verification is never made public. The tag must match the workspace version in Cargo.toml.
+#
+# A tag with a suffix (v0.3.0-rc1) is published as a pre-release: it is not "latest", so install.sh and the updater
+# never see it, and the Homebrew tap is left alone. Steps and rollback: docs/releasing.md.
 on:
   push:
     tags: ['v*']
@@ -16,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
     steps:
       - uses: actions/checkout@v7
       - id: v
@@ -26,6 +31,10 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          case "$version" in
+            *-*) echo "prerelease=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
 
   linux:
     needs: check-version
@@ -81,14 +90,17 @@ jobs:
     uses: ./.github/workflows/release-macos.yml
     secrets: inherit
 
-  publish:
+  # Package everything and upload it as a draft. A draft is private, so nothing here can reach a user or an
+  # installed app, and it needs no secrets beyond the workflow token.
+  stage:
     needs: [check-version, linux, macos]
     runs-on: ubuntu-latest
-    environment: release
     permissions:
       contents: write
     env:
       VERSION: ${{ needs.check-version.outputs.version }}
+      PRERELEASE: ${{ needs.check-version.outputs.prerelease }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v7
 
@@ -113,14 +125,90 @@ jobs:
              artifacts/figlock-desktop-update/FigLock-*-universal.app.tar.gz.sig \
              artifacts/figlock-desktop-update/latest.json release/
 
-      - name: Publish the GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Write the release notes
+        # One text for the GitHub release and for "What is new" in the app. The notes are not signed, so setting
+        # them after the update was packaged changes nothing the signature covers.
         run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$GITHUB_REF_NAME" --jq .body > release-notes.md
+          scripts/set-update-notes.sh release/latest.json release-notes.md
+          python3 -m json.tool release/latest.json > /dev/null
+
+      - name: Stage the draft release
+        run: |
+          flags=(--draft)
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); fi
           gh release create "$GITHUB_REF_NAME" release/* \
-            --repo "$GITHUB_REPOSITORY" --title "figlock $VERSION" --generate-notes
+            --repo "$GITHUB_REPOSITORY" --title "figlock $VERSION" --notes-file release-notes.md "${flags[@]}"
+
+  # Check what was actually uploaded, not what the packaging step meant to upload.
+  verify:
+    needs: [check-version, stage]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # a draft release is only visible to a token that can write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install minisign
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends minisign
+      - name: Download the draft's assets
+        run: scripts/download-draft-assets.sh "$GITHUB_REF_NAME" assets
+      - name: Verify the draft
+        run: scripts/verify-release.sh assets "$GITHUB_REF_NAME"
+
+  publish:
+    needs: [check-version, verify]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.check-version.outputs.version }}
+      PRERELEASE: ${{ needs.check-version.outputs.prerelease }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the verified draft's assets
+        run: scripts/download-draft-assets.sh "$GITHUB_REF_NAME" assets
+
+      - name: Publish the release
+        run: |
+          id=$(cat assets/.release-id)
+          if [ "$PRERELEASE" = true ]; then
+            # A pre-release is never "latest", so releases/latest, install.sh and the updater do not see it.
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F draft=false -F prerelease=true -f make_latest=false
+          else
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$id" -F draft=false -F prerelease=false -f make_latest=true
+          fi
+
+      - name: Check the production feed
+        # The updater reads https://figlock.com/update/latest.json (site/_redirects). A stable release must be what
+        # it serves now; a pre-release must not be.
+        run: |
+          archive="FigLock-$VERSION-universal.app.tar.gz"
+          for attempt in 1 2 3 4 5 6; do
+            served=$(curl -fsSL https://figlock.com/update/latest.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["version"])' || true)
+            if [ "$PRERELEASE" = true ]; then
+              [ "$served" != "$VERSION" ] && break
+            else
+              [ "$served" = "$VERSION" ] && break
+            fi
+            echo "feed serves '$served', waiting ($attempt)"
+            sleep 10
+          done
+          if [ "$PRERELEASE" = true ]; then
+            [ "$served" != "$VERSION" ] || { echo "::error::the pre-release $VERSION is in the production update feed"; exit 1; }
+          else
+            [ "$served" = "$VERSION" ] || { echo "::error::the production feed serves '$served', not $VERSION. Roll back as in docs/releasing.md"; exit 1; }
+            curl -fsSL -o /dev/null "https://figlock.com/download/v$VERSION/$archive" \
+              || { echo "::error::$archive does not download through figlock.com. Roll back as in docs/releasing.md"; exit 1; }
+          fi
+          echo "production feed serves '$served'"
 
       - name: Update the Homebrew tap
+        if: needs.check-version.outputs.prerelease != 'true'
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
@@ -129,5 +217,5 @@ jobs:
           sha=$(gh api "repos/$tap/contents/$path" --jq .sha 2>/dev/null || true)
           gh api -X PUT "repos/$tap/contents/$path" \
             -f message="figlock $VERSION" \
-            -f content="$(base64 < release/figlock.rb | tr -d '\n')" \
+            -f content="$(base64 < assets/figlock.rb | tr -d '\n')" \
             ${sha:+-f sha="$sha"}
