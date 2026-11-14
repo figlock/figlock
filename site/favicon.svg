@@ -4,6 +4,5 @@
   <rect width="64" height="64" rx="14" fill="url(#bg)"/>
   <path d="M21 30 V21 a11 11 0 0 1 22 0 V30" fill="none" stroke="#fff" stroke-width="6.5"/>
   <rect x="13" y="28" width="38" height="29" rx="5" fill="#fff"/>
-  <path d="M32 50 V43 C32 40.3 33.4 39 36.2 39" fill="none" stroke="#3050E4" stroke-width="4.6" stroke-linecap="round"/>
-  <path d="M28.6 44.6 H36" fill="none" stroke="#3050E4" stroke-width="3.4" stroke-linecap="round"/>
+  <g transform="translate(-0.335 0.06) scale(0.0635)" fill="none" stroke="#3050E4" stroke-linecap="round" stroke-linejoin="round" stroke-width="28"><path d="M479 764 V712 A30 30 0 0 1 539 712 V764"/><path d="M449 764 V712 A60 60 0 0 1 569 712 V764"/><path d="M419 764 V712 A90 90 0 0 1 599 712 V764"/></g>
 </svg>

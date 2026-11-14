@@ -17,7 +17,7 @@
   --primary: #3b5afe; --primary-subtle: #eef1ff; --text-on-primary: #ffffff;
   --danger: #b3261e; --danger-subtle: #fdecea;
   --ground-dark: #10142b; --ground-dark-text: #ffffff;
-  --logo-blue-top: #4a90f2; --logo-blue-bottom: #2e47e2; --logo-f: #3050e4;
+  --logo-blue-top: #4a90f2; --logo-blue-bottom: #2e47e2; --logo-glyph: #3050e4;
   --font-ui: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
   --fs-xs: 12px; --fs-sm: 13px; --fs-base: 14px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 20px; --fs-2xl: 24px; --fs-3xl: 30px;
@@ -103,10 +103,10 @@ th { color: var(--text-secondary); font-weight: 600; }
 
 <main>
   <div class="hero">
-    <img src="figlock-icon.svg" alt="FigLock app icon: a white padlock with a small f on a blue rounded square" width="200" height="200" />
+    <img src="figlock-icon.svg" alt="FigLock app icon: a white padlock with three fingerprint arches on a blue rounded square" width="200" height="200" />
     <div>
       <h1>FigLock logo suite</h1>
-      <p>One master icon, drawn as a padlock with an f on its body, and the assets built from it: mark, wordmark, lockups, app icons for each platform, and social formats. Every file is SVG.</p>
+      <p>One master icon, drawn as a padlock with fingerprint arches on its body, and the assets built from it: mark, wordmark, lockups, app icons for each platform, and social formats. Every file is SVG.</p>
     </div>
   </div>
 
@@ -122,7 +122,7 @@ th { color: var(--text-secondary); font-weight: 600; }
 
   <section id="mark">
     <h2>Mark</h2>
-    <p class="lead">The padlock alone, with the f cut out so the ground shows through. Use it where the squircle would be too heavy.</p>
+    <p class="lead">The padlock alone, with the fingerprint arches cut out so the ground shows through. Use it where the squircle would be too heavy.</p>
     <div class="grid">
       <div class="tile"><div class="stage light"><img src="mark/figlock-mark-color.svg" height="170" width="130" alt="FigLock mark in blue" /></div><div class="cap"><b>Colour</b><code>mark/figlock-mark-color.svg</code></div></div>
       <div class="tile"><div class="stage dark"><img src="mark/figlock-mark-white.svg" height="170" width="130" alt="FigLock mark in white" /></div><div class="cap"><b>White</b><code>mark/figlock-mark-white.svg</code></div></div>
@@ -169,7 +169,7 @@ th { color: var(--text-secondary); font-weight: 600; }
     <p class="lead">The logo keeps its own blues. The product interface uses a separate primary, so the two are related but not identical.</p>
     <div class="colors">
       <div class="sw"><i style="background:linear-gradient(var(--logo-blue-top), var(--logo-blue-bottom))"></i><div><b>Logo gradient</b><code>#4A90F2 to #2E47E2</code></div></div>
-      <div class="sw"><i style="background:var(--logo-f)"></i><div><b>Letter f, flat icon</b><code>#3050E4</code></div></div>
+      <div class="sw"><i style="background:var(--logo-glyph)"></i><div><b>Fingerprint glyph, flat icon</b><code>#3050E4</code></div></div>
       <div class="sw"><i style="background:#3b5afe"></i><div><b>Interface primary, light</b><code>#3B5AFE</code></div></div>
       <div class="sw"><i style="background:#9fb0ff"></i><div><b>Interface primary, dark</b><code>#9FB0FF</code></div></div>
       <div class="sw"><i style="background:var(--ground-dark)"></i><div><b>Dark ground for lockups</b><code>#10142B</code></div></div>
@@ -216,7 +216,7 @@ th { color: var(--text-secondary); font-weight: 600; }
       <tbody>
         <tr><td><code>figlock-icon.svg</code></td><td>Master icon, the supplied code unchanged</td></tr>
         <tr><td><code>figlock-icon-flat.svg</code></td><td>One-colour background, no gradient</td></tr>
-        <tr><td><code>mark/figlock-mark-{color,white,black}.svg</code></td><td>Padlock alone, f cut out</td></tr>
+        <tr><td><code>mark/figlock-mark-{color,white,black}.svg</code></td><td>Padlock alone, arches cut out</td></tr>
         <tr><td><code>lockups/figlock-wordmark[-on-dark].svg</code></td><td>Name only</td></tr>
         <tr><td><code>lockups/figlock-lockup-{horizontal,stacked}[-on-dark].svg</code></td><td>Icon with name</td></tr>
         <tr><td><code>app-icons/*</code></td><td>iOS, macOS, Android layers, web maskable, favicon</td></tr>

@@ -12,8 +12,5 @@
     <path id="shackle" d="M328 460 V329 a179 179 0 0 1 358 0 V460" fill="none" stroke="#fff" stroke-width="84"/>
     <rect id="body" x="210" y="440" width="598" height="466" rx="64"/>
   </g>
-  <g id="letter-f" transform="translate(506 806) scale(0.8) translate(-506 -806)" fill="none" stroke="#3050E4" stroke-linecap="round">
-    <path id="stem-hook" d="M506 778 V622 C506 584 528 562 566 562" stroke-width="56"/>
-    <path id="crossbar" d="M460 660 H558" stroke-width="40"/>
-  </g>
+  <g id="glyph" fill="none" stroke="#3050E4" stroke-linecap="round" stroke-linejoin="round" stroke-width="22"><path d="M479 764 V712 A30 30 0 0 1 539 712 V764"/><path d="M449 764 V712 A60 60 0 0 1 569 712 V764"/><path d="M419 764 V712 A90 90 0 0 1 599 712 V764"/></g>
 </svg>
