@@ -131,3 +131,20 @@ fn restoring_without_sync_says_there_is_no_drive_copy_inner() {
     assert_eq!(code_of(folder::restore(None).unwrap_err()), "failed");
     assert!(d.state().unwrap().folder_missing.is_some());
 }
+
+#[test]
+fn a_failed_restore_removes_only_a_folder_it_created() {
+    let base = std::env::temp_dir().join(format!("figlock-restore-{}", std::process::id()));
+    let created = base.join("created");
+    let existing = base.join("existing");
+    std::fs::create_dir_all(&created).unwrap();
+    std::fs::create_dir_all(&existing).unwrap();
+    std::fs::write(existing.join("keep.txt"), b"x").unwrap();
+
+    folder::remove_created(&created, false);
+    folder::remove_created(&existing, true);
+
+    assert!(!created.exists());
+    assert!(existing.join("keep.txt").is_file());
+    std::fs::remove_dir_all(&base).unwrap();
+}

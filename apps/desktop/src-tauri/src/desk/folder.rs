@@ -71,19 +71,41 @@ pub fn restore(folder: Option<&str>) -> CmdRes<()> {
     if config::load_drive_token()?.is_none() {
         return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
     }
-    place.local = match folder.map(str::trim).filter(|f| !f.is_empty()) {
+    let chosen = folder.map(str::trim).filter(|f| !f.is_empty());
+    let existed = match chosen {
+        Some(f) => std::path::Path::new(f).exists(),
+        None => config::default_local_dir()?.exists(),
+    };
+    let fetched = fetch(&mut place, chosen);
+    if fetched.is_err() {
+        remove_created(&place.local, existed);
+    }
+    fetched?;
+    config::set_local(place.local)?;
+    Ok(())
+}
+
+fn fetch(place: &mut config::Place, chosen: Option<&str>) -> CmdRes<()> {
+    place.local = match chosen {
         Some(f) => folder_path(f, true)?,
         None => config::default_local_dir()?,
     };
-    sync::open_from_remote(&place).map_err(Fail::from)?;
+    sync::open_from_remote(place).map_err(Fail::from)?;
     if store::open_local(&place.local)?.get("vault.json").is_err() {
         return Err(CmdError::new(
             "no_vault",
             "There is no FigLock vault in this Google Drive.",
         ));
     }
-    config::set_local(place.local)?;
     Ok(())
+}
+
+/// A failed restore must not leave the folder it created, or the device would look set up with an empty vault
+/// folder. A folder that was already there is never removed.
+pub(super) fn remove_created(path: &std::path::Path, existed: bool) {
+    if !existed {
+        let _ = std::fs::remove_dir_all(path);
+    }
 }
 
 /// Remove this vault from this Mac: its device config and device keys. The folder, the Drive copy and the
