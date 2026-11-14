@@ -1,5 +1,13 @@
 import { driveSignIn, errorOf } from "./vault";
-import { onSynced, syncDisable, syncEnable, syncNow, syncStatus, type SyncView } from "./sync";
+import {
+  onSynced,
+  syncDisable,
+  syncEnable,
+  syncNow,
+  syncSignOut,
+  syncStatus,
+  type SyncView,
+} from "./sync";
 
 /** What the window knows about Google Drive sync, kept fresh while the vault is open. */
 export class SyncStatus {
@@ -10,6 +18,8 @@ export class SyncStatus {
   step = $state<"" | "google" | "enabling">("");
   /** The last action's failure, in words for the person. */
   error = $state("");
+  /** What the last sign-out could not do, in words (Google could not be reached to revoke the access). */
+  notice = $state("");
 
   constructor(private onsynced: () => void = () => {}) {}
 
@@ -95,6 +105,33 @@ export class SyncStatus {
       this.step = "";
       this.busy = false;
     }
+  }
+
+  /** Sign out of Google (which also turns sync off). Resolves true when this Mac is signed out. */
+  async signOut() {
+    this.error = "";
+    this.notice = "";
+    this.busy = true;
+    try {
+      const { revoked } = await syncSignOut();
+      if (!revoked) {
+        this.notice =
+          "Signed out on this Mac, but Google could not be reached to remove FigLock's access. You can remove it in your Google account under Security > Third-party apps.";
+      }
+      return true;
+    } catch (e) {
+      this.error = errorOf(e).message;
+      return false;
+    } finally {
+      this.busy = false;
+      await this.refresh();
+      this.onsynced();
+    }
+  }
+
+  /** Sign out, then go through Turn on sync, so a different Google account can be picked. */
+  async useDifferentAccount() {
+    if (await this.signOut()) await this.turnOn();
   }
 
   /** Sign in to Google again after the sign-in expired, then resume the sync that was blocked. */

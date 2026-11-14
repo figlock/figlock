@@ -10,6 +10,7 @@ const core = vi.hoisted(() => ({
   syncNow: vi.fn(),
   syncEnable: vi.fn(),
   syncDisable: vi.fn(),
+  syncSignOut: vi.fn(),
   onSynced: vi.fn(),
   driveSignIn: vi.fn(),
   lock: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("./sync", async (original) => ({
   syncNow: core.syncNow,
   syncEnable: core.syncEnable,
   syncDisable: core.syncDisable,
+  syncSignOut: core.syncSignOut,
   onSynced: core.onSynced,
 }));
 vi.mock("./items", async (original) => ({
@@ -41,6 +43,7 @@ const view = (over: Partial<SyncView> = {}): SyncView => ({
   enabled: true,
   state: "idle",
   signedIn: true,
+  signedInSecsAgo: 3 * 86_400,
   canSignIn: true,
   lastSyncSecsAgo: 120,
   message: null,
@@ -279,4 +282,91 @@ test("items another device added appear when the app core reports a sync", async
   emit();
   expect(await screen.findByText("From my phone")).toBeTruthy();
   expect(core.listItems.mock.calls.length).toBeGreaterThan(before);
+});
+
+test("Settings says this Mac is signed in to Google and since when", async () => {
+  core.syncStatus.mockResolvedValue(view());
+  await toSettings();
+  expect(screen.getByText("Signed in to Google")).toBeTruthy();
+  expect(screen.getByTestId("google-signin").textContent).toContain("Signed in 3 days ago.");
+});
+
+test("signing out of Google asks first, then signs out and turns sync off", async () => {
+  core.syncStatus.mockResolvedValue(view());
+  const user = await toSettings();
+  await user.click(screen.getByRole("button", { name: "Sign out of Google" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog.textContent).toContain("stays where it is");
+  // Cancelling signs nobody out.
+  await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+  expect(core.syncSignOut).not.toHaveBeenCalled();
+
+  core.syncSignOut.mockImplementation(async () => {
+    core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
+    return { revoked: true };
+  });
+  await user.click(screen.getByRole("button", { name: "Sign out of Google" }));
+  await user.click(
+    within(await screen.findByRole("dialog")).getByRole("button", { name: "Sign out of Google" }),
+  );
+  await waitFor(() => expect(core.syncSignOut).toHaveBeenCalledTimes(1));
+  expect(await screen.findByRole("button", { name: "Turn on sync" })).toBeTruthy();
+  expect(screen.queryByText("Signed in to Google")).toBeNull();
+});
+
+test("when Google cannot be reached the person is told where to remove the access", async () => {
+  core.syncStatus.mockResolvedValue(view());
+  const user = await toSettings();
+  core.syncSignOut.mockImplementation(async () => {
+    core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
+    return { revoked: false };
+  });
+  await user.click(screen.getByRole("button", { name: "Sign out of Google" }));
+  await user.click(
+    within(await screen.findByRole("dialog")).getByRole("button", { name: "Sign out of Google" }),
+  );
+  expect(await screen.findByText(/could not be reached to remove FigLock's access/)).toBeTruthy();
+});
+
+test("using a different Google account signs out, then runs Turn on sync against the new sign-in", async () => {
+  core.syncStatus.mockResolvedValue(view());
+  const user = await toSettings();
+  const order: string[] = [];
+  core.syncSignOut.mockImplementation(async () => {
+    order.push("sign-out");
+    core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
+    return { revoked: true };
+  });
+  core.driveSignIn.mockImplementation(async () => {
+    order.push("sign-in");
+    core.syncStatus.mockResolvedValue(
+      view({ enabled: false, state: "off", signedIn: true, signedInSecsAgo: 0 }),
+    );
+    return { canSignIn: true, signedIn: true };
+  });
+  core.syncEnable.mockImplementation(async () => {
+    order.push("enable");
+    core.syncStatus.mockResolvedValue(view({ signedInSecsAgo: 0, lastSyncSecsAgo: 0 }));
+    return view({ signedInSecsAgo: 0, lastSyncSecsAgo: 0 });
+  });
+  await user.click(screen.getByRole("button", { name: "Use a different Google account" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog.textContent).toContain("different FigLock vault");
+  await user.click(within(dialog).getByRole("button", { name: "Sign out and choose another" }));
+  await waitFor(() => expect(order).toEqual(["sign-out", "sign-in", "enable"]));
+  expect(await screen.findByRole("button", { name: "Turn off sync" })).toBeTruthy();
+});
+
+test("a sign-out that fails is shown and no new sign-in starts", async () => {
+  core.syncStatus.mockResolvedValue(view());
+  const user = await toSettings();
+  core.syncSignOut.mockRejectedValue({ code: "failed", message: "Could not sign out." });
+  await user.click(screen.getByRole("button", { name: "Use a different Google account" }));
+  await user.click(
+    within(await screen.findByRole("dialog")).getByRole("button", {
+      name: "Sign out and choose another",
+    }),
+  );
+  expect(await screen.findByText("Could not sign out.")).toBeTruthy();
+  expect(core.driveSignIn).not.toHaveBeenCalled();
 });

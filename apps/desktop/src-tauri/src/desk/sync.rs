@@ -63,6 +63,9 @@ pub struct SyncView {
     /// `off`, `idle`, `syncing`, `offline`, `sign_in`, `lost`, `foreign` or `failed`.
     pub state: &'static str,
     pub signed_in: bool,
+    /// How long ago this Mac signed in to Google. The sign-in carries no account name (the app folder scope
+    /// gives no email), so this is all the window can say about it.
+    pub signed_in_secs_ago: Option<u64>,
     /// This build can sign in to Google at all.
     pub can_sign_in: bool,
     pub last_sync_secs_ago: Option<u64>,
@@ -131,6 +134,9 @@ impl Desk {
             enabled,
             state,
             signed_in: drive.signed_in,
+            signed_in_secs_ago: config::drive_signed_in_ms()
+                .filter(|_| drive.signed_in)
+                .map(|t| figlock_session::session::now_ms().saturating_sub(t) / 1000),
             can_sign_in: drive.can_sign_in,
             last_sync_secs_ago: sync::last_sync_ms()
                 .map(|t| figlock_session::session::now_ms().saturating_sub(t) / 1000),
@@ -145,6 +151,17 @@ impl Desk {
             needs_unlock: enabled && s.needs_unlock,
             local_folder: cfg.map(|c| c.place.local.display().to_string()),
         })
+    }
+
+    /// Sign out of Google: turn sync off first (a Mac with sync on and no sign-in would only sit at "sign in
+    /// again"), then revoke the token and forget it. The vault on this Mac and the copy in Drive are left alone.
+    pub fn sync_sign_out(&self) -> CmdRes<super::drive::SignedOut> {
+        if config::load().is_ok_and(|c| c.place.remote.is_some()) {
+            config::set_remote(None)?;
+            sync::forget_state();
+            *self.sync_state() = SyncState::new();
+        }
+        super::drive::sign_out()
     }
 
     /// Sync once now. `reupload` is the person's yes to uploading everything again after the vault was lost

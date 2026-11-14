@@ -431,6 +431,55 @@ fn sync_off_inner() {
     assert_eq!(d.sync_disable().unwrap().state, "off");
 }
 
+#[test]
+fn signing_out_of_google_turns_sync_off_and_leaves_the_vault_alone() {
+    scenario("sign_out_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn sign_out_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.recovery_skip(true).unwrap();
+    d.finish_create(false).unwrap();
+
+    // Not signed in: nothing to say about when.
+    let v = d.sync_status().unwrap();
+    assert!(!v.signed_in && v.signed_in_secs_ago.is_none());
+
+    // Signed in: the window can say when, and sync is on.
+    config::save_drive_token(&password()).unwrap();
+    config::set_remote(Some(Remote::Drive)).unwrap();
+    let v = d.sync_status().unwrap();
+    assert!(v.signed_in && v.enabled);
+    assert!(v.signed_in_secs_ago.is_some_and(|s| s < 60));
+
+    // A damaged token file has nothing to revoke at Google, so this needs no network.
+    let token = config::home().unwrap().join("drive-token.json");
+    std::fs::write(&token, "not json").unwrap();
+    let out = d.sync_sign_out().unwrap();
+    assert!(!out.revoked);
+    assert!(!token.exists(), "the local sign-in is gone");
+    let v = d.sync_status().unwrap();
+    assert!(!v.signed_in && !v.enabled && v.state == "off");
+    assert_eq!(config::load().unwrap().place.remote, None);
+    // The vault on this Mac is untouched and still open.
+    assert_eq!(d.state().unwrap().phase, "unlocked");
+    assert!(
+        std::path::Path::new(&vault_dir())
+            .join("vault.json")
+            .is_file()
+    );
+
+    // Signing out when signed out is harmless.
+    assert!(!d.sync_sign_out().unwrap().revoked);
+}
+
 fn canonical(p: &str) -> String {
     std::fs::canonicalize(p).unwrap().display().to_string()
 }

@@ -20,7 +20,12 @@ with Drive as an optional second location synced in the background.
 - **Drive is an optional remote.** Device config holds the local folder (required) and `remote` (absent or
   `drive`). Choosing Drive at setup means "local copy plus sync", never Drive alone.
 - **Turning Drive on later** signs in, then uploads what is already local. **Turning it off** stops syncing
-  and leaves the local copy and the Drive data alone (signing out is a separate step, ADR-0021).
+  and leaves the local copy and the Drive data alone (signing out is a separate step, ADR-0021). The desktop Settings (FIG-120) shows
+  whether this Mac is signed in to Google and since when (the app-folder scope gives no email, so no account
+  name), and offers **Sign out of Google** (turns sync off first, revokes the token, keeps the local vault and
+  the Drive copy) and **Use a different Google account** (sign out, then the one-step Turn on sync). Turning
+  sync on against another Drive uploads this Mac's vault; a Drive holding a different vault is refused (same
+  vault only) and the earlier Drive copy is left alone.
 - **Opening an existing vault from Drive, or joining a device by pairing, downloads it into a new local
   copy** and then syncs normally.
 - **Migration.** A `config.json` with `store_kind: drive` (a Drive-only device) gets a default local folder

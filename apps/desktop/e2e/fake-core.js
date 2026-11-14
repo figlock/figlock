@@ -20,6 +20,7 @@
       enabled: false,
       state: "off",
       signedIn: false,
+      signedInSecsAgo: null,
       canSignIn: true,
       lastSyncSecsAgo: null,
       message: null,
@@ -298,8 +299,20 @@
       core.sync = { ...core.sync, enabled: false, state: "off", lastSyncSecsAgo: null };
       return { ...core.sync };
     },
+    sync_sign_out: () => {
+      const revoked = !core.sync.signOutUnrevoked;
+      core.sync = {
+        ...core.sync,
+        enabled: false,
+        signedIn: false,
+        signedInSecsAgo: null,
+        state: "off",
+        lastSyncSecsAgo: null,
+      };
+      return { revoked };
+    },
     drive_sign_in: () => {
-      core.sync = { ...core.sync, signedIn: true };
+      core.sync = { ...core.sync, signedIn: true, signedInSecsAgo: 0 };
       return { canSignIn: true, signedIn: true };
     },
     drive_status: () => ({ canSignIn: true, signedIn: core.sync.signedIn }),
