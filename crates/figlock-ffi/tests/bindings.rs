@@ -11,9 +11,13 @@ fn cargo() -> String {
 
 /// Build the cdylib for the profile this test runs under and return its path.
 fn built_library() -> PathBuf {
-    let exe = std::env::current_exe().unwrap();
-    let profile_dir = exe.parent().unwrap().parent().unwrap().to_path_buf(); // target/<profile>
-    let release = profile_dir.file_name().is_some_and(|n| n == "release");
+    // Newer cargo keeps test executables in a separate build directory, so the profile directory
+    // cannot be derived from the test's own path: use the target directory and the build profile.
+    let release = !cfg!(debug_assertions);
+    let target_dir = std::env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target"));
+    let profile_dir = target_dir.join(if release { "release" } else { "debug" });
     let mut build = Command::new(cargo());
     build.args([
         "build",
