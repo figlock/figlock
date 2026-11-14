@@ -61,6 +61,7 @@ beforeEach(() => {
     enabled: false,
     state: "off",
     signedIn: false,
+    signedInSecsAgo: null,
     canSignIn: true,
     lastSyncSecsAgo: null,
     message: null,

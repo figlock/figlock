@@ -9,6 +9,8 @@ export type SyncView = {
   enabled: boolean;
   state: SyncState;
   signedIn: boolean;
+  /** How long ago this Mac signed in to Google; the sign-in carries no account name. */
+  signedInSecsAgo: number | null;
   /** This build can sign in to Google at all (source builds cannot, ADR-0021). */
   canSignIn: boolean;
   lastSyncSecsAgo: number | null;
@@ -25,6 +27,11 @@ export const syncStatus = () => invoke<SyncView>("sync_status");
 /** `reupload` is the person's yes to uploading everything again after the vault was lost from Drive. */
 export const syncNow = (reupload = false) => invoke<SyncView>("sync_now", { reupload });
 export const syncEnable = () => invoke<SyncView>("sync_enable");
+/**
+ * Signs out of Google and turns sync off. The vault on this Mac and the copy in Drive are kept. `revoked` is
+ * false when Google could not be reached, so access may still be there.
+ */
+export const syncSignOut = () => invoke<{ revoked: boolean }>("sync_sign_out");
 export const syncDisable = () => invoke<SyncView>("sync_disable");
 
 /** Called after every sync the app core runs, so the window can reload what it shows. */

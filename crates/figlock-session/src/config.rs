@@ -209,6 +209,17 @@ fn save_drive_token_in(home: &Path, refresh_token: &str) -> Res<()> {
     Ok(())
 }
 
+/// When this device signed in to Google, as milliseconds since the epoch: the token file is only written at
+/// sign-in, so its modification time is the sign-in time. `None` when there is no sign-in.
+pub fn drive_signed_in_ms() -> Option<u64> {
+    let modified = fs::metadata(drive_token_path(&home().ok()?))
+        .ok()?
+        .modified()
+        .ok()?;
+    let since = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+    u64::try_from(since.as_millis()).ok()
+}
+
 /// The stored Google refresh token, or `None` when this device is not signed in to Google.
 #[allow(dead_code)]
 pub fn load_drive_token() -> Res<Option<Zeroizing<String>>> {

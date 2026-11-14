@@ -271,6 +271,19 @@ async fn drive_sign_out() -> CmdRes<SignedOut> {
     desk::drive::sign_out()
 }
 
+/// Sign out of Google from Settings: turns sync off too, then revokes the sign-in.
+#[tauri::command]
+async fn sync_sign_out(app: AppHandle) -> CmdRes<SignedOut> {
+    let out = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || tauri::Manager::state::<Desk>(&app).sync_sign_out()
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Signing out stopped unexpectedly. Try again."))??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(out)
+}
+
 /// Whether sync is on and how it is going, with no network call.
 #[tauri::command]
 async fn sync_status(desk: State<'_, Desk>) -> CmdRes<SyncView> {
@@ -731,6 +744,7 @@ pub fn run() {
             sync_status,
             sync_now,
             sync_enable,
+            sync_sign_out,
             sync_disable,
             devices,
             revoke_device,

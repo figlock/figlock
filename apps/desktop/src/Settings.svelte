@@ -17,7 +17,7 @@
   /** States where nothing happens until the person acts, so "last synced" would mislead. */
   const PAUSED = ["sign_in", "lost", "foreign"];
 
-  let confirming = $state<"off" | "reupload" | null>(null);
+  let confirming = $state<"off" | "reupload" | "signout" | "switch" | null>(null);
 
   async function lockToRefresh() {
     await lock();
@@ -70,6 +70,30 @@
           </Button>
         {/if}
       </div>
+
+      {#if view.signedIn}
+        <div
+          class="flex flex-wrap items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3"
+        >
+          <Icon name="globe" class="text-text-tertiary" />
+          <div class="min-w-0 flex-1">
+            <p class="font-medium">Signed in to Google</p>
+            <p class="text-(length:--text-sm) text-text-secondary" data-testid="google-signin">
+              {view.signedInSecsAgo === null
+                ? "This Mac is linked to a Google account."
+                : `Signed in ${ago(view.signedInSecsAgo)}.`}
+              FigLock only sees its own hidden app folder, so it cannot show which account.
+            </p>
+          </div>
+          <Button onclick={() => (confirming = "switch")} disabled={sync.busy}>
+            Use a different Google account
+          </Button>
+          <Button onclick={() => (confirming = "signout")} disabled={sync.busy}>
+            Sign out of Google
+          </Button>
+        </div>
+      {/if}
+      {#if sync.notice}<Alert tone="warning">{sync.notice}</Alert>{/if}
 
       {#if view.enabled}
         {#if view.state === "offline"}
@@ -132,7 +156,9 @@
         </div>
         <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
           FigLock can only see its own hidden app folder, never your other files. Everything in it
-          is encrypted.
+          is encrypted. This Mac uploads its vault to the Google account you sign in with. If that
+          Drive already holds a different FigLock vault, sync is refused and nothing is changed. A
+          copy left in an earlier Drive stays there until you remove it in that Google account.
         </p>
       {/if}
 
@@ -162,11 +188,35 @@
 {#if confirming === "off"}
   <ConfirmDialog
     title="Turn off sync?"
-    body="The vault stays on this Mac, and the copy in your Google Drive stays where it is. Changes here will no longer reach your other devices."
+    body="The vault stays on this Mac, and the copy in your Google Drive stays where it is. Changes here will no longer reach your other devices. This Mac stays signed in to Google; to unlink it, use Sign out of Google in Settings."
     confirm="Turn off sync"
     onconfirm={() => {
       confirming = null;
       void sync.disable();
+    }}
+    oncancel={() => (confirming = null)}
+  />
+{:else if confirming === "signout"}
+  <ConfirmDialog
+    title="Sign out of Google?"
+    body="This Mac will stop syncing and FigLock's access to your Google account is removed. The vault stays on this Mac, and the encrypted copy in your Google Drive stays where it is. You can sign in again any time."
+    confirm="Sign out of Google"
+    danger
+    onconfirm={() => {
+      confirming = null;
+      void sync.signOut();
+    }}
+    oncancel={() => (confirming = null)}
+  />
+{:else if confirming === "switch"}
+  <ConfirmDialog
+    title="Use a different Google account?"
+    body="This Mac signs out of Google and sync stops. Then you choose the other account and sync turns on against its Drive: this Mac uploads its vault there. If that Drive already holds a different FigLock vault, sync is refused and nothing is changed. The copy in the current Drive is left alone; remove it from that Google account if you no longer want it."
+    confirm="Sign out and choose another"
+    danger
+    onconfirm={() => {
+      confirming = null;
+      void sync.useDifferentAccount();
     }}
     oncancel={() => (confirming = null)}
   />

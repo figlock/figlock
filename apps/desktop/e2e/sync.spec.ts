@@ -43,4 +43,46 @@ test.describe("sync", () => {
       await confirm.getByRole("button", { name: /Turn off/ }).click();
     await expect(page.getByTestId("sync-badge")).toHaveCount(0);
   });
+
+  test("turn off sync, sign out of Google, then turn sync on again with a fresh sign-in", async ({
+    page,
+  }) => {
+    await openApp(page, { sync: { ...synced, signedInSecsAgo: 86_400 } });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByText("Signed in to Google")).toBeVisible();
+    await expect(page.getByTestId("google-signin")).toContainText("Signed in 24 hours ago");
+
+    // Turning sync off keeps the Google sign-in, and says so.
+    await page.getByRole("button", { name: "Turn off sync" }).click();
+    await expect(page.getByRole("dialog")).toContainText("stays signed in to Google");
+    await page.getByRole("dialog").getByRole("button", { name: "Turn off sync" }).click();
+    await expect(page.getByRole("button", { name: "Turn on sync" })).toBeVisible();
+    await expect(page.getByText("Signed in to Google")).toBeVisible();
+
+    // Sign out needs a confirmation; cancelling does nothing.
+    await page.getByRole("button", { name: "Sign out of Google" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+    expect(await calls(page)).not.toContain("sync_sign_out");
+    await expect(page.getByText("Signed in to Google")).toBeVisible();
+    await page.getByRole("button", { name: "Sign out of Google" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Sign out of Google" }).click();
+    await expect(page.getByText("Signed in to Google")).toHaveCount(0);
+
+    // Turn on sync signs in again and turns sync on, with no second click.
+    await page.getByRole("button", { name: "Turn on sync" }).click();
+    await expect(page.getByRole("button", { name: "Turn off sync" })).toBeVisible();
+    await expect(page.getByText("Signed in to Google")).toBeVisible();
+  });
+
+  test("use a different Google account in one flow", async ({ page }) => {
+    await openApp(page, { sync: { ...synced, signedInSecsAgo: 60 } });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Use a different Google account" }).click();
+    await expect(page.getByRole("dialog")).toContainText("different FigLock vault");
+    await page.getByRole("button", { name: "Sign out and choose another" }).click();
+    await expect(page.getByRole("button", { name: "Turn off sync" })).toBeVisible();
+    const made = await calls(page);
+    expect(made.indexOf("sync_sign_out")).toBeLessThan(made.indexOf("drive_sign_in"));
+    expect(made.indexOf("drive_sign_in")).toBeLessThan(made.lastIndexOf("sync_enable"));
+  });
 });
