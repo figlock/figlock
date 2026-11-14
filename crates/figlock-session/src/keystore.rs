@@ -5,7 +5,7 @@
 
 use zeroize::Zeroizing;
 
-use crate::error::{Fail, FailKind, Res};
+use crate::error::Res;
 
 /// A place to keep one small secret per device, found by an account name that is not secret.
 pub trait SecretStore {
@@ -45,8 +45,8 @@ const ERR_SEC_ITEM_NOT_FOUND: i32 = -25300;
 impl SecretStore for Keychain {
     fn put(&self, account: &str, secret: &[u8]) -> Res<()> {
         crate::keychain::put(SERVICE, account, secret).map_err(|_| {
-            Fail::of(
-                FailKind::KeychainDenied,
+            crate::error::Fail::of(
+                crate::error::FailKind::KeychainDenied,
                 "could not save the device keys in the macOS keychain",
             )
         })
@@ -56,8 +56,8 @@ impl SecretStore for Keychain {
         match security_framework::passwords::get_generic_password(SERVICE, account) {
             Ok(bytes) => Ok(Some(Zeroizing::new(bytes))),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
-            Err(_) => Err(Fail::of(
-                FailKind::KeychainDenied,
+            Err(_) => Err(crate::error::Fail::of(
+                crate::error::FailKind::KeychainDenied,
                 "could not read the device keys from the macOS keychain",
             )),
         }
@@ -67,8 +67,8 @@ impl SecretStore for Keychain {
         match security_framework::passwords::delete_generic_password(SERVICE, account) {
             Ok(()) => Ok(()),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
-            Err(_) => Err(Fail::of(
-                FailKind::KeychainDenied,
+            Err(_) => Err(crate::error::Fail::of(
+                crate::error::FailKind::KeychainDenied,
                 "could not remove the device keys from the macOS keychain",
             )),
         }

@@ -17,7 +17,7 @@ use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use crate::config;
-use crate::error::{Fail, FailKind, Res};
+use crate::error::{Fail, Res};
 use crate::quick_se::{Chip, Hardware};
 use crate::session::Ui;
 
@@ -330,8 +330,8 @@ impl Backend for System {
 
     fn put_key(&self, vault: &str, key: &[u8; 32]) -> Res<()> {
         crate::keychain::put(self.service, vault, key).map_err(|_| {
-            Fail::of(
-                FailKind::KeychainDenied,
+            crate::error::Fail::of(
+                crate::error::FailKind::KeychainDenied,
                 "could not save the key in the macOS keychain",
             )
         })
@@ -343,8 +343,8 @@ impl Backend for System {
                 .ok()
                 .map(Zeroizing::new)),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
-            Err(_) => Err(Fail::of(
-                FailKind::KeychainDenied,
+            Err(_) => Err(crate::error::Fail::of(
+                crate::error::FailKind::KeychainDenied,
                 "could not read the key from the macOS keychain",
             )),
         }
@@ -358,8 +358,8 @@ impl Backend for System {
         match security_framework::passwords::delete_generic_password(self.service, vault) {
             Ok(()) => Ok(()),
             Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(()),
-            Err(_) => Err(Fail::of(
-                FailKind::KeychainDenied,
+            Err(_) => Err(crate::error::Fail::of(
+                crate::error::FailKind::KeychainDenied,
                 "could not remove the key from the macOS keychain",
             )),
         }
