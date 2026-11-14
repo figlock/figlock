@@ -130,15 +130,15 @@ Background (`--color-bg`) is #faf9f9 in light and #121114 in dark. Surfaces step
 
 ### 7.1 Logo and app icons
 
-The logo was designed in OpenDesign (FIG-46) and is stored in `design/logo/`: a white padlock with a small
-"f" on a blue rounded square, and a wordmark set in Figtree Bold. Treat those files as the source of truth.
+The logo was designed in OpenDesign (FIG-46) and is stored in `design/logo/`: a white padlock with three
+fingerprint arches on a blue rounded square (ADR-0033), and a wordmark set in Figtree Bold. Treat those files as the source of truth.
 
 - `figlock-icon.svg` is the app icon, `figlock-icon-flat.svg` the same without the gradient. `mark/` holds
   the padlock mark in color, black and white. `lockups/` holds the wordmark and the horizontal and stacked
   lockups, each for light and dark backgrounds. `app-icons/` holds the favicon and the iOS, macOS, Android
   (foreground, background, monochrome) and maskable icons. `social/` holds the avatar and the social card.
   `index.html` is a contact sheet of all of them.
-- Use a file as it is. Do not recolor, stretch, add effects, redraw the "f" or retype the wordmark. Pick the
+- Use a file as it is. Do not recolor, stretch, add effects, redraw the fingerprint arches or retype the wordmark. Pick the
   `on-dark` variant on dark backgrounds.
 - The wordmark SVGs embed Figtree Bold, so they render the same on every machine.
 - Store and platform icon sizes are exported from these SVGs by the release tasks, not drawn again.

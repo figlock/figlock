@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-08
 - Decision: D23 in `docs/decisions.md`
+- Glyph changed by ADR-0033 (the "f" was replaced by fingerprint arches)
 
 ## Context
 
