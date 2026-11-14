@@ -7,6 +7,7 @@
   import Join from "./Join.svelte";
   import OpenExisting from "./OpenExisting.svelte";
   import Unlock from "./Unlock.svelte";
+  import { updates } from "./updates.svelte";
   import Welcome from "./Welcome.svelte";
   import Workspace from "./Workspace.svelte";
   import { activity, lock, onAutoLock, vaultState, type VaultState } from "./vault";
@@ -29,6 +30,8 @@
 
   onMount(() => {
     refresh();
+    // Once at launch, quietly: it only shows something when there is an update (FIG-112).
+    void updates.check(true);
     // The idle timer runs in the app core; tell it about input, at most once a second.
     let last = 0;
     const seen = () => {

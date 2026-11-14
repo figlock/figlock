@@ -108,6 +108,10 @@ jobs:
           # The desktop app's dmg goes next to the CLI archives, with its checksum in the same file.
           cp artifacts/figlock-desktop-macos-universal/FigLock-*-universal.dmg release/
           (cd release && shasum -a 256 FigLock-*-universal.dmg >> SHA256SUMS)
+          # What the in-app updater reads (FIG-112): the signed archive, its signature and the manifest.
+          cp artifacts/figlock-desktop-update/FigLock-*-universal.app.tar.gz \
+             artifacts/figlock-desktop-update/FigLock-*-universal.app.tar.gz.sig \
+             artifacts/figlock-desktop-update/latest.json release/
 
       - name: Publish the GitHub release
         env:

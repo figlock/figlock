@@ -1,0 +1,4 @@
+# The desktop app's updater reads these URLs, so a change of repository or host stays invisible to installed apps
+# (FIG-112). The manifest is the latest release's latest.json; the archives are that release's assets.
+/update/latest.json  https://github.com/figlock/figlock/releases/latest/download/latest.json  302
+/download/*  https://github.com/figlock/figlock/releases/download/:splat  302

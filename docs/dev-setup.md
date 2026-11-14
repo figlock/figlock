@@ -67,6 +67,33 @@ tool, Settings says so; in one with it, Settings offers an opt-in "Install comma
 script) is already on this Mac, Settings names it and adds no second copy. The output is unsigned; signing and the dmg are the release
 workflow's job.
 
+### Trying updates locally
+
+The in-app updater (ADR-0032) can be tried end to end with a throwaway key and a local feed; nothing here touches
+the release key or Apple signing. Build two versions of the app, serve the newer one, and update the older one.
+
+```sh
+cd apps/desktop
+pnpm tauri signer generate --ci -p "" -w /tmp/updtest.key           # throwaway key, not the release key
+cat > /tmp/updtest.conf.json <<EOF
+{"plugins":{"updater":{"pubkey":"$(cat /tmp/updtest.key.pub)","endpoints":["http://127.0.0.1:8766/latest.json"],
+  "dangerousInsecureTransportProtocol":true,"requireSignedVersion":true}}}
+EOF
+T=aarch64-apple-darwin; C="--config src-tauri/tauri.bundle.conf.json --config /tmp/updtest.conf.json"
+../../scripts/build-desktop.sh $T >/dev/null 2>&1 || true            # puts the CLI where Tauri wants it
+pnpm tauri build --target $T $C && cp -R ../../target/$T/release/bundle/macos/FigLock.app /tmp/installed.app
+pnpm tauri build --target $T $C --config '{"version":"0.2.1"}'       # a newer one
+codesign --force --deep -s - ../../target/$T/release/bundle/macos/FigLock.app
+TAURI_SIGNING_PRIVATE_KEY_PATH=/tmp/updtest.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD= FIGLOCK_UPDATE_ALLOW_SINGLE_ARCH=1 \
+  FIGLOCK_UPDATE_BASE_URL=http://127.0.0.1:8766/download \
+  ../../scripts/package-update.sh ../../target/$T/release/bundle/macos/FigLock.app /tmp/feed/download/v0.2.1
+cp /tmp/feed/download/v0.2.1/latest.json /tmp/feed/ && (cd /tmp/feed && python3 -m http.server 8766 --bind 127.0.0.1)
+```
+
+Run `/tmp/installed.app` with `FIGLOCK_DEVICE_KEYS=file` and a throwaway `FIGLOCK_HOME`, unlock, and the sidebar
+shows "Update available". Change the version in `latest.json` to see a mismatch refused, or corrupt the signature
+to see "could not be verified". The real cause of any failure is printed to the app's stderr.
+
 ## Google Drive sign-in in a local build
 
 Source builds have no Google client secret (ADR-0021). To try `figlock drive login` or Google Drive in the desktop app locally, set it for the run

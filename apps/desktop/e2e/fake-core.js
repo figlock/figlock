@@ -31,6 +31,9 @@
     health: opts.health ?? null,
     failNext: null,
     cli: { state: "not_installed", ...(opts.cli ?? {}) },
+    // What the update feed answers: `update` is `{ version, notes }` when there is a newer version.
+    update: opts.update ?? null,
+    updateState: opts.updateUnavailable ? "unavailable" : "idle",
   });
 
   const now = Date.now();
@@ -105,6 +108,13 @@
     "orchid",
     "pebble",
   ];
+
+  const updateView = (state) => ({
+    state,
+    current: "9.9.9",
+    version: state === "available" || state === "ready" ? core.update?.version : null,
+    notes: state === "available" ? (core.update?.notes ?? null) : null,
+  });
 
   const cliView = () => ({
     state: core.cli.state,
@@ -227,6 +237,20 @@
       return { checked: core.items.size, rows, breachChecked: checkBreaches, breachFailed: false };
     },
     sync_status: () => ({ ...core.sync }),
+    update_check: () => {
+      if (core.updateState === "unavailable") return updateView("unavailable");
+      if (core.failUpdateCheck) return fail("update_check_failed", core.failUpdateCheck);
+      if (!core.update) return updateView("up_to_date");
+      core.updateState = "available";
+      return updateView("available");
+    },
+    update_install: () => {
+      core.updateState = "ready";
+      return updateView("ready");
+    },
+    restart_app: () => {
+      core.restarted = true;
+    },
     cli_tool_status: () => cliView(),
     install_cli_tool: () => {
       core.cli.state = "installed";

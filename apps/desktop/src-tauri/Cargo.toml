@@ -19,11 +19,13 @@ hex.workspace = true
 ureq.workspace = true
 zeroize.workspace = true
 serde = { version = "1", features = ["derive"] }
+# `generate_context!` expands to `serde_json` code once the config has a `plugins` entry (the update key and feed).
+serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls", "zip"] }
 
 [dev-dependencies]
-serde_json.workspace = true
 tempfile.workspace = true
 
 [lints]

@@ -15,6 +15,7 @@
   import { Nav, type Filter } from "./nav.svelte";
   import NewItem from "./NewItem.svelte";
   import { toast } from "./toast.svelte";
+  import { updates } from "./updates.svelte";
   import { setWorkspace } from "./workspace";
 
   type Props = {
@@ -215,6 +216,19 @@
       </button>
     </nav>
     <div class="border-t border-border p-3 max-[860px]:p-2">
+      {#if updates.pending}
+        <button
+          type="button"
+          onclick={() => nav.go({ p: "settings" })}
+          title="Updates"
+          class="mb-1 flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left text-(length:--text-xs) font-medium text-text hover:bg-border max-[860px]:hidden"
+        >
+          <Icon name="download" class="text-primary" />
+          <span class="min-w-0 flex-1 truncate" data-testid="update-badge"
+            >{updates.view?.state === "ready" ? "Restart to update" : "Update available"}</span
+          >
+        </button>
+      {/if}
       {#if syncBadge}
         <button
           type="button"

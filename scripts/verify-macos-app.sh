@@ -52,6 +52,10 @@ spctl --assess --type execute -vv "$app"
 
 echo "The command line tool inside"
 [ "$(lipo -archs "$exe")" = "$(lipo -archs "$cli")" ] || fail "the app and the CLI are built for different architectures"
-"$cli" --version
+cli_version=$("$cli" --version)
+echo "$cli_version"
+# The app and the CLI inside it must be the same version: that is what an update keeps true (FIG-112).
+app_version=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")
+[ "$cli_version" = "figlock $app_version" ] || fail "the app is $app_version but the CLI says: $cli_version"
 
 echo "Verified $dmg"

@@ -893,6 +893,7 @@ pub mod pairing;
 pub mod recovery;
 pub mod secret_key;
 pub mod sync;
+pub mod update;
 
 #[cfg(test)]
 mod cli_tool_tests;

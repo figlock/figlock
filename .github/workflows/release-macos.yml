@@ -28,13 +28,18 @@ jobs:
           NOTARY_KEY: ${{ secrets.NOTARY_KEY }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          for v in MACOS_CERT_P12 MACOS_CERT_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER; do
+          for v in MACOS_CERT_P12 MACOS_CERT_PASSWORD NOTARY_KEY NOTARY_KEY_ID NOTARY_ISSUER TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
             if [ -z "${!v}" ]; then
               echo "::error::secret $v is not set, see docs/macos-signing.md"
               exit 1
             fi
           done
+
+      - name: Check the app ships a working update key and feed
+        run: scripts/check-update-config.sh
 
       - uses: Swatinem/rust-cache@v2
 
@@ -103,6 +108,9 @@ jobs:
           FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET: ${{ secrets.FIGLOCK_BUILD_GOOGLE_CLIENT_SECRET }}
         run: scripts/build-desktop.sh universal-apple-darwin
 
+      - name: Check the app carries the release version
+        run: scripts/check-app-version.sh target/universal-apple-darwin/release/bundle/macos/FigLock.app
+
       - name: Sign and notarize the desktop app and build the dmg
         env:
           NOTARY_KEY_PATH: ${{ runner.temp }}/notary.p8
@@ -118,6 +126,24 @@ jobs:
         with:
           name: figlock-desktop-macos-universal
           path: dist/FigLock-*-universal.dmg
+          if-no-files-found: error
+
+      - name: Package and sign the update, write the manifest
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          FIGLOCK_UPDATE_NOTES: ${{ github.ref_type == 'tag' && format('FigLock {0}', github.ref_name) || 'FigLock' }}
+        run: |
+          scripts/package-update.sh target/universal-apple-darwin/release/bundle/macos/FigLock.app dist/update
+          python3 -m json.tool dist/update/latest.json > /dev/null
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: figlock-desktop-update
+          path: |
+            dist/update/FigLock-*-universal.app.tar.gz
+            dist/update/FigLock-*-universal.app.tar.gz.sig
+            dist/update/latest.json
           if-no-files-found: error
 
       - name: Remove signing material
