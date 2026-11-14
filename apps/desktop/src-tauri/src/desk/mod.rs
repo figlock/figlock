@@ -10,7 +10,7 @@ use figlock_core::{
     Created, DeviceKeys, KdfParams, KitInfo, SecretKey, Vault, render_kit, verify_kit_groups,
 };
 use figlock_session::config::{self, Config, Place, Remote};
-use figlock_session::error::{Fail, Res};
+use figlock_session::error::{Fail, FailKind, Res};
 use figlock_session::session::{Session, Ui, now_ms};
 use figlock_session::{join, quick, secret_key_store};
 use serde::{Deserialize, Serialize};
@@ -42,8 +42,32 @@ impl CmdError {
 }
 
 impl From<Fail> for CmdError {
+    /// The failures a person can act on get their own code and words; the rest keep the core's message. The
+    /// CLI prints the core's message as it is.
     fn from(f: Fail) -> Self {
-        CmdError::new("failed", f.0)
+        match f.1 {
+            FailKind::KeychainDenied => CmdError::new(
+                "keychain_denied",
+                "FigLock could not use the key saved on this Mac. If a Mac prompt asked for permission, choose Allow, then try again.",
+            ),
+            FailKind::DeviceKeysLost => CmdError::new(
+                "device_keys_lost",
+                "This Mac no longer has the keys it needs to open this vault. Add this Mac again with an invite code from another device.",
+            ),
+            FailKind::StorageUnreachable => CmdError::new(
+                "storage_unreachable",
+                "FigLock could not reach where your vault is stored. Check your connection, then try again.",
+            ),
+            FailKind::StorageSignedOut => CmdError::new(
+                "storage_signed_out",
+                "Google Drive no longer accepts the saved sign-in. Sign in to Google Drive again in Settings, then try again.",
+            ),
+            FailKind::VaultMissing => CmdError::new(
+                "vault_missing",
+                "FigLock could not find your vault where this Mac expects it. Check that the folder is available, then try again.",
+            ),
+            FailKind::Other => CmdError::new("failed", f.0),
+        }
     }
 }
 

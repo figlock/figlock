@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { GITHUB, KEY, PASSWORD, openApp } from "./core";
+import { GITHUB, KEY, PASSWORD, expectAccessible, openApp } from "./core";
 
 test.describe("unlock", () => {
   test("a wrong master password is refused in words, then the right one opens the vault", async ({
@@ -14,6 +14,30 @@ test.describe("unlock", () => {
     await expect(page.getByLabel("Master password")).toBeFocused();
 
     await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Unlock" }).click();
+    await expect(page.getByRole("button", { name: /^GitHub/ })).toBeVisible();
+  });
+
+  test("a denied keychain prompt says what to do, and trying again opens the vault", async ({
+    page,
+  }) => {
+    await openApp(page, { phase: "locked", items: [GITHUB] });
+    await page.evaluate(() => {
+      (window as any).__core.failNext = {
+        cmd: "unlock",
+        code: "keychain_denied",
+        message:
+          "FigLock could not use the key saved on this Mac. If a Mac prompt asked for permission, choose Allow, then try again.",
+      };
+    });
+    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Unlock" }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "FigLock could not use the key saved on this Mac. If a Mac prompt asked for permission, choose Allow, then try again.",
+    );
+    await expect(page.getByRole("alert")).not.toContainText("could not read the device keys");
+    await expectAccessible(page);
+
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("button", { name: /^GitHub/ })).toBeVisible();
   });

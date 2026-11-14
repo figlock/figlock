@@ -558,3 +558,39 @@ fn sync_needs_unlock_inner() {
     assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
     assert!(!d.sync_status().unwrap().needs_unlock);
 }
+
+#[test]
+fn failures_a_person_can_act_on_get_their_own_code_and_plain_words() {
+    for (kind, code, says) in [
+        (FailKind::KeychainDenied, "keychain_denied", "choose Allow"),
+        (FailKind::DeviceKeysLost, "device_keys_lost", "invite code"),
+        (
+            FailKind::StorageUnreachable,
+            "storage_unreachable",
+            "connection",
+        ),
+        (FailKind::StorageSignedOut, "storage_signed_out", "Sign in"),
+        (FailKind::VaultMissing, "vault_missing", "folder"),
+    ] {
+        let e = CmdError::from(Fail::of(
+            kind,
+            "could not read the device keys from the keychain",
+        ));
+        assert_eq!(e.code, code);
+        assert!(e.message.contains(says), "{}", e.message);
+        // Sentence case with a full stop, and none of the core's lowercase text.
+        assert!(
+            e.message.starts_with(|c: char| c.is_uppercase()),
+            "{}",
+            e.message
+        );
+        assert!(e.message.ends_with('.'), "{}", e.message);
+        assert!(!e.message.contains("keychain)"), "{}", e.message);
+    }
+    // Anything unclassified keeps the core's message.
+    let e = CmdError::from(Fail::new("vault.json is damaged"));
+    assert_eq!(
+        (e.code, e.message.as_str()),
+        ("failed", "vault.json is damaged")
+    );
+}

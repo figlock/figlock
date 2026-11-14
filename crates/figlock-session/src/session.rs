@@ -12,7 +12,7 @@ use figlock_store::{BlobStore, StoreError};
 use zeroize::Zeroizing;
 
 use crate::config;
-use crate::error::{Fail, Res};
+use crate::error::{Fail, FailKind, Res};
 use crate::quick;
 use crate::secret_key_store::{self, SecretKeyStore};
 
@@ -107,13 +107,18 @@ fn short(device: &DeviceId) -> String {
 
 fn read_vault_json(store: &dyn BlobStore) -> Res<Vec<u8>> {
     store.get("vault.json").map_err(|e| match e {
-        StoreError::NotFound => Fail::new("vault.json not found in the vault folder"),
-        StoreError::Unauthorized => {
-            Fail::new("storage sign-in was refused; run `figlock drive login`")
-        }
-        StoreError::Unavailable => {
-            Fail::new("storage could not be reached; check the connection and try again")
-        }
+        StoreError::NotFound => Fail::of(
+            FailKind::VaultMissing,
+            "vault.json not found in the vault folder",
+        ),
+        StoreError::Unauthorized => Fail::of(
+            FailKind::StorageSignedOut,
+            "storage sign-in was refused; run `figlock drive login`",
+        ),
+        StoreError::Unavailable => Fail::of(
+            FailKind::StorageUnreachable,
+            "storage could not be reached; check the connection and try again",
+        ),
         e => e.into(),
     })
 }
@@ -616,7 +621,7 @@ impl Session {
                         ));
                     }
                 }
-                Err(Fail(msg))
+                Err(Fail::new(msg))
             }
         }
     }

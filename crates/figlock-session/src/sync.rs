@@ -116,7 +116,7 @@ impl From<std::io::Error> for SyncError {
 
 impl From<SyncError> for Fail {
     fn from(e: SyncError) -> Self {
-        Fail(e.to_string())
+        Fail::new(e.to_string())
     }
 }
 

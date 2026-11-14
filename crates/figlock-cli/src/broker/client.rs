@@ -54,5 +54,5 @@ pub fn expect_ok(resp: Value) -> Res<Value> {
     let msg = resp["error"]["message"]
         .as_str()
         .unwrap_or("request failed");
-    Err(Fail(format!("{msg} ({code})")))
+    Err(Fail::new(format!("{msg} ({code})")))
 }
