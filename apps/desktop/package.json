@@ -1,6 +1,6 @@
 {
   "name": "@figlock/desktop",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "FigLock desktop app: Svelte 5 front end for the Tauri 2 shell in src-tauri",
