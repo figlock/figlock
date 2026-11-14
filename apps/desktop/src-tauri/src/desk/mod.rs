@@ -96,6 +96,9 @@ pub struct VaultState {
     /// The new Secret Key of a rotation whose Emergency Kit step is not finished. Only while unlocked: the
     /// window shows that step again until the key is confirmed.
     pub pending_kit: Option<String>,
+    /// This device knows a vault, but its local folder is gone. The window offers ways forward instead of
+    /// asking for credentials (FIG-118).
+    pub folder_missing: Option<folder::MissingFolder>,
 }
 
 #[derive(Serialize, Debug)]
@@ -405,6 +408,12 @@ impl Desk {
                 .is_some_and(|s| s.vault.has_recovery());
             (unlocked, pending, recovery, held)
         };
+        let folder_missing = if initialised && !unlocked {
+            folder::missing()
+        } else {
+            None
+        };
+        let initialised_vault = initialised && folder_missing.is_none();
         let phase = match (initialised, unlocked) {
             (false, _) => "none",
             (true, false) => "locked",
@@ -412,7 +421,7 @@ impl Desk {
         };
         let (quick_unlock, touch_available) = match quick::system() {
             Ok(q) => (
-                initialised
+                initialised_vault
                     && figlock_session::session::peek_vault_id()
                         .map(|v| q.status(&v).0)
                         .unwrap_or(false),
@@ -420,7 +429,7 @@ impl Desk {
             ),
             Err(_) => (false, false),
         };
-        let (secret_key_kept, secret_key_protection) = match initialised
+        let (secret_key_kept, secret_key_protection) = match initialised_vault
             .then(secret_key_store::system)
             .and_then(Result::ok)
             .zip(figlock_session::session::peek_vault_id().ok())
@@ -439,6 +448,7 @@ impl Desk {
             autolock_secs: self.autolock.as_secs(),
             recovery_enabled,
             pending_kit,
+            folder_missing,
         })
     }
 
@@ -909,6 +919,7 @@ pub mod cli_tool;
 pub mod credentials;
 pub mod devices;
 pub mod drive;
+pub mod folder;
 pub mod forgot;
 pub mod generate;
 pub mod health;
@@ -925,6 +936,8 @@ mod cli_tool_tests;
 mod credential_tests;
 #[cfg(test)]
 mod device_tests;
+#[cfg(test)]
+mod folder_tests;
 #[cfg(test)]
 mod forgot_tests;
 #[cfg(test)]

@@ -12,13 +12,15 @@ export type Seed = {
   ageDays?: number;
 };
 export type Options = {
-  phase?: "locked" | "unlocked";
+  phase?: "none" | "locked" | "unlocked";
   items?: Seed[];
   sync?: Record<string, unknown>;
   health?: unknown;
   cli?: { state: string };
   update?: { version: string; notes?: string };
   updateUnavailable?: boolean;
+  folderMissing?: { path: string; canRestore: boolean };
+  pickedFolder?: string;
 };
 
 export const GITHUB: Seed = {

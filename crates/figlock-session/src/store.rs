@@ -13,7 +13,15 @@ pub fn open(place: &Place) -> Res<Box<dyn BlobStore>> {
 
 pub fn open_local(path: &std::path::Path) -> Res<Box<dyn BlobStore>> {
     if !path.is_dir() {
-        return Err(Fail::new("the vault folder is missing or not available"));
+        return Err(Fail::new(format!(
+            "the vault folder is missing or not available: {}\n\
+             If it was moved or is on a drive that is not connected, put it back there. The FigLock desktop app \
+             offers the other ways forward (locate the folder, restore from Google Drive, create a new vault, remove \
+             this vault from this Mac). Without it, delete config.json and device.json in the FigLock config folder \
+             to forget the vault on this machine (nothing in the vault folder or Drive is touched), then run \
+             `figlock open` or `figlock init`.",
+            path.display()
+        )));
     }
     Ok(Box::new(LocalFolder::open(path)?))
 }
@@ -56,4 +64,21 @@ pub fn open_drive() -> Res<Box<dyn BlobStore>> {
         refresh_token: token.to_string(),
     });
     Ok(Box::new(GoogleDrive::new(source)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_missing_folder_names_itself_and_the_ways_forward() {
+        let dir = tempfile::tempdir().unwrap();
+        let gone = dir.path().join("vault");
+        let Err(Fail(message, _)) = open_local(&gone) else {
+            panic!("a missing folder must not open");
+        };
+        assert!(message.contains(&gone.display().to_string()));
+        assert!(message.contains("desktop app"));
+        assert!(message.contains("figlock open"));
+    }
 }
