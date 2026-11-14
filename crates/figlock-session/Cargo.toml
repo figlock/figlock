@@ -8,9 +8,9 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
-figlock-core = { version = "0.2.1-rc1", path = "../figlock-core" }
-figlock-store = { version = "0.2.1-rc1", path = "../figlock-store", features = ["gdrive"] }
-figlock-biometric = { version = "0.2.1-rc1", path = "../figlock-biometric" }
+figlock-core = { version = "0.3.0", path = "../figlock-core" }
+figlock-store = { version = "0.3.0", path = "../figlock-store", features = ["gdrive"] }
+figlock-biometric = { version = "0.3.0", path = "../figlock-biometric" }
 getrandom.workspace = true
 serde_json.workspace = true
 hex.workspace = true

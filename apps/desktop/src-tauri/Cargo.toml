@@ -11,9 +11,9 @@ publish.workspace = true
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-figlock-core = { version = "0.2.1-rc1", path = "../../../crates/figlock-core" }
-figlock-session = { version = "0.2.1-rc1", path = "../../../crates/figlock-session" }
-figlock-store = { version = "0.2.1-rc1", path = "../../../crates/figlock-store" }
+figlock-core = { version = "0.3.0", path = "../../../crates/figlock-core" }
+figlock-session = { version = "0.3.0", path = "../../../crates/figlock-session" }
+figlock-store = { version = "0.3.0", path = "../../../crates/figlock-store" }
 getrandom.workspace = true
 hex.workspace = true
 ureq.workspace = true
