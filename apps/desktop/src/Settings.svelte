@@ -122,15 +122,13 @@
         </Alert>
       {:else}
         <div class="flex flex-wrap items-center gap-3">
-          {#if !view.signedIn}
-            <Button variant="primary" onclick={() => sync.signInAgain()} disabled={sync.busy}>
-              {sync.busy ? "Waiting for Google..." : "Sign in with Google"}
-            </Button>
-          {:else}
-            <Button variant="primary" onclick={() => sync.enable()} disabled={sync.busy}>
-              {sync.busy ? "Turning on..." : "Turn on sync"}
-            </Button>
-          {/if}
+          <Button variant="primary" onclick={() => sync.turnOn()} disabled={sync.busy}>
+            {sync.step === "google"
+              ? "Waiting for Google..."
+              : sync.step === "enabling"
+                ? "Turning on..."
+                : "Turn on sync"}
+          </Button>
         </div>
         <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
           FigLock can only see its own hidden app folder, never your other files. Everything in it

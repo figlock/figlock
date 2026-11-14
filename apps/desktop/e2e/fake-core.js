@@ -285,10 +285,10 @@
       return { ...core.sync };
     },
     sync_enable: () => {
+      if (!core.sync.signedIn) return fail("drive_sign_in", "Sign in to Google first.");
       core.sync = {
         ...core.sync,
         enabled: true,
-        signedIn: true,
         state: "idle",
         lastSyncSecsAgo: 0,
       };

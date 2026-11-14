@@ -257,10 +257,13 @@ async fn drive_status() -> CmdRes<DriveView> {
 
 /// Opens the browser to sign in to Google and resolves when the person finishes (or the sign-in times out).
 #[tauri::command]
-async fn drive_sign_in() -> CmdRes<DriveView> {
-    tauri::async_runtime::spawn_blocking(desk::drive::sign_in)
+async fn drive_sign_in(app: AppHandle) -> CmdRes<DriveView> {
+    let view = tauri::async_runtime::spawn_blocking(desk::drive::sign_in)
         .await
-        .map_err(|_| CmdError::new("failed", "Sign-in stopped unexpectedly. Try again."))?
+        .map_err(|_| CmdError::new("failed", "Sign-in stopped unexpectedly. Try again."))??;
+    // The window re-reads the sync status the moment the sign-in is done, so it never shows an older state.
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(view)
 }
 
 #[tauri::command]
