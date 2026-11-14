@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/logo/lockups/figlock-lockup-horizontal-on-dark.svg">
+    <img src="design/logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="285" height="80">
+  </picture>
+</p>
+
 # FigLock
 
 A headless, agent-aware password manager. One encrypted vault for passwords, API tokens and secrets,
