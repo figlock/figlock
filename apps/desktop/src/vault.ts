@@ -21,6 +21,15 @@ export type VaultState = {
   recoveryEnabled: boolean;
   /** The new Secret Key of a rotation whose Emergency Kit step is not finished, while unlocked. */
   pendingKit: string | null;
+  /** This Mac knows a vault but its local folder is gone: offer a way forward, ask for no credentials (FIG-118). */
+  folderMissing: MissingFolder | null;
+};
+
+export type MissingFolder = {
+  /** Where this Mac expects the vault. */
+  path: string;
+  /** Sync was on, so a copy may be in Google Drive. */
+  canRestore: boolean;
 };
 
 /** A failed command: a code to branch on and a message that is safe to show. */
@@ -49,6 +58,14 @@ export const driveStatus = () => invoke<DriveStatus>("drive_status");
 export const driveSignIn = () => invoke<DriveStatus>("drive_sign_in");
 /** `revoked` is false when Google could not be reached, so access may still be there. */
 export const driveSignOut = () => invoke<{ revoked: boolean }>("drive_sign_out");
+
+/** The folder was moved: point this Mac at it. Refused when it holds no vault. */
+export const locateFolder = (folder: string) => invoke<void>("locate_folder", { folder });
+/** Downloads the vault from Google Drive into a new local folder; sign in first. */
+export const restoreFromDrive = (folder?: string) =>
+  invoke<void>("restore_from_drive", { folder: folder ?? null });
+/** This Mac stops using the vault; nothing in the folder or Drive is deleted. Needs the person's yes. */
+export const forgetVault = (confirmed: boolean) => invoke<void>("forget_vault", { confirmed });
 
 export const createVault = (storage: Storage, password: string) =>
   invoke<{ secretKey: string }>("create_vault", { storage, password });

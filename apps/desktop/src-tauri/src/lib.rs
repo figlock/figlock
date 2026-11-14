@@ -229,6 +229,26 @@ async fn join_start(desk: State<'_, Desk>, storage: Storage, code: String) -> Cm
     desk.join_start(&storage, &code)
 }
 
+/// The vault folder is gone: point this device at the folder the person moved it to.
+#[tauri::command]
+async fn locate_folder(folder: String) -> CmdRes<()> {
+    desk::folder::locate(&folder)
+}
+
+/// The vault folder is gone: download the vault from Google Drive into a new local folder.
+#[tauri::command]
+async fn restore_from_drive(folder: Option<String>) -> CmdRes<()> {
+    tauri::async_runtime::spawn_blocking(move || desk::folder::restore(folder.as_deref()))
+        .await
+        .map_err(|_| CmdError::new("failed", "Restoring stopped unexpectedly. Try again."))?
+}
+
+/// The vault folder is gone: this Mac stops using the vault. Needs the person's confirmation.
+#[tauri::command]
+async fn forget_vault(confirmed: bool) -> CmdRes<()> {
+    desk::folder::forget(confirmed)
+}
+
 /// Whether Google sign-in is possible in this build, and whether this device is signed in.
 #[tauri::command]
 async fn drive_status() -> CmdRes<DriveView> {
@@ -699,6 +719,9 @@ pub fn run() {
             cancel_create,
             open_existing,
             join_start,
+            locate_folder,
+            restore_from_drive,
+            forget_vault,
             drive_status,
             drive_sign_in,
             drive_sign_out,

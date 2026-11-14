@@ -75,7 +75,7 @@ and named by its owner:
 | Remote older than local | push fills the gap |
 | Remote newer than local | pull, then verify as usual |
 | Remote has files that fail verification | left as stored, ignored by the vault, reported in status |
-| Local folder missing or unreadable | the existing "vault folder is not available" error; remote is never used as a substitute |
+| Local folder missing or unreadable | remote is never used as a substitute, and no credentials are asked for first. The desktop app checks the folder before unlock and shows a recovery screen (FIG-118): **Locate the folder** (it was moved; must hold a `vault.json`, and unlocking settles whether it is this vault), **Restore from Google Drive** (only when sync was on; downloads into a new local folder as in "opening an existing vault from Drive", then unlocks as usual), **Create a new vault** and **Remove this vault from this Mac** (both forget this Mac's device config and keys, only after an explicit confirmation; the old folder, the Drive copy and the Secret Key and Touch ID entries are never deleted). The CLI error names the folder and these steps |
 
 ### CLI
 

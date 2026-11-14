@@ -365,6 +365,19 @@ fn set_remote_in(home: &Path, remote: Option<Remote>) -> Res<Config> {
     Ok(cfg)
 }
 
+/// Point this device at a different local folder, keeping everything else in `config.json` (the vault folder
+/// was moved, or restored into a new place).
+pub fn set_local(local: PathBuf) -> Res<Config> {
+    set_local_in(&home()?, local)
+}
+
+fn set_local_in(home: &Path, local: PathBuf) -> Res<Config> {
+    let mut cfg = load_in(home)?;
+    cfg.place.local = local;
+    fs::write(config_path(home), config_body(&cfg)?)?;
+    Ok(cfg)
+}
+
 pub fn load_device() -> Res<DeviceKeys> {
     load_device_in(&home()?, keystore::system().as_deref())
 }

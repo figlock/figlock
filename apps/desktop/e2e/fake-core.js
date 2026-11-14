@@ -34,6 +34,10 @@
     // What the update feed answers: `update` is `{ version, notes }` when there is a newer version.
     update: opts.update ?? null,
     updateState: opts.updateUnavailable ? "unavailable" : "idle",
+    // The local vault folder is gone (FIG-118): `{ path, canRestore }`, or null when it is there.
+    folderMissing: opts.folderMissing ?? null,
+    // What the person picks in the folder dialog.
+    pickedFolder: opts.pickedFolder ?? null,
   });
 
   const now = Date.now();
@@ -62,6 +66,7 @@
     autolockSecs: 300,
     recoveryEnabled: false,
     pendingKit: null,
+    folderMissing: core.folderMissing,
   });
 
   const subtitle = (i) =>
@@ -125,6 +130,21 @@
 
   const commands = {
     vault_state: () => state(),
+    choose_folder: () => core.pickedFolder,
+    locate_folder: ({ folder }) => {
+      if (folder.includes("empty"))
+        return fail("no_vault", "There is no FigLock vault in that folder.");
+      core.folderMissing = null;
+    },
+    restore_from_drive: () => {
+      core.folderMissing = null;
+    },
+    forget_vault: ({ confirmed }) => {
+      if (!confirmed)
+        return fail("not_confirmed", "Confirm that this Mac should stop using this vault.");
+      core.folderMissing = null;
+      core.phase = "none";
+    },
     unlock: ({ password }) => {
       if (password !== PASSWORD) return fail("bad_password", "That master password is not right.");
       core.phase = "unlocked";

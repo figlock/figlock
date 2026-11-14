@@ -5,6 +5,7 @@
   import Forgot from "./Forgot.svelte";
   import NewKitDialog from "./NewKitDialog.svelte";
   import Join from "./Join.svelte";
+  import MissingFolder from "./MissingFolder.svelte";
   import OpenExisting from "./OpenExisting.svelte";
   import Unlock from "./Unlock.svelte";
   import { updates } from "./updates.svelte";
@@ -80,6 +81,15 @@
       }}
     />
   {/if}
+{:else if vault.phase === "locked" && vault.folderMissing}
+  <MissingFolder
+    missing={vault.folderMissing}
+    onchanged={refresh}
+    oncreate={() => {
+      view = "create";
+      void refresh();
+    }}
+  />
 {:else if vault.phase === "locked"}
   <Unlock {vault} {notice} ondone={enter} />
 {:else if view === "create"}
