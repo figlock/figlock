@@ -82,18 +82,84 @@ test("the sidebar says how sync is going, and when it needs the person", async (
   expect((await screen.findByTestId("sync-badge")).textContent).toBe("Synced 2 minutes ago");
 });
 
-test("with sync off there is no badge, and turning it on needs a sign-in first", async () => {
+test("with sync off there is no badge, and one click turns it on from a signed-out Mac", async () => {
   core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
   const user = await toSettings();
   expect(screen.queryByTestId("sync-badge")).toBeNull();
   expect(screen.getByText("Off")).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Turn on sync" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Sign in with Google" })).toBeNull();
 
-  core.driveSignIn.mockResolvedValue({ canSignIn: true, signedIn: true });
-  core.syncNow.mockResolvedValue(view());
+  const order: string[] = [];
+  core.driveSignIn.mockImplementation(async () => {
+    order.push("sign-in");
+    core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: true }));
+    return { canSignIn: true, signedIn: true };
+  });
+  core.syncEnable.mockImplementation(async () => {
+    order.push("enable");
+    core.syncStatus.mockResolvedValue(view({ lastSyncSecsAgo: 0 }));
+    return view({ lastSyncSecsAgo: 0 });
+  });
+  await user.click(screen.getByRole("button", { name: "Turn on sync" }));
+  expect(await screen.findByRole("button", { name: "Turn off sync" })).toBeTruthy();
+  expect(order).toEqual(["sign-in", "enable"]);
+  expect(screen.getByTestId("last-sync").textContent).toContain("Last synced just now");
+  // Other panels may complain about this file's partial mocks; sync itself must not.
+  const alerts = screen.queryAllByRole("alert").map((a) => a.textContent ?? "");
+  expect(alerts.filter((t) => /google|sync/i.test(t))).toEqual([]);
+});
+
+test("progress reads Waiting for Google, then Turning on", async () => {
+  core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
+  const user = await toSettings();
+  let finishSignIn: () => void = () => {};
+  core.driveSignIn.mockReturnValue(new Promise<void>((r) => (finishSignIn = r)));
+  let finishEnable: (v: SyncView) => void = () => {};
+  core.syncEnable.mockReturnValue(new Promise<SyncView>((r) => (finishEnable = r)));
+
+  await user.click(screen.getByRole("button", { name: "Turn on sync" }));
+  expect(await screen.findByRole("button", { name: "Waiting for Google..." })).toBeTruthy();
   core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: true }));
-  await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
-  await waitFor(() => expect(core.driveSignIn).toHaveBeenCalledTimes(1));
+  finishSignIn();
+  expect(await screen.findByRole("button", { name: "Turning on..." })).toBeTruthy();
+  finishEnable(view({ lastSyncSecsAgo: 0 }));
+  expect(await screen.findByRole("button", { name: "Turn off sync" })).toBeTruthy();
+});
+
+test("a sign-in that works but a sync that does not says which step failed and keeps the sign-in", async () => {
+  core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
+  const user = await toSettings();
+  core.driveSignIn.mockImplementation(async () => {
+    core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: true }));
+    return { canSignIn: true, signedIn: true };
+  });
+  core.syncEnable.mockRejectedValueOnce({
+    code: "sync_failed",
+    message:
+      "Could not turn on sync, so nothing was changed. Your Google Drive already holds a different vault.",
+  });
+  await user.click(screen.getByRole("button", { name: "Turn on sync" }));
+  expect(
+    await screen.findByText(/You are signed in to Google, but sync is not on yet/),
+  ).toBeTruthy();
+  expect(screen.getByText(/already holds a different vault/)).toBeTruthy();
+  expect(screen.getByText("Off")).toBeTruthy();
+
+  // The next click only retries the second step: no second Google sign-in.
+  core.syncEnable.mockResolvedValue(view({ lastSyncSecsAgo: 0 }));
+  await user.click(screen.getByRole("button", { name: "Turn on sync" }));
+  expect(await screen.findByRole("button", { name: "Turn off sync" })).toBeTruthy();
+  expect(core.driveSignIn).toHaveBeenCalledTimes(1);
+});
+
+test("a cancelled or failed Google sign-in is shown and sync stays off", async () => {
+  core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off", signedIn: false }));
+  const user = await toSettings();
+  core.driveSignIn.mockRejectedValue({ code: "drive_sign_in", message: "Sign-in timed out." });
+  await user.click(screen.getByRole("button", { name: "Turn on sync" }));
+  expect(await screen.findByText("Sign-in timed out.")).toBeTruthy();
+  expect(core.syncEnable).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Turn on sync" })).toBeTruthy();
 });
 
 test("turning sync on uploads, and a failure is shown with sync left off", async () => {

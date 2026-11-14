@@ -6,6 +6,8 @@ export class SyncStatus {
   view = $state<SyncView | null>(null);
   /** An action is running (turning sync on, syncing now). */
   busy = $state(false);
+  /** While turning sync on: waiting for the Google sign-in, then turning sync on in the app core. */
+  step = $state<"" | "google" | "enabling">("");
   /** The last action's failure, in words for the person. */
   error = $state("");
 
@@ -61,18 +63,55 @@ export class SyncStatus {
     return this.#act(syncDisable);
   }
 
-  /** Sign in to Google again, then sync. */
+  /**
+   * Turn sync on in one action: sign in to Google when this Mac is not signed in, then turn sync on and run the
+   * first sync. When only the second step fails the sign-in is kept, so the next click retries just that step.
+   */
+  async turnOn() {
+    this.error = "";
+    this.busy = true;
+    try {
+      if (!this.view?.signedIn) {
+        this.step = "google";
+        try {
+          await driveSignIn();
+        } catch (e) {
+          this.error = errorOf(e).message;
+          return;
+        } finally {
+          // Never show a state older than the sign-in, whether or not the next step works.
+          await this.refresh();
+        }
+      }
+      this.step = "enabling";
+      try {
+        this.view = await syncEnable();
+        this.onsynced();
+      } catch (e) {
+        this.error = `You are signed in to Google, but sync is not on yet. ${errorOf(e).message}`;
+        await this.refresh();
+      }
+    } finally {
+      this.step = "";
+      this.busy = false;
+    }
+  }
+
+  /** Sign in to Google again after the sign-in expired, then resume the sync that was blocked. */
   async signInAgain() {
     this.error = "";
     this.busy = true;
+    this.step = "google";
     try {
       await driveSignIn();
     } catch (e) {
       this.error = errorOf(e).message;
-      this.busy = false;
       return;
+    } finally {
+      this.step = "";
+      this.busy = false;
+      await this.refresh();
     }
-    this.busy = false;
     await this.now();
   }
 }

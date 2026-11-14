@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { openApp } from "./core";
+import { calls, openApp } from "./core";
 
 const synced = { enabled: true, state: "idle", signedIn: true, lastSyncSecsAgo: 120 };
 
@@ -26,15 +26,17 @@ test.describe("sync", () => {
     await expect(page.getByText("Sign in to Google again to keep syncing.")).toBeVisible();
   });
 
-  test("a vault that is not on Drive signs in, turns sync on, and turns it off again", async ({
+  test("a vault that is not on Drive turns sync on in one click and turns it off again", async ({
     page,
   }) => {
     await openApp(page);
     await expect(page.getByTestId("sync-badge")).toHaveCount(0);
     await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByRole("button", { name: "Sign in with Google" }).click();
+    // One click from a signed-out Mac: Google, then sync on, no second click.
     await page.getByRole("button", { name: "Turn on sync" }).click();
+    await expect(page.getByRole("button", { name: "Turn off sync" })).toBeVisible();
     await expect(page.getByTestId("sync-badge")).toHaveText("Synced just now");
+    expect(await calls(page)).toEqual(expect.arrayContaining(["drive_sign_in", "sync_enable"]));
     await page.getByRole("button", { name: "Turn off sync" }).click();
     const confirm = page.getByRole("alertdialog").or(page.getByRole("dialog"));
     if (await confirm.isVisible().catch(() => false))
