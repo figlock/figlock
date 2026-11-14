@@ -17,8 +17,8 @@ release is what every installed app trusts for updates, so a broken release woul
    - `check-version`: the tag must match the workspace version. A version with a suffix (`0.3.0-rc1`) is a
      pre-release, see below.
    - `linux` and `macos`: build and sign everything.
-   - `stage`: packages the files, writes the release notes (GitHub's generated notes, also put into
-     `latest.json` as "What is new"), and uploads it all to a **draft** release. A draft is private.
+   - `stage`: packages the files, writes the release notes (GitHub's generated notes for the release page; the
+     manifest's "What is new" gets the same list as plain `- title (#123)` lines, without the links), and uploads it all to a **draft** release. A draft is private.
    - `verify`: downloads the draft's assets as they were uploaded and runs `scripts/verify-release.sh`.
    - `publish`: makes the draft public as the latest release, checks the production feed, and updates the Homebrew
      tap.

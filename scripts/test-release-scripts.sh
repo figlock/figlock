@@ -218,6 +218,42 @@ assert all(e["signature"] for e in m["platforms"].values())
 PY
 expect_ok "a manifest with real notes still verifies" "$r"
 
+# What GitHub generates for a release, with a new contributor and the changelog link.
+cat > "$work/github-notes.md" << 'MD'
+## What's Changed
+* FIG-81: site and README for v0.2.0 by @someone in https://github.com/figlock/figlock/pull/127
+* fix(cli): keep "travel by @air" in a title by @someone-else in https://github.com/figlock/figlock/pull/129
+* feat(desktop): in-app update by @someone in https://github.com/figlock/figlock/pull/200
+
+## New Contributors
+* @newperson made their first contribution in https://github.com/figlock/figlock/pull/130
+
+**Full Changelog**: https://github.com/figlock/figlock/compare/v0.2.0...v0.3.0
+MD
+make_release
+"$here/set-update-notes.sh" "$r/latest.json" "$work/github-notes.md"
+expected=$'- FIG-81: site and README for v0.2.0 (#127)\n- fix(cli): keep "travel by @air" in a title (#129)\n- feat(desktop): in-app update (#200)'
+if python3 - "$r/latest.json" "$expected" << 'PY'; then pass "GitHub's generated notes become plain titles with PR numbers"; else bad "GitHub's generated notes become plain titles with PR numbers"; fi
+import json, sys
+notes = json.load(open(sys.argv[1]))["notes"]
+assert notes == sys.argv[2], repr(notes)
+PY
+expect_ok "a manifest with trimmed notes still verifies" "$r"
+
+make_release
+python3 - "$work/many.md" << 'PY'
+import sys
+open(sys.argv[1], "w").write("## What's Changed\n" + "".join(f"* change number {i} with a fairly long title to fill space by @a in https://github.com/x/y/pull/{i}\n" for i in range(400)))
+PY
+"$here/set-update-notes.sh" "$r/latest.json" "$work/many.md"
+if python3 - "$r/latest.json" << 'PY'; then pass "long notes are cut at a whole line"; else bad "long notes are cut at a whole line"; fi
+import json, sys, re
+notes = json.load(open(sys.argv[1]))["notes"]
+assert len(notes) <= 2000, len(notes)
+body = notes.rstrip("…").split("\n")
+assert all(re.match(r"^- change number \d+ with a fairly long title to fill space \(#\d+\)$", l) for l in body), body[-1]
+PY
+
 head -c 5000 /dev/zero | tr '\0' 'a' > "$work/long.md"
 "$here/set-update-notes.sh" "$r/latest.json" "$work/long.md"
 if python3 -c "import json;n=json.load(open('$r/latest.json'))['notes'];assert len(n)<=2000,len(n)"; then pass "over-long notes are cut"; else bad "over-long notes are cut"; fi
