@@ -66,7 +66,7 @@ impl AuditWriter {
         file.read_to_end(&mut bytes)?;
         let (chain, _) = vault.read_audit_log(&bytes);
         if let Some(seq) = chain.first_bad {
-            return Err(Fail(format!(
+            return Err(Fail::new(format!(
                 "the audit log failed verification at record {seq}; move it aside to start a new one, then run again: {}",
                 path.display()
             )));

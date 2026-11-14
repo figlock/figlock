@@ -188,7 +188,7 @@ pub fn show_audit(tail: Option<usize>, json_out: bool) -> Res<()> {
         }
     }
     if let Some(seq) = chain.first_bad {
-        return Err(Fail(format!(
+        return Err(Fail::new(format!(
             "the audit log failed verification at record {seq}; records after it are not shown"
         )));
     }

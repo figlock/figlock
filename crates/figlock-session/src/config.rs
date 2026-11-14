@@ -14,7 +14,7 @@ use figlock_core::{DeviceKeys, Key};
 use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
-use crate::error::{Fail, Res};
+use crate::error::{Fail, FailKind, Res};
 use crate::keystore::{self, SecretStore};
 
 /// A second location the local vault is kept matched to by sync (ADR-0026).
@@ -403,12 +403,16 @@ fn load_device_in(home: &Path, store: Option<&dyn SecretStore>) -> Res<DeviceKey
             )
         })?;
         let blob = store.get(&hex::encode(device_id))?.ok_or_else(|| {
-            Fail::new(
+            Fail::of(
+                FailKind::DeviceKeysLost,
                 "the device keys are missing from the keychain; add this device again with the pairing flow",
             )
         })?;
         return keys_from_blob(device_id, &blob).ok_or_else(|| {
-            Fail::new("the device keys in the keychain are damaged; add this device again")
+            Fail::of(
+                FailKind::DeviceKeysLost,
+                "the device keys in the keychain are damaged; add this device again",
+            )
         });
     }
 
