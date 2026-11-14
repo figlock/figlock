@@ -12,10 +12,10 @@ name = "figlock"
 path = "src/main.rs"
 
 [dependencies]
-figlock-core = { version = "0.3.0", path = "../figlock-core" }
-figlock-store = { version = "0.3.0", path = "../figlock-store", features = ["gdrive"] }
-figlock-biometric = { version = "0.3.0", path = "../figlock-biometric" }
-figlock-session = { version = "0.3.0", path = "../figlock-session" }
+figlock-core = { version = "0.3.1", path = "../figlock-core" }
+figlock-store = { version = "0.3.1", path = "../figlock-store", features = ["gdrive"] }
+figlock-biometric = { version = "0.3.1", path = "../figlock-biometric" }
+figlock-session = { version = "0.3.1", path = "../figlock-session" }
 clap.workspace = true
 rpassword.workspace = true
 getrandom.workspace = true

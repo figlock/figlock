@@ -1,6 +1,6 @@
 {
   "name": "@figlock/ui",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "Shared Svelte 5 components on the FigLock design tokens (desktop and extension)",
