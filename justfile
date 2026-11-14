@@ -35,8 +35,12 @@ design-check:
     python3 -I design/check-contrast.py
     cmp design/tokens.css site/tokens.css
 
-# Everything CI runs: lint, tests, the design token check and the vector drift check.
-check: lint test design-check vectors-check
+# Tests for the release scripts (needs minisign): a good release passes and each broken one fails.
+release-scripts-test:
+    scripts/test-release-scripts.sh
+
+# Everything CI runs: lint, tests, the design token check, the vector drift check and the release script tests.
+check: lint test design-check vectors-check release-scripts-test
 
 # Supply-chain checks: advisories, licenses, bans, sources.
 deny:
