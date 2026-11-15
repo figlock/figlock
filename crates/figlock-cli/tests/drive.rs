@@ -111,3 +111,50 @@ fn init_on_drive_without_a_sign_in_changes_nothing() {
         "no config or device keys were written: {left:?}"
     );
 }
+
+/// A device with sync on and a stored sign-in; `refused` is what the last sync learned from Google.
+fn synced_device(home: &TempDir, refused: bool) {
+    std::fs::write(
+        home.path().join("config.json"),
+        serde_json::json!({
+            "store": home.path().join("vault"),
+            "remote": "drive",
+            "device_name": "Test",
+        })
+        .to_string(),
+    )
+    .unwrap();
+    token_file(home, br#"{"refresh_token":"generated-test-token"}"#, 0o600);
+    let state = if refused {
+        serde_json::json!({ "synced": true, "last_sync_ms": 1, "sign_in_refused": true })
+    } else {
+        serde_json::json!({ "synced": true, "last_sync_ms": 1 })
+    };
+    std::fs::write(home.path().join("sync-state.json"), state.to_string()).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn sync_status_says_signed_in_until_google_refuses_the_sign_in() {
+    let home = TempDir::new().unwrap();
+    synced_device(&home, false);
+    let out = figlock(&home, &["sync", "status"]);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("Signed in to Google: yes"));
+
+    synced_device(&home, true);
+    let out = figlock(&home, &["sync", "status"]);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Signed in to Google: no"), "{text}");
+    assert!(
+        text.contains("Google has stopped FigLock's access"),
+        "{text}"
+    );
+    assert!(text.contains("figlock drive login"), "{text}");
+
+    let json = figlock(&home, &["--json", "sync", "status"]);
+    let v: Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(
+        (v["signed_in"].clone(), v["sign_in_refused"].clone()),
+        (false.into(), true.into())
+    );
+}

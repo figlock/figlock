@@ -4,6 +4,7 @@
   import Shell from "./Shell.svelte";
   import {
     chooseFolder,
+    driveCancelSignIn,
     driveSignIn,
     driveStatus,
     errorOf,
@@ -24,18 +25,27 @@
 
   let busy = $state<"" | "locate" | "restore" | "forget">("");
   let error = $state("");
+  /** Google has stopped honouring this Mac's sign-in (or there is none): restoring needs a new one first. */
+  let needsSignIn = $state(false);
+  /** Waiting for the Google page, as opposed to downloading the vault. */
+  let signingIn = $state(false);
   /** Which step needs the person's yes before this Mac stops using the vault. */
   let confirming = $state<"" | "create" | "remove">("");
 
   async function run(kind: "locate" | "restore", step: () => Promise<boolean>) {
     error = "";
+    needsSignIn = false;
     busy = kind;
     try {
       if (await step()) onchanged();
     } catch (e) {
-      error = errorOf(e).message;
+      const failure = errorOf(e);
+      if (errorOf(e).code === "sign_in_cancelled") return;
+      if (failure.code === "drive_sign_in") needsSignIn = true;
+      error = failure.message;
     } finally {
       busy = "";
+      signingIn = false;
     }
   }
 
@@ -47,12 +57,19 @@
       return true;
     });
 
-  const restore = () =>
-    run("restore", async () => {
-      if (!(await driveStatus()).signedIn) await driveSignIn();
+  const restore = () => {
+    // After Google refused the saved sign-in, restoring again would only be refused again: sign in first.
+    const signInFirst = needsSignIn;
+    return run("restore", async () => {
+      if (signInFirst || !(await driveStatus()).signedIn) {
+        signingIn = true;
+        await driveSignIn();
+        signingIn = false;
+      }
       await restoreFromDrive();
       return true;
     });
+  };
 
   async function forget(next: "create" | "remove") {
     confirming = "";
@@ -72,7 +89,7 @@
 
 <Shell
   title="Your vault folder is missing"
-  subtitle="FigLock can't find the folder this Mac keeps your vault in."
+  subtitle="FigLock can't find your vault in the folder this Mac keeps it in."
 >
   <div class="flex flex-col gap-4">
     {#if error}<Alert>{error}</Alert>{/if}
@@ -91,8 +108,19 @@
       </Button>
       {#if missing.canRestore}
         <Button block onclick={restore} disabled={busy !== ""}>
-          {busy === "restore" ? "Restoring from Google Drive..." : "Restore from Google Drive"}
+          {#if signingIn}
+            Waiting for Google...
+          {:else if busy === "restore"}
+            Restoring from Google Drive...
+          {:else if needsSignIn}
+            Sign in with Google
+          {:else}
+            Restore from Google Drive
+          {/if}
         </Button>
+        {#if signingIn}
+          <Button block onclick={() => driveCancelSignIn().catch(() => {})}>Cancel</Button>
+        {/if}
       {/if}
       <Button block onclick={() => (confirming = "create")} disabled={busy !== ""}>
         Create a new vault

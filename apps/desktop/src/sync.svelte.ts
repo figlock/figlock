@@ -1,4 +1,4 @@
-import { driveSignIn, errorOf } from "./vault";
+import { driveCancelSignIn, driveSignIn, errorOf } from "./vault";
 import {
   onSynced,
   syncDisable,
@@ -86,7 +86,7 @@ export class SyncStatus {
         try {
           await driveSignIn();
         } catch (e) {
-          this.error = errorOf(e).message;
+          if (errorOf(e).code !== "sign_in_cancelled") this.error = errorOf(e).message;
           return;
         } finally {
           // Never show a state older than the sign-in, whether or not the next step works.
@@ -105,6 +105,11 @@ export class SyncStatus {
       this.step = "";
       this.busy = false;
     }
+  }
+
+  /** Stop waiting for the Google page. The sign-in in progress ends at once and nothing is changed. */
+  cancelSignIn() {
+    return driveCancelSignIn().catch(() => {});
   }
 
   /** Sign out of Google (which also turns sync off). Resolves true when this Mac is signed out. */
@@ -142,7 +147,7 @@ export class SyncStatus {
     try {
       await driveSignIn();
     } catch (e) {
-      this.error = errorOf(e).message;
+      if (errorOf(e).code !== "sign_in_cancelled") this.error = errorOf(e).message;
       return;
     } finally {
       this.step = "";

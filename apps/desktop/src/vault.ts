@@ -56,6 +56,8 @@ export type DriveStatus = { canSignIn: boolean; signedIn: boolean };
 export const driveStatus = () => invoke<DriveStatus>("drive_status");
 /** Opens the browser and resolves when the person finishes signing in, or the sign-in times out. */
 export const driveSignIn = () => invoke<DriveStatus>("drive_sign_in");
+/** Ends a sign-in that is waiting for the browser; that sign-in then fails with the code `sign_in_cancelled`. */
+export const driveCancelSignIn = () => invoke<void>("drive_cancel_sign_in");
 /** `revoked` is false when Google could not be reached, so access may still be there. */
 export const driveSignOut = () => invoke<{ revoked: boolean }>("drive_sign_out");
 

@@ -19,6 +19,10 @@ pub enum FailKind {
     StorageSignedOut,
     /// No vault where this device looks for one.
     VaultMissing,
+    /// The person stopped the Google sign-in before it finished.
+    SignInCancelled,
+    /// The Google sign-in was not finished in time.
+    SignInTimedOut,
 }
 
 #[derive(Debug)]

@@ -144,13 +144,17 @@ fn say(json: bool, status: &str, text: &str) -> Res<()> {
 pub fn status(json: bool) -> Res<()> {
     let cfg = config::load()?;
     let on = cfg.place.remote.is_some();
-    let signed_in = drive::status()?.signed_in;
+    let stored = drive::status()?.signed_in;
+    // Google refused the last sync: the sign-in is still on disk but no longer works.
+    let refused = stored && sync::sign_in_refused();
+    let signed_in = stored && !refused;
     let last = sync::last_sync_ms().map(|t| now_ms().saturating_sub(t) / 1000);
     if json {
         return print_json(&json!({
             "local": cfg.place.local.to_string_lossy(),
             "remote": if on { json!("drive") } else { json!(null) },
             "signed_in": signed_in,
+            "sign_in_refused": refused,
             "last_sync_seconds_ago": last,
         }));
     }
@@ -161,6 +165,8 @@ pub fn status(json: bool) -> Res<()> {
             "Signed in to Google: {}",
             if signed_in {
                 "yes"
+            } else if refused {
+                "no (Google has stopped FigLock's access; run `figlock drive login`)"
             } else {
                 "no (run `figlock drive login`)"
             }
