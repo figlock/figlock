@@ -266,6 +266,26 @@ pub struct ItemView {
     pub updated: Stamp,
 }
 
+/// How the Secret Key a device keeps compares with the vault's generation (`crypto.md` 9.4).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KeptKey {
+    /// The kept key is the vault's current one.
+    Current,
+    /// The vault was rotated on another device: the kept key opens nothing and the new one is needed.
+    Stale,
+    /// The vault is older than a generation this device has already seen: a rolled-back `vault.json`.
+    RolledBack,
+}
+
+/// Compare the generation of the Secret Key a device keeps with the one in the vault's `vault.json`.
+pub fn kept_key(kept_gen: u32, vault_gen: u32) -> KeptKey {
+    match vault_gen.cmp(&kept_gen) {
+        std::cmp::Ordering::Equal => KeptKey::Current,
+        std::cmp::Ordering::Greater => KeptKey::Stale,
+        std::cmp::Ordering::Less => KeptKey::RolledBack,
+    }
+}
+
 pub struct Vault {
     vault_id: [u8; 16],
     epoch: u32,
@@ -295,6 +315,8 @@ pub struct Vault {
     salt: [u8; 16],
     wrapped_vk: Vec<u8>,
     recovery: Option<RecoveryWrap>,
+    /// Which Secret Key the vault is wrapped under: 1 for the first, one more at each rotation (`crypto.md` 9.4).
+    sk_gen: u32,
 }
 
 // ---- JSON files ----
@@ -341,6 +363,7 @@ struct Header {
     revision: u64,
     wrapped: Vec<u8>,
     recovery: Option<RecoveryWrap>,
+    sk_gen: u32,
 }
 
 impl Header {
@@ -361,7 +384,21 @@ impl Header {
             }
             _ => return Err(Error),
         };
-        let min_version = if recovery.is_some() { 2 } else { 1 };
+        // `sk_gen` is omitted while it is 1, and a written one is at least 2, so a file has one spelling. Like
+        // the Recovery Key members it needs version 2, so a client that predates it refuses the file instead of
+        // dropping the counter when it rewrites it.
+        let sk_gen = match o.get("sk_gen") {
+            None => 1,
+            Some(g) => match g.as_u64().map(u32::try_from) {
+                Some(Ok(n)) if n >= 2 => n,
+                _ => return Err(Error),
+            },
+        };
+        let min_version = if recovery.is_some() || sk_gen > 1 {
+            2
+        } else {
+            1
+        };
         if o.get("v") != Some(&json!(1))
             || o.get("suite") != Some(&json!("fl1"))
             || o.get("min_format_version") != Some(&json!(min_version))
@@ -384,6 +421,7 @@ impl Header {
             revision: num(o, "revision")?,
             wrapped: unhex_vec(o.get("wrapped_vk").ok_or(Error)?)?,
             recovery,
+            sk_gen,
         })
     }
 }
@@ -407,6 +445,7 @@ fn vault_json_body(v: &Vault, salt: &[u8; 16], wrapped_vk: &[u8]) -> Json {
         (v.epoch, v.revision, &v.keys.authority_public()),
         (&v.revoked, &v.epoch_keys),
         v.recovery.as_ref(),
+        v.sk_gen,
     )
 }
 
@@ -418,6 +457,7 @@ fn vault_json_body_with(
     (epoch, revision, authority_pub): (u32, u64, &[u8; 32]),
     (revoked, epoch_keys): (&BTreeMap<DeviceId, Revoked>, &[EpochKeyEntry]),
     recovery: Option<&RecoveryWrap>,
+    sk_gen: u32,
 ) -> Json {
     let mut body = json!({
         "v": 1, "suite": "fl1", "vault_id": hexs(&v.vault_id), "revision": revision, "key_epoch": epoch,
@@ -427,6 +467,10 @@ fn vault_json_body_with(
     });
     // Both members are omitted while empty, so a vault that was never rotated keeps its epoch 1 shape.
     if let Some(o) = body.as_object_mut() {
+        if sk_gen > 1 {
+            o.insert("min_format_version".into(), json!(2));
+            o.insert("sk_gen".into(), json!(sk_gen));
+        }
         if let Some(r) = recovery {
             o.insert("min_format_version".into(), json!(2));
             o.insert("rk_pub".into(), json!(hexs(&r.rk_pub)));
@@ -649,6 +693,7 @@ impl Vault {
             revision,
             wrapped,
             recovery,
+            sk_gen,
         } = Header::parse(o)?;
         let keys = derive_vault_keys(vk)?;
         // The signature is checked against the authority key *derived* from VK, not one read from storage.
@@ -680,6 +725,7 @@ impl Vault {
         vault.salt = salt;
         vault.wrapped_vk = wrapped;
         vault.recovery = recovery;
+        vault.sk_gen = sk_gen;
         for r in known_records {
             let _ = vault.add_device_record(r);
         }
@@ -727,6 +773,7 @@ impl Vault {
             salt: [0; 16],
             wrapped_vk: Vec::new(),
             recovery: None,
+            sk_gen: 1,
         }
     }
 
@@ -977,6 +1024,12 @@ impl Vault {
             }),
             None => None,
         };
+        // Only a rotation of the Secret Key counts; a revocation alone, or a new password, leaves it.
+        let sk_gen = if new_secret_key.is_some() {
+            self.sk_gen.checked_add(1).ok_or(Error)?
+        } else {
+            self.sk_gen
+        };
         let revision = self.revision + 1;
         let mut body = vault_json_body_with(
             self,
@@ -985,6 +1038,7 @@ impl Vault {
             (new_epoch, revision, &new_keys.authority_public()),
             (&revoked, &epoch_keys),
             new_recovery.as_ref(),
+            sk_gen,
         );
         // `vault_json_body_with` reads the KDF parameters from `self`; changed ones replace them.
         body["kdf"] = json!({
@@ -1029,6 +1083,7 @@ impl Vault {
         self.recovery = new_recovery;
         self.salt = salt;
         self.params = params;
+        self.sk_gen = sk_gen;
         Ok(Revocation {
             vault_json,
             records,
@@ -1095,6 +1150,11 @@ impl Vault {
             &params.bytes_with_salt(&salt),
         )?;
 
+        let sk_gen = if new_secret_key.is_some() {
+            self.sk_gen.checked_add(1).ok_or(Error)?
+        } else {
+            self.sk_gen
+        };
         let revision = self.revision + 1;
         let mut body = vault_json_body_with(
             self,
@@ -1103,6 +1163,7 @@ impl Vault {
             (self.epoch, revision, &self.keys.authority_public()),
             (&self.revoked, &self.epoch_keys),
             self.recovery.as_ref(),
+            sk_gen,
         );
         // `vault_json_body_with` reads the KDF parameters from `self`; the new ones replace them.
         body["kdf"] = json!({
@@ -1118,6 +1179,7 @@ impl Vault {
         self.salt = salt;
         self.wrapped_vk = wrapped_vk;
         self.revision = revision;
+        self.sk_gen = sk_gen;
         Ok(Rotated {
             vault_json,
             secret_key: new_secret_key,
@@ -1217,6 +1279,7 @@ impl Vault {
             (self.epoch, self.revision + 1, &self.keys.authority_public()),
             (&self.revoked, &self.epoch_keys),
             recovery,
+            self.sk_gen,
         );
         with_signature(
             body.clone(),
@@ -1284,6 +1347,8 @@ impl Vault {
             None => wrap,
         };
         let revision = vault.revision + 1;
+        // Recovery makes a fresh Secret Key, so it counts as a rotation.
+        let sk_gen = vault.sk_gen.checked_add(1).ok_or(Error)?;
         let mut body = vault_json_body_with(
             &vault,
             &salt,
@@ -1291,6 +1356,7 @@ impl Vault {
             (vault.epoch, revision, &vault.keys.authority_public()),
             (&vault.revoked, &vault.epoch_keys),
             Some(&recovery),
+            sk_gen,
         );
         body["kdf"] = json!({
             "m_kib": vault.params.m_kib, "t": vault.params.t, "p": vault.params.p, "salt": hexs(&salt),
@@ -1303,6 +1369,7 @@ impl Vault {
         vault.wrapped_vk = wrapped_vk;
         vault.recovery = Some(recovery);
         vault.revision = revision;
+        vault.sk_gen = sk_gen;
         Ok((
             vault,
             Recovered {
@@ -1489,6 +1556,39 @@ impl Vault {
 
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+
+    /// Which Secret Key the vault is wrapped under (`crypto.md` 9.4): 1 for the first, one more at each rotation.
+    pub fn sk_gen(&self) -> u32 {
+        self.sk_gen
+    }
+
+    /// The Secret Key generation named by a stored `vault.json`, read without any key (so not authenticated:
+    /// it only decides what to ask a person before they type, and the unlock that follows checks everything).
+    /// A file with a malformed `sk_gen` is an error.
+    pub fn sk_gen_in(vault_json: &[u8]) -> Result<u32> {
+        let (body, _) = split_signature(vault_json)?;
+        Ok(Header::parse(body.as_object().ok_or(Error)?)?.sk_gen)
+    }
+
+    /// Whether `password` and `secret_key` open the wrapped Vault Key of a stored `vault.json`. Nothing is
+    /// unlocked or kept: for checking a Secret Key typed into a window that is already open.
+    pub fn verify_credentials(
+        vault_json: &[u8],
+        password: &str,
+        secret_key: &SecretKey,
+    ) -> Result<()> {
+        let (body, _) = split_signature(vault_json)?;
+        let h = Header::parse(body.as_object().ok_or(Error)?)?;
+        let auk = derive_auk(password, secret_key, &h.vault_id, &h.salt, &h.params)?;
+        unwrap_vk(
+            &auk,
+            &h.wrapped,
+            &h.vault_id,
+            h.epoch,
+            &h.params.bytes_with_salt(&h.salt),
+        )
+        .map(|_| ())
     }
 
     pub fn has_pending(&self) -> bool {

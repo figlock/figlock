@@ -31,6 +31,7 @@ Vectors for every rule in `crypto.md`, `sync.md` and `pairing-recovery.md` (FIG-
 | `recovery-key.json` | `FLR1-` code encode, decode, confusables, check mismatch, wrong length, Secret Key refused |
 | `slip39.json` | 2-of-3 and 3-of-5 SLIP-0039 shares of a Recovery Key (generated once) |
 | `slip39-official.json` | the 45 official SLIP-0039 vectors, unchanged from upstream (ADR-0028); run by the Rust tests, not regenerated |
+| `sk-gen.json` | Secret Key generation `sk_gen`: what raises it, how it is written and read, a device's kept key against the vault's |
 | `hlc.json` | hybrid logical clock rules, overflow, drift hold |
 | `merge.json` | field merge, delete versus restore, snapshot equivalence, purge horizon |
 | `audit.json` | audit key `AK`, audit record container and hash chain (broker log) |

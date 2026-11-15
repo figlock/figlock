@@ -40,6 +40,12 @@ pub fn enable(json: bool) -> Res<()> {
     let (_session, auk) = Session::open_full(prompt::terminal())?;
     let vault = figlock_session::session::peek_vault_id()?;
     quick.enable(&vault, &auk, figlock_session::session::now_ms() / 1000)?;
+    // The Secret Key moves up to the Secure Enclave with it; it stays the same key (ADR-0034).
+    if let Ok(keys) = figlock_session::secret_key_store::system()
+        && let Err(e) = keys.retier(&vault, true, "keep your Secret Key with Touch ID")
+    {
+        eprintln!("warning: the Secret Key was not moved to the Secure Enclave: {e}");
+    }
     say(
         json,
         "Quick unlock is on. Later commands ask for Touch ID or your device password.",
@@ -51,7 +57,14 @@ pub fn enable(json: bool) -> Res<()> {
 
 /// `figlock quick-unlock disable`
 pub fn disable(json: bool) -> Res<()> {
-    system()?.forget(&figlock_session::session::peek_vault_id()?)?;
+    let vault = figlock_session::session::peek_vault_id()?;
+    system()?.forget(&vault)?;
+    // The Secret Key stays on this Mac, in the login keychain where no prompt is needed (ADR-0034).
+    if let Ok(keys) = figlock_session::secret_key_store::system()
+        && let Err(e) = keys.retier(&vault, false, "keep your Secret Key without Touch ID")
+    {
+        eprintln!("warning: the Secret Key was not moved out of the Secure Enclave: {e}");
+    }
     say(json, "Quick unlock is off.", false, false, None)
 }
 

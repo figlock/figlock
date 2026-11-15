@@ -27,7 +27,12 @@ export type Options = {
   restoreFails?: { code: string; message: string };
   /** The auto-lock time this Mac starts with, in seconds. */
   autolockSecs?: number;
+  /** Another device rotated the Secret Key, so the one this Mac keeps is out of date. */
+  secretKeyStale?: boolean;
 };
+
+/** The Secret Key another device made, in the fake app core's stale-key scenarios. */
+export const NEW_KEY = "FL1-WXYZ-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX";
 
 export const GITHUB: Seed = {
   kind: "login",

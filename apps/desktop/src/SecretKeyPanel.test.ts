@@ -123,14 +123,27 @@ test("a Mac that keeps no key offers no way to show one", async () => {
   expect(screen.queryByRole("button", { name: "Show Secret Key" })).toBeNull();
 });
 
-test("with Touch ID off the copy says why, and that the session holds the key until lock", async () => {
+test("a key the person stopped keeping says so, and that the session holds it until lock", async () => {
   core.vaultState.mockResolvedValue({ ...notKept, quickUnlock: false, secretKeyHeld: true });
   await toSettings();
   const text = (await screen.findByTestId("key-why")).textContent ?? "";
-  expect(text).toContain("Touch ID is off");
+  expect(text).toContain("You stopped keeping it here");
   expect(text).toContain("each time you unlock");
   expect(text).toContain("holds it until you lock");
   expect(text).not.toContain("kept again");
+  // Touch ID being off is never a reason for the key to be missing (ADR-0034).
+  expect(text).not.toContain("Touch ID is off");
+});
+
+test("a key kept with Touch ID off reads the same as one kept with it on", async () => {
+  core.vaultState.mockResolvedValue({
+    ...kept,
+    quickUnlock: false,
+    secretKeyProtection: "keychain",
+  });
+  await toSettings();
+  expect(await screen.findByText("Kept on this Mac")).toBeTruthy();
+  expect((await screen.findByTestId("key-where")).textContent).toContain("keychain");
 });
 
 test("a Mac with no secure store says so, and holds nothing it does not hold", async () => {

@@ -180,11 +180,13 @@ fn key_to_share() -> Res<(Session, SecretKey)> {
     let keys = secret_key_store::system()?;
     if keys.has(&vault) {
         let session = Session::open(prompt::terminal())?;
-        let key = keys.get(&vault, "add a device")?.ok_or_else(|| {
-            Fail::new(
-                "the Secret Key kept on this device was not released, so nothing was approved",
-            )
-        })?;
+        let key = keys
+            .get(&vault, "add a device", secret_key_store::quick_on(&vault))?
+            .ok_or_else(|| {
+                Fail::new(
+                    "the Secret Key kept on this device was not released, so nothing was approved",
+                )
+            })?;
         return Ok((session, key));
     }
     let (session, _, key) = Session::open_for_change(prompt::terminal())?;

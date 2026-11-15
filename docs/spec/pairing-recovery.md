@@ -190,10 +190,15 @@ except by explicit user action, and the clipboard clears after 30 seconds.
 | R2 | Forgot the master password, no usable device, has the Emergency Kit, Recovery Key set up | Yes | Use `RK` (section 7): recover `VK`, set a new master password and Secret Key, publish a new kit |
 | R3 | Forgot the master password, no usable device, no Recovery Key | **No** | The `VK` is only wrapped under `AUK`; without the password it cannot be derived. The app says this at setup and in the kit. |
 | R4 | Lost the Secret Key, knows the master password, has a paired device | Yes | On `T`: show the Secret Key (biometrics), or rotate it and make a new kit |
+| R9 | The Secret Key was rotated on another device (`sk_gen` in `vault.json` is higher than the kept key's, `crypto.md` 9.4) | Yes | The unlock screen says so before anything is typed and asks for the new key (from that device's Emergency Kit or Show Secret Key); one entry is kept and not asked again. A running app shows a banner with Update now, the CLI says it on the next command and in `figlock sync status`. A wrong master password never asks for the Secret Key. |
 | R5 | Lost the Secret Key, knows the password, no device, no Recovery Key | **No** | Same reason as R3 |
 | R6 | Lost every device, has password and Emergency Kit | Yes | Install FigLock on a new device, sign in to the storage, type the password and the Secret Key (section 3.5), and optionally revoke the lost ones |
 | R7 | Storage account lost or wiped | Yes, if any device is left | Any device re-uploads its local copy (`sync.md` 8, rollback); with no device and no copy it is lost |
 | R8 | Device stolen | Yes | Revoke it (section 4), rotate the password and Secret Key if it was unlocked |
+
+A device keeps the Secret Key whether or not quick unlock is on (ADR-0034), so R9 is the only time a person who
+has the vault on this device types it again. Rotation on a device updates its own kept key and `sk_gen` in the
+same step; a password change and a revocation leave both alone.
 
 The app shows these cases in plain words in the setup flow ("What happens if I forget my password?") so
 the user decides about the Recovery Key knowingly.

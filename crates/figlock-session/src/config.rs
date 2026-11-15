@@ -383,6 +383,54 @@ fn set_remote_in(home: &Path, remote: Option<Remote>) -> Res<Config> {
     Ok(cfg)
 }
 
+fn key_gen_path(home: &Path) -> PathBuf {
+    home.join("secret-key-gen.json")
+}
+
+/// The `sk_gen` of the Secret Key this device keeps for `vault` (`crypto.md` 9.4). Not secret. A device that
+/// kept its key before the counter existed has generation 1, which is what every vault was until a client wrote
+/// the member.
+pub fn kept_sk_gen(vault: &str) -> u32 {
+    home().map_or(1, |h| kept_sk_gen_in(&h, vault))
+}
+
+pub(crate) fn kept_sk_gen_in(home: &Path, vault: &str) -> u32 {
+    fs::read(key_gen_path(home))
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v.get(vault).and_then(Value::as_u64))
+        .and_then(|n| u32::try_from(n).ok())
+        .filter(|n| *n >= 1)
+        .unwrap_or(1)
+}
+
+/// Record the generation of the Secret Key now kept for `vault`; `None` forgets it with the key.
+pub fn set_kept_sk_gen(vault: &str, sk_gen: Option<u32>) -> Res<()> {
+    set_kept_sk_gen_in(&home()?, vault, sk_gen)
+}
+
+pub(crate) fn set_kept_sk_gen_in(home: &Path, vault: &str, sk_gen: Option<u32>) -> Res<()> {
+    private_dir(home)?;
+    let mut all = fs::read(key_gen_path(home))
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default();
+    match sk_gen {
+        Some(n) => {
+            all.insert(vault.to_owned(), json!(n));
+        }
+        None => {
+            all.remove(vault);
+        }
+    }
+    let path = key_gen_path(home);
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, Value::Object(all).to_string())?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
 /// Keep how long the desktop waits without activity before it locks, in `config.json`. `None` goes back to
 /// the default.
 pub fn set_autolock(secs: Option<u64>) -> Res<Config> {

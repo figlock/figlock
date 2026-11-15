@@ -12,6 +12,8 @@ export type VaultState = {
   touchAvailable: boolean;
   /** This Mac keeps the Secret Key, so unlocking asks for the master password only (ADR-0027). */
   secretKeyKept: boolean;
+  /** The Secret Key was changed on another device, so the one this Mac keeps opens nothing (ADR-0034). */
+  secretKeyStale: boolean;
   /** How the kept key is protected, when there is one. */
   secretKeyProtection: "secure-enclave" | "keychain" | null;
   /** This unlocked session holds the Secret Key it was unlocked with, until the vault locks (ADR-0030). */
@@ -97,6 +99,9 @@ export const unlock = (password: string, secretKey?: string) =>
   invoke<VaultState>("unlock", { password, secretKey: secretKey || null });
 /** The kept Secret Key, after Touch ID or the device password. */
 export const showSecretKey = () => invoke<string>("show_secret_key");
+/** Keep the Secret Key another device made, checked against the vault with the master password. */
+export const updateSecretKey = (password: string, secretKey: string) =>
+  invoke<VaultState>("update_secret_key", { password, secretKey });
 export const forgetSecretKey = () => invoke<VaultState>("forget_secret_key");
 /** How long the vault waits without activity before it locks, in seconds. Applies at once. */
 export const setAutolock = (secs: number) => invoke<VaultState>("set_autolock", { secs });

@@ -479,6 +479,16 @@ async fn show_secret_key(app: AppHandle) -> CmdRes<String> {
     .map_err(|_| CmdError::new("failed", "Showing the key stopped unexpectedly. Try again."))?
 }
 
+/// Keep the Secret Key another device just made, in a window that is already open.
+#[tauri::command]
+async fn update_secret_key(
+    desk: State<'_, Desk>,
+    password: String,
+    secret_key: String,
+) -> CmdRes<VaultState> {
+    desk.update_secret_key(&password, &secret_key)
+}
+
 /// Stop keeping the Secret Key on this device.
 #[tauri::command]
 async fn forget_secret_key(desk: State<'_, Desk>) -> CmdRes<VaultState> {
@@ -781,6 +791,7 @@ pub fn run() {
             unlock,
             show_secret_key,
             forget_secret_key,
+            update_secret_key,
             set_autolock,
             quick_unlock,
             lock,

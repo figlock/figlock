@@ -92,6 +92,16 @@ impl From<Fail> for CmdError {
             ),
             FailKind::SignInCancelled => CmdError::new("sign_in_cancelled", f.0),
             FailKind::SignInTimedOut => CmdError::new("drive_sign_in", f.0),
+            // The Secret Key this Mac keeps is current, so the password is what is wrong. The window must not
+            // answer this by asking for the key (ADR-0034).
+            FailKind::WrongPassword => CmdError::new(
+                "wrong_password",
+                "That password did not open the vault. Check it and try again.",
+            ),
+            FailKind::VaultRolledBack => CmdError::new(
+                "vault_rolled_back",
+                "The vault file in your storage is older than the one this Mac has already seen, so FigLock did not open it. Check that your sync is not restoring an old copy.",
+            ),
             FailKind::Other => CmdError::new("failed", f.0),
         }
     }
@@ -111,6 +121,9 @@ pub struct VaultState {
     pub touch_available: bool,
     /// This device keeps the Secret Key, so unlocking asks for the master password only (ADR-0027).
     pub secret_key_kept: bool,
+    /// The Secret Key was changed on another device (`sk_gen` in `vault.json` is higher than the kept key's):
+    /// the unlock screen asks for the new one up front, and an open window shows a banner (ADR-0034).
+    pub secret_key_stale: bool,
     /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
     pub secret_key_protection: Option<&'static str>,
     /// This unlocked session holds the Secret Key it was unlocked with, so steps that rewrap the vault key
@@ -234,6 +247,9 @@ impl Ui for Typed {
             .map(|k| SecretKey::from_bytes(*k.expose()))
             .ok_or_else(|| Fail::new(NEEDS_SECRET_KEY))
     }
+    fn offered_secret_key(&self) -> Option<SecretKey> {
+        self.copy_secret_key()
+    }
     fn notice(&self, _: &str) {}
     fn warn(&self, _: &str) {}
 }
@@ -249,7 +265,7 @@ fn unlock_error(f: Fail) -> CmdError {
     } else if f.0 == NEEDS_SECRET_KEY {
         CmdError::new(
             "needs_secret_key",
-            "That did not open the vault. If your master password is right, the Secret Key was changed on another device: type the new one from your Emergency Kit.",
+            "This Mac does not have your Secret Key. Type it from your Emergency Kit.",
         )
     } else {
         f.into()
@@ -503,12 +519,17 @@ impl Desk {
             Some((keys, vault)) => (keys.has(&vault), keys.protection(&vault)),
             None => (false, None),
         };
+        // Only a device that keeps a key can have an out-of-date one; without one the key is typed anyway.
+        let secret_key_stale = secret_key_kept
+            && figlock_session::session::peek_kept_key()
+                .is_ok_and(|k| k == figlock_core::KeptKey::Stale);
         Ok(VaultState {
             phase,
             version: env!("CARGO_PKG_VERSION"),
             quick_unlock,
             touch_available,
             secret_key_kept,
+            secret_key_stale,
             secret_key_protection,
             secret_key_held,
             autolock_secs: self.autolock().as_secs(),
@@ -854,8 +875,12 @@ impl Desk {
         if touch_id {
             // Touch ID is a convenience: failing to turn it on never undoes the setup.
             if let (Ok(vault), Ok(q)) = (figlock_session::session::peek_vault_id(), quick::system())
+                && q.enable(&vault, &auk, now_ms() / 1000).is_ok()
             {
-                let _ = q.enable(&vault, &auk, now_ms() / 1000);
+                // The Secret Key moves up to the chip with Touch ID; it is the same key (ADR-0034).
+                if let Ok(keys) = secret_key_store::system() {
+                    let _ = keys.retier(&vault, true, "keep your Secret Key with Touch ID");
+                }
             }
         }
         self.install_holding(session, held);

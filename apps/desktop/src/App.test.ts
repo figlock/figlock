@@ -142,6 +142,45 @@ test("when the kept key does not open the vault the Secret Key is asked for, and
   );
 });
 
+test("a wrong password never shows the Secret Key fields", async () => {
+  state.current = { ...state.current, phase: "locked", secretKeyKept: true, secretKeyStale: false };
+  state.unlock.mockRejectedValue({
+    code: "wrong_password",
+    message: "That password did not open the vault. Check it and try again.",
+  });
+  const user = userEvent.setup();
+  render(App);
+  await user.type(await screen.findByLabelText("Master password"), "not the password");
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+  expect(await screen.findByText(/That password did not open the vault/)).toBeTruthy();
+  expect(screen.queryByLabelText("Secret Key group 1 of 8")).toBeNull();
+  expect(screen.queryByText(/changed on another device/)).toBeNull();
+});
+
+test("a Secret Key changed on another device is said up front and asked for before anything is typed", async () => {
+  state.current = { ...state.current, phase: "locked", secretKeyKept: true, secretKeyStale: true };
+  state.unlock.mockResolvedValue({ ...state.current, phase: "unlocked", secretKeyStale: false });
+  const user = userEvent.setup();
+  render(App);
+  expect(await screen.findByText(/Your Secret Key was changed on another device/)).toBeTruthy();
+  expect(screen.getByLabelText("Secret Key group 1 of 8")).toBeTruthy();
+  await user.type(screen.getByLabelText("Master password"), "correct horse battery 42");
+  await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
+  await user.paste(KEY);
+  await user.click(screen.getByRole("button", { name: "Unlock" }));
+  await waitFor(() => expect(state.unlock).toHaveBeenCalledWith("correct horse battery 42", KEY));
+});
+
+test("My Secret Key changed opens the key fields by hand", async () => {
+  state.current = { ...state.current, phase: "locked", secretKeyKept: true, secretKeyStale: false };
+  const user = userEvent.setup();
+  render(App);
+  await screen.findByLabelText("Master password");
+  expect(screen.queryByLabelText("Secret Key group 1 of 8")).toBeNull();
+  await user.click(screen.getByRole("button", { name: "My Secret Key changed" }));
+  expect(screen.getByLabelText("Secret Key group 1 of 8")).toBeTruthy();
+});
+
 test("Touch ID is only offered when quick unlock is on, and its failure asks for the credentials", async () => {
   state.current = { ...state.current, phase: "locked" };
   const user = userEvent.setup();
