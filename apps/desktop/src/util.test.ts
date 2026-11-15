@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 
-import { ageText, dayDiff, expiryState, fmtSize, newSuffix, suffixed } from "./util";
+import { ageText, dayDiff, expiryState, fmtDay, fmtSize, newSuffix, suffixed } from "./util";
 
 test("sizes read in B, KB and MB", () => {
   expect(fmtSize(900)).toBe("900 B");
@@ -33,4 +33,8 @@ test("suffixed fields come out in id order, and new suffixes fit the schema", ()
     ["b", "2"],
   ]);
   for (let i = 0; i < 50; i++) expect(newSuffix()).toMatch(/^[a-z0-9]{6}$/);
+});
+
+test("a day is written the way the core writes it in refusals", () => {
+  expect(fmtDay(Date.UTC(2026, 10, 15, 23, 30))).toBe("15 November 2026");
 });

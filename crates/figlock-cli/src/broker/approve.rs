@@ -174,7 +174,19 @@ impl BiometricApprover {
 
 impl Approver for BiometricApprover {
     fn approve(&self, req: &ApprovalRequest, wait: Duration) -> Decision {
-        match (self.confirm)(&prompt_line(req), wait) {
+        // The prompt is a system window; this line says on the daemon's terminal that one is open, and how it ended.
+        eprintln!("waiting for Touch ID or your device password on this Mac...");
+        let outcome = (self.confirm)(&prompt_line(req), wait);
+        eprintln!(
+            "{}",
+            match outcome {
+                Outcome::Confirmed => "approved",
+                Outcome::Declined => "not approved: the prompt was cancelled or failed",
+                Outcome::TimedOut => "not approved: nobody answered in time",
+                Outcome::Unavailable => "not approved: this Mac cannot show the prompt right now",
+            }
+        );
+        match outcome {
             Outcome::Confirmed => Decision::Allow,
             Outcome::Declined | Outcome::TimedOut | Outcome::Unavailable => Decision::Deny,
         }

@@ -117,3 +117,24 @@ test.describe("a missing vault folder (FIG-118)", () => {
     await expect(page.getByRole("heading", { name: "Welcome to FigLock" })).toBeVisible();
   });
 });
+
+test.describe("modal dialogs (FIG-124)", () => {
+  test("a confirmation dims and blurs the whole window and Escape cancels it", async ({ page }) => {
+    await openApp(page, { phase: "locked", folderMissing: MISSING });
+    await page.getByRole("button", { name: "Create a new vault" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    // The backdrop is the design token, over the window, not a hand-picked black.
+    const backdrop = await page.evaluate(() => {
+      const s = getComputedStyle(document.querySelector("dialog")!, "::backdrop");
+      return { color: s.backgroundColor, filter: s.backdropFilter };
+    });
+    expect(backdrop.color).not.toBe("rgba(0, 0, 0, 0)");
+    expect(backdrop.filter).toContain("blur");
+    // Focus stays inside the dialog.
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement?.closest("dialog"))).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Your vault folder is missing" })).toBeVisible();
+  });
+});

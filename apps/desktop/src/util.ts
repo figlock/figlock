@@ -30,9 +30,14 @@ export const fmtDate = (date: string) =>
     day: "numeric",
   });
 
-/** A moment in Unix milliseconds as a long date in the person's language, for example "15 November 2026". */
+/** A moment in Unix milliseconds as a long date, for example "15 November 2026", the same wording the core uses in its refusals. */
 export const fmtDay = (ms: number) =>
-  new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  new Date(ms).toLocaleDateString("en-GB", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
 export const expiryState = (date: string | undefined, now = new Date()) => {
   if (!date) return "";

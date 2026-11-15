@@ -53,3 +53,14 @@ body {
   outline: var(--focus-ring-width) solid var(--color-focus);
   outline-offset: var(--focus-ring-offset);
 }
+
+/* Every modal dialog dims and blurs the whole window, so nothing from the screen behind reads as part of it. */
+dialog::backdrop {
+  background: var(--color-overlay);
+  backdrop-filter: blur(3px);
+}
+
+/* Headings and panes that take focus on a route change are not controls: no ring around them. */
+[tabindex="-1"]:focus-visible {
+  outline: none;
+}

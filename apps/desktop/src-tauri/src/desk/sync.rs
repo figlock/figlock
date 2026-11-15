@@ -35,6 +35,8 @@ pub(super) struct SyncState {
     needs_unlock: bool,
     failures: usize,
     next_at: Instant,
+    /// When the open vault last looked for changes another process made in the local folder.
+    local_at: Instant,
 }
 
 impl SyncState {
@@ -47,6 +49,7 @@ impl SyncState {
             needs_unlock: false,
             failures: 0,
             next_at: Instant::now(),
+            local_at: Instant::now(),
         }
     }
 
@@ -237,19 +240,59 @@ impl Desk {
     /// Bring what a sync pulled into the unlocked vault. Returns true when the vault needs a fresh unlock to
     /// take in the rest (settings changed elsewhere, or a device's changes could not be applied yet).
     fn absorb_pull(&self) -> bool {
+        self.absorb_local().1
+    }
+
+    /// Take in what is in the local folder and not yet in the open vault, whoever wrote it: a sync, or another
+    /// process on this Mac such as the CLI (FIG-126, ADR-0026). Returns whether the list changed and whether the
+    /// vault needs a fresh unlock.
+    fn absorb_local(&self) -> (bool, bool) {
         let mut inner = self.inner();
         let Some(session) = inner.session.as_mut() else {
-            return false;
+            return (false, false);
         };
         match session.refresh() {
             Ok(r) => {
                 if r.applied > 0 {
                     inner.cache = None;
                 }
-                r.settings_changed || r.stopped
+                (r.applied > 0, r.settings_changed || r.stopped)
             }
-            Err(_) => true,
+            Err(_) => (false, true),
         }
+    }
+
+    /// Look for changes another process made to the local folder, now. Returns true when the list changed.
+    /// The window calls this when it gains focus, so what the CLI did while it was in the background shows
+    /// at once.
+    pub fn refresh_local(&self) -> bool {
+        self.sync_state().local_at = Instant::now();
+        let (changed, needs_unlock) = self.absorb_local();
+        if needs_unlock {
+            self.sync_state().needs_unlock = true;
+        }
+        changed
+    }
+
+    /// Called every second with the sync tick: while unlocked, looks for local changes every `INTERVAL`, with
+    /// or without Drive, like the broker does. Returns true when the list changed.
+    pub fn local_tick(&self) -> bool {
+        let due = {
+            let mut s = self.sync_state();
+            let due = s.local_at.elapsed() >= INTERVAL;
+            if due {
+                s.local_at = Instant::now();
+            }
+            due
+        };
+        if !due || self.inner().session.is_none() {
+            return false;
+        }
+        let (changed, needs_unlock) = self.absorb_local();
+        if needs_unlock {
+            self.sync_state().needs_unlock = true;
+        }
+        changed
     }
 
     /// Turn Drive sync on and upload what is already here. Only stays on if the first sync works, so a

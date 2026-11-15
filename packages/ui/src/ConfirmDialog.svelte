@@ -37,7 +37,7 @@
     e.preventDefault();
     oncancel();
   }}
-  class="m-auto w-[calc(100vw-2rem)] max-w-105 rounded-(--radius-lg) border border-border bg-surface-raised p-0 text-text shadow-xl backdrop:bg-black/40"
+  class="m-auto w-[calc(100vw-2rem)] max-w-105 rounded-(--radius-lg) border border-border bg-surface-raised p-0 text-text shadow-xl"
 >
   <div class="flex flex-col gap-3 p-6 pb-4">
     <h2 id={titleId} class="text-(length:--text-md) leading-6 font-semibold">{title}</h2>

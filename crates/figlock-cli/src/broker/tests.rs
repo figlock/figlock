@@ -438,6 +438,38 @@ fn nobody_to_ask_means_no() {
     assert_eq!(Fx::code(&v), "denied");
 }
 
+/// A system prompt that was not confirmed never makes a grant, whichever way it failed (FIG-128). The
+/// approver is the only way to a grant, and it does not look at where the device keys are kept.
+#[test]
+fn an_unconfirmed_system_prompt_never_makes_a_grant() {
+    use figlock_biometric::Outcome;
+    let asked: [fn(&str, Duration) -> Outcome; 3] = [
+        |_, _| Outcome::Declined,
+        |_, _| Outcome::TimedOut,
+        |_, _| Outcome::Unavailable,
+    ];
+    for confirm in asked {
+        let (vault, _) =
+            figlock_core::Vault::create(&random_hex(8), "L", KdfParams::FLOOR, T).unwrap();
+        let writer = AuditWriter::with_sink(Box::new(Mem::default()), 0, 0, ZERO_PREV);
+        let broker = Broker::start(
+            solo(vault),
+            writer,
+            Box::new(approve::BiometricApprover::with(confirm)),
+            Arc::new(TestEnv::new()),
+            uid(),
+        )
+        .unwrap();
+        let r = broker.handle_line(
+            &peer(1),
+            r#"{"v":1,"id":"a","op":"grant.request","scope":{"vault":true},"mode":"run","ttl":"once"}"#,
+        );
+        let v: Value = serde_json::from_str(&r.line).unwrap();
+        assert_eq!(Fx::code(&v), "denied");
+        assert_eq!(broker.grant_count(), 0);
+    }
+}
+
 #[test]
 fn reveal_is_one_item_once_and_needs_a_fresh_approval_every_time() {
     let fx = fixture();

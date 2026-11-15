@@ -217,6 +217,8 @@ test("a Mac that keeps no key makes the kit from the password and key typed, che
   await user.paste(KEY);
   await user.click(within(dialog).getByRole("button", { name: "Save kit" }));
   expect(await within(dialog).findByText(/do not match this vault/)).toBeTruthy();
+  // The same message is not also shown in the page behind the dialog.
+  expect(screen.getAllByText(/do not match this vault/, { ignore: "[inert] *" })).toHaveLength(1);
   expect(core.saveKit).toHaveBeenCalledWith("correct horse", KEY);
 
   core.saveKit.mockResolvedValueOnce(true);

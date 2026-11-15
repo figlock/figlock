@@ -755,6 +755,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Desk::new())
         .manage(desk::update::Pending::default())
+        // Coming back to the window picks up what the CLI wrote while it was in the background (FIG-126).
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(true) = event {
+                let handle = tauri::Manager::app_handle(window).clone();
+                std::thread::spawn(move || {
+                    if tauri::Manager::state::<Desk>(&handle).refresh_local() {
+                        let _ = handle.emit(SYNCED_EVENT, ());
+                    }
+                });
+            }
+        })
         .setup(|app| {
             // Only a build whose config has an update key and feed can update; the plugin cannot start without
             // them, so a development build leaves it out and the update commands say so (FIG-112).
@@ -787,7 +798,9 @@ pub fn run() {
                 loop {
                     std::thread::sleep(Duration::from_secs(1));
                     let desk = tauri::Manager::state::<Desk>(&handle);
-                    if desk.sync_tick() {
+                    // Both run: a sync that pulled, and another process (the CLI) that wrote locally.
+                    let synced = desk.sync_tick();
+                    if desk.local_tick() || synced {
                         let _ = handle.emit(SYNCED_EVENT, ());
                     }
                 }

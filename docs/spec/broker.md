@@ -149,7 +149,9 @@ returns allow or deny, or nothing within 60 s, which is deny.
   the program name and pid, the scope in plain words and the duration, plus the loud wording for `reveal`
   and `vault`. The caller's `label` and `reason` are never in it. Cancel, failure, no answer in 60 s and a
   machine that cannot show the prompt are all deny. Without a biometric prompt the daemon asks yes/no on the
-  terminal that started it, and a broker with neither denies everything.
+  terminal that started it, and a broker with neither denies everything. There is no setting that skips the
+  prompt: `FIGLOCK_DEVICE_KEYS=file` only moves where the device keys are kept, and the broker says so when it
+  starts. The daemon also prints when a prompt is open and how it ended (approved, cancelled, timed out).
 
 ### 3.3 Authorising a use
 

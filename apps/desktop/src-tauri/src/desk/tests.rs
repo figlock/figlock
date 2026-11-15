@@ -584,6 +584,21 @@ fn sync_pull_inner() {
         .map(|i| i.title)
         .collect();
     assert_eq!(titles, vec!["From the other Mac".to_owned()]);
+
+    // Another process on this Mac, the CLI, writes into the same folder with no sync involved (FIG-126).
+    other
+        .add_item(
+            figlock_core::ItemType::Login,
+            "Personal",
+            &[("title", "From the command line")],
+            now_ms(),
+        )
+        .unwrap();
+    let file = other.commit().unwrap().unwrap();
+    store.put_new(&file.path, &file.bytes).unwrap();
+    assert!(d.refresh_local(), "the window looks again and finds it");
+    assert_eq!(d.list_items("").unwrap().len(), 2);
+    assert!(!d.refresh_local(), "nothing new the second time");
 }
 
 #[test]
