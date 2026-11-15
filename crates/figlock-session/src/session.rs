@@ -1192,7 +1192,8 @@ mod tests {
             );
         }
         assert!(warnings.lock().unwrap().is_empty(), "{warnings:?}");
-        assert_eq!(a.ignored_changes(&b_id), 3, "counted once, not per load");
+        // Three items in two files; each add is four ops (create, type, vault, title). Counted once, not per load.
+        assert_eq!(a.ignored_changes(&b_id), 12, "counted by op, not file");
         let titles: Vec<_> = a
             .items(false)
             .iter()
