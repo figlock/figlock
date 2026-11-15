@@ -1,0 +1,529 @@
+{
+  "format": "figlock-vectors-1",
+  "generator": "docs/spec/vectors/generate.py",
+  "title": "Secret Key generation",
+  "cases": [
+    {
+      "name": "change_password-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_password",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 1
+      }
+    },
+    {
+      "name": "change_password-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_password",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "change_password-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_password",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 41
+      }
+    },
+    {
+      "name": "change_kdf_params-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_kdf_params",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 1
+      }
+    },
+    {
+      "name": "change_kdf_params-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_kdf_params",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "change_kdf_params-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_kdf_params",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 41
+      }
+    },
+    {
+      "name": "revoke_device-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "revoke_device",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 1
+      }
+    },
+    {
+      "name": "revoke_device-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "revoke_device",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "revoke_device-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "revoke_device",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 41
+      }
+    },
+    {
+      "name": "set_recovery-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "set_recovery",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 1
+      }
+    },
+    {
+      "name": "set_recovery-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "set_recovery",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "set_recovery-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "set_recovery",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 41
+      }
+    },
+    {
+      "name": "clear_recovery-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "clear_recovery",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 1
+      }
+    },
+    {
+      "name": "clear_recovery-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "clear_recovery",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "clear_recovery-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "clear_recovery",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 41
+      }
+    },
+    {
+      "name": "rotate_secret_key-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "rotate_secret_key",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "rotate_secret_key-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "rotate_secret_key",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 3
+      }
+    },
+    {
+      "name": "rotate_secret_key-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "rotate_secret_key",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 42
+      }
+    },
+    {
+      "name": "revoke_device_and_rotate_secret_key-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "revoke_device_and_rotate_secret_key",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "revoke_device_and_rotate_secret_key-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "revoke_device_and_rotate_secret_key",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 3
+      }
+    },
+    {
+      "name": "revoke_device_and_rotate_secret_key-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "revoke_device_and_rotate_secret_key",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 42
+      }
+    },
+    {
+      "name": "recover_with_recovery_key-from-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "recover_with_recovery_key",
+        "sk_gen_before": 1
+      },
+      "expected": {
+        "sk_gen_after": 2
+      }
+    },
+    {
+      "name": "recover_with_recovery_key-from-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "recover_with_recovery_key",
+        "sk_gen_before": 2
+      },
+      "expected": {
+        "sk_gen_after": 3
+      }
+    },
+    {
+      "name": "recover_with_recovery_key-from-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "recover_with_recovery_key",
+        "sk_gen_before": 41
+      },
+      "expected": {
+        "sk_gen_after": 42
+      }
+    },
+    {
+      "name": "rotation-at-the-ceiling",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "rotate_secret_key",
+        "sk_gen_before": 4294967295
+      },
+      "expected": "reject",
+      "why": "the counter does not wrap"
+    },
+    {
+      "name": "generation-zero",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "event": "change_password",
+        "sk_gen_before": 0
+      },
+      "expected": "reject",
+      "why": "generations start at 1"
+    },
+    {
+      "name": "written-as-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "sk_gen": 1
+      },
+      "expected": {
+        "body": {}
+      }
+    },
+    {
+      "name": "written-as-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "sk_gen": 2
+      },
+      "expected": {
+        "body": {
+          "sk_gen": 2,
+          "min_format_version": 2
+        }
+      }
+    },
+    {
+      "name": "written-as-41",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "sk_gen": 41
+      },
+      "expected": {
+        "body": {
+          "sk_gen": 41,
+          "min_format_version": 2
+        }
+      }
+    },
+    {
+      "name": "read-member-None-version-1",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": null,
+        "min_format_version": 1,
+        "other_version_2_members": false
+      },
+      "expected": {
+        "sk_gen": 1
+      }
+    },
+    {
+      "name": "read-member-None-version-2-with-recovery",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": null,
+        "min_format_version": 2,
+        "other_version_2_members": true
+      },
+      "expected": {
+        "sk_gen": 1
+      }
+    },
+    {
+      "name": "read-member-2-version-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 2,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": {
+        "sk_gen": 2
+      }
+    },
+    {
+      "name": "read-member-2-version-2-with-recovery",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 2,
+        "min_format_version": 2,
+        "other_version_2_members": true
+      },
+      "expected": {
+        "sk_gen": 2
+      }
+    },
+    {
+      "name": "read-member-41-version-2",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 41,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": {
+        "sk_gen": 41
+      }
+    },
+    {
+      "name": "member-one",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 1,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "1 is written by omitting the member"
+    },
+    {
+      "name": "member-zero",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 0,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "generations start at 1"
+    },
+    {
+      "name": "member-negative",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": -1,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "not a generation"
+    },
+    {
+      "name": "member-text",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": "2",
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "must be an integer"
+    },
+    {
+      "name": "member-boolean",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": true,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "must be an integer"
+    },
+    {
+      "name": "member-too-large",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 4294967296,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "does not fit 32 bits"
+    },
+    {
+      "name": "member-with-version-one",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": 2,
+        "min_format_version": 1,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "an old client must refuse the file"
+    },
+    {
+      "name": "dropped-member-with-version-two",
+      "spec": "crypto.md 9.4",
+      "inputs": {
+        "member": null,
+        "min_format_version": 2,
+        "other_version_2_members": false
+      },
+      "expected": "reject",
+      "why": "version 2 is only for a member that needs it"
+    },
+    {
+      "name": "kept-1-vault-1",
+      "spec": "crypto.md 9.4, pairing-recovery.md 6",
+      "inputs": {
+        "kept_gen": 1,
+        "vault_gen": 1
+      },
+      "expected": {
+        "kept_key": "current"
+      }
+    },
+    {
+      "name": "kept-3-vault-3",
+      "spec": "crypto.md 9.4, pairing-recovery.md 6",
+      "inputs": {
+        "kept_gen": 3,
+        "vault_gen": 3
+      },
+      "expected": {
+        "kept_key": "current"
+      }
+    },
+    {
+      "name": "kept-1-vault-2",
+      "spec": "crypto.md 9.4, pairing-recovery.md 6",
+      "inputs": {
+        "kept_gen": 1,
+        "vault_gen": 2
+      },
+      "expected": {
+        "kept_key": "stale"
+      }
+    },
+    {
+      "name": "kept-2-vault-5",
+      "spec": "crypto.md 9.4, pairing-recovery.md 6",
+      "inputs": {
+        "kept_gen": 2,
+        "vault_gen": 5
+      },
+      "expected": {
+        "kept_key": "stale"
+      }
+    },
+    {
+      "name": "vault-older-than-seen",
+      "spec": "crypto.md 9.4, sync.md 8",
+      "inputs": {
+        "kept_gen": 3,
+        "vault_gen": 2
+      },
+      "expected": "reject",
+      "why": "a rolled-back vault.json is refused"
+    }
+  ]
+}

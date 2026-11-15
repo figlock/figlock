@@ -245,6 +245,27 @@ impl<E: Enclave, K: Backend> Backend for Hardware<E, K> {
         Ok(key)
     }
 
+    fn put_key_plain(&self, vault: &str, key: &[u8; 32]) -> Res<()> {
+        // Written to the keychain first, so a failure leaves the chip copy where it was.
+        self.keychain.put_key(vault, key)?;
+        for path in [self.qk_path(), self.blob_path()] {
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(e.into()),
+            }
+        }
+        Ok(())
+    }
+
+    fn get_key_quiet(&self, vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
+        if self.has_chip_key() {
+            // Behind the chip's prompt: never read around it.
+            return Ok(None);
+        }
+        self.keychain.get_key(vault)
+    }
+
     fn has_key(&self, vault: &str) -> Res<bool> {
         if self.has_chip_key() {
             return Ok(true);

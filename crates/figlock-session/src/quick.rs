@@ -57,6 +57,15 @@ pub trait Backend {
     /// Whether a key is kept, without reading it.
     fn has_key(&self, vault: &str) -> Res<bool>;
     fn delete_key(&self, vault: &str) -> Res<()>;
+    /// Keep a key where no prompt is needed to read it back (the login keychain). Backends with one tier keep
+    /// it where `put_key` does.
+    fn put_key_plain(&self, vault: &str, key: &[u8; 32]) -> Res<()> {
+        self.put_key(vault, key)
+    }
+    /// Read a key without asking the person, when that is possible: `None` for a key that sits behind a prompt.
+    fn get_key_quiet(&self, vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
+        self.get_key(vault)
+    }
     /// Changes on every reboot, so a restart asks for the master password again.
     fn boot_id(&self) -> String;
     /// How the kept key is protected, for `quick-unlock status`: `None` when nothing is kept.

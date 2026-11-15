@@ -1254,6 +1254,7 @@ dependencies = [
  "core-foundation",
  "core-foundation-sys",
  "objc2",
+ "objc2-app-kit",
  "objc2-foundation",
  "objc2-local-authentication",
  "security-framework-sys",
@@ -1315,6 +1316,7 @@ dependencies = [
 name = "figlock-desktop"
 version = "0.3.1"
 dependencies = [
+ "figlock-biometric",
  "figlock-core",
  "figlock-session",
  "figlock-store",

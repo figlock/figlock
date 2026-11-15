@@ -11,10 +11,13 @@
   let password = $state("");
   let secretKey = $state("");
   let shown = $state(false);
-  /** The kept key did not open the vault, so the person is asked for it. */
+  /** The person said their Secret Key changed ("My Secret Key changed"), or the app core asked for it. */
   let keyRefused = $state(false);
-  /** The Secret Key field shows when this Mac keeps none, or when the kept one did not open the vault. */
-  const askKey = $derived(keyRefused || !vault.secretKeyKept);
+  /**
+   * The Secret Key field shows when this Mac keeps none, when another device changed it, or when the person
+   * asks. A wrong password never shows it (ADR-0034).
+   */
+  const askKey = $derived(keyRefused || vault.secretKeyStale || !vault.secretKeyKept);
   let busy = $state<"" | "unlocking" | "touch">("");
   let error = $state("");
   let fieldError = $state<{ password?: string; key?: string }>({});
@@ -79,6 +82,12 @@
 <Shell title="Unlock your vault" subtitle="Your vault is locked.">
   <form class="flex flex-col gap-4" onsubmit={submit}>
     {#if error}<Alert>{error}</Alert>{:else if notice}<Alert tone="warning">{notice}</Alert>{/if}
+    {#if vault.secretKeyStale && vault.secretKeyKept}
+      <Alert tone="info">
+        Your Secret Key was changed on another device. Type the new one from that device's Emergency
+        Kit or Show Secret Key.
+      </Alert>
+    {/if}
     <TextField
       label="Master password"
       type={shown ? "text" : "password"}
@@ -101,6 +110,14 @@
     {:else}
       <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
         This Mac keeps your Secret Key, so you only need your master password.
+        <button
+          type="button"
+          class="underline underline-offset-2 hover:text-text"
+          disabled={busy !== ""}
+          onclick={() => (keyRefused = true)}
+        >
+          My Secret Key changed
+        </button>
       </p>
     {/if}
     <Button variant="primary" type="submit" block disabled={busy !== ""}>

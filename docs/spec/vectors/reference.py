@@ -450,3 +450,55 @@ def merge(ops: list[dict], purge_horizon: tuple | None = None, known_items: set 
         if cur is None or key > order_key(cur[0], cur[1], cur[2]):
             state[op["item"]][op["field"]] = [op["wall"], op["counter"], op["device"], op["value"]]
     return state
+
+
+# ---- Secret Key generation (crypto.md 9.4, ADR-0034) ------------------------------------------------------
+SK_GEN_EVENTS = {
+    # event: whether it makes a new Secret Key
+    "change_password": False, "change_kdf_params": False, "revoke_device": False, "set_recovery": False,
+    "clear_recovery": False, "rotate_secret_key": True, "revoke_device_and_rotate_secret_key": True,
+    "recover_with_recovery_key": True,
+}
+
+
+def sk_gen_after(event: str, before: int) -> int:
+    """The `sk_gen` of the vault.json an event writes: only a new Secret Key raises it."""
+    if before < 1 or before > 0xFFFFFFFF or event not in SK_GEN_EVENTS:
+        raise Reject()
+    if not SK_GEN_EVENTS[event]:
+        return before
+    if before == 0xFFFFFFFF:
+        raise Reject()
+    return before + 1
+
+
+def sk_gen_member(gen: int) -> dict:
+    """What a writer puts in the signed body: nothing while the generation is 1, else the member and version 2."""
+    if gen < 1 or gen > 0xFFFFFFFF:
+        raise Reject()
+    return {} if gen == 1 else {"sk_gen": gen, "min_format_version": 2}
+
+
+def sk_gen_parse(member, min_format_version: int, other_version_2_members: bool = False) -> int:
+    """The generation a reader takes from a body. `member` is None when the body has no `sk_gen`. A written one
+    is an integer of at least 2 and goes with version 2; the version is 2 exactly when a member needs it."""
+    if member is None:
+        gen = 1
+    elif isinstance(member, bool) or not isinstance(member, int) or member < 2 or member > 0xFFFFFFFF:
+        raise Reject()
+    else:
+        gen = member
+    needs_2 = gen > 1 or other_version_2_members
+    if min_format_version != (2 if needs_2 else 1):
+        raise Reject()
+    return gen
+
+
+def kept_key(kept_gen: int, vault_gen: int) -> str:
+    """How a device's kept Secret Key compares with the vault: `current`, `stale` (type the new one) or reject
+    (a vault.json older than this device has seen)."""
+    if vault_gen == kept_gen:
+        return "current"
+    if vault_gen > kept_gen:
+        return "stale"
+    raise Reject()

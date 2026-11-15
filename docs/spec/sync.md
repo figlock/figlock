@@ -63,7 +63,10 @@ figlock/
 
 - `vault.json` is the only file that is replaced in place (password change, key rotation, revocation). It
   carries a monotonically increasing `revision` and is signed (`crypto.md` 7.4). A reader that sees a lower
-  `revision` than it has already accepted ignores the older copy and raises a rollback warning.
+  `revision` than it has already accepted ignores the older copy and raises a rollback warning. The Secret
+  Key generation `sk_gen` (`crypto.md` 9.4) rides in the same signed body, so a higher `revision` brings a higher
+  `sk_gen` with it; a device that kept a key of a higher `sk_gen` than the file names treats the file as a
+  rollback and refuses it.
 - A device only ever writes inside `log/<its own device_id>/`, its own `snap/` names, `inbox/` and, if it is
   holding the authority key, `devices/` and `vault.json`.
 - Paths use lower case hex and digits only, so they survive case-insensitive file systems.

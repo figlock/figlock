@@ -21,12 +21,14 @@ fn forget_quick_unlock() {
 
 /// Keep the new Secret Key on this device, in place of the old one (ADR-0027). The vault is already changed, so a
 /// failure only warns: the key is still shown and the next full unlock asks for it.
-fn keep_secret_key(sk: &SecretKey) {
+fn keep_secret_key(sk: &SecretKey, vault_json: &[u8]) {
     let kept = secret_key_store::system().and_then(|keys| {
         if !keys.available() {
             return Ok(());
         }
-        keys.put(&peek_vault_id()?, sk)
+        let vault = peek_vault_id()?;
+        let sk_gen = figlock_core::Vault::sk_gen_in(vault_json)?;
+        keys.put(&vault, sk, sk_gen, secret_key_store::quick_on(&vault))
     });
     if let Err(e) = kept {
         eprintln!("warning: the new Secret Key was not kept on this device: {e}");
@@ -95,7 +97,7 @@ pub fn secret_key_rotate(json: bool) -> Res<()> {
     let new = r
         .secret_key
         .ok_or_else(|| Fail::new("no new Secret Key was made"))?;
-    keep_secret_key(&new);
+    keep_secret_key(&new, &r.vault_json);
     show_secret_key(&new, json)?;
     done(json, "The Secret Key is rotated.");
     Ok(())
@@ -111,9 +113,17 @@ pub fn secret_key_show(json: bool) -> Res<()> {
              password and Secret Key, or find it on your Emergency Kit",
         ));
     }
-    let key = keys.get(&vault, "show your Secret Key")?.ok_or_else(|| {
-        Fail::new("the Secret Key was not shown: Touch ID or the device password was not confirmed")
-    })?;
+    let key = keys
+        .get(
+            &vault,
+            "show your Secret Key",
+            secret_key_store::quick_on(&vault),
+        )?
+        .ok_or_else(|| {
+            Fail::new(
+                "the Secret Key was not shown: Touch ID or the device password was not confirmed",
+            )
+        })?;
     if json {
         println!("{}", json!({ "secret_key": key.format().as_str() }));
     } else {
@@ -256,7 +266,7 @@ pub fn device_revoke(
         forget_quick_unlock();
     }
     if let Some(new) = &r.secret_key {
-        keep_secret_key(new);
+        keep_secret_key(new, &r.vault_json);
         show_secret_key(new, json)?;
     }
     let what = "The device is revoked.";

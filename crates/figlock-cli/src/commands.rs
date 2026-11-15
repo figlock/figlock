@@ -67,6 +67,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     let cfg = Config {
         place,
         device_name: a.device_name,
+        autolock_secs: None,
     };
     config::save(&cfg, vault.device_keys())?;
     let device_path = format!("devices/{}.json", hex::encode(vault.device_id()));
@@ -128,8 +129,11 @@ fn keep_secret_key(created: &figlock_core::Created) {
         // Nothing to keep it in on this machine (FIG-105): the key is typed when needed, as before.
         _ => return,
     };
-    let kept = session::vault_id_of(&created.vault_json)
-        .and_then(|vault| keys.put(&vault, &created.secret_key));
+    let kept = session::vault_id_of(&created.vault_json).and_then(|vault| {
+        // Quick unlock is offered after this, so it is off now: the key goes where no prompt is needed, and
+        // is moved up if quick unlock is turned on.
+        keys.put(&vault, &created.secret_key, 1, false)
+    });
     if let Err(e) = kept {
         eprintln!("warning: the Secret Key was not kept on this device: {e}");
     }

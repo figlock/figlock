@@ -23,6 +23,11 @@ pub enum FailKind {
     SignInCancelled,
     /// The Google sign-in was not finished in time.
     SignInTimedOut,
+    /// The master password did not open the vault. The Secret Key this device keeps is current, so the key is
+    /// not what is wrong and must not be asked for (ADR-0034).
+    WrongPassword,
+    /// `vault.json` names an older Secret Key than this device has already seen: a rolled-back vault file.
+    VaultRolledBack,
 }
 
 #[derive(Debug)]

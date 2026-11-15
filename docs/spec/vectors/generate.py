@@ -675,11 +675,52 @@ def sync_edge_cases():
     return {"title": "Reader state machine outcomes", "cases": cases}
 
 
+def sk_gen():
+    cases = []
+    for event, raises in r.SK_GEN_EVENTS.items():
+        for before in (1, 2, 41):
+            after = r.sk_gen_after(event, before)
+            assert after == before + (1 if raises else 0)
+            cases.append(case(f"{event}-from-{before}", "crypto.md 9.4",
+                              {"event": event, "sk_gen_before": before}, {"sk_gen_after": after}))
+    cases.append(reject("rotation-at-the-ceiling", "crypto.md 9.4",
+                        {"event": "rotate_secret_key", "sk_gen_before": 0xFFFFFFFF}, "the counter does not wrap"))
+    cases.append(reject("generation-zero", "crypto.md 9.4", {"event": "change_password", "sk_gen_before": 0},
+                        "generations start at 1"))
+    for gen in (1, 2, 41):
+        cases.append(case(f"written-as-{gen}", "crypto.md 9.4", {"sk_gen": gen}, {"body": r.sk_gen_member(gen)}))
+    for member, version, other, gen in ((None, 1, False, 1), (None, 2, True, 1), (2, 2, False, 2),
+                                        (2, 2, True, 2), (41, 2, False, 41)):
+        cases.append(case(f"read-member-{member}-version-{version}" + ("-with-recovery" if other else ""),
+                          "crypto.md 9.4",
+                          {"member": member, "min_format_version": version, "other_version_2_members": other},
+                          {"sk_gen": r.sk_gen_parse(member, version, other)}))
+        assert r.sk_gen_parse(member, version, other) == gen
+    for name, member, version, other, why in (
+            ("member-one", 1, 2, False, "1 is written by omitting the member"),
+            ("member-zero", 0, 2, False, "generations start at 1"),
+            ("member-negative", -1, 2, False, "not a generation"),
+            ("member-text", "2", 2, False, "must be an integer"),
+            ("member-boolean", True, 2, False, "must be an integer"),
+            ("member-too-large", 0x100000000, 2, False, "does not fit 32 bits"),
+            ("member-with-version-one", 2, 1, False, "an old client must refuse the file"),
+            ("dropped-member-with-version-two", None, 2, False, "version 2 is only for a member that needs it")):
+        cases.append(reject(name, "crypto.md 9.4",
+                            {"member": member, "min_format_version": version, "other_version_2_members": other},
+                            why))
+    for kept, vault in ((1, 1), (3, 3), (1, 2), (2, 5)):
+        cases.append(case(f"kept-{kept}-vault-{vault}", "crypto.md 9.4, pairing-recovery.md 6",
+                          {"kept_gen": kept, "vault_gen": vault}, {"kept_key": r.kept_key(kept, vault)}))
+    cases.append(reject("vault-older-than-seen", "crypto.md 9.4, sync.md 8", {"kept_gen": 3, "vault_gen": 2},
+                        "a rolled-back vault.json is refused"))
+    return {"title": "Secret Key generation", "cases": cases}
+
+
 FILES = {
     "secret-key.json": secret_key, "recovery-key.json": recovery_key, "kdf.json": kdf, "key-hierarchy.json": key_hierarchy, "items.json": items,
     "files.json": files, "signatures.json": signatures, "rotation.json": rotation, "quick-unlock.json": quick_unlock,
     "pairing.json": pairing, "seal-to.json": seal_to, "hlc.json": hlc, "merge.json": merge_cases,
-    "sync-reader.json": sync_edge_cases, "audit.json": audit,
+    "sync-reader.json": sync_edge_cases, "audit.json": audit, "sk-gen.json": sk_gen,
 }
 
 
@@ -906,6 +947,25 @@ def verify_case(fname: str, c: dict) -> None:
                 shuffled = ops + ops[: len(ops) // 2]  # with duplicates
                 random.Random(len(shuffled)).shuffle(shuffled)
                 assert r.merge(shuffled) == e
+    elif fname == "sk-gen.json":
+        if "event" in i:
+            if e == "reject":
+                expect_reject(lambda: r.sk_gen_after(i["event"], i["sk_gen_before"]))
+            else:
+                assert r.sk_gen_after(i["event"], i["sk_gen_before"]) == e["sk_gen_after"]
+        elif "sk_gen" in i:
+            assert r.sk_gen_member(i["sk_gen"]) == e["body"]
+        elif "member" in i:
+            args = (i["member"], i["min_format_version"], i["other_version_2_members"])
+            if e == "reject":
+                expect_reject(lambda: r.sk_gen_parse(*args))
+            else:
+                assert r.sk_gen_parse(*args) == e["sk_gen"]
+        else:
+            if e == "reject":
+                expect_reject(lambda: r.kept_key(i["kept_gen"], i["vault_gen"]))
+            else:
+                assert r.kept_key(i["kept_gen"], i["vault_gen"]) == e["kept_key"]
     elif fname == "sync-reader.json":
         pass  # outcomes for the Rust reader state machine; nothing in the reference to recompute
     else:

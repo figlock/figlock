@@ -26,15 +26,13 @@
       : "in this Mac's keychain",
   );
 
-  /** Why this Mac does not keep the key: no secure store, Touch ID off, or the person stopped it (ADR-0027). */
+  /** Why this Mac does not keep the key: no secure store, or the person stopped it (ADR-0027, ADR-0034). */
   const notKeptWhy = $derived(
     info === null || info.secretKeyKept
       ? ""
       : !info.touchAvailable
         ? "This Mac has no secure place to keep it."
-        : info.quickUnlock
-          ? "You stopped keeping it here."
-          : "Touch ID is off, and the key is only kept with it.",
+        : "You stopped keeping it here.",
   );
 
   async function load() {
@@ -94,7 +92,8 @@
         {#if info.secretKeyKept}
           <p class="font-medium">Kept on this Mac</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="key-where">
-            Stored {where}. Showing it asks for Touch ID or your device password.
+            Stored {where}. Showing it asks for Touch ID or your device password. You only type it
+            again if another device changes it.
           </p>
         {:else}
           <p class="font-medium">Not kept on this Mac</p>

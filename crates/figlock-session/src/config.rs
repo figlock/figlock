@@ -35,6 +35,9 @@ pub struct Place {
 pub struct Config {
     pub place: Place,
     pub device_name: String,
+    /// How long the desktop waits without activity before it locks (FIG-133). `None` means the default; it
+    /// is a per-device preference, so it is never synced.
+    pub autolock_secs: Option<u64>,
 }
 
 /// Where the local copy goes when the person chooses Drive and does not pick a folder.
@@ -162,6 +165,9 @@ fn config_body(cfg: &Config) -> Res<String> {
     match cfg.place.remote {
         None => {}
         Some(Remote::Drive) => body["remote"] = json!("drive"),
+    }
+    if let Some(secs) = cfg.autolock_secs {
+        body["autolock_secs"] = json!(secs);
     }
     Ok(body.to_string())
 }
@@ -355,6 +361,7 @@ fn load_in(home: &Path) -> Res<Config> {
             remote: if legacy { Some(Remote::Drive) } else { remote },
         },
         device_name: get("device_name")?,
+        autolock_secs: v.get("autolock_secs").and_then(Value::as_u64),
     };
     if legacy {
         // Written before anything is downloaded, so a crash leaves a config whose empty local folder the
@@ -372,6 +379,67 @@ pub fn set_remote(remote: Option<Remote>) -> Res<Config> {
 fn set_remote_in(home: &Path, remote: Option<Remote>) -> Res<Config> {
     let mut cfg = load_in(home)?;
     cfg.place.remote = remote;
+    fs::write(config_path(home), config_body(&cfg)?)?;
+    Ok(cfg)
+}
+
+fn key_gen_path(home: &Path) -> PathBuf {
+    home.join("secret-key-gen.json")
+}
+
+/// The `sk_gen` of the Secret Key this device keeps for `vault` (`crypto.md` 9.4). Not secret. A device that
+/// kept its key before the counter existed has generation 1, which is what every vault was until a client wrote
+/// the member.
+pub fn kept_sk_gen(vault: &str) -> u32 {
+    home().map_or(1, |h| kept_sk_gen_in(&h, vault))
+}
+
+pub(crate) fn kept_sk_gen_in(home: &Path, vault: &str) -> u32 {
+    fs::read(key_gen_path(home))
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v.get(vault).and_then(Value::as_u64))
+        .and_then(|n| u32::try_from(n).ok())
+        .filter(|n| *n >= 1)
+        .unwrap_or(1)
+}
+
+/// Record the generation of the Secret Key now kept for `vault`; `None` forgets it with the key.
+pub fn set_kept_sk_gen(vault: &str, sk_gen: Option<u32>) -> Res<()> {
+    set_kept_sk_gen_in(&home()?, vault, sk_gen)
+}
+
+pub(crate) fn set_kept_sk_gen_in(home: &Path, vault: &str, sk_gen: Option<u32>) -> Res<()> {
+    private_dir(home)?;
+    let mut all = fs::read(key_gen_path(home))
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default();
+    match sk_gen {
+        Some(n) => {
+            all.insert(vault.to_owned(), json!(n));
+        }
+        None => {
+            all.remove(vault);
+        }
+    }
+    let path = key_gen_path(home);
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, Value::Object(all).to_string())?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
+/// Keep how long the desktop waits without activity before it locks, in `config.json`. `None` goes back to
+/// the default.
+pub fn set_autolock(secs: Option<u64>) -> Res<Config> {
+    set_autolock_in(&home()?, secs)
+}
+
+fn set_autolock_in(home: &Path, secs: Option<u64>) -> Res<Config> {
+    let mut cfg = load_in(home)?;
+    cfg.autolock_secs = secs;
     fs::write(config_path(home), config_body(&cfg)?)?;
     Ok(cfg)
 }
@@ -578,6 +646,7 @@ mod tests {
                 remote: Some(Remote::Drive),
             },
             device_name: "Laptop".into(),
+            autolock_secs: None,
         }
     }
 
@@ -764,6 +833,34 @@ mod tests {
         c.place.remote = Some(Remote::Drive);
         fs::write(config_path(d.path()), config_body(&c).unwrap()).unwrap();
         assert_eq!(load_in(d.path()).unwrap().place, c.place);
+    }
+
+    #[test]
+    fn the_auto_lock_time_round_trips_and_survives_other_changes() {
+        let d = tempfile::tempdir().unwrap();
+        let keys = DeviceKeys::generate().unwrap();
+        let mut c = cfg();
+        c.place.local = d.path().join("v");
+        save_in(d.path(), &c, &keys, None).unwrap();
+        assert_eq!(load_in(d.path()).unwrap().autolock_secs, None);
+        assert!(
+            !fs::read_to_string(config_path(d.path()))
+                .unwrap()
+                .contains("autolock")
+        );
+
+        assert_eq!(
+            set_autolock_in(d.path(), Some(900)).unwrap().autolock_secs,
+            Some(900)
+        );
+        assert_eq!(load_in(d.path()).unwrap().autolock_secs, Some(900));
+        // Another change to `config.json` keeps it.
+        set_remote_in(d.path(), None).unwrap();
+        set_local_in(d.path(), d.path().join("moved")).unwrap();
+        assert_eq!(load_in(d.path()).unwrap().autolock_secs, Some(900));
+
+        set_autolock_in(d.path(), None).unwrap();
+        assert_eq!(load_in(d.path()).unwrap().autolock_secs, None);
     }
 
     #[test]

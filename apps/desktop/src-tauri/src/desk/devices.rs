@@ -75,7 +75,7 @@ impl Desk {
         }
         let vault = figlock_session::session::peek_vault_id()?;
         let key = secret_key_store::system()?
-            .get(&vault, why)?
+            .get(&vault, why, secret_key_store::quick_on(&vault))?
             .ok_or_else(|| {
                 CmdError::new(
                     "needs_secret_key",

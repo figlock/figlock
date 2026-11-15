@@ -10,7 +10,11 @@ test.describe("unlock", () => {
 
     await page.getByLabel("Master password").fill("not it at all");
     await page.getByRole("button", { name: "Unlock" }).click();
-    await expect(page.getByRole("alert")).toContainText("That master password is not right.");
+    await expect(page.getByRole("alert")).toContainText(
+      "That password did not open the vault. Check it and try again.",
+    );
+    // A wrong password is not a reason to ask for the Secret Key (ADR-0034).
+    await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
     await expect(page.getByLabel("Master password")).toBeFocused();
 
     await page.getByLabel("Master password").fill(PASSWORD);

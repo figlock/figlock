@@ -5,6 +5,8 @@
 (() => {
   const opts = window.__FAKE__ ?? {};
   const PASSWORD = "correct horse battery";
+  // The Secret Key another device made, for the stale-key scenarios.
+  const NEW_KEY = "FL1-WXYZ-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX";
   const SECRET_SCALARS = ["password", "totp", "token", "private_key", "passphrase"];
   const isSecret = (k) =>
     SECRET_SCALARS.includes(k) || k.startsWith("env/") || /^custom\/[^/]+\/value$/.test(k);
@@ -42,6 +44,9 @@
     // The Google sign-in waits for the browser until Cancel; restore from Drive fails with this error.
     signInHangs: opts.signInHangs ?? false,
     restoreFails: opts.restoreFails ?? null,
+    autolockSecs: opts.autolockSecs ?? 300,
+    // Another device rotated the Secret Key: the one this Mac keeps opens nothing (ADR-0034).
+    secretKeyStale: opts.secretKeyStale ?? false,
   });
   let cancelSignIn = null;
 
@@ -66,9 +71,10 @@
     quickUnlock: false,
     touchAvailable: false,
     secretKeyKept: true,
+    secretKeyStale: core.secretKeyStale,
     secretKeyProtection: "keychain",
     secretKeyHeld: true,
-    autolockSecs: 300,
+    autolockSecs: core.autolockSecs,
     recoveryEnabled: false,
     pendingKit: null,
     folderMissing: core.folderMissing,
@@ -156,13 +162,41 @@
       core.folderMissing = null;
       core.phase = "none";
     },
-    unlock: ({ password }) => {
-      if (password !== PASSWORD) return fail("bad_password", "That master password is not right.");
+    unlock: ({ password, secretKey }) => {
+      if (password !== PASSWORD)
+        return fail(
+          "wrong_password",
+          "That password did not open the vault. Check it and try again.",
+        );
+      if (core.secretKeyStale) {
+        if (!secretKey) return fail("needs_secret_key", "This Mac does not have your Secret Key.");
+        if (secretKey !== NEW_KEY)
+          return fail(
+            "wrong_credentials",
+            "That master password and Secret Key do not match this vault.",
+          );
+        core.secretKeyStale = false;
+      }
       core.phase = "unlocked";
+      return state();
+    },
+    update_secret_key: ({ password, secretKey }) => {
+      if (password !== PASSWORD || secretKey !== NEW_KEY)
+        return fail(
+          "wrong_credentials",
+          "That master password and Secret Key do not match this vault.",
+        );
+      core.secretKeyStale = false;
       return state();
     },
     lock: () => {
       core.phase = "locked";
+    },
+    set_autolock: ({ secs }) => {
+      if (![60, 120, 300, 600, 900, 1800, 3600].includes(secs))
+        return fail("failed", "Choose one of the times FigLock offers.");
+      core.autolockSecs = secs;
+      return state();
     },
     activity: () => {},
     list_items: ({ query }) => {

@@ -954,6 +954,35 @@ fn secret_key_rotation_replaces_the_old_key_and_shows_the_new_one_once() {
 }
 
 #[test]
+fn a_rotation_raises_the_vaults_generation_and_a_new_password_does_not() {
+    let mut e = Env::init();
+    let generation = |e: &Env| -> Option<u64> {
+        let body: Value =
+            serde_json::from_slice(&std::fs::read(e.store.path().join("vault.json")).unwrap())
+                .unwrap();
+        body["sk_gen"].as_u64()
+    };
+    assert_eq!(
+        generation(&e),
+        None,
+        "a new vault is generation 1, written as nothing"
+    );
+
+    e.extra
+        .push(("FIGLOCK_NEW_PASSWORD".to_owned(), NEW_PW.to_owned()));
+    assert!(e.run(&["password", "change"]).status.success());
+    assert_eq!(generation(&e), None, "a new password leaves it");
+    e.extra.clear();
+
+    let rotated = e.run_with(&["secret-key", "rotate"], None, NEW_PW, Some(&e.secret_key));
+    assert!(rotated.status.success(), "{}", text(&rotated.stderr));
+    assert_eq!(generation(&e), Some(2));
+    // This machine keeps no key (headless), so there is nothing out of date to report.
+    let json: Value = serde_json::from_str(&e.ok(&["--json", "sync", "status"])).unwrap();
+    assert_eq!(json["secret_key_changed"], false);
+}
+
+#[test]
 fn device_list_marks_this_device_and_it_cannot_revoke_itself() {
     let e = Env::init();
     let list = e.ok(&["device", "list"]);

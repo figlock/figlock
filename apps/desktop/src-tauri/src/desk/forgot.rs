@@ -277,6 +277,7 @@ impl Desk {
         let cfg = Config {
             place: r.place.clone(),
             device_name: Self::device_name(),
+            autolock_secs: None,
         };
         config::save(&cfg, vault.device_keys())?;
         let store = figlock_session::store::open(&cfg.place)?;

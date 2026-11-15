@@ -71,7 +71,7 @@ No other primitive may be used without an ADR and new test vectors.
 | Name | Size | Created | Stored |
 | ---- | ---- | ------- | ------ |
 | Master password `pw` | user chosen | by the user | nowhere; in the user's head or password manager |
-| Secret Key `SK` | 128 bit | at vault creation | Emergency Kit (paper or file), and in each device's store (ADR-0027: hardware plus presence, the OS login store, or an owner-only file) |
+| Secret Key `SK` | 128 bit | at vault creation | Emergency Kit (paper or file), and in each device's store whether or not quick unlock is on (ADR-0027, ADR-0034: hardware plus presence with quick unlock, the OS login store without, or an owner-only file) |
 | Account Unlock Key `AUK` | 256 bit | derived at each full unlock | memory only (and hardware-wrapped for quick unlock, section 8) |
 | Vault Key `VK` | 256 bit | at vault creation, random | storage, wrapped by `AUK` (and by the Recovery Key if enabled) |
 | Item key `IK` | 256 bit | per item, random | inside the vault, wrapped by `VK` |
@@ -295,7 +295,7 @@ additional unlock path. PRF is never the only root of trust (research: PRF suppo
 | ----- | ------------ | ------------------ |
 | Change master password | New `pw`, new `salt`, new `AUK`; rewrap `VK`; update `vault.json` | No |
 | Change Argon2 parameters | Same as above | No |
-| Rotate Secret Key | New `SK`, new `AUK`; rewrap `VK`; new Emergency Kit | No |
+| Rotate Secret Key | New `SK`, new `AUK`; rewrap `VK`; `sk_gen` + 1 (9.4); new Emergency Kit | No |
 | Revoke a device | New `VK` (epoch + 1), see 9.1 | Item keys rewrapped; payload files rewritten by compaction |
 | Suspected `VK` compromise | Same as revoke | Same |
 
@@ -375,6 +375,34 @@ rewriting it without them (it would silently drop the Recovery Key). Without the
   authority key and checks `authority_pub` and the signature exactly as an unlock does, then writes a new
   `vault.json` with a fresh salt and a fresh Secret Key wrapped under the new `AUK` for the new master password,
   and with the same or a new `RK`. An old copy of `vault.json` still opens with the old credentials.
+
+### 9.4 The Secret Key generation `sk_gen`
+
+`vault.json` says which Secret Key it is wrapped under with a counter, so a device whose kept key is out of
+date can tell that from a wrong master password (ADR-0034). It is in the signed body, not secret, and reveals
+nothing about the key.
+
+```
+"sk_gen": u32     omitted while it is 1; when written it is at least 2
+```
+
+- A new vault is generation 1. Only a new Secret Key raises it by one: a Secret Key rotation, a revocation that
+  also rotates it (`revoke_device_and_change_credentials`), and recovery with a Recovery Key (it makes a fresh
+  Secret Key). A new master password, a change of Argon2 parameters, a revocation alone and enabling,
+  replacing or removing the Recovery Key leave it. The counter does not wrap: at 2^32 - 1 a rotation fails.
+- A body with `sk_gen` has `min_format_version` 2 (as with the Recovery Key members, 9.3), so a client that
+  predates it refuses the file instead of rewriting it without the counter. A reader refuses `sk_gen` of 0 or 1
+  (1 is written by omitting it), a value that is not an integer or does not fit 32 bits, `sk_gen` with
+  `min_format_version` 1, and `min_format_version` 2 with neither `sk_gen` nor the Recovery Key members.
+- A device keeps the `sk_gen` its kept Secret Key belongs to, written with the key and replaced with it. At
+  unlock it compares: equal means the kept key is current; the vault's higher means the Secret Key was changed
+  on another device and the new one must be typed (the device then keeps it and the number); the vault's
+  lower is a rolled-back `vault.json` and is refused (`sync.md` 8).
+- The number read before unlocking is not authenticated (the signature is checked against a key derived from
+  `VK`). It only chooses what to ask; the unlock that follows checks the file. A storage attacker who raises it
+  can make a device ask for the key once, and the typed key must still open the vault.
+
+Vectors: `sk-gen.json`.
 
 ## 10. Memory and implementation rules
 

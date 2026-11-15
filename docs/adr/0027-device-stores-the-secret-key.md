@@ -1,6 +1,6 @@
 # ADR-0027: Each device stores the Secret Key; people see it once
 
-- Status: Accepted
+- Status: Accepted (amended by ADR-0034: the key is kept whether or not quick unlock is on)
 - Date: 2026-11-12
 - Decision: D27 in `docs/decisions.md`
 

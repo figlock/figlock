@@ -149,8 +149,14 @@ pub fn status(json: bool) -> Res<()> {
     let refused = stored && sync::sign_in_refused();
     let signed_in = stored && !refused;
     let last = sync::last_sync_ms().map(|t| now_ms().saturating_sub(t) / 1000);
+    // Another device made a new Secret Key (ADR-0034): the one kept here opens nothing until the new one is typed.
+    let key_changed = figlock_session::secret_key_store::system().is_ok_and(|keys| {
+        figlock_session::session::peek_vault_id().is_ok_and(|vault| keys.has(&vault))
+    }) && figlock_session::session::peek_kept_key()
+        .is_ok_and(|k| k == figlock_core::KeptKey::Stale);
     if json {
         return print_json(&json!({
+            "secret_key_changed": key_changed,
             "local": cfg.place.local.to_string_lossy(),
             "remote": if on { json!("drive") } else { json!(null) },
             "signed_in": signed_in,
@@ -175,6 +181,11 @@ pub fn status(json: bool) -> Res<()> {
             Some(s) => println!("Last sync: {s} seconds ago"),
             None => println!("Last sync: never"),
         }
+    }
+    if key_changed {
+        println!(
+            "Your Secret Key was changed on another device. The next command that unlocks the vault asks for the new one; type it from that device's Emergency Kit or `figlock secret-key show`."
+        );
     }
     Ok(())
 }

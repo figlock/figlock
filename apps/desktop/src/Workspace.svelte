@@ -4,6 +4,7 @@
 
   import GeneratorPage from "./GeneratorPage.svelte";
   import HealthPage from "./HealthPage.svelte";
+  import SecretKeyBanner from "./SecretKeyBanner.svelte";
   import Settings from "./Settings.svelte";
   import { SyncStatus } from "./sync.svelte";
   import { badge } from "./sync";
@@ -254,7 +255,7 @@
     </div>
   </aside>
 
-  <div class="grid min-h-0 min-w-0 grid-rows-[auto_minmax(0,1fr)]">
+  <div class="grid min-h-0 min-w-0 grid-rows-[auto_auto_minmax(0,1fr)]">
     <header class="flex h-13 items-center gap-3 border-b border-border bg-surface px-4">
       <div class="inline-flex flex-none rounded-(--radius-sm) bg-surface-sunken">
         <button
@@ -298,6 +299,10 @@
         <Icon name="plus" /><span class="max-[720px]:sr-only">New item</span>
       </Button>
     </header>
+
+    <div>
+      <SecretKeyBanner />
+    </div>
 
     <div bind:this={scroller} class="min-h-0 overflow-auto bg-bg">
       <main class="mx-auto flex max-w-190 flex-col gap-5 px-8 pt-6 pb-12 max-[720px]:px-4">
