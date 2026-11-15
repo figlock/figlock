@@ -157,7 +157,7 @@ fn kit_again_inner() {
         "wrong_credentials"
     );
     assert_eq!(
-        code_of(d.kit_again(Some(("not the password", &key))).unwrap_err()),
+        code_of(d.kit_again(Some((&format!("{pw}-not"), &key))).unwrap_err()),
         "wrong_credentials"
     );
     assert_eq!(
