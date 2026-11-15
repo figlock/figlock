@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use figlock_core::{
     Created, DeviceKeys, KdfParams, KitInfo, SecretKey, Vault, render_kit, verify_kit_groups,
@@ -16,14 +16,38 @@ use figlock_session::{join, quick, secret_key_store};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-/// The idle time before the vault locks, until Settings (a later task) lets the person change it.
+/// The idle time before the vault locks, unless the person picked another in Settings.
 pub const DEFAULT_AUTOLOCK: Duration = Duration::from_secs(5 * 60);
+/// The times Settings offers for the auto-lock, in seconds: 1, 2, 5, 10, 15 and 30 minutes and 1 hour. There is
+/// no "never".
+pub const AUTOLOCK_CHOICES: [u64; 7] = [60, 120, 300, 600, 900, 1800, 3600];
 /// The shortest master password a new vault accepts; the Secret Key carries the rest of the strength.
 pub const MIN_PASSWORD_CHARS: usize = 8;
 /// How long a copied field stays on the clipboard before it is cleared.
 pub const CLIPBOARD_CLEAR: Duration = Duration::from_secs(30);
-/// A gap this long between two ticks of the lock timer means the Mac slept: lock as it wakes.
+/// A gap this long between two ticks of the lock timer means the Mac slept: lock as it wakes. This is the
+/// fallback; the operating system's sleep and screen-lock events lock first (`Desk::lock_for_sleep`).
 pub const SLEEP_GAP: Duration = Duration::from_secs(20);
+
+/// The two clocks the lock timer reads. `Instant` stands still while a Mac sleeps, so a sleep only shows in
+/// the wall clock: the timer compares both and takes the larger gap (FIG-131). Tests fake it.
+pub trait Clock: Send + Sync {
+    /// Monotonic time, for how long the person has been idle.
+    fn now(&self) -> Instant;
+    /// Wall-clock time, which keeps counting through sleep.
+    fn wall(&self) -> SystemTime;
+}
+
+pub struct SystemClock;
+
+impl Clock for SystemClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+    fn wall(&self) -> SystemTime {
+        SystemTime::now()
+    }
+}
 
 /// Why a command failed, in a form the window can branch on.
 #[derive(Serialize, Debug)]
@@ -154,14 +178,17 @@ struct Inner {
     dirty: bool,
     active_at: Instant,
     ticked_at: Instant,
+    ticked_wall: SystemTime,
 }
 
 pub struct Desk {
     inner: Mutex<Inner>,
     sync: Mutex<sync::SyncState>,
     kdf: KdfParams,
-    autolock: Duration,
+    /// The idle time before the vault locks; Settings changes it without a restart.
+    autolock: Mutex<Duration>,
     clipboard_clear: Duration,
+    clock: Box<dyn Clock>,
 }
 
 impl Inner {
@@ -344,13 +371,17 @@ pub fn should_lock(idle: Duration, since_last_tick: Duration, autolock: Duration
 
 impl Desk {
     pub fn new() -> Self {
-        // `FIGLOCK_AUTOLOCK_SECS` can only shorten the timeout, for tests (like `FIGLOCK_QUICK_IDLE_SECS`).
+        // The person's choice for this device, else the default. `FIGLOCK_AUTOLOCK_SECS` can only shorten the
+        // timeout, for tests (like `FIGLOCK_QUICK_IDLE_SECS`).
+        let chosen = config::load()
+            .ok()
+            .and_then(|c| c.autolock_secs)
+            .filter(|s| AUTOLOCK_CHOICES.contains(s))
+            .map_or(DEFAULT_AUTOLOCK, Duration::from_secs);
         let autolock = std::env::var("FIGLOCK_AUTOLOCK_SECS")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
-            .map_or(DEFAULT_AUTOLOCK, |s| {
-                Duration::from_secs(s).min(DEFAULT_AUTOLOCK)
-            });
+            .map_or(chosen, |s| Duration::from_secs(s).min(chosen));
         let clipboard_clear = std::env::var("FIGLOCK_CLIPBOARD_CLEAR_SECS")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
@@ -361,7 +392,16 @@ impl Desk {
     }
 
     pub fn with(kdf: KdfParams, autolock: Duration, clipboard_clear: Duration) -> Self {
-        let now = Instant::now();
+        Self::with_clock(kdf, autolock, clipboard_clear, Box::new(SystemClock))
+    }
+
+    pub fn with_clock(
+        kdf: KdfParams,
+        autolock: Duration,
+        clipboard_clear: Duration,
+        clock: Box<dyn Clock>,
+    ) -> Self {
+        let (now, wall) = (clock.now(), clock.wall());
         Desk {
             inner: Mutex::new(Inner {
                 session: None,
@@ -378,12 +418,32 @@ impl Desk {
                 dirty: false,
                 active_at: now,
                 ticked_at: now,
+                ticked_wall: wall,
             }),
             sync: Mutex::new(sync::SyncState::new()),
             kdf,
-            autolock,
+            autolock: Mutex::new(autolock),
             clipboard_clear,
+            clock,
         }
+    }
+
+    fn autolock(&self) -> Duration {
+        *self.autolock.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    /// Change how long the vault waits without activity before it locks. It applies at once and is kept on
+    /// this device only (FIG-133). Only the times Settings offers are accepted.
+    pub fn set_autolock(&self, secs: u64) -> CmdRes<VaultState> {
+        if !AUTOLOCK_CHOICES.contains(&secs) {
+            return Err(CmdError::new(
+                "failed",
+                "Choose one of the times FigLock offers.",
+            ));
+        }
+        config::set_autolock((secs != DEFAULT_AUTOLOCK.as_secs()).then_some(secs))?;
+        *self.autolock.lock().unwrap_or_else(|p| p.into_inner()) = Duration::from_secs(secs);
+        self.state()
     }
 
     fn inner(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -451,7 +511,7 @@ impl Desk {
             secret_key_kept,
             secret_key_protection,
             secret_key_held,
-            autolock_secs: self.autolock.as_secs(),
+            autolock_secs: self.autolock().as_secs(),
             recovery_enabled,
             pending_kit,
             folder_missing,
@@ -605,6 +665,7 @@ impl Desk {
         let cfg = Config {
             place: c.place.clone(),
             device_name: c.device_name.clone(),
+            autolock_secs: None,
         };
         config::save(&cfg, c.vault.device_keys())?;
         let device_path = format!("devices/{}.json", hex::encode(c.vault.device_id()));
@@ -670,6 +731,7 @@ impl Desk {
         let cfg = Config {
             place,
             device_name: Self::device_name(),
+            autolock_secs: None,
         };
         config::save(&cfg, &device)?;
         self.enter(
@@ -811,8 +873,9 @@ impl Desk {
         inner.drop_session();
         inner.session = Some(session);
         inner.held_key = held;
-        inner.active_at = Instant::now();
-        inner.ticked_at = Instant::now();
+        inner.active_at = self.clock.now();
+        inner.ticked_at = self.clock.now();
+        inner.ticked_wall = self.clock.wall();
         drop(inner);
         self.clear_needs_unlock();
     }
@@ -827,19 +890,37 @@ impl Desk {
     pub fn activity(&self) {
         let mut inner = self.inner();
         if inner.session.is_some() {
-            inner.active_at = Instant::now();
+            inner.active_at = self.clock.now();
         }
+    }
+
+    /// The Mac is going to sleep, or the screen was locked or switched away: lock now, before anyone sees the
+    /// screen again. Returns true when it just locked the vault.
+    pub fn lock_for_sleep(&self) -> bool {
+        let locked = {
+            let mut inner = self.inner();
+            let was = inner.session.is_some();
+            inner.drop_session();
+            was
+        };
+        self.clear_clipboard(true);
+        locked
     }
 
     /// Called every second by the lock timer. Returns true when it just locked the vault.
     pub fn tick(&self) -> bool {
         let locked = {
             let mut inner = self.inner();
-            let now = Instant::now();
-            let gap = now.duration_since(inner.ticked_at);
+            let (now, wall) = (self.clock.now(), self.clock.wall());
+            // `Instant` does not count time asleep, the wall clock does; a clock set back reads as no gap.
+            let gap = now.duration_since(inner.ticked_at).max(
+                wall.duration_since(inner.ticked_wall)
+                    .unwrap_or(Duration::ZERO),
+            );
             inner.ticked_at = now;
+            inner.ticked_wall = wall;
             let lock = inner.session.is_some()
-                && should_lock(now.duration_since(inner.active_at), gap, self.autolock);
+                && should_lock(now.duration_since(inner.active_at), gap, self.autolock());
             if lock {
                 inner.drop_session();
             }
@@ -950,6 +1031,8 @@ mod forgot_tests;
 mod health_tests;
 #[cfg(test)]
 mod item_tests;
+#[cfg(test)]
+mod lock_tests;
 #[cfg(test)]
 mod pairing_tests;
 #[cfg(test)]

@@ -25,6 +25,8 @@ export type Options = {
   signInHangs?: boolean;
   /** Restore from Google Drive fails with this error (code and words). */
   restoreFails?: { code: string; message: string };
+  /** The auto-lock time this Mac starts with, in seconds. */
+  autolockSecs?: number;
 };
 
 export const GITHUB: Seed = {

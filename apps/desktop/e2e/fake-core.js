@@ -42,6 +42,7 @@
     // The Google sign-in waits for the browser until Cancel; restore from Drive fails with this error.
     signInHangs: opts.signInHangs ?? false,
     restoreFails: opts.restoreFails ?? null,
+    autolockSecs: opts.autolockSecs ?? 300,
   });
   let cancelSignIn = null;
 
@@ -68,7 +69,7 @@
     secretKeyKept: true,
     secretKeyProtection: "keychain",
     secretKeyHeld: true,
-    autolockSecs: 300,
+    autolockSecs: core.autolockSecs,
     recoveryEnabled: false,
     pendingKit: null,
     folderMissing: core.folderMissing,
@@ -163,6 +164,12 @@
     },
     lock: () => {
       core.phase = "locked";
+    },
+    set_autolock: ({ secs }) => {
+      if (![60, 120, 300, 600, 900, 1800, 3600].includes(secs))
+        return fail("failed", "Choose one of the times FigLock offers.");
+      core.autolockSecs = secs;
+      return state();
     },
     activity: () => {},
     list_items: ({ query }) => {

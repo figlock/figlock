@@ -31,6 +31,12 @@ async fn vault_state(desk: State<'_, Desk>) -> CmdRes<VaultState> {
     desk.state()
 }
 
+/// Change how long the vault waits without activity before it locks.
+#[tauri::command]
+async fn set_autolock(desk: State<'_, Desk>, secs: u64) -> CmdRes<VaultState> {
+    desk.set_autolock(secs)
+}
+
 /// The folder a new vault goes in unless the person picks another.
 #[tauri::command]
 async fn suggested_folder() -> Option<String> {
@@ -693,6 +699,14 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+            // Locks as the Mac goes to sleep or the screen locks, before anyone sees it again (FIG-131).
+            let handle = app.handle().clone();
+            figlock_biometric::power::watch_sleep(move || {
+                let desk = tauri::Manager::state::<Desk>(&handle);
+                if desk.lock_for_sleep() {
+                    let _ = handle.emit(LOCKED_EVENT, ());
+                }
+            });
             let handle = app.handle().clone();
             // Locks on idle, and as the Mac wakes: a tick that arrives long after the last one means it slept.
             std::thread::spawn(move || {
@@ -767,6 +781,7 @@ pub fn run() {
             unlock,
             show_secret_key,
             forget_secret_key,
+            set_autolock,
             quick_unlock,
             lock,
             activity,

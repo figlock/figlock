@@ -67,6 +67,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     let cfg = Config {
         place,
         device_name: a.device_name,
+        autolock_secs: None,
     };
     config::save(&cfg, vault.device_keys())?;
     let device_path = format!("devices/{}.json", hex::encode(vault.device_id()));

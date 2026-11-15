@@ -273,6 +273,9 @@ fn the_lock_timer_locks_on_idle_and_after_sleep() {
     assert!(should_lock(s(300), s(1), s(300)));
     // The Mac slept: one tick arrives a long time after the last.
     assert!(should_lock(s(10), SLEEP_GAP, s(300)));
+    // The time Settings chose is the one that counts, down to the shortest.
+    assert!(!should_lock(s(59), s(1), s(60)));
+    assert!(should_lock(s(60), s(1), s(60)));
 }
 
 #[test]

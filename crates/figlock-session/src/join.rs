@@ -104,6 +104,7 @@ impl Join {
             Config {
                 place: self.place.clone(),
                 device_name: self.device_name.clone(),
+                autolock_secs: None,
             },
         ))
     }

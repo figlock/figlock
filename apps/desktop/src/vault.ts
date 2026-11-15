@@ -98,6 +98,8 @@ export const unlock = (password: string, secretKey?: string) =>
 /** The kept Secret Key, after Touch ID or the device password. */
 export const showSecretKey = () => invoke<string>("show_secret_key");
 export const forgetSecretKey = () => invoke<VaultState>("forget_secret_key");
+/** How long the vault waits without activity before it locks, in seconds. Applies at once. */
+export const setAutolock = (secs: number) => invoke<VaultState>("set_autolock", { secs });
 export const quickUnlock = () => invoke<VaultState>("quick_unlock");
 export const lock = () => invoke<void>("lock");
 export const activity = () => invoke<void>("activity");

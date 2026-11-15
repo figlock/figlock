@@ -157,6 +157,7 @@ pub fn open(a: OpenArgs, json: bool) -> Res<()> {
     let cfg = Config {
         place,
         device_name: a.at.device_name.clone(),
+        autolock_secs: None,
     };
     settle(
         &cfg,
