@@ -1978,43 +1978,44 @@ impl Vault {
         Ok(())
     }
 
-    /// Whether `bytes` is a genuine op file of a revoked `device` that `apply_file` turned away only because
-    /// it came after the revocation (`sync.md` 9): it verifies under the device's key and an earlier-epoch
-    /// log key, and an op in it is stamped at or after the revocation or written in or after the rotation
-    /// epoch. That is expected after a revocation. A file that does not verify, a device not in the signed
-    /// revoked list, or a file from before the revocation is not, and stays a warning.
-    pub fn is_late_from_revoked(&self, bytes: &[u8], device: &DeviceId, seq: u64) -> bool {
-        let Some(r) = self.revoked.get(device) else {
-            return false;
-        };
+    fn revoked_batch(&self, bytes: &[u8], device: &DeviceId, seq: u64) -> Option<(u32, OpBatch)> {
+        let r = self.revoked.get(device)?;
         let id = FileId {
             vault_id: &self.vault_id,
             device_id: device,
             seq,
         };
-        let Ok(epoch) = self.file_epoch(bytes) else {
-            return false;
-        };
-        let Ok(key) = self.log_key(epoch) else {
-            return false;
-        };
-        let Ok(payload) = read_file(bytes, key, Some(&r.sign_pub), &id, Kind::Op) else {
-            return false;
-        };
-        let Ok(batch) = OpBatch::decode(&payload) else {
-            return false;
-        };
-        batch.device == *device
-            && batch.seq == seq
-            && batch.ops.iter().any(|op| {
-                let stamp = match op {
-                    Op::ItemCreate { hlc, .. }
-                    | Op::FieldSet { hlc, .. }
-                    | Op::ItemDelete { hlc, .. }
-                    | Op::ItemRestore { hlc, .. } => *hlc,
-                };
-                !accept_from_revoked(r.revoked_at, stamp, epoch, r.epoch)
-            })
+        let epoch = self.file_epoch(bytes).ok()?;
+        let key = self.log_key(epoch).ok()?;
+        let payload = read_file(bytes, key, Some(&r.sign_pub), &id, Kind::Op).ok()?;
+        let batch = OpBatch::decode(&payload).ok()?;
+        (batch.device == *device && batch.seq == seq).then_some((epoch, batch))
+    }
+
+    /// How many ops `bytes` holds when it is a genuine op file of a revoked `device` that `apply_file` turned
+    /// away only because it came after the revocation (`sync.md` 9): it verifies under the device's key and an
+    /// earlier-epoch log key, and an op in it is stamped at or after the revocation or written in or after the
+    /// rotation epoch. That is expected after a revocation. A file that does not verify, a device not in the
+    /// signed revoked list, or a file from before the revocation gives `None` and stays a warning.
+    pub fn late_op_count(&self, bytes: &[u8], device: &DeviceId, seq: u64) -> Option<usize> {
+        let r = self.revoked.get(device)?;
+        let (epoch, batch) = self.revoked_batch(bytes, device, seq)?;
+        let late = batch.ops.iter().any(|op| {
+            let stamp = match op {
+                Op::ItemCreate { hlc, .. }
+                | Op::FieldSet { hlc, .. }
+                | Op::ItemDelete { hlc, .. }
+                | Op::ItemRestore { hlc, .. } => *hlc,
+            };
+            !accept_from_revoked(r.revoked_at, stamp, epoch, r.epoch)
+        });
+        late.then_some(batch.ops.len())
+    }
+
+    /// How many ops `bytes` holds when it verifies as an op file of a revoked `device`; `None` otherwise.
+    pub fn revoked_op_count(&self, bytes: &[u8], device: &DeviceId, seq: u64) -> Option<usize> {
+        self.revoked_batch(bytes, device, seq)
+            .map(|(_, batch)| batch.ops.len())
     }
 
     /// Seal one audit record (`crypto.md` 7.5): the next `seq` of this device's audit log, chained to the

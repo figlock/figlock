@@ -50,7 +50,7 @@ pub struct Session {
     store: Box<dyn BlobStore>,
     ui: Box<dyn Ui>,
     uncertain: bool,
-    /// Op files per revoked device that were skipped because they came after the revocation.
+    /// Ops per revoked device that were skipped because they came after the revocation.
     ignored: BTreeMap<DeviceId, usize>,
 }
 
@@ -460,8 +460,8 @@ impl Session {
             files.sort();
             let done = self.vault.applied_seq(&device);
             let total = files.len();
-            for (at, (seq, path, available)) in files.into_iter().enumerate() {
-                let rest = total - at - 1;
+            for at in 0..total {
+                let (seq, path, available) = files[at].clone();
                 if seq <= done {
                     continue;
                 }
@@ -479,9 +479,17 @@ impl Session {
                     break;
                 };
                 if self.vault.apply_file(&bytes, &device, seq, now).is_err() {
-                    if self.vault.is_late_from_revoked(&bytes, &device, seq) {
-                        // Expected after a revocation: count this file and the rest (a refresh sees them again), say nothing here.
-                        self.ignored.insert(device, 1 + rest);
+                    if let Some(first) = self.vault.late_op_count(&bytes, &device, seq) {
+                        // Expected after a revocation: count the ops in this file and the rest (a refresh sees them again), say nothing here.
+                        let later: usize = files[at + 1..]
+                            .iter()
+                            .filter(|(_, _, available)| *available)
+                            .filter_map(|(seq, path, _)| {
+                                let bytes = self.store.get(path).ok()?;
+                                self.vault.revoked_op_count(&bytes, &device, *seq)
+                            })
+                            .sum();
+                        self.ignored.insert(device, first + later);
                     } else {
                         self.warn_unverified(&device, seq);
                         stopped = true;
@@ -1167,7 +1175,12 @@ mod tests {
         a.write_revocation(&r).unwrap();
         // B has not heard yet and keeps writing, stamped after the revocation, under the old epoch.
         add_at(&mut b, "After one", base + 5_000);
-        add_at(&mut b, "After two", base + 6_000);
+        for (title, at) in [("After two", base + 6_000), ("After three", base + 7_000)] {
+            b.vault
+                .add_item(ItemType::Login, VAULT_NAME, &[("title", title)], at)
+                .unwrap();
+        }
+        b.commit().unwrap();
 
         let (mut a, warnings) = reopened(&dir, &pw, &sk, base + 10_000);
         for _ in 0..2 {
@@ -1179,7 +1192,7 @@ mod tests {
             );
         }
         assert!(warnings.lock().unwrap().is_empty(), "{warnings:?}");
-        assert_eq!(a.ignored_changes(&b_id), 2, "counted once, not per load");
+        assert_eq!(a.ignored_changes(&b_id), 3, "counted once, not per load");
         let titles: Vec<_> = a
             .items(false)
             .iter()
