@@ -612,6 +612,8 @@ impl Desk {
         change: impl FnOnce(&mut figlock_session::Session) -> Result<T, Fail>,
     ) -> CmdRes<T> {
         let session = inner.session.as_mut().ok_or_else(locked)?;
+        // A device the vault has removed is told so, not given a save that would be thrown away (FIG-135).
+        session.ensure_writable()?;
         match change(&mut *session).and_then(|v| session.commit().map(|()| v)) {
             Ok(v) => {
                 inner.cache = None;

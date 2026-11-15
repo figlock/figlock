@@ -90,6 +90,29 @@ pub fn now_ms() -> u64 {
         .map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
+/// `YYYY-MM-DD` (UTC) from Unix milliseconds, without a date library.
+pub fn civil_date(ms: u64) -> String {
+    let z = i64::try_from(ms / 86_400_000).unwrap_or(0) + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+/// What a device that finds itself removed from the vault is told (`pairing-recovery.md` 4, step 6). The date
+/// is the removal; the vault does not record who removed the device.
+pub fn removed_message(removed_ms: u64) -> String {
+    format!(
+        "This device was removed from the vault on {}. Changes made here are no longer accepted. Your copy stays readable. Remove the vault from this device, or join again with a new invite.",
+        civil_date(removed_ms)
+    )
+}
+
 pub fn id_hex(id: &ItemId) -> String {
     hex::encode(id)
 }
@@ -609,6 +632,21 @@ impl Session {
         let _ = self.store.delete(path);
     }
 
+    /// When this device was removed from the vault, in milliseconds, if the vault says so. A device that has
+    /// not synced since the removal cannot know.
+    pub fn removed_at_ms(&self) -> Option<u64> {
+        self.vault.revoked_at().map(|s| s.wall)
+    }
+
+    /// Refuse a write from a device the vault has removed: nothing it writes would be accepted, and saying so
+    /// at once is better than a save that is silently thrown away (FIG-135). Reads are never refused.
+    pub fn ensure_writable(&self) -> Res<()> {
+        match self.removed_at_ms() {
+            Some(at) => Err(Fail::of(FailKind::DeviceRevoked, removed_message(at))),
+            None => Ok(()),
+        }
+    }
+
     /// Write pending changes as one op file. If the file definitely was not written the commit is taken back,
     /// so the changes are pending again: call `commit` to retry or `discard_pending` to give them up. If a
     /// failed write turns out to have landed, the commit counts as done. If that cannot be told, the session
@@ -617,6 +655,7 @@ impl Session {
         if self.uncertain {
             return Err(Self::uncertain_error());
         }
+        self.ensure_writable()?;
         let Some(c) = self.vault.commit()? else {
             return Ok(());
         };

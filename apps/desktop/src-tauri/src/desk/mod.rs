@@ -6,9 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use figlock_core::{
-    Created, DeviceKeys, KdfParams, KitInfo, SecretKey, Vault, render_kit, verify_kit_groups,
-};
+use figlock_core::{Created, DeviceKeys, KdfParams, SecretKey, Vault, verify_kit_groups};
 use figlock_session::config::{self, Config, Place, Remote};
 use figlock_session::error::{Fail, FailKind, Res};
 use figlock_session::session::{Session, Ui, now_ms};
@@ -102,6 +100,8 @@ impl From<Fail> for CmdError {
                 "vault_rolled_back",
                 "The vault file in your storage is older than the one this Mac has already seen, so FigLock did not open it. Check that your sync is not restoring an old copy.",
             ),
+            // The message is the whole sentence the window shows (`removed_message`).
+            FailKind::DeviceRevoked => CmdError::new("device_revoked", f.0),
             FailKind::Other => CmdError::new("failed", f.0),
         }
     }
@@ -138,6 +138,9 @@ pub struct VaultState {
     /// This device knows a vault, but its local folder is gone. The window offers ways forward instead of
     /// asking for credentials (FIG-118).
     pub folder_missing: Option<folder::MissingFolder>,
+    /// When the vault removed this device (Unix milliseconds), seen once it is unlocked. The window then blocks
+    /// every change and offers what is left to do (FIG-135).
+    pub removed_at_ms: Option<u64>,
 }
 
 #[derive(Serialize, Debug)]
@@ -341,44 +344,12 @@ fn parse_secret_key(text: &str) -> CmdRes<SecretKey> {
     })
 }
 
-/// The Emergency Kit PDF for `key`, naming where the vault is stored.
-/// What a printed kit says about where the vault is stored, not where on this disk: a long path would not fit.
-fn kit_storage(place: &Place) -> String {
-    match place.remote {
-        Some(Remote::Drive) => "Google Drive".to_owned(),
-        None => {
-            let name = place
-                .local
-                .file_name()
-                .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
-            format!("Folder {}", name.chars().take(60).collect::<String>())
-        }
-    }
-}
-
 fn kit_pdf(place: &Place, key: &SecretKey) -> CmdRes<Zeroizing<Vec<u8>>> {
-    let storage = kit_storage(place);
-    let info = KitInfo {
-        vault_name: "Personal",
-        storage: &storage,
-        created: &civil_date(now_ms()),
-    };
-    render_kit(&info, key).map_err(|_| CmdError::new("failed", "Could not make the Emergency Kit."))
+    figlock_session::kit::kit_pdf(place, key, now_ms())
+        .map_err(|_| CmdError::new("failed", "Could not make the Emergency Kit."))
 }
 
-/// Today as `YYYY-MM-DD` (UTC), from the clock the app already reads.
-pub fn civil_date(now_ms: u64) -> String {
-    let z = i64::try_from(now_ms / 86_400_000).unwrap_or(0) + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = doy - (153 * mp + 2) / 5 + 1;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 };
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    format!("{year:04}-{month:02}-{day:02}")
-}
+pub use figlock_session::civil_date;
 
 /// Whether the lock timer should lock now: idle for the whole timeout, or the clock jumped (sleep).
 pub fn should_lock(idle: Duration, since_last_tick: Duration, autolock: Duration) -> bool {
@@ -468,7 +439,7 @@ impl Desk {
 
     pub fn state(&self) -> CmdRes<VaultState> {
         let initialised = config::is_initialised()?;
-        let (unlocked, pending_kit, recovery_enabled, secret_key_held) = {
+        let (unlocked, pending_kit, recovery_enabled, secret_key_held, removed_at_ms) = {
             let mut inner = self.inner();
             if !initialised {
                 inner.reissued = None;
@@ -484,7 +455,8 @@ impl Desk {
                 .session
                 .as_ref()
                 .is_some_and(|s| s.vault.has_recovery());
-            (unlocked, pending, recovery, held)
+            let removed = inner.session.as_ref().and_then(Session::removed_at_ms);
+            (unlocked, pending, recovery, held, removed)
         };
         let folder_missing = if initialised && !unlocked {
             folder::missing()
@@ -536,6 +508,7 @@ impl Desk {
             recovery_enabled,
             pending_kit,
             folder_missing,
+            removed_at_ms,
         })
     }
 
@@ -1038,6 +1011,7 @@ pub mod health;
 pub mod items;
 pub mod pairing;
 pub mod recovery;
+pub mod removed;
 pub mod secret_key;
 pub mod sync;
 pub mod update;
@@ -1062,5 +1036,7 @@ mod lock_tests;
 mod pairing_tests;
 #[cfg(test)]
 mod recovery_tests;
+#[cfg(test)]
+mod removed_tests;
 #[cfg(test)]
 mod tests;

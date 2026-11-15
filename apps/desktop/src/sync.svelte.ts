@@ -1,6 +1,7 @@
 import { driveCancelSignIn, driveSignIn, errorOf } from "./vault";
 import {
   onSynced,
+  syncDeleteRemote,
   syncDisable,
   syncEnable,
   syncNow,
@@ -71,6 +72,22 @@ export class SyncStatus {
   }
   disable() {
     return this.#act(syncDisable);
+  }
+
+  /** Delete the vault's copy from Google Drive. Throws the failure for the dialog to show. */
+  async deleteRemote(confirmation: string) {
+    this.error = "";
+    this.notice = "";
+    this.busy = true;
+    try {
+      this.view = await syncDeleteRemote(confirmation);
+      this.onsynced();
+    } catch (e) {
+      await this.refresh();
+      throw e;
+    } finally {
+      this.busy = false;
+    }
   }
 
   /**

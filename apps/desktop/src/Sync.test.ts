@@ -11,6 +11,7 @@ const core = vi.hoisted(() => ({
   syncEnable: vi.fn(),
   syncDisable: vi.fn(),
   syncSignOut: vi.fn(),
+  syncDeleteRemote: vi.fn(),
   onSynced: vi.fn(),
   driveSignIn: vi.fn(),
   lock: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("./sync", async (original) => ({
   syncEnable: core.syncEnable,
   syncDisable: core.syncDisable,
   syncSignOut: core.syncSignOut,
+  syncDeleteRemote: core.syncDeleteRemote,
   onSynced: core.onSynced,
 }));
 vi.mock("./items", async (original) => ({
@@ -369,4 +371,52 @@ test("a sign-out that fails is shown and no new sign-in starts", async () => {
   );
   expect(await screen.findByText("Could not sign out.")).toBeTruthy();
   expect(core.driveSignIn).not.toHaveBeenCalled();
+});
+
+test("deleting the Drive copy needs the phrase typed, says what stays, and leaves sync off", async () => {
+  const user = await toSettings();
+  await user.click(screen.getByRole("button", { name: "Delete from Google Drive" }));
+  const dialog = await screen.findByRole("dialog", {
+    name: "Delete this vault from Google Drive?",
+  });
+  expect(within(dialog).getByText(/vault on this Mac stays exactly as it is/)).toBeTruthy();
+  expect(within(dialog).getByText(/Sync is turned off on this Mac/)).toBeTruthy();
+  expect(within(dialog).getByText(/ask before they upload it again/)).toBeTruthy();
+
+  // Not a click, and not a nearby phrase: only the exact words enable the button.
+  const button = within(dialog).getByRole("button", { name: "Delete from Google Drive" });
+  expect(button.hasAttribute("disabled")).toBe(true);
+  const field = within(dialog).getByLabelText(/Type "delete from Google Drive"/);
+  await user.type(field, "delete from drive");
+  expect(button.hasAttribute("disabled")).toBe(true);
+  await user.clear(field);
+  await user.type(field, "Delete From Google Drive");
+  expect(button.hasAttribute("disabled")).toBe(false);
+
+  // A refusal from the app core stays in the dialog and changes nothing.
+  core.syncDeleteRemote.mockRejectedValueOnce({
+    code: "foreign_vault",
+    message: "Your Google Drive holds a different vault than this Mac's, so nothing was deleted.",
+  });
+  await user.click(button);
+  expect(await within(dialog).findByText(/holds a different vault/)).toBeTruthy();
+  expect(screen.getByText("On")).toBeTruthy();
+
+  core.syncDeleteRemote.mockResolvedValueOnce(view({ enabled: false, state: "off" }));
+  core.syncStatus.mockResolvedValue(view({ enabled: false, state: "off" }));
+  await user.click(button);
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect(core.syncDeleteRemote).toHaveBeenLastCalledWith("Delete From Google Drive");
+  expect(screen.getByText("Off")).toBeTruthy();
+});
+
+test("a Mac that is not signed in to Google offers no way to delete the Drive copy", async () => {
+  await toSettings({ enabled: false, state: "off", signedIn: false });
+  expect(screen.queryByRole("button", { name: "Delete from Google Drive" })).toBeNull();
+});
+
+test("the sign out and turn off dialogs point to the delete action", async () => {
+  const user = await toSettings();
+  await user.click(screen.getByRole("button", { name: "Turn off sync" }));
+  expect(await screen.findByText(/use Delete from Google Drive on this page/)).toBeTruthy();
 });

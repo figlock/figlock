@@ -55,6 +55,7 @@ impl Desk {
         self.run_sync(false);
         let mut inner = self.inner();
         let session = inner.session.as_mut().ok_or_else(locked)?;
+        session.ensure_writable()?;
         let refreshed = session.refresh()?;
         if refreshed.settings_changed || refreshed.stopped {
             return Err(CmdError::new(

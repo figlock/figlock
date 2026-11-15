@@ -123,6 +123,20 @@ pub fn confirm_default_no(question: &str) -> Res<bool> {
     Ok(answer == "y" || answer == "yes")
 }
 
+/// A line typed at the terminal in answer to `question`, for confirmations that must be typed out. `None` when
+/// the input is not a terminal: a script has to pass the confirmation as an argument instead.
+pub fn typed_line(question: &str) -> Res<Option<String>> {
+    if !io::stdin().is_terminal() {
+        return Ok(None);
+    }
+    let mut err = io::stderr();
+    err.write_all(question.as_bytes())?;
+    err.flush()?;
+    let mut line = String::new();
+    io::stdin().lock().read_line(&mut line)?;
+    Ok(Some(line.trim().to_owned()))
+}
+
 /// Credentials already in hand (just typed for a join or an open), so the unlock that follows does not ask
 /// again.
 struct Known {

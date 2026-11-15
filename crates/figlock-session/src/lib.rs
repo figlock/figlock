@@ -10,6 +10,7 @@ pub mod join;
 #[cfg(target_os = "macos")]
 mod keychain;
 pub mod keystore;
+pub mod kit;
 pub mod quick;
 pub mod quick_se;
 pub mod secret_key_store;
@@ -18,4 +19,6 @@ pub mod store;
 pub mod sync;
 
 pub use error::{Fail, FailKind, Res};
-pub use session::{Session, Ui, clean, id_hex, now_ms, peek_vault_id, title_of};
+pub use session::{
+    Session, Ui, civil_date, clean, id_hex, now_ms, peek_vault_id, removed_message, title_of,
+};

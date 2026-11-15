@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/svelte";
+import { render, screen, waitFor, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 
@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   quickUnlock: vi.fn(),
   endRotation: vi.fn(),
   checkKitKey: vi.fn(),
+  leaveVault: vi.fn(),
 }));
 
 vi.mock("./vault", () => ({
@@ -28,6 +29,7 @@ vi.mock("./vault", () => ({
   errorOf: (e: unknown) => e,
   saveEmergencyKit: () => Promise.resolve(true),
   checkKitKey: state.checkKitKey,
+  leaveVault: state.leaveVault,
 }));
 
 vi.mock("./credentials", () => ({ endRotation: state.endRotation }));
@@ -248,4 +250,54 @@ test("unlocking with a rotation's kit step unfinished shows it again until it is
   await user.click(screen.getByRole("button", { name: "Done" }));
   await waitFor(() => expect(dialog.isConnected).toBe(false));
   expect(state.endRotation).toHaveBeenCalledTimes(1);
+});
+
+const REMOVED = Date.UTC(2026, 10, 15);
+
+test("a Mac the vault removed is told so, and can keep reading, leave, or join again", async () => {
+  state.current = { ...state.current, phase: "unlocked", removedAtMs: REMOVED };
+  state.leaveVault.mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  render(App);
+  expect(await screen.findByText("This Mac was removed from the vault")).toBeTruthy();
+  expect(screen.getByText(/Changes made here are no longer accepted/)).toBeTruthy();
+  expect(screen.getByText(/Your copy\s+stays readable/)).toBeTruthy();
+
+  // The copy stays readable, with a banner that leads back here.
+  await user.click(screen.getByRole("button", { name: "Keep reading my copy" }));
+  expect(await screen.findByTestId("removed-banner")).toBeTruthy();
+  await user.click(screen.getByRole("button", { name: "See options" }));
+  expect(await screen.findByText("This Mac was removed from the vault")).toBeTruthy();
+  expect(state.leaveVault).not.toHaveBeenCalled();
+
+  // Leaving needs a yes, then asks for an invite code.
+  state.current = { ...state.current, phase: "none", removedAtMs: null };
+  await user.click(screen.getByRole("button", { name: "Add this Mac again with an invite code" }));
+  const dialog = await screen.findByRole("dialog", { name: "Add this Mac again?" });
+  expect(state.leaveVault).not.toHaveBeenCalled();
+  await user.click(within(dialog).getByRole("button", { name: "Continue" }));
+  await waitFor(() => expect(state.leaveVault).toHaveBeenCalledTimes(1));
+  expect(await screen.findByLabelText(/invite code/i)).toBeTruthy();
+});
+
+test("removing the vault from a removed Mac asks first and then starts over", async () => {
+  state.current = { ...state.current, phase: "unlocked", removedAtMs: REMOVED };
+  state.leaveVault.mockResolvedValue(undefined);
+  const user = userEvent.setup();
+  render(App);
+  await user.click(await screen.findByRole("button", { name: "Remove this vault from this Mac" }));
+  expect(state.leaveVault).not.toHaveBeenCalled();
+  state.current = { ...state.current, phase: "none", removedAtMs: null };
+  const dialog = await screen.findByRole("dialog", { name: "Remove this vault from this Mac?" });
+  await user.click(within(dialog).getByRole("button", { name: "Remove from this Mac" }));
+  await waitFor(() => expect(state.leaveVault).toHaveBeenCalledTimes(1));
+  expect(await screen.findByRole("button", { name: "Create a vault" })).toBeTruthy();
+});
+
+test("a vault that did not remove this Mac shows no banner and no screen", async () => {
+  state.current = { ...state.current, phase: "unlocked", removedAtMs: null };
+  render(App);
+  expect(await screen.findByRole("button", { name: "Settings" })).toBeTruthy();
+  expect(screen.queryByTestId("removed-banner")).toBeNull();
+  expect(screen.queryByText("This Mac was removed from the vault")).toBeNull();
 });

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/svelte";
+import { render, screen, waitFor, within } from "@testing-library/svelte";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
@@ -7,6 +7,7 @@ const core = vi.hoisted(() => ({
   vaultState: vi.fn(),
   showSecretKey: vi.fn(),
   forgetSecretKey: vi.fn(),
+  saveKit: vi.fn(),
   syncStatus: vi.fn(),
   onSynced: vi.fn(),
   listItems: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("./vault", () => ({
   vaultState: core.vaultState,
   showSecretKey: core.showSecretKey,
   forgetSecretKey: core.forgetSecretKey,
+  saveEmergencyKitAgain: core.saveKit,
 }));
 
 import Workspace from "./Workspace.svelte";
@@ -163,4 +165,62 @@ test("after stopping the key being kept, the copy says the person did", async ()
   core.vaultState.mockResolvedValue({ ...notKept, quickUnlock: true, secretKeyHeld: true });
   await toSettings();
   expect((await screen.findByTestId("key-why")).textContent).toContain("You stopped keeping it");
+});
+
+test("a kept key saves the kit after the prompt, with no key typed and a note of what it holds", async () => {
+  core.saveKit.mockResolvedValue(true);
+  const user = await toSettings();
+  await user.click(await screen.findByRole("button", { name: "Save Emergency Kit" }));
+  await waitFor(() => expect(core.saveKit).toHaveBeenCalledWith(undefined, undefined));
+  expect((await screen.findByTestId("kit-saved")).textContent).toContain("same Secret Key");
+  expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+test("cancelling the save dialog saves nothing and says nothing was saved", async () => {
+  core.saveKit.mockResolvedValue(false);
+  const user = await toSettings();
+  await user.click(await screen.findByRole("button", { name: "Save Emergency Kit" }));
+  await waitFor(() => expect(core.saveKit).toHaveBeenCalled());
+  expect(screen.queryByTestId("kit-saved")).toBeNull();
+});
+
+test("a declined prompt is shown and no kit is saved", async () => {
+  core.saveKit.mockRejectedValue({
+    code: "not_confirmed",
+    message:
+      "The Emergency Kit was not saved because Touch ID or the device password was not confirmed.",
+  });
+  const user = await toSettings();
+  await user.click(await screen.findByRole("button", { name: "Save Emergency Kit" }));
+  expect(await screen.findByText(/was not saved because Touch ID/)).toBeTruthy();
+  expect(screen.queryByTestId("kit-saved")).toBeNull();
+});
+
+test("a Mac that keeps no key makes the kit from the password and key typed, checked by the app core", async () => {
+  core.vaultState.mockResolvedValue({ ...notKept, quickUnlock: false });
+  const user = await toSettings();
+  await user.click(await screen.findByRole("button", { name: "Save Emergency Kit" }));
+  const dialog = await screen.findByRole("dialog", { name: "Save your Emergency Kit" });
+  expect(core.saveKit).not.toHaveBeenCalled();
+
+  // An incomplete key never reaches the app core.
+  await user.type(within(dialog).getByLabelText("Master password"), "correct horse");
+  await user.click(within(dialog).getByRole("button", { name: "Save kit" }));
+  expect(await within(dialog).findByText(/looks incomplete/)).toBeTruthy();
+  expect(core.saveKit).not.toHaveBeenCalled();
+
+  core.saveKit.mockRejectedValueOnce({
+    code: "wrong_credentials",
+    message: "That master password and Secret Key do not match this vault.",
+  });
+  await user.click(within(dialog).getByLabelText("Secret Key group 1 of 8"));
+  await user.paste(KEY);
+  await user.click(within(dialog).getByRole("button", { name: "Save kit" }));
+  expect(await within(dialog).findByText(/do not match this vault/)).toBeTruthy();
+  expect(core.saveKit).toHaveBeenCalledWith("correct horse", KEY);
+
+  core.saveKit.mockResolvedValueOnce(true);
+  await user.click(within(dialog).getByRole("button", { name: "Save kit" }));
+  expect((await screen.findByTestId("kit-saved")).textContent).toContain("Saved");
+  expect(screen.queryByRole("dialog", { name: "Save your Emergency Kit" })).toBeNull();
 });

@@ -34,7 +34,8 @@ pub struct KitInfo<'a> {
     pub vault_name: &'a str,
     /// The storage in use, for example "Google Drive, name@example.com".
     pub storage: &'a str,
-    /// Creation date as `YYYY-MM-DD`. The caller supplies it; this crate never reads the clock.
+    /// The date this kit was made, as `YYYY-MM-DD`: a kit saved again later says so, not when the vault began.
+    /// The caller supplies it; this crate never reads the clock.
     pub created: &'a str,
 }
 
@@ -173,7 +174,7 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
     for (k, v) in [
         ("Vault", name.as_str()),
         ("Storage", storage.as_str()),
-        ("Created", info.created),
+        ("Kit made", info.created),
     ] {
         p.text("F2", 10.0, MARGIN, y, k);
         p.text("F1", 10.0, MARGIN + 60.0, y, v);

@@ -730,7 +730,8 @@ impl Vault {
             let _ = vault.add_device_record(r);
         }
         let own = vault.device.device_id;
-        let new_record = if vault.devices.contains_key(&own) {
+        // A device in the signed revoked list is not a device again: it writes no new record (FIG-135).
+        let new_record = if vault.devices.contains_key(&own) || vault.revoked.contains_key(&own) {
             None
         } else {
             let rec = vault.sign_own_record(device_name, now_ms)?;
@@ -837,6 +838,23 @@ impl Vault {
         }
     }
 
+    /// When this device was removed from the vault, if the signed `revoked` list names it (`crypto.md` 9.2).
+    /// A removed device keeps a readable copy but writes nothing more: every change it could make is refused,
+    /// because the other devices would drop it (FIG-135). A device that has not synced since the removal
+    /// cannot know.
+    pub fn revoked_at(&self) -> Option<Stamp> {
+        self.revoked
+            .get(&self.device.device_id)
+            .map(|r| r.revoked_at)
+    }
+
+    fn ensure_active(&self) -> Result<()> {
+        if self.revoked_at().is_some() {
+            return Err(Error);
+        }
+        Ok(())
+    }
+
     /// The current `key_epoch`.
     pub fn epoch(&self) -> u32 {
         self.epoch
@@ -869,6 +887,7 @@ impl Vault {
         secret_key: &SecretKey,
         now_ms: u64,
     ) -> Result<Approval> {
+        self.ensure_active()?;
         if invite.is_expired(now_ms)
             || self.devices.contains_key(&req.device_id)
             || self.revoked.contains_key(&req.device_id)
@@ -944,6 +963,7 @@ impl Vault {
         now_ms: u64,
         change: Option<CredentialChange<'_>>,
     ) -> Result<Revocation> {
+        self.ensure_active()?;
         if *target == self.device.device_id
             || !self.devices.contains_key(target)
             || !self.pending.is_empty()
@@ -1108,6 +1128,7 @@ impl Vault {
         secret_key: &SecretKey,
         change: CredentialChange<'_>,
     ) -> Result<Rotated> {
+        self.ensure_active()?;
         let params = change.params.unwrap_or(self.params);
         params.check()?;
         let old_auk = derive_auk(
@@ -1224,6 +1245,7 @@ impl Vault {
         password: &str,
         secret_key: &SecretKey,
     ) -> Result<RecoveryChange> {
+        self.ensure_active()?;
         let auk = derive_auk(
             password,
             secret_key,
@@ -1258,6 +1280,7 @@ impl Vault {
     /// Turn the Recovery Key off: the next `vault.json` has no `rk_pub` and no wrap, and any card of the old
     /// key opens nothing from then on (a copy of an older `vault.json` still opens with it).
     pub fn clear_recovery(&mut self) -> Result<RecoveryChange> {
+        self.ensure_active()?;
         if self.recovery.is_none() {
             return Err(Error);
         }
@@ -1685,6 +1708,7 @@ impl Vault {
         fields: &[(&str, &str)],
         now_ms: u64,
     ) -> Result<ItemId> {
+        self.ensure_active()?;
         for (f, _) in fields {
             validate_field(t, f)?;
         }
@@ -1717,6 +1741,7 @@ impl Vault {
         value: Option<&str>,
         now_ms: u64,
     ) -> Result<()> {
+        self.ensure_active()?;
         let t = self.item_type(id)?;
         validate_field(t, field)?;
         if value.is_some() {
@@ -1728,6 +1753,7 @@ impl Vault {
     }
 
     pub fn delete_item(&mut self, id: &ItemId, now_ms: u64) -> Result<()> {
+        self.ensure_active()?;
         self.item_type(id)?;
         let stamp = self.hlc.local(now_ms)?;
         self.write(*id, FIELD_DELETED, stamp, FieldValue::Flag(true));
@@ -1739,6 +1765,7 @@ impl Vault {
     }
 
     pub fn restore_item(&mut self, id: &ItemId, now_ms: u64) -> Result<()> {
+        self.ensure_active()?;
         self.item_type(id)?;
         let stamp = self.hlc.local(now_ms)?;
         self.write(*id, FIELD_DELETED, stamp, FieldValue::Flag(false));
@@ -1800,6 +1827,7 @@ impl Vault {
 
     /// Turn pending ops into one signed, encrypted op file. `None` if there is nothing to write.
     pub fn commit(&mut self) -> Result<Option<Committed>> {
+        self.ensure_active()?;
         if self.pending.is_empty() {
             return Ok(None);
         }

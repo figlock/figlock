@@ -158,3 +158,73 @@ fn sync_status_says_signed_in_until_google_refuses_the_sign_in() {
         (false.into(), true.into())
     );
 }
+
+/// FIG-122: deleting the Drive copy asks for the typed phrase first, and nothing reaches Google (or the local
+/// folder, or the sync settings) without it.
+#[cfg(unix)]
+#[test]
+fn deleting_the_drive_copy_needs_the_phrase_and_a_sign_in_and_changes_nothing_without_them() {
+    let run = |home: &TempDir, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_figlock"))
+            .args(args)
+            .env("FIGLOCK_HOME", home.path())
+            .env("FIGLOCK_DEVICE_KEYS", "file")
+            // No route to Google: a request that was sent would fail loudly instead of passing quietly.
+            .env("HTTPS_PROXY", "http://127.0.0.1:9")
+            .env("https_proxy", "http://127.0.0.1:9")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap()
+    };
+    let text = |o: &Output| {
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&o.stdout),
+            String::from_utf8_lossy(&o.stderr)
+        )
+    };
+
+    // Not signed in.
+    let home = TempDir::new().unwrap();
+    std::fs::write(
+        home.path().join("config.json"),
+        serde_json::json!({ "store": home.path().join("vault"), "device_name": "Test" })
+            .to_string(),
+    )
+    .unwrap();
+    let out = run(
+        &home,
+        &[
+            "sync",
+            "delete-remote",
+            "--confirm",
+            "delete from Google Drive",
+        ],
+    );
+    assert!(!out.status.success());
+    assert!(text(&out).contains("not signed in"), "{}", text(&out));
+
+    // Signed in, with sync on: no phrase, a wrong phrase and a script without --confirm all stop first.
+    let home = TempDir::new().unwrap();
+    synced_device(&home, false);
+    let settings = std::fs::read(home.path().join("config.json")).unwrap();
+    for args in [
+        vec!["sync", "delete-remote"],
+        vec!["sync", "delete-remote", "--confirm", "yes"],
+        vec!["sync", "delete-remote", "--confirm", "Personal"],
+    ] {
+        let out = run(&home, &args);
+        assert!(!out.status.success(), "{args:?}");
+        let said = text(&out);
+        assert!(
+            said.contains("nothing was deleted") && said.contains("delete from Google Drive"),
+            "{said}"
+        );
+    }
+    assert_eq!(
+        std::fs::read(home.path().join("config.json")).unwrap(),
+        settings
+    );
+    assert!(home.path().join("sync-state.json").exists());
+    assert!(home.path().join("drive-token.json").exists());
+}

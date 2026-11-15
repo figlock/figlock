@@ -619,6 +619,13 @@ fn a_device_with_no_keystore_keeps_no_secret_key_and_says_so() {
     assert!(!shown.status.success());
     assert!(text(&shown.stderr).contains("no Secret Key is kept on this device"));
     assert!(!text(&shown.stdout).contains(&e.secret_key));
+    // No key kept, no kit: nothing is written, and the key is not printed (FIG-134).
+    let kit = e.home.path().join("kit.pdf");
+    let made = e.run(&["secret-key", "kit", kit.to_str().unwrap()]);
+    assert!(!made.status.success());
+    assert!(text(&made.stderr).contains("no Secret Key is kept on this device"));
+    assert!(!kit.exists());
+    assert!(!text(&made.stdout).contains(&e.secret_key));
     // Forgetting what is not kept is fine, and the full unlock still works by typing the key.
     assert!(e.ok(&["secret-key", "forget"]).contains("no longer kept"));
     let found = e.run_with(&["find"], None, PW, Some(&e.secret_key));

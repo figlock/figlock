@@ -102,6 +102,7 @@ pub fn import(a: ImportArgs, json: bool) -> Res<()> {
     }
     crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
+    s.ensure_writable()?;
     let now = now_ms();
     for (n, chunk) in report.items.chunks(COMMIT_EVERY).enumerate() {
         for d in chunk {

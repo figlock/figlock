@@ -248,3 +248,62 @@ fn open_with_a_wrong_secret_key_sets_nothing_up() {
     );
     assert!(again.status.success(), "{}", text(&again.stderr));
 }
+
+/// FIG-135: a device that was removed is told so when it next opens the vault, is refused every write (and
+/// writes nothing to the log), and can still read its copy.
+#[test]
+fn a_removed_device_is_told_and_refused_writes_but_can_still_read() {
+    let v = vault();
+    let store = v.store.path().to_str().unwrap();
+    let second = Machine::new();
+    let opened = second.run(
+        &[
+            "open",
+            "--store",
+            store,
+            "--device-name",
+            "second",
+            "--no-quick-unlock",
+        ],
+        &v.password,
+        Some(&v.secret_key),
+    );
+    assert!(opened.status.success(), "{}", text(&opened.stderr));
+    let list = v
+        .first
+        .run(&["device", "list"], &v.password, Some(&v.secret_key));
+    let id = text(&list.stdout)
+        .lines()
+        .find(|l| !l.contains("(this device)"))
+        .and_then(|l| l.split_whitespace().next())
+        .expect("the second device is listed")
+        .to_owned();
+    let revoked = v
+        .first
+        .run(&["device", "revoke", &id], &v.password, Some(&v.secret_key));
+    assert!(revoked.status.success(), "{}", text(&revoked.stderr));
+
+    let log_files = || std::fs::read_dir(v.store.path().join("log")).map_or(0, Iterator::count);
+    let before = log_files();
+    let sk = Some(v.secret_key.as_str());
+    for args in [
+        vec!["add", "-t", "note", "--title", "Lost", "--set", "body=x"],
+        vec!["edit", "shared", "--set", "body=changed"],
+    ] {
+        let out = second.run(&args, &v.password, sk);
+        assert!(!out.status.success(), "{args:?} must be refused");
+        let err = text(&out.stderr);
+        assert!(err.contains("removed from the vault on"), "{err}");
+        assert!(err.contains("join again with a new invite"), "{err}");
+    }
+    assert_eq!(log_files(), before, "a removed device wrote nothing");
+    assert!(finds_note(&second, &v), "reads still work");
+    let devices = second.run(&["device", "list"], &v.password, sk);
+    let list = text(&devices.stdout);
+    assert!(
+        list.lines()
+            .any(|l| l.contains("(this device)") && l.contains("revoked")),
+        "{list}"
+    );
+    assert!(text(&devices.stderr).contains("removed from the vault on"));
+}

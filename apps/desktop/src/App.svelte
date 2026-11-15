@@ -7,6 +7,7 @@
   import Join from "./Join.svelte";
   import MissingFolder from "./MissingFolder.svelte";
   import OpenExisting from "./OpenExisting.svelte";
+  import RemovedDevice from "./RemovedDevice.svelte";
   import Unlock from "./Unlock.svelte";
   import { updates } from "./updates.svelte";
   import Welcome from "./Welcome.svelte";
@@ -17,6 +18,8 @@
   let failed = $state(false);
   let notice = $state("");
   let view = $state<"welcome" | "create" | "open" | "join" | "forgot">("welcome");
+  /** The person chose to keep reading the copy of a vault that removed this Mac (FIG-135). */
+  let reading = $state(false);
 
   const refresh = () =>
     vaultState().then(
@@ -27,6 +30,7 @@
     vault = s;
     notice = "";
     view = "welcome";
+    reading = false;
   };
 
   onMount(() => {
@@ -65,8 +69,24 @@
   <main class="grid min-h-screen place-items-center p-6">
     <p class="text-text-secondary">Starting...</p>
   </main>
+{:else if vault.phase === "unlocked" && typeof vault.removedAtMs === "number" && !reading}
+  <RemovedDevice
+    removedAtMs={vault.removedAtMs}
+    onread={() => (reading = true)}
+    onleft={() => {
+      reading = false;
+      void refresh();
+    }}
+    onjoin={() => {
+      reading = false;
+      view = "join";
+      void refresh();
+    }}
+  />
 {:else if vault.phase === "unlocked"}
   <Workspace
+    removedAtMs={vault.removedAtMs ?? null}
+    onremoved={() => (reading = false)}
     onlock={lockNow}
     onlocked={(message) => {
       notice = message ?? "";

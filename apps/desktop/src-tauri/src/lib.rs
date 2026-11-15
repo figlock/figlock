@@ -84,6 +84,39 @@ async fn save_emergency_kit(app: AppHandle, desk: State<'_, Desk>) -> CmdRes<boo
     Ok(true)
 }
 
+/// Make the Emergency Kit again from the Secret Key kept on this Mac (or the one typed, with the master password,
+/// when none is kept) and ask where to save it. Reading the kept key asks for Touch ID or the device password
+/// first. `false` when the person cancels the save dialog; nothing is written then (FIG-134).
+#[tauri::command]
+async fn save_emergency_kit_again(
+    app: AppHandle,
+    desk: State<'_, Desk>,
+    password: Option<String>,
+    secret_key: Option<String>,
+) -> CmdRes<bool> {
+    let typed = match (password.as_deref(), secret_key.as_deref()) {
+        (Some(p), Some(k)) => Some((p, k)),
+        _ => None,
+    };
+    let pdf = desk.kit_again(typed)?;
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_file_name("FigLock Emergency Kit.pdf")
+        .add_filter("PDF", &["pdf"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(false);
+    };
+    std::fs::write(path, &*pdf).map_err(|_| {
+        CmdError::from(figlock_session::Fail::new(
+            "Could not save the Emergency Kit there.",
+        ))
+    })?;
+    Ok(true)
+}
+
 /// Make a new Recovery Key to show: a single code, or `count` cards of which `threshold` open the vault.
 #[tauri::command]
 async fn recovery_prepare(
@@ -255,6 +288,12 @@ async fn forget_vault(confirmed: bool) -> CmdRes<()> {
     desk::folder::forget(confirmed)
 }
 
+/// The vault removed this Mac: stop using it here. Refused unless the vault says so.
+#[tauri::command]
+async fn leave_vault(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.leave_vault()
+}
+
 /// Whether Google sign-in is possible in this build, and whether this device is signed in.
 #[tauri::command]
 async fn drive_status() -> CmdRes<DriveView> {
@@ -311,6 +350,20 @@ async fn sync_now(app: AppHandle, reupload: bool) -> CmdRes<SyncView> {
     })
     .await
     .map_err(|_| CmdError::new("failed", "Sync stopped unexpectedly. Try again."))??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(view)
+}
+
+/// Delete the vault's copy from Google Drive after the typed phrase. Runs off the UI thread: it makes a request per
+/// file.
+#[tauri::command]
+async fn sync_delete_remote(app: AppHandle, confirmation: String) -> CmdRes<SyncView> {
+    let view = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || tauri::Manager::state::<Desk>(&app).sync_delete_remote(&confirmation)
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Deleting stopped unexpectedly. Try again."))??;
     let _ = app.emit(SYNCED_EVENT, ());
     Ok(view)
 }
@@ -747,6 +800,8 @@ pub fn run() {
             choose_folder,
             create_vault,
             save_emergency_kit,
+            save_emergency_kit_again,
+            leave_vault,
             check_kit_key,
             forgot_card_info,
             forgot_find,
@@ -775,6 +830,7 @@ pub fn run() {
             sync_status,
             sync_now,
             sync_enable,
+            sync_delete_remote,
             sync_sign_out,
             sync_disable,
             devices,

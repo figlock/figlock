@@ -5,6 +5,7 @@
 (() => {
   const opts = window.__FAKE__ ?? {};
   const PASSWORD = "correct horse battery";
+  const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
   // The Secret Key another device made, for the stale-key scenarios.
   const NEW_KEY = "FL1-WXYZ-2345-6789-ABCD-EFGH-JKMN-PQRS-TVWX";
   const SECRET_SCALARS = ["password", "totp", "token", "private_key", "passphrase"];
@@ -47,6 +48,16 @@
     autolockSecs: opts.autolockSecs ?? 300,
     // Another device rotated the Secret Key: the one this Mac keeps opens nothing (ADR-0034).
     secretKeyStale: opts.secretKeyStale ?? false,
+    // The vault removed this Mac (FIG-135): when, in Unix milliseconds, or null.
+    removedAtMs: opts.removedAtMs ?? null,
+    // This Mac keeps no Secret Key, so the Emergency Kit is made from what the person types (FIG-134).
+    keyNotKept: opts.keyNotKept ?? false,
+    // What the save dialog does: the kits written so far, and whether the person cancels the dialog.
+    kitsSaved: [],
+    kitDialogCancelled: opts.kitDialogCancelled ?? false,
+    // What deleting the Drive copy answers (FIG-122): the files deleted so far, and an error to give instead.
+    driveDeletes: [],
+    deleteFails: opts.deleteFails ?? null,
   });
   let cancelSignIn = null;
 
@@ -70,14 +81,15 @@
     version: "9.9.9",
     quickUnlock: false,
     touchAvailable: false,
-    secretKeyKept: true,
+    secretKeyKept: !core.keyNotKept,
     secretKeyStale: core.secretKeyStale,
-    secretKeyProtection: "keychain",
+    secretKeyProtection: core.keyNotKept ? null : "keychain",
     secretKeyHeld: true,
     autolockSecs: core.autolockSecs,
     recoveryEnabled: false,
     pendingKit: null,
     folderMissing: core.folderMissing,
+    removedAtMs: core.removedAtMs,
   });
 
   const subtitle = (i) =>
@@ -342,6 +354,38 @@
     sync_disable: () => {
       core.sync = { ...core.sync, enabled: false, state: "off", lastSyncSecsAgo: null };
       return { ...core.sync };
+    },
+    sync_delete_remote: ({ confirmation }) => {
+      if (confirmation.trim().toLowerCase() !== "delete from google drive")
+        return fail("not_confirmed", "Type the phrase exactly. Nothing was deleted.");
+      if (core.deleteFails) return fail(core.deleteFails.code, core.deleteFails.message);
+      core.driveDeletes.push(confirmation);
+      core.sync = {
+        ...core.sync,
+        enabled: false,
+        state: "off",
+        lastSyncSecsAgo: null,
+      };
+      return { ...core.sync };
+    },
+    save_emergency_kit_again: ({ password, secretKey }) => {
+      if (core.keyNotKept) {
+        if (!password || !secretKey)
+          return fail("no_secret_key", "This Mac is not keeping your Secret Key.");
+        if (password !== PASSWORD || secretKey !== KEY)
+          return fail(
+            "wrong_credentials",
+            "That master password and Secret Key do not match this vault.",
+          );
+      }
+      if (core.kitDialogCancelled) return false;
+      core.kitsSaved.push(secretKey ?? KEY);
+      return true;
+    },
+    leave_vault: () => {
+      if (core.removedAtMs === null) return fail("not_removed", "This Mac has not been removed.");
+      core.removedAtMs = null;
+      core.phase = "none";
     },
     sync_sign_out: () => {
       const revoked = !core.sync.signOutUnrevoked;

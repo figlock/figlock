@@ -9,6 +9,7 @@ use crate::{prompt, quick};
 use figlock_session::error::{Fail, Res};
 use figlock_session::secret_key_store;
 use figlock_session::session::{Session, peek_vault_id};
+use figlock_session::{docfile, now_ms};
 
 const OTHER_DEVICES: &str = "Other devices will ask for a full unlock with the new details.";
 
@@ -63,6 +64,7 @@ pub fn password_change(json: bool) -> Res<()> {
     crate::sync_cmd::pull_first();
     let (session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
     let mut session = session;
+    session.ensure_writable()?;
     let new_password = prompt::changed_password()?;
     let r = session.vault.change_credentials(
         &password,
@@ -83,6 +85,7 @@ pub fn password_change(json: bool) -> Res<()> {
 pub fn secret_key_rotate(json: bool) -> Res<()> {
     crate::sync_cmd::pull_first();
     let (mut session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
+    session.ensure_writable()?;
     let r = session.vault.change_credentials(
         &password,
         &secret_key,
@@ -132,6 +135,41 @@ pub fn secret_key_show(json: bool) -> Res<()> {
     Ok(())
 }
 
+/// `figlock secret-key kit <path>`: write the Emergency Kit PDF, made now from the Secret Key kept on this
+/// device. It asks for Touch ID or the device password like `show`, writes only to `path`, and never uploads.
+pub fn secret_key_kit(path: &str, force: bool, json: bool) -> Res<()> {
+    let keys = secret_key_store::system()?;
+    let vault = peek_vault_id()?;
+    if !keys.has(&vault) {
+        return Err(Fail::new(
+            "no Secret Key is kept on this device, so there is nothing to make the kit from. It is kept the \
+             next time you unlock with the master password and Secret Key",
+        ));
+    }
+    let place = figlock_session::config::load()?.place;
+    let pdf = figlock_session::kit::kit_from_kept_key(
+        &keys,
+        &vault,
+        secret_key_store::quick_on(&vault),
+        &place,
+        now_ms(),
+    )?
+    .ok_or_else(|| {
+        Fail::new(
+            "the Emergency Kit was not saved: Touch ID or the device password was not confirmed",
+        )
+    })?;
+    docfile::write_out(&pdf, path, force)?;
+    if json {
+        println!("{}", json!({ "saved": path }));
+    } else if path != "-" {
+        println!(
+            "Saved the Emergency Kit to {path} (owner-only). Print it or keep it safe, apart from your master password."
+        );
+    }
+    Ok(())
+}
+
 /// `figlock secret-key forget`: stop keeping the Secret Key on this device. The next full unlock asks for it.
 pub fn secret_key_forget(json: bool) -> Res<()> {
     secret_key_store::system()?.forget(&peek_vault_id()?)?;
@@ -173,6 +211,9 @@ pub fn device_list(json: bool) -> Res<()> {
             .collect();
         println!("{}", json!(rows));
         return Ok(());
+    }
+    if let Some(at) = session.removed_at_ms() {
+        eprintln!("{}", figlock_session::removed_message(at));
     }
     for d in &devices {
         let mark = if d.device_id == this {
@@ -231,6 +272,7 @@ pub fn device_revoke(
 ) -> Res<()> {
     crate::sync_cmd::pull_first();
     let (mut session, password, secret_key) = Session::open_for_change(prompt::terminal())?;
+    session.ensure_writable()?;
     let target = pick(
         &session.vault.devices(),
         session.vault.device_id(),

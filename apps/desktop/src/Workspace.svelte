@@ -4,6 +4,7 @@
 
   import GeneratorPage from "./GeneratorPage.svelte";
   import HealthPage from "./HealthPage.svelte";
+  import RemovedBanner from "./RemovedBanner.svelte";
   import SecretKeyBanner from "./SecretKeyBanner.svelte";
   import Settings from "./Settings.svelte";
   import { SyncStatus } from "./sync.svelte";
@@ -24,8 +25,12 @@
     onlock: () => void;
     /** A command found the vault locked. */
     onlocked: (notice?: string) => void;
+    /** When the vault removed this Mac (milliseconds), if it did: a banner says so and changes are refused. */
+    removedAtMs?: number | null;
+    /** The banner's button: back to the screen with the ways forward. */
+    onremoved?: () => void;
   };
-  let { onlock, onlocked }: Props = $props();
+  let { onlock, onlocked, removedAtMs = null, onremoved = () => {} }: Props = $props();
 
   const nav = new Nav();
   const library = new Library(() => onlocked());
@@ -301,6 +306,9 @@
     </header>
 
     <div>
+      {#if removedAtMs !== null}
+        <RemovedBanner {removedAtMs} onoptions={onremoved} />
+      {/if}
       <SecretKeyBanner />
     </div>
 

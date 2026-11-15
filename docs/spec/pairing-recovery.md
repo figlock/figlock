@@ -151,19 +151,40 @@ in the device list on the next sync, from where it can be revoked.
    so. It is recommended after losing a device.
 5. If the lost device may have been unlocked, the user SHOULD also change the master password and rotate the
    Secret Key (`crypto.md` 9). The UI offers this in the same flow.
+6. **What the revoked device sees (FIG-135).** A device that opens, unlocks or syncs and finds its own device
+   id in the signed `revoked` list (`crypto.md` 9.2) is removed. It MUST stop writing: every change it could
+   make (new, edited, deleted or restored items, an import, adding or removing a device, changing the password
+   or keys, the Recovery Key) is refused before anything is written, so it never produces an op file the other
+   devices would drop. It MUST NOT write a device record for itself. Reading its copy keeps working. It says,
+   in plain words: "This device was removed from the vault on <date>. Changes made here are no longer
+   accepted. Your copy stays readable. Remove the vault from this device, or join again with a new invite."
+   The date is the signed `revoked_at`; the list does not name who removed the device, so the message does not
+   either (naming the device needs another signed member, which this rule does not add).
+7. A device that has not synced since the revocation cannot know and behaves as before; the message appears
+   the first time it opens the vault from a copy that carries the revocation, which asks for a full unlock
+   (step 4) because the new `vault.json` is at a higher `key_epoch`. Its own earlier writes that reached the
+   others before `revoked_at` stay valid (`sync.md` 9).
+8. **Clients.** CLI: `add`, `edit`, `import`, `device add|revoke`, `password change` and `secret-key rotate`
+   refuse with the message and a non-zero exit; reads (`find`, `get`, `copy`) work; `device list` prints the
+   message and marks the row of this device `revoked`. Desktop: a screen with "Add this Mac again with an
+   invite code", "Keep reading my copy" and "Remove this vault from this Mac"; reading shows a banner with the
+   same message. Removing the vault from the device forgets its config, device keys, kept Secret Key and quick
+   unlock entry, and leaves the vault folder and the storage copy alone. The desktop has no export of the readable
+   copy yet: "Keep reading my copy" is how to get at the data there, and `figlock export` reads it from the CLI.
 
 ## 5. Emergency Kit
 
-The kit is a printable PDF or a file the user can save, produced at vault creation and whenever the Secret
-Key is rotated (FIG-31).
+The kit is a printable PDF or a file the user can save, produced at vault creation, whenever the Secret Key is
+rotated (FIG-31), and **on demand** (FIG-134): it is a pure function of the vault name, the storage label, a
+date and the Secret Key, so it can be made again at any time from the key the device keeps, with no new crypto.
 
 Contents:
 
 - Title, product name and a version marker `FL-KIT-1`.
 - The Secret Key in the display format of `crypto.md` 4.1, in the mono font with groups, plus a QR code of
   the same string.
-- The vault name, the storage in use (for example "Google Drive, account name") and the creation date, so
-  the user knows what the kit belongs to. No master password, no `VK`, no other key.
+- The vault name, the storage in use (for example "Google Drive, account name") and the date the kit was made ("Kit made", not
+  when the vault was), so the user knows what the kit belongs to and which copy is the newest. No master password, no `VK`, no other key.
 - Plain-language steps: install FigLock, choose the storage, sign in, type the master password, type or scan
   the Secret Key.
 - A blank line labelled "Master password (optional, write it elsewhere)" with a warning against storing it
@@ -178,6 +199,15 @@ Forced verification (MUST, vault creation and each new kit):
 2. The vault does not finish creation until this passes. "Skip" exists but leaves a banner "Emergency Kit
    not confirmed" in the app, and quick unlock is not offered until confirmed.
 3. A new kit invalidates the old one when the Secret Key rotates; the app says so and lists the date.
+
+**On demand (FIG-134).** Settings, Secret Key has "Save Emergency Kit", and the CLI has
+`figlock secret-key kit <path>`. Both read the kept Secret Key behind the same gate as Show Secret Key (Touch
+ID or the device password, or none when quick unlock is off and the key is in the login keychain, ADR-0034),
+render the PDF in memory and write it only to the path the person picks, owner-only and never over an existing
+file without `--force`. A device that keeps no key makes it only from the master password and Secret Key typed
+and checked against the vault; the CLI refuses and says so. A kit saved again holds the same Secret Key as the
+original while the key has not rotated; after a rotation only the new kit is valid (step 3 above), and an old
+one stays only as clutter. Nothing about it is uploaded, logged or cached, and the buffer is zeroized.
 
 The kit file never leaves the device on its own: no cloud upload, no analytics, no copy to the clipboard
 except by explicit user action, and the clipboard clears after 30 seconds.

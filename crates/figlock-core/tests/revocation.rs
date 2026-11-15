@@ -444,3 +444,56 @@ fn back_to_back_revocations_write_different_snapshot_names() {
     assert!(first.snapshot.path.ends_with("-00000002.snap"));
     assert!(second.snapshot.path.ends_with("-00000003.snap"));
 }
+
+/// What the revoked device sees when it opens the vault after the revocation (FIG-135): it is told, it
+/// writes no record of its own, and every change it could make is refused. Its copy stays readable.
+#[test]
+fn a_revoked_device_that_opens_the_new_vault_json_knows_it_and_writes_nothing() {
+    let mut f = fleet();
+    add_login(&mut f.a, "Before", T0 + 300);
+    f.a.commit().unwrap().unwrap();
+    let c_id = *f.c.device_id();
+    let keys = clone_keys(&f.c);
+    assert!(
+        f.c.revoked_at().is_none(),
+        "a device that has not synced cannot know"
+    );
+    let r = f.a.revoke_device(pw(), &f.sk, &c_id, T0 + 400).unwrap();
+
+    let records: Vec<Vec<u8>> = r.records.iter().map(|c| c.bytes.clone()).collect();
+    let (mut c2, own) = Vault::unlock(
+        &r.vault_json,
+        pw(),
+        &f.sk,
+        keys,
+        "Work PC",
+        &records,
+        T0 + 900,
+    )
+    .unwrap();
+    assert!(
+        own.is_none(),
+        "a revoked device is not a device again, so it signs no new record"
+    );
+    assert_eq!(c2.revoked_at().map(|s| s.wall), Some(T0 + 400));
+    assert!(f.a.revoked_at().is_none());
+
+    // Reads still work.
+    let _ = titles(&mut c2);
+    // Nothing is written: no op is ever pending, so none can reach the log.
+    assert!(
+        c2.add_item(
+            figlock_core::ItemType::Login,
+            "personal",
+            &[("title", "Lost")],
+            T0 + 950
+        )
+        .is_err()
+    );
+    assert!(c2.commit().is_err());
+    assert!(!c2.has_pending());
+    assert!(
+        c2.revoke_device(pw(), &f.sk, f.a.device_id(), T0 + 960)
+            .is_err()
+    );
+}
