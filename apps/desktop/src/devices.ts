@@ -10,6 +10,8 @@ export type Device = {
   fingerprint: string;
   thisDevice: boolean;
   revoked: boolean;
+  /** For a revoked device: its later changes that were skipped. */
+  ignoredChanges: number;
 };
 
 export const listDevices = () => invoke<Device[]>("devices");

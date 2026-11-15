@@ -21,19 +21,22 @@ pub struct DeviceRow {
     pub fingerprint: String,
     pub this_device: bool,
     pub revoked: bool,
+    /// For a revoked device: how many of its later changes were skipped, as the CLI shows them.
+    pub ignored_changes: usize,
 }
 
 fn locked() -> CmdError {
     CmdError::new("locked", "The vault is locked. Unlock it to continue.")
 }
 
-fn row(d: &DeviceInfo, this: &DeviceId) -> DeviceRow {
+fn row(d: &DeviceInfo, this: &DeviceId, ignored_changes: usize) -> DeviceRow {
     DeviceRow {
         id: hex::encode(d.device_id),
         name: d.name.clone(),
         fingerprint: d.fingerprint.clone(),
         this_device: d.device_id == *this,
         revoked: d.revoked_at.is_some(),
+        ignored_changes,
     }
 }
 
@@ -96,7 +99,7 @@ impl Desk {
             .vault
             .devices()
             .iter()
-            .map(|d| row(d, &this))
+            .map(|d| row(d, &this, session.ignored_changes(&d.device_id)))
             .collect();
         // Live devices before revoked ones, this device first; the sort is stable so the core's order stays.
         rows.sort_by_key(|r| (r.revoked, !r.this_device));

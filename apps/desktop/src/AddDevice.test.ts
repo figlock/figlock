@@ -53,6 +53,7 @@ const mac: Device = {
   fingerprint: "1A2B-3C4D",
   thisDevice: true,
   revoked: false,
+  ignoredChanges: 0,
 };
 const laptop: Device = {
   id: "cc",
@@ -60,6 +61,7 @@ const laptop: Device = {
   fingerprint: "9Z8Y-7X6W",
   thisDevice: false,
   revoked: false,
+  ignoredChanges: 0,
 };
 const invite: Invite = {
   code: "ABCD-EFGH-JKMN-PQRS-TVWX",

@@ -63,10 +63,14 @@ fn show(report: &Report, json: bool) -> Res<()> {
             "warnings": warnings,
         }))
     } else {
-        println!(
-            "Synced with Google Drive: {} downloaded, {} uploaded.",
-            report.pulled, report.pushed
-        );
+        if report.pulled == 0 && report.pushed == 0 {
+            println!("Already up to date.");
+        } else {
+            println!(
+                "Synced with Google Drive: {} downloaded, {} uploaded.",
+                report.pulled, report.pushed
+            );
+        }
         Ok(())
     }
 }
@@ -259,37 +263,177 @@ fn warn_once(text: &str) {
     }
 }
 
-fn quiet(warn_when_offline: bool, limit: Duration) {
+/// What the automatic sync after a write did, so the command can say so.
+pub enum Pushed {
+    /// Sync is off on this device: nothing to say.
+    Off,
+    Synced {
+        uploaded: usize,
+        downloaded: usize,
+    },
+    /// The remote could not be reached; the next command retries.
+    Offline,
+    /// Another sync on this device holds the lock.
+    Busy,
+    /// Anything else that went wrong, in words.
+    Failed(String),
+}
+
+impl Pushed {
+    /// The one short line for a text-mode command, or `None` when sync is off.
+    pub fn line(&self) -> Option<String> {
+        Some(match self {
+            Pushed::Off => return None,
+            Pushed::Synced {
+                uploaded,
+                downloaded,
+            } => match (uploaded, downloaded) {
+                (0, 0) => "Saved and synced.".to_owned(),
+                (u, 0) => format!("Saved and synced ({u} uploaded)."),
+                (0, d) => format!("Saved and synced ({d} downloaded)."),
+                (u, d) => format!("Saved and synced ({u} uploaded, {d} downloaded)."),
+            },
+            Pushed::Offline => {
+                "Saved. Not synced: offline, will retry on the next command.".to_owned()
+            }
+            Pushed::Busy => {
+                "Saved. Not synced yet: another sync is running here; run `figlock sync` if it does not catch up."
+                    .to_owned()
+            }
+            Pushed::Failed(why) => {
+                format!("Saved. Not synced: {why}; run `figlock sync` when you can.")
+            }
+        })
+    }
+
+    /// The `sync` member of a `--json` result, or `None` when sync is off.
+    pub fn json(&self) -> Option<serde_json::Value> {
+        let (state, uploaded, downloaded) = match self {
+            Pushed::Off => return None,
+            Pushed::Synced {
+                uploaded,
+                downloaded,
+            } => ("synced", *uploaded, *downloaded),
+            Pushed::Offline => ("offline", 0, 0),
+            Pushed::Busy => ("busy", 0, 0),
+            Pushed::Failed(_) => ("failed", 0, 0),
+        };
+        Some(json!({ "state": state, "uploaded": uploaded, "downloaded": downloaded }))
+    }
+
+    /// Say it on stderr, so a script capturing the id on stdout is not disturbed.
+    pub fn announce(&self) {
+        if let Some(line) = self.line() {
+            eprintln!("{line}");
+        }
+    }
+
+    /// `result` with the `sync` member added when sync is on.
+    pub fn attach(&self, mut result: serde_json::Value) -> serde_json::Value {
+        if let (Some(sync), Some(map)) = (self.json(), result.as_object_mut()) {
+            map.insert("sync".to_owned(), sync);
+        }
+        result
+    }
+}
+
+fn quiet(limit: Duration) -> Pushed {
     let Ok(cfg) = config::load() else {
-        return;
+        return Pushed::Off;
     };
     if cfg.place.remote.is_none() {
-        return;
+        return Pushed::Off;
     }
     match timeboxed(cfg, limit) {
         Ok(report) => {
             for w in &report.warnings {
                 warn_once(warning_text(*w));
             }
+            Pushed::Synced {
+                uploaded: report.pushed,
+                downloaded: report.pulled,
+            }
         }
-        Err(SyncError::Busy) => {}
-        Err(SyncError::Offline) if !warn_when_offline => {}
-        Err(e) => warn_once(&format!(
-            "not synced with Google Drive ({e}); this device keeps working. Run `figlock sync` when you can"
-        )),
+        Err(SyncError::Busy) => Pushed::Busy,
+        Err(SyncError::Offline) => Pushed::Offline,
+        Err(e) => Pushed::Failed(e.to_string()),
     }
 }
 
 /// Before a command reads the vault: bring in what other devices wrote, unless that was done a moment ago.
-/// Stays silent when the network is simply not there.
+/// Stays silent when the network is simply not there, and when anything else goes wrong: the command that
+/// follows reads the local vault either way.
 pub fn pull_first() {
     let fresh = sync::last_sync_ms().is_some_and(|t| now_ms().saturating_sub(t) < PULL_AFTER_MS);
-    if !fresh {
-        quiet(false, PULL_TIMEOUT);
+    if !fresh && let Pushed::Failed(why) = quiet(PULL_TIMEOUT) {
+        warn_once(&format!(
+            "not synced with Google Drive ({why}); this device keeps working. Run `figlock sync` when you can"
+        ));
     }
 }
 
-/// After a command wrote to the vault: send it up, and say so if that did not work.
-pub fn push_after_write() {
-    quiet(true, PUSH_TIMEOUT);
+/// After a command wrote to the vault: send it up. The caller says what happened with [`Pushed::announce`]
+/// or puts [`Pushed::json`] in its result.
+pub fn push_after_write() -> Pushed {
+    quiet(PUSH_TIMEOUT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line(p: &Pushed) -> String {
+        p.line().unwrap()
+    }
+
+    #[test]
+    fn the_line_after_a_write_says_what_happened() {
+        let synced = Pushed::Synced {
+            uploaded: 1,
+            downloaded: 0,
+        };
+        assert_eq!(line(&synced), "Saved and synced (1 uploaded).");
+        let both = Pushed::Synced {
+            uploaded: 2,
+            downloaded: 3,
+        };
+        assert_eq!(line(&both), "Saved and synced (2 uploaded, 3 downloaded).");
+        let none = Pushed::Synced {
+            uploaded: 0,
+            downloaded: 0,
+        };
+        assert_eq!(line(&none), "Saved and synced.");
+        assert_eq!(
+            line(&Pushed::Offline),
+            "Saved. Not synced: offline, will retry on the next command."
+        );
+        assert!(line(&Pushed::Busy).starts_with("Saved. Not synced yet: another sync"));
+        assert_eq!(
+            line(&Pushed::Failed("no sign-in".to_owned())),
+            "Saved. Not synced: no sign-in; run `figlock sync` when you can."
+        );
+    }
+
+    #[test]
+    fn sync_off_says_nothing_and_adds_nothing_to_json() {
+        assert!(Pushed::Off.line().is_none());
+        assert!(Pushed::Off.json().is_none());
+        assert_eq!(Pushed::Off.attach(json!({"id": "ab"})), json!({"id": "ab"}));
+    }
+
+    #[test]
+    fn json_carries_state_and_counts() {
+        let synced = Pushed::Synced {
+            uploaded: 1,
+            downloaded: 2,
+        };
+        assert_eq!(
+            synced.attach(json!({"id": "ab"})),
+            json!({"id": "ab", "sync": {"state": "synced", "uploaded": 1, "downloaded": 2}})
+        );
+        assert_eq!(
+            Pushed::Offline.json().unwrap(),
+            json!({"state": "offline", "uploaded": 0, "downloaded": 0})
+        );
+    }
 }

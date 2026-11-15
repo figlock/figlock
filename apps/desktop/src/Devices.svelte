@@ -129,6 +129,11 @@
                 >{/if}
             </p>
             <p class="font-mono text-(length:--text-xs) text-text-tertiary">{d.fingerprint}</p>
+            {#if d.revoked && d.ignoredChanges > 0}
+              <p class="text-(length:--text-xs) text-text-tertiary">
+                {d.ignoredChanges} later {d.ignoredChanges === 1 ? "change" : "changes"} ignored
+              </p>
+            {/if}
           </div>
           {#if d.revoked}
             <Badge>Revoked</Badge>

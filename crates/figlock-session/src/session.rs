@@ -50,6 +50,8 @@ pub struct Session {
     store: Box<dyn BlobStore>,
     ui: Box<dyn Ui>,
     uncertain: bool,
+    /// Ops per revoked device that were skipped because they came after the revocation.
+    ignored: BTreeMap<DeviceId, usize>,
 }
 
 /// What [`Session::preview`] found.
@@ -323,6 +325,7 @@ impl Session {
             store,
             ui,
             uncertain: false,
+            ignored: BTreeMap::new(),
         }
     }
 
@@ -433,6 +436,7 @@ impl Session {
             store,
             ui,
             uncertain: false,
+            ignored: BTreeMap::new(),
         };
         session.load_log(now)?;
         Ok((session, auk, creds))
@@ -455,7 +459,9 @@ impl Session {
         for (device, mut files) in by_device {
             files.sort();
             let done = self.vault.applied_seq(&device);
-            for (seq, path, available) in files {
+            let total = files.len();
+            for at in 0..total {
+                let (seq, path, available) = files[at].clone();
                 if seq <= done {
                     continue;
                 }
@@ -473,17 +479,46 @@ impl Session {
                     break;
                 };
                 if self.vault.apply_file(&bytes, &device, seq, now).is_err() {
-                    self.ui.warn(&format!(
-                        "ignoring changes from device {} from op {seq} on: the file failed verification or is out of order",
-                        short(&device)
-                    ));
-                    stopped = true;
+                    if let Some(first) = self.vault.late_op_count(&bytes, &device, seq) {
+                        // Expected after a revocation: count the ops in this file and the rest (a refresh sees them again), say nothing here.
+                        let later: usize = files[at + 1..]
+                            .iter()
+                            .filter(|(_, _, available)| *available)
+                            .filter_map(|(seq, path, _)| {
+                                let bytes = self.store.get(path).ok()?;
+                                self.vault.revoked_op_count(&bytes, &device, *seq)
+                            })
+                            .sum();
+                        self.ignored.insert(device, first + later);
+                    } else {
+                        self.warn_unverified(&device, seq);
+                        stopped = true;
+                    }
                     break;
                 }
                 applied += 1;
             }
         }
         Ok((applied, stopped))
+    }
+
+    fn warn_unverified(&self, device: &DeviceId, seq: u64) {
+        let name = self
+            .vault
+            .devices()
+            .into_iter()
+            .find(|d| d.device_id == *device)
+            .and_then(|d| d.name)
+            .unwrap_or_else(|| "unknown".to_owned());
+        self.ui.warn(&format!(
+            "changes from device {name} ({}) from op {seq} on failed verification and are ignored; run figlock device list, and if you do not recognise this device, revoke it and change your password",
+            short(device)
+        ));
+    }
+
+    /// How many later changes from the revoked `device` were skipped when the log was loaded.
+    pub fn ignored_changes(&self, device: &DeviceId) -> usize {
+        self.ignored.get(device).copied().unwrap_or(0)
     }
 
     /// Take in what a sync brought into the local folder while the vault is open: new device records and new
@@ -561,6 +596,7 @@ impl Session {
             store: crate::store::open(place)?,
             ui: Box::new(Silent),
             uncertain: false,
+            ignored: BTreeMap::new(),
         };
         session.load_log(now_ms())?;
         let items = session.items(false);
@@ -736,8 +772,12 @@ impl Session {
     }
 
     /// An item by full id, unique id prefix (4+ hex digits) or a search that finds exactly one item.
-    pub fn resolve(&mut self, reference: &str, include_deleted: bool) -> Res<ItemView> {
-        let items = self.items(include_deleted);
+    /// With `trashed` it looks only among trashed items (to restore one); otherwise only among live ones.
+    pub fn resolve(&mut self, reference: &str, trashed: bool) -> Res<ItemView> {
+        let mut items = self.items(trashed);
+        if trashed {
+            items.retain(|i| i.deleted);
+        }
         let r = reference.trim().to_ascii_lowercase();
         if r.len() >= 4 && r.bytes().all(|b| b.is_ascii_hexdigit()) {
             let mut hits = items.iter().filter(|i| id_hex(&i.id).starts_with(&r));
@@ -750,9 +790,16 @@ impl Session {
                 return self.take(first.id);
             }
         }
-        let index = Index::build(items.iter());
+        let index = if trashed {
+            Index::build_trashed(items.iter())
+        } else {
+            Index::build(items.iter())
+        };
         let found = index.search(reference, now_ms(), 5);
         match found.as_slice() {
+            [] if trashed => Err(Fail::new(
+                "no trashed item matches; to restore by id, give the id prefix from figlock export --include-deleted",
+            )),
             [] => Err(Fail::new("no item matches")),
             [one] => self.take(one.id),
             many => {
@@ -877,6 +924,7 @@ mod tests {
             store: Box::new(store.clone()),
             ui: Box::new(NoUi),
             uncertain: false,
+            ignored: BTreeMap::new(),
         };
         (s, store)
     }
@@ -960,6 +1008,7 @@ mod tests {
             store: folder(),
             ui: Box::new(NoUi),
             uncertain: false,
+            ignored: BTreeMap::new(),
         };
         (dir, mk(a), mk(b), created.vault_json)
     }
@@ -998,6 +1047,205 @@ mod tests {
         let r = a.refresh().unwrap();
         assert!(r.settings_changed);
         assert_eq!(r.applied, 0);
+    }
+
+    /// A `Ui` that keeps what it was told to warn about.
+    struct Warnings(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+    impl Ui for Warnings {
+        fn password(&self) -> Res<Zeroizing<String>> {
+            Err(Fail::new("no"))
+        }
+        fn secret_key(&self) -> Res<SecretKey> {
+            Err(Fail::new("no"))
+        }
+        fn notice(&self, _: &str) {}
+        fn warn(&self, m: &str) {
+            self.0.lock().unwrap().push(m.to_owned());
+        }
+    }
+
+    /// Two devices over one folder where A listens for warnings. Returns the folder, A, B, B's id, A's
+    /// password and Secret Key, and the warnings A collected.
+    #[allow(clippy::type_complexity)]
+    fn warned_pair() -> (
+        tempfile::TempDir,
+        Session,
+        Session,
+        figlock_core::DeviceId,
+        (String, SecretKey),
+        std::sync::Arc<std::sync::Mutex<Vec<String>>>,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        let folder = move || Box::new(figlock_store::LocalFolder::open(&root).unwrap());
+        let pw = SecretKey::random().unwrap().format().to_string();
+        let (a, created) = Vault::create(&pw, "A", KdfParams::FLOOR, 1).unwrap();
+        folder().put_new("vault.json", &created.vault_json).unwrap();
+        let rec_a = format!("devices/{}.json", hex::encode(a.device_id()));
+        folder().put_new(&rec_a, &created.device_record).unwrap();
+        let auk = Vault::unlock_key(&created.vault_json, &pw, &created.secret_key).unwrap();
+        let (b, record) = Vault::unlock_with_key(
+            &created.vault_json,
+            &auk,
+            figlock_core::DeviceKeys::generate().unwrap(),
+            "B",
+            std::slice::from_ref(&created.device_record),
+            2,
+        )
+        .unwrap();
+        let b_id = *b.device_id();
+        let rec_b = format!("devices/{}.json", hex::encode(b.device_id()));
+        folder().put_new(&rec_b, &record.unwrap()).unwrap();
+        let warnings = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut a = Session {
+            vault: a,
+            store: folder(),
+            ui: Box::new(Warnings(warnings.clone())),
+            uncertain: false,
+            ignored: BTreeMap::new(),
+        };
+        let b = Session {
+            vault: b,
+            store: folder(),
+            ui: Box::new(NoUi),
+            uncertain: false,
+            ignored: BTreeMap::new(),
+        };
+        // A learns of B's record the way a sync would leave it.
+        a.refresh().unwrap();
+        (dir, a, b, b_id, (pw, created.secret_key), warnings)
+    }
+
+    /// A device that opens the folder after a revocation, as every CLI command does: it reads `vault.json`
+    /// and the device records fresh, then loads the log.
+    fn reopened(
+        dir: &tempfile::TempDir,
+        pw: &str,
+        sk: &SecretKey,
+        now: u64,
+    ) -> (Session, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+        let folder = figlock_store::LocalFolder::open(dir.path()).unwrap();
+        let vault_json = folder.get("vault.json").unwrap();
+        let records: Vec<_> = folder
+            .list("devices/")
+            .unwrap()
+            .iter()
+            .map(|e| folder.get(&e.path).unwrap())
+            .collect();
+        let auk = Vault::unlock_key(&vault_json, pw, sk).unwrap();
+        let (vault, _) = Vault::unlock_with_key(
+            &vault_json,
+            &auk,
+            figlock_core::DeviceKeys::generate().unwrap(),
+            "C",
+            &records,
+            now,
+        )
+        .unwrap();
+        let warnings = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let mut s = Session {
+            vault,
+            store: Box::new(folder),
+            ui: Box::new(Warnings(warnings.clone())),
+            uncertain: false,
+            ignored: BTreeMap::new(),
+        };
+        s.load_log(now).unwrap();
+        (s, warnings)
+    }
+
+    fn add_at(s: &mut Session, title: &str, now: u64) {
+        s.vault
+            .add_item(ItemType::Login, VAULT_NAME, &[("title", title)], now)
+            .unwrap();
+        s.commit().unwrap();
+    }
+
+    #[test]
+    fn changes_a_revoked_device_made_after_the_revocation_are_skipped_silently() {
+        let (dir, mut a, mut b, b_id, (pw, sk), _) = warned_pair();
+        let base = now_ms();
+        add_at(&mut b, "Before", base);
+        assert_eq!(a.refresh().unwrap().applied, 1);
+
+        let r = a
+            .vault
+            .revoke_device(&pw, &sk, &b_id, base + 1_000)
+            .unwrap();
+        a.write_revocation(&r).unwrap();
+        // B has not heard yet and keeps writing, stamped after the revocation, under the old epoch.
+        add_at(&mut b, "After one", base + 5_000);
+        for (title, at) in [("After two", base + 6_000), ("After three", base + 7_000)] {
+            b.vault
+                .add_item(ItemType::Login, VAULT_NAME, &[("title", title)], at)
+                .unwrap();
+        }
+        b.commit().unwrap();
+
+        let (mut a, warnings) = reopened(&dir, &pw, &sk, base + 10_000);
+        for _ in 0..2 {
+            let (_, stopped) = a.load_log(base + 10_000).unwrap();
+            assert!(
+                !stopped,
+                "an expected skip is not a stop: {:?}",
+                warnings.lock().unwrap()
+            );
+        }
+        assert!(warnings.lock().unwrap().is_empty(), "{warnings:?}");
+        // Three items in two files; each add is four ops (create, type, vault, title). Counted once, not per load.
+        assert_eq!(a.ignored_changes(&b_id), 12, "counted by op, not file");
+        let titles: Vec<_> = a
+            .items(false)
+            .iter()
+            .map(|i| title_of(i).to_owned())
+            .collect();
+        assert!(titles.contains(&"Before".to_owned()), "{titles:?}");
+        assert!(!titles.iter().any(|t| t.starts_with("After")), "{titles:?}");
+    }
+
+    #[test]
+    fn a_tampered_change_from_a_live_device_still_warns_once_with_the_device_name() {
+        let (dir, mut a, mut b, b_id, _, warnings) = warned_pair();
+        add_at(&mut b, "Genuine", now_ms());
+        let path = dir
+            .path()
+            .join(format!("log/{}/00000001.op", hex::encode(b_id)));
+        let mut bytes = std::fs::read(&path).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 1;
+        std::fs::write(&path, bytes).unwrap();
+
+        let r = a.refresh().unwrap();
+        assert!(r.stopped);
+        assert_eq!(a.ignored_changes(&b_id), 0);
+        let seen = warnings.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert!(seen[0].contains("device B"), "{seen:?}");
+        assert!(seen[0].contains("figlock device list"), "{seen:?}");
+        assert!(seen[0].contains("change your password"), "{seen:?}");
+    }
+
+    #[test]
+    fn a_tampered_change_from_a_revoked_device_still_warns() {
+        let (dir, mut a, mut b, b_id, (pw, sk), _) = warned_pair();
+        let base = now_ms();
+        add_at(&mut b, "Before", base);
+        let r = a
+            .vault
+            .revoke_device(&pw, &sk, &b_id, base + 1_000)
+            .unwrap();
+        a.write_revocation(&r).unwrap();
+        let path = dir
+            .path()
+            .join(format!("log/{}/00000001.op", hex::encode(b_id)));
+        let mut bytes = std::fs::read(&path).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 1;
+        std::fs::write(&path, bytes).unwrap();
+
+        let (a, warnings) = reopened(&dir, &pw, &sk, base + 10_000);
+        assert_eq!(warnings.lock().unwrap().len(), 1);
+        assert_eq!(a.ignored_changes(&b_id), 0);
     }
 
     mod credentials_tests {

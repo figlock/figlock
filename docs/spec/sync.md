@@ -263,7 +263,9 @@ seen newer state syncs, and is listed in the threat model (S5, S6). It cannot fo
 - Revoking a device rotates `VK` (`crypto.md` 9.1) and writes the device and its `revoked_at` stamp into the
   signed `revoked` list in `vault.json`, along with the new `key_epoch`.
 - A revoked device's op files are accepted only if their stamp is earlier than `revoked_at` **and** they
-  were written in an epoch before the rotation. Anything later is ignored.
+  were written in an epoch before the rotation. Anything later is ignored. It is skipped silently, with no warning; clients count the skipped ops per device and show
+  "(revoked, N later changes ignored)" in the device list. A file from a live device that fails verification, or
+  an unverifiable file from a revoked device, still warns once with the device name.
 - After a rotation the old epoch's op files stay readable through `epoch_keys` until a snapshot sealed under
   the new epoch covers them; after that, old files can be compacted away.
 - A device that is offline during a rotation finds, on return, a higher `key_epoch` in `vault.json`, asks for
