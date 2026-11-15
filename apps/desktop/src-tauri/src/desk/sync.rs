@@ -258,7 +258,7 @@ impl Desk {
                 }
                 (r.applied > 0, r.settings_changed || r.stopped)
             }
-            Err(_) => (false, true),
+            Err(_) => (false, false),
         }
     }
 
