@@ -4,6 +4,7 @@
   import AutoLockPanel from "./AutoLockPanel.svelte";
   import CommandLinePanel from "./CommandLinePanel.svelte";
   import CredentialsPanel from "./CredentialsPanel.svelte";
+  import DeleteDriveDialog from "./DeleteDriveDialog.svelte";
   import Devices from "./Devices.svelte";
   import RecoveryPanel from "./RecoveryPanel.svelte";
   import UpdatePanel from "./UpdatePanel.svelte";
@@ -18,7 +19,7 @@
   /** States where nothing happens until the person acts, so "last synced" would mislead. */
   const PAUSED = ["sign_in", "lost", "foreign"];
 
-  let confirming = $state<"off" | "reupload" | "signout" | "switch" | null>(null);
+  let confirming = $state<"off" | "reupload" | "signout" | "switch" | "delete" | null>(null);
 
   async function lockToRefresh() {
     await lock();
@@ -91,6 +92,23 @@
           </Button>
           <Button onclick={() => (confirming = "signout")} disabled={sync.busy}>
             Sign out of Google
+          </Button>
+        </div>
+      {/if}
+      {#if view.signedIn}
+        <div
+          class="flex flex-wrap items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3"
+        >
+          <Icon name="trash" class="text-text-tertiary" />
+          <div class="min-w-0 flex-1">
+            <p class="font-medium">Delete vault from Google Drive</p>
+            <p class="text-(length:--text-sm) text-text-secondary">
+              Removes this vault's encrypted copy from your Google Drive. The vault on this Mac is
+              kept.
+            </p>
+          </div>
+          <Button onclick={() => (confirming = "delete")} disabled={sync.busy}>
+            Delete from Google Drive
           </Button>
         </div>
       {/if}
@@ -197,7 +215,7 @@
 {#if confirming === "off"}
   <ConfirmDialog
     title="Turn off sync?"
-    body="The vault stays on this Mac, and the copy in your Google Drive stays where it is. Changes here will no longer reach your other devices. This Mac stays signed in to Google; to unlink it, use Sign out of Google in Settings."
+    body="The vault stays on this Mac, and the copy in your Google Drive stays where it is. Changes here will no longer reach your other devices. This Mac stays signed in to Google; to unlink it, use Sign out of Google in Settings. To remove the copy from your Drive, use Delete from Google Drive on this page."
     confirm="Turn off sync"
     onconfirm={() => {
       confirming = null;
@@ -208,7 +226,7 @@
 {:else if confirming === "signout"}
   <ConfirmDialog
     title="Sign out of Google?"
-    body="This Mac will stop syncing and FigLock's access to your Google account is removed. The vault stays on this Mac, and the encrypted copy in your Google Drive stays where it is. You can sign in again any time."
+    body="This Mac will stop syncing and FigLock's access to your Google account is removed. The vault stays on this Mac, and the encrypted copy in your Google Drive stays where it is. You can sign in again any time. To remove that copy, use Delete from Google Drive on this page before you sign out."
     confirm="Sign out of Google"
     danger
     onconfirm={() => {
@@ -220,12 +238,21 @@
 {:else if confirming === "switch"}
   <ConfirmDialog
     title="Use a different Google account?"
-    body="This Mac signs out of Google and sync stops. Then you choose the other account and sync turns on against its Drive: this Mac uploads its vault there. If that Drive already holds a different FigLock vault, sync is refused and nothing is changed. The copy in the current Drive is left alone; remove it from that Google account if you no longer want it."
+    body="This Mac signs out of Google and sync stops. Then you choose the other account and sync turns on against its Drive: this Mac uploads its vault there. If that Drive already holds a different FigLock vault, sync is refused and nothing is changed. The copy in the current Drive is left alone. To remove it, cancel and use Delete from Google Drive on this page first."
     confirm="Sign out and choose another"
     danger
     onconfirm={() => {
       confirming = null;
       void sync.useDifferentAccount();
+    }}
+    oncancel={() => (confirming = null)}
+  />
+{:else if confirming === "delete"}
+  <DeleteDriveDialog
+    syncOn={view?.enabled ?? false}
+    ondelete={async (phrase) => {
+      await sync.deleteRemote(phrase);
+      confirming = null;
     }}
     oncancel={() => (confirming = null)}
   />

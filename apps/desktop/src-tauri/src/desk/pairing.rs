@@ -89,6 +89,7 @@ impl Desk {
         let (offer, expires_at_ms) = {
             let mut inner = self.inner();
             let session = inner.session.as_mut().ok_or_else(locked)?;
+            session.ensure_writable()?;
             let now = now_ms();
             let (invite, offer) = Invite::create(session.vault.vault_id(), now)
                 .map_err(|_| CmdError::new("failed", "Could not make an invite."))?;
@@ -220,6 +221,7 @@ impl Desk {
         let mut guard = self.inner();
         let inner = &mut *guard;
         let session = inner.session.as_mut().ok_or_else(locked)?;
+        session.ensure_writable()?;
         let open = inner.inviting.as_mut().ok_or_else(no_invite)?;
         let req = open.request.take().ok_or_else(no_invite)?;
         let now = now_ms();

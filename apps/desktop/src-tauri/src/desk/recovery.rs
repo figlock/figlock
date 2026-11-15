@@ -9,7 +9,7 @@ use serde::Serialize;
 use zeroize::Zeroizing;
 
 use super::devices::revoke_credentials_error;
-use super::{CmdError, CmdRes, Desk, KeyFrom, kit_storage, nothing_to_do, parse_secret_key};
+use super::{CmdError, CmdRes, Desk, KeyFrom, nothing_to_do, parse_secret_key};
 
 /// The Recovery Key being shown and checked. Not `Debug`: it holds the key.
 pub(super) struct Draft {
@@ -191,7 +191,7 @@ impl Desk {
             (None, Some(r)) => r.place().clone(),
             (None, None) => figlock_session::config::load()?.place,
         };
-        let storage = kit_storage(&place);
+        let storage = figlock_session::kit::storage_label(&place);
         let info = KitInfo {
             vault_name: "Personal",
             storage: &storage,
@@ -298,6 +298,7 @@ impl Desk {
         let mut guard = self.inner();
         let inner = &mut *guard;
         let session = inner.session.as_mut().ok_or_else(locked)?;
+        session.ensure_writable()?;
         let refreshed = session.refresh()?;
         if refreshed.settings_changed || refreshed.stopped {
             return Err(CmdError::new(
@@ -348,6 +349,7 @@ impl Desk {
         let mut guard = self.inner();
         let inner = &mut *guard;
         let session = inner.session.as_mut().ok_or_else(locked)?;
+        session.ensure_writable()?;
         let refreshed = session.refresh()?;
         if refreshed.settings_changed || refreshed.stopped {
             return Err(CmdError::new(

@@ -131,6 +131,54 @@ pub fn off(json: bool) -> Res<()> {
     )
 }
 
+/// `figlock sync delete-remote`: permanently delete this vault's copy from Google Drive (FIG-122, ADR-0035).
+/// Says exactly what goes and what stays, then asks for the phrase to be typed (or given with `--confirm`).
+/// Nothing is deleted without it, when Google is not signed in, or when Drive holds a different vault.
+pub fn delete_remote(confirm: Option<String>, json: bool) -> Res<()> {
+    let cfg = config::load()?;
+    if !drive::status()?.signed_in {
+        return Err(Fail::new(
+            "not signed in to Google Drive; run `figlock drive login` first",
+        ));
+    }
+    let phrase = sync::DELETE_REMOTE_PHRASE;
+    let typed = match confirm {
+        Some(t) => t,
+        None => {
+            eprintln!(
+                "This permanently deletes every FigLock file of this vault from your Google Drive: the vault \
+                 settings, device records, change history and snapshots. It cannot be undone.\n\
+                 The vault on this device stays as it is, and sync is turned off here. Other devices that sync \
+                 to Drive will find the vault missing and ask before uploading it again.\n"
+            );
+            crate::prompt::typed_line(&format!("Type \"{phrase}\" to continue: "))?.ok_or_else(|| {
+                Fail::new(format!(
+                    "this is not a terminal, so nothing was deleted; pass --confirm \"{phrase}\" to confirm"
+                ))
+            })?
+        }
+    };
+    let done = sync::delete_remote(&cfg, &typed).map_err(|e| match e {
+        SyncError::NotConfirmed => Fail::new(format!(
+            "that is not the confirmation phrase, so nothing was deleted; it is \"{phrase}\""
+        )),
+        SyncError::ForeignVault => Fail::new(
+            "Google Drive holds a different vault than this device's, so nothing was deleted",
+        ),
+        e => e.into(),
+    })?;
+    if json {
+        print_json(&json!({ "status": "deleted", "files": done.files }))
+    } else {
+        println!(
+            "Deleted {} files from Google Drive. The vault on this device is untouched and sync is off. \
+             Turn it on again with `figlock sync on` to upload the vault anew.",
+            done.files
+        );
+        Ok(())
+    }
+}
+
 fn say(json: bool, status: &str, text: &str) -> Res<()> {
     if json {
         print_json(&json!({ "status": status }))

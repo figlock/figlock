@@ -29,6 +29,14 @@ export type Options = {
   autolockSecs?: number;
   /** Another device rotated the Secret Key, so the one this Mac keeps is out of date. */
   secretKeyStale?: boolean;
+  /** The vault removed this Mac at this time (Unix milliseconds): every change is refused. */
+  removedAtMs?: number;
+  /** This Mac keeps no Secret Key. */
+  keyNotKept?: boolean;
+  /** The person cancels the save dialog of the Emergency Kit. */
+  kitDialogCancelled?: boolean;
+  /** Deleting the Drive copy fails with this error (code and words). */
+  deleteFails?: { code: string; message: string };
 };
 
 /** The Secret Key another device made, in the fake app core's stale-key scenarios. */

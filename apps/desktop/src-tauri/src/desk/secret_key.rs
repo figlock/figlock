@@ -2,8 +2,10 @@
 //! ID or the device password, so a person at an unlocked, unattended Mac cannot read it out.
 
 use figlock_core::Vault;
+use figlock_session::kit;
 use figlock_session::secret_key_store;
-use figlock_session::session::peek_vault_id;
+use figlock_session::session::{now_ms, peek_vault_id};
+use zeroize::Zeroizing;
 
 use super::{CmdError, CmdRes, Desk, VaultState, parse_secret_key, wrong_credentials};
 
@@ -41,6 +43,36 @@ impl Desk {
                 "The Secret Key was not shown because Touch ID or the device password was not confirmed.",
             )),
         }
+    }
+
+    /// The Emergency Kit PDF made now (FIG-134), to be written where the person chooses. With a key kept on this
+    /// Mac it asks for the same Touch ID or device password as showing the key. With none kept, `typed` (the
+    /// master password and the Secret Key from the old kit) is checked against the vault first. Nothing is made
+    /// without one of the two, and nothing is cached: the caller writes the bytes and drops them.
+    pub fn kit_again(&self, typed: Option<(&str, &str)>) -> CmdRes<Zeroizing<Vec<u8>>> {
+        if self.inner().session.is_none() {
+            return Err(locked());
+        }
+        let place = figlock_session::config::load()?.place;
+        if let Some((password, secret_key)) = typed {
+            let key = parse_secret_key(secret_key)?;
+            let vault_json = figlock_session::session::peek_vault_json()?;
+            Vault::verify_credentials(&vault_json, password, &key)
+                .map_err(|_| wrong_credentials())?;
+            return Ok(kit::kit_pdf(&place, &key, now_ms())?);
+        }
+        let vault = peek_vault_id()?;
+        let keys = secret_key_store::system()?;
+        if !keys.has(&vault) {
+            return Err(not_kept());
+        }
+        kit::kit_from_kept_key(&keys, &vault, secret_key_store::quick_on(&vault), &place, now_ms())?
+            .ok_or_else(|| {
+                CmdError::new(
+                    "not_confirmed",
+                    "The Emergency Kit was not saved because Touch ID or the device password was not confirmed.",
+                )
+            })
     }
 
     /// Keep the Secret Key another device just made, in a window that is already open (ADR-0034). It asks for the

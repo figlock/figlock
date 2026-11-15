@@ -232,6 +232,7 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
     fields.push(("title".to_owned(), Zeroizing::new(a.title)));
     crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
+    s.ensure_writable()?;
     let refs: Vec<(&str, &str)> = fields
         .iter()
         .map(|(n, v)| (n.as_str(), v.as_str()))
@@ -262,6 +263,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
     }
     crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
+    s.ensure_writable()?;
     let item = s.resolve(&a.item, a.restore)?;
     let id = item.id;
     let mut fields = collect_fields(item.item_type, a.set, a.secret)?;

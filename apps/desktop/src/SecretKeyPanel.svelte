@@ -1,8 +1,15 @@
 <script lang="ts">
-  import { Alert, Button, ConfirmDialog, Icon } from "@figlock/ui";
+  import { Alert, Button, ConfirmDialog, Icon, SecretKeyField, TextField } from "@figlock/ui";
   import { onDestroy, onMount } from "svelte";
 
-  import { errorOf, forgetSecretKey, showSecretKey, vaultState, type VaultState } from "./vault";
+  import {
+    errorOf,
+    forgetSecretKey,
+    saveEmergencyKitAgain,
+    showSecretKey,
+    vaultState,
+    type VaultState,
+  } from "./vault";
   import { failure, getWorkspace } from "./workspace";
 
   const w = getWorkspace();
@@ -18,7 +25,19 @@
   let busy = $state(false);
   let error = $state("");
   let confirming = $state(false);
+  /** The Emergency Kit was saved just now. */
+  let kitSaved = $state(false);
+  /** Asking for the master password and Secret Key, because this Mac has no kept key to make the kit from. */
+  let typing = $state(false);
+  let typedPassword = $state("");
+  let typedKey = $state("");
+  let typedError = $state<{ password?: string; key?: string }>({});
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Open a dialog element as a modal as soon as it is in the page. */
+  function showModal(node: HTMLDialogElement) {
+    node.showModal();
+  }
 
   const where = $derived(
     info?.secretKeyProtection === "secure-enclave"
@@ -60,6 +79,48 @@
     } finally {
       busy = false;
     }
+  }
+
+  /**
+   * Save the Emergency Kit again (FIG-134). With a kept key this asks for Touch ID or the device password and
+   * makes the kit from it; without one, from the master password and Secret Key typed here. The person picks
+   * where the file goes, and cancelling that writes nothing.
+   */
+  async function saveKit(typed?: { password: string; key: string }) {
+    error = "";
+    kitSaved = false;
+    busy = true;
+    try {
+      kitSaved = await saveEmergencyKitAgain(typed?.password, typed?.key);
+      if (kitSaved) closeTyping();
+    } catch (e) {
+      const err = errorOf(e);
+      if (err.code === "no_secret_key") typing = true;
+      else if (err.code === "bad_secret_key") typedError = { key: err.message };
+      else if (typing) error = err.message;
+      else error = failure(w, e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function closeTyping() {
+    typing = false;
+    typedPassword = "";
+    typedKey = "";
+    typedError = {};
+  }
+
+  function submitTyped(e: Event) {
+    e.preventDefault();
+    typedError = {};
+    error = "";
+    if (!typedPassword) typedError.password = "Enter your master password.";
+    if (typedKey.split("-").length !== 9 || typedKey.split("-").some((g) => g.length === 0)) {
+      typedError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
+    }
+    if (typedError.password || typedError.key) return;
+    void saveKit({ password: typedPassword, key: typedKey });
   }
 
   async function forget() {
@@ -119,15 +180,69 @@
       </div>
     {/if}
 
-    {#if info.secretKeyKept}
-      <div>
+    <div class="flex flex-wrap items-center gap-2">
+      <Button onclick={() => (info?.secretKeyKept ? saveKit() : (typing = true))} disabled={busy}>
+        <Icon name="download" />Save Emergency Kit
+      </Button>
+      {#if info.secretKeyKept}
         <Button onclick={() => (confirming = true)}>Stop keeping it on this Mac</Button>
-      </div>
-    {/if}
+      {/if}
+    </div>
+    <p class="text-(length:--text-xs) leading-4 text-text-tertiary" aria-live="polite">
+      {#if kitSaved}
+        <span data-testid="kit-saved">
+          Saved. It carries the same Secret Key as before and today's date.
+        </span>
+      {:else}
+        Lost your Emergency Kit, or never printed it? Save a new copy, made now from this Mac's
+        Secret Key.
+      {/if}
+    </p>
   {/if}
 
   {#if error}<Alert>{error}</Alert>{/if}
 </section>
+
+{#if typing}
+  <dialog
+    use:showModal
+    aria-labelledby="kit-title"
+    oncancel={(e) => {
+      e.preventDefault();
+      if (!busy) closeTyping();
+    }}
+    class="m-auto w-[calc(100vw-2rem)] max-w-120 rounded-(--radius-lg) border border-border bg-surface-raised p-0 text-text shadow-xl backdrop:bg-black/40"
+  >
+    <form class="flex flex-col gap-4 p-6" onsubmit={submitTyped}>
+      <div class="flex flex-col gap-2">
+        <h2 id="kit-title" class="text-(length:--text-md) leading-6 font-semibold">
+          Save your Emergency Kit
+        </h2>
+        <p class="text-text-secondary">
+          This Mac is not keeping your Secret Key, so type it from your old kit. Your master
+          password confirms it is the right one. The kit is made on this Mac and saved only where
+          you choose.
+        </p>
+      </div>
+      {#if error}<Alert>{error}</Alert>{/if}
+      <TextField
+        label="Master password"
+        type="password"
+        bind:value={typedPassword}
+        error={typedError.password}
+        disabled={busy}
+        focus
+      />
+      <SecretKeyField bind:value={typedKey} error={typedError.key} disabled={busy} />
+      <div class="grid grid-cols-2 gap-2">
+        <Button onclick={closeTyping} disabled={busy}>Cancel</Button>
+        <Button variant="primary" type="submit" disabled={busy}>
+          {busy ? "Saving..." : "Save kit"}
+        </Button>
+      </div>
+    </form>
+  </dialog>
+{/if}
 
 {#if confirming}
   <ConfirmDialog

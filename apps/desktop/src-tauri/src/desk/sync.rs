@@ -283,6 +283,45 @@ impl Desk {
         }
     }
 
+    /// Delete this vault's copy from Google Drive (FIG-122, ADR-0035). Needs the typed phrase, checked here and not
+    /// only by the window, and a Google sign-in; it refuses a Drive that holds a different vault. The vault on this
+    /// Mac is never touched, and sync ends up off, whether it was on or not.
+    pub fn sync_delete_remote(&self, confirmation: &str) -> CmdRes<SyncView> {
+        let cfg = config::load()?;
+        match sync::delete_remote(&cfg, confirmation) {
+            Ok(_) => {
+                *self.sync_state() = SyncState::new();
+                self.sync_status()
+            }
+            Err(SyncError::NotConfirmed) => Err(CmdError::new(
+                "not_confirmed",
+                format!(
+                    "Type \"{}\" exactly to delete the vault from Google Drive. Nothing was deleted.",
+                    sync::DELETE_REMOTE_PHRASE
+                ),
+            )),
+            Err(SyncError::ForeignVault) => Err(CmdError::new(
+                "foreign_vault",
+                "Your Google Drive holds a different vault than this Mac's, so nothing was deleted.",
+            )),
+            Err(SyncError::SignIn) => Err(CmdError::new(
+                "drive_sign_in",
+                "Sign in to Google first. Nothing was deleted.",
+            )),
+            Err(SyncError::Busy) => Err(CmdError::new(
+                "sync_failed",
+                "A sync is running right now. Wait a moment and try again. Nothing was deleted.",
+            )),
+            Err(e) => Err(CmdError::new(
+                "sync_failed",
+                format!(
+                    "Could not finish deleting the vault from Google Drive; some files may already be gone. Try again. {}",
+                    plain(&e)
+                ),
+            )),
+        }
+    }
+
     /// Stop syncing. The vault on this Mac and the copy in Drive are left alone.
     pub fn sync_disable(&self) -> CmdRes<SyncView> {
         config::set_remote(None)?;

@@ -34,6 +34,15 @@ export const syncEnable = () => invoke<SyncView>("sync_enable");
 export const syncSignOut = () => invoke<{ revoked: boolean }>("sync_sign_out");
 export const syncDisable = () => invoke<SyncView>("sync_disable");
 
+/** What the person types to delete the vault from Google Drive. The app core checks it too (ADR-0035). */
+export const DELETE_DRIVE_PHRASE = "delete from Google Drive";
+/**
+ * Permanently deletes the vault's copy from Google Drive, after the typed phrase. The vault on this Mac is kept
+ * and sync ends up off.
+ */
+export const syncDeleteRemote = (confirmation: string) =>
+  invoke<SyncView>("sync_delete_remote", { confirmation });
+
 /** Called after every sync the app core runs, so the window can reload what it shows. */
 export const onSynced = (handler: () => void) => listen("figlock://synced", handler);
 

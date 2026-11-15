@@ -70,6 +70,8 @@ pub enum SyncError {
     Damaged,
     /// Another sync on this device is running; it does the work.
     Busy,
+    /// Deleting the Drive copy was asked for without the typed confirmation.
+    NotConfirmed,
     Other(String),
 }
 
@@ -85,6 +87,9 @@ impl std::fmt::Display for SyncError {
             }
             SyncError::Damaged => "a vault.json is damaged, so nothing was synced",
             SyncError::Busy => "another sync is already running on this device",
+            SyncError::NotConfirmed => {
+                "the confirmation was not typed exactly, so nothing was deleted"
+            }
             SyncError::Other(m) => m,
         })
     }
@@ -611,6 +616,86 @@ pub fn exchange(place: &Place, first: bool) -> Result<Report, SyncError> {
     )
 }
 
+/// What a person types to delete the vault's copy in Google Drive (FIG-122, ADR-0035). A phrase, not the vault
+/// name: every vault here is called "Personal", so the name would be typed without thinking.
+pub const DELETE_REMOTE_PHRASE: &str = "delete from Google Drive";
+
+/// Whether `typed` is the confirmation phrase. Case and the space around it do not matter; nothing else does.
+pub fn delete_confirmed(typed: &str) -> bool {
+    typed.trim().eq_ignore_ascii_case(DELETE_REMOTE_PHRASE)
+}
+
+/// The files of this vault in the Drive app folder, gone. `files` is how many were deleted.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Deleted {
+    pub files: usize,
+}
+
+/// Delete this vault's copy in Google Drive: every file the app folder holds for it, and nothing of this device
+/// (ADR-0035). Needs the typed confirmation and a sign-in. It works whether sync is on or off, and turns sync
+/// off on this device afterwards: a device left syncing would at once offer to upload the vault again.
+/// Another device that still has sync on finds the vault gone and asks its person before uploading it again.
+pub fn delete_remote(cfg: &Config, typed: &str) -> Result<Deleted, SyncError> {
+    if !delete_confirmed(typed) {
+        return Err(SyncError::NotConfirmed);
+    }
+    let _lock = SyncLock::acquire_in(&config::home()?)?;
+    let local = crate::store::open(&cfg.place)?;
+    let remote = crate::store::open_drive().map_err(|_| SyncError::SignIn)?;
+    let deleted = delete_all(local.as_ref(), remote.as_ref())?;
+    if cfg.place.remote.is_some() {
+        config::set_remote(None)?;
+    }
+    forget_state();
+    Ok(deleted)
+}
+
+/// The deletion itself, between two stores. Refuses unless the remote's `vault.json` is this vault's (the local
+/// copy names it), so another vault in the same Drive is never touched. `vault.json` goes last: a run that is
+/// interrupted can be repeated, because the remote still says whose it is. A file another device uploads
+/// meanwhile is swept up on the next pass, a few at most.
+fn delete_all(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<Deleted, SyncError> {
+    const PASSES: usize = 3;
+    let ours = read(local, "vault.json")?.ok_or_else(|| {
+        SyncError::Other("this device has no vault to match the Drive copy against".into())
+    })?;
+    let id = identity(&ours)?.0;
+    let mut files = 0;
+    let mut checked = false;
+    for _ in 0..PASSES {
+        let all = remote.list("")?;
+        if all.is_empty() {
+            break;
+        }
+        match read(remote, "vault.json")? {
+            Some(theirs) if identity(&theirs)?.0 == id => checked = true,
+            Some(_) => return Err(SyncError::ForeignVault),
+            // After the first pass `vault.json` is already gone and what is left was checked then.
+            None if checked => {}
+            None => {
+                return Err(SyncError::Other(
+                    "the Drive copy has no vault.json, so FigLock cannot tell it is this vault's; nothing was deleted"
+                        .into(),
+                ));
+            }
+        }
+        for e in all.iter().filter(|e| e.path != "vault.json") {
+            remote.delete(&e.path)?;
+            files += 1;
+        }
+        if all.iter().any(|e| e.path == "vault.json") {
+            remote.delete("vault.json")?;
+            files += 1;
+        }
+    }
+    if !remote.list("")?.is_empty() {
+        return Err(SyncError::Other(
+            "some files are still in Google Drive; run the deletion again".into(),
+        ));
+    }
+    Ok(Deleted { files })
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -1094,5 +1179,162 @@ mod tests {
         }
         mirror(&la, &inner, &opts(Some(A), true)).unwrap();
         assert_eq!(all(&inner), all(&la));
+    }
+
+    // ---- deleting the Drive copy (FIG-122) ----
+
+    fn remote_with_vault(id: &str) -> (tempfile::TempDir, LocalFolder) {
+        let (d, s) = store();
+        put(&s, "vault.json", &vault_json(id, 3, "r"));
+        put(&s, "devices/aa.json", b"rec-a");
+        put(&s, "log/aa/00000001.op", b"op-a1");
+        put(&s, "snap/aa-1.snap", b"snap");
+        (d, s)
+    }
+
+    fn names(s: &dyn BlobStore) -> Vec<String> {
+        s.list("").unwrap().into_iter().map(|e| e.path).collect()
+    }
+
+    #[test]
+    fn only_the_exact_phrase_confirms() {
+        assert!(delete_confirmed("delete from Google Drive"));
+        assert!(delete_confirmed("  Delete From Google DRIVE \n"));
+        for no in [
+            "",
+            "delete",
+            "yes",
+            "Personal",
+            "delete from drive",
+            "delete from Google Drive now",
+        ] {
+            assert!(!delete_confirmed(no), "{no:?}");
+        }
+    }
+
+    #[test]
+    fn no_confirmation_deletes_nothing_and_asks_for_nothing_else() {
+        let cfg = Config {
+            place: Place {
+                local: PathBuf::from("/no/such/folder"),
+                remote: Some(config::Remote::Drive),
+            },
+            device_name: "x".into(),
+            autolock_secs: None,
+        };
+        for typed in ["", "yes", "Personal"] {
+            assert_eq!(delete_remote(&cfg, typed), Err(SyncError::NotConfirmed));
+        }
+    }
+
+    #[test]
+    fn deleting_removes_every_remote_file_and_nothing_local() {
+        let (_a, local) = device_a();
+        let (_r, remote) = remote_with_vault("v1");
+        put(&local, "vault.json", &vault_json("v1", 3, "r"));
+        let before = all(&local);
+        let done = delete_all(&local, &remote).unwrap();
+        assert_eq!(done, Deleted { files: 4 });
+        assert!(names(&remote).is_empty());
+        assert_eq!(all(&local), before, "the local vault is untouched");
+    }
+
+    #[test]
+    fn deleting_twice_is_fine() {
+        let (_a, local) = device_a();
+        let (_r, remote) = remote_with_vault("v1");
+        delete_all(&local, &remote).unwrap();
+        assert_eq!(delete_all(&local, &remote), Ok(Deleted { files: 0 }));
+    }
+
+    #[test]
+    fn a_different_vault_in_the_same_drive_is_never_deleted() {
+        let (_a, local) = device_a();
+        let (_r, remote) = remote_with_vault("someone-else");
+        let before = all(&remote);
+        assert_eq!(delete_all(&local, &remote), Err(SyncError::ForeignVault));
+        assert_eq!(all(&remote), before);
+    }
+
+    #[test]
+    fn without_a_local_vault_or_a_remote_vault_json_nothing_is_deleted() {
+        let (_r, remote) = remote_with_vault("v1");
+        let before = all(&remote);
+        let (_e, empty) = store();
+        assert!(matches!(
+            delete_all(&empty, &remote),
+            Err(SyncError::Other(_))
+        ));
+        assert_eq!(all(&remote), before);
+
+        let (_a, local) = device_a();
+        remote.delete("vault.json").unwrap();
+        let before = all(&remote);
+        assert!(matches!(
+            delete_all(&local, &remote),
+            Err(SyncError::Other(_))
+        ));
+        assert_eq!(all(&remote), before);
+    }
+
+    /// A store that lets another device upload one more file while `vault.json` is being deleted.
+    struct Racy<'a> {
+        inner: &'a LocalFolder,
+        once: std::sync::Once,
+    }
+
+    impl BlobStore for Racy<'_> {
+        fn get(&self, p: &str) -> figlock_store::Result<Vec<u8>> {
+            self.inner.get(p)
+        }
+        fn put_new(&self, p: &str, b: &[u8]) -> figlock_store::Result<()> {
+            self.inner.put_new(p, b)
+        }
+        fn put_replace(&self, p: &str, b: &[u8]) -> figlock_store::Result<()> {
+            self.inner.put_replace(p, b)
+        }
+        fn list(&self, prefix: &str) -> figlock_store::Result<Vec<figlock_store::Entry>> {
+            self.inner.list(prefix)
+        }
+        fn delete(&self, p: &str) -> figlock_store::Result<()> {
+            if p == "vault.json" {
+                self.once.call_once(|| {
+                    self.inner.put_new("log/bb/00000001.op", b"late").unwrap();
+                });
+            }
+            self.inner.delete(p)
+        }
+    }
+
+    #[test]
+    fn a_file_uploaded_during_the_deletion_is_swept_up_too() {
+        let (_a, local) = device_a();
+        let (_r, inner) = remote_with_vault("v1");
+        let racy = Racy {
+            inner: &inner,
+            once: std::sync::Once::new(),
+        };
+        let done = delete_all(&local, &racy).unwrap();
+        assert_eq!(done.files, 5);
+        assert!(names(&inner).is_empty());
+    }
+
+    #[test]
+    fn a_second_device_finds_the_vault_gone_and_uploads_nothing_by_itself() {
+        let (_a, la) = device_a();
+        let (_r, remote) = store();
+        mirror(&la, &remote, &opts(Some(A), true)).unwrap();
+        let (_b, lb) = store();
+        mirror(&lb, &remote, &opts(Some(B), true)).unwrap();
+
+        delete_all(&la, &remote).unwrap();
+        assert_eq!(
+            mirror(&lb, &remote, &opts(Some(B), false)),
+            Err(SyncError::RemoteLost)
+        );
+        assert!(names(&remote).is_empty(), "nothing went back up unasked");
+        // Only the person's yes uploads it again.
+        mirror(&lb, &remote, &opts(Some(B), true)).unwrap();
+        assert!(names(&remote).contains(&"vault.json".to_owned()));
     }
 }

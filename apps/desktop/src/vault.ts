@@ -25,6 +25,11 @@ export type VaultState = {
   pendingKit: string | null;
   /** This Mac knows a vault but its local folder is gone: offer a way forward, ask for no credentials (FIG-118). */
   folderMissing: MissingFolder | null;
+  /**
+   * When the vault removed this Mac (Unix milliseconds), known once it is unlocked: every change is refused, the
+   * copy stays readable (FIG-135).
+   */
+  removedAtMs: number | null;
 };
 
 export type MissingFolder = {
@@ -75,6 +80,18 @@ export const createVault = (storage: Storage, password: string) =>
   invoke<{ secretKey: string }>("create_vault", { storage, password });
 /** Resolves `false` when the person cancels the save dialog. */
 export const saveEmergencyKit = () => invoke<boolean>("save_emergency_kit");
+/**
+ * Save the Emergency Kit again, made now from the Secret Key this Mac keeps (Touch ID or the device password
+ * first). When none is kept, pass the master password and the Secret Key typed from the old kit. Resolves
+ * `false` when the person cancels the save dialog (FIG-134).
+ */
+export const saveEmergencyKitAgain = (password?: string, secretKey?: string) =>
+  invoke<boolean>("save_emergency_kit_again", {
+    password: password ?? null,
+    secretKey: secretKey ?? null,
+  });
+/** The vault removed this Mac: stop using it here. Nothing is deleted from the folder or Google Drive. */
+export const leaveVault = () => invoke<void>("leave_vault");
 export const checkKitKey = (typed: string) => invoke<boolean>("check_kit_key", { typed });
 export const finishCreate = (touchId: boolean) => invoke<VaultState>("finish_create", { touchId });
 export const cancelCreate = () => invoke<void>("cancel_create");

@@ -153,8 +153,20 @@ enum SecretKeyCmd {
     Rotate,
     /// Show the Secret Key kept on this device, after Touch ID or the device password.
     Show,
+    /// Save the Emergency Kit PDF again, made now from the Secret Key kept on this device, after Touch ID or
+    /// the device password.
+    Kit(KitArgs),
     /// Stop keeping the Secret Key on this device. The next full unlock asks for it.
     Forget,
+}
+
+#[derive(Args)]
+struct KitArgs {
+    /// Where to write the PDF (`-` for standard output).
+    path: String,
+    /// Replace the file if it already exists.
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(Subcommand)]
@@ -206,6 +218,13 @@ enum SyncCmd {
     Off,
     /// Show whether sync is on, whether you are signed in and when it last ran.
     Status,
+    /// Permanently delete this vault's copy from Google Drive. The vault on this device is kept, and sync is
+    /// turned off here.
+    DeleteRemote {
+        /// The confirmation phrase, `delete from Google Drive`, for scripts; at a terminal it is asked for.
+        #[arg(long)]
+        confirm: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -737,6 +756,7 @@ fn main() -> ExitCode {
         Command::SecretKey { action } => ok(match action {
             SecretKeyCmd::Rotate => credentials::secret_key_rotate(json),
             SecretKeyCmd::Show => credentials::secret_key_show(json),
+            SecretKeyCmd::Kit(a) => credentials::secret_key_kit(&a.path, a.force, json),
             SecretKeyCmd::Forget => credentials::secret_key_forget(json),
         }),
         Command::Device { action } => ok(match action {
@@ -759,6 +779,7 @@ fn main() -> ExitCode {
             Some(SyncCmd::On) => sync_cmd::on(json),
             Some(SyncCmd::Off) => sync_cmd::off(json),
             Some(SyncCmd::Status) => sync_cmd::status(json),
+            Some(SyncCmd::DeleteRemote { confirm }) => sync_cmd::delete_remote(confirm, json),
         }),
         Command::Skill { action } => ok(match action {
             SkillCmd::Install(a) => skill::install(&a, json),

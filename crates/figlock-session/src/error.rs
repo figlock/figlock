@@ -28,6 +28,9 @@ pub enum FailKind {
     WrongPassword,
     /// `vault.json` names an older Secret Key than this device has already seen: a rolled-back vault file.
     VaultRolledBack,
+    /// This device is in the vault's signed revoked list: it can read its copy but its changes are no longer
+    /// accepted (FIG-135).
+    DeviceRevoked,
 }
 
 #[derive(Debug)]

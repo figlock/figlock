@@ -180,6 +180,7 @@ fn key_to_share() -> Res<(Session, SecretKey)> {
     let keys = secret_key_store::system()?;
     if keys.has(&vault) {
         let session = Session::open(prompt::terminal())?;
+        session.ensure_writable()?;
         let key = keys
             .get(&vault, "add a device", secret_key_store::quick_on(&vault))?
             .ok_or_else(|| {
@@ -190,6 +191,7 @@ fn key_to_share() -> Res<(Session, SecretKey)> {
         return Ok((session, key));
     }
     let (session, _, key) = Session::open_for_change(prompt::terminal())?;
+    session.ensure_writable()?;
     Ok((session, key))
 }
 
