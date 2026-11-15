@@ -33,7 +33,13 @@ pub fn start(deny_all: bool) -> Res<()> {
     let approver: Box<dyn Approver> = if deny_all {
         Box::new(DenyAll)
     } else if let Some(b) = BiometricApprover::open() {
-        eprintln!("approvals are asked with Touch ID");
+        eprintln!("approvals are asked with Touch ID or your device password, every time");
+        if std::env::var("FIGLOCK_DEVICE_KEYS").is_ok_and(|v| v == "file") {
+            // That setting only moves where the device keys live; there is no setting that skips the prompt.
+            eprintln!(
+                "device keys are kept in a file (FIGLOCK_DEVICE_KEYS=file); approvals are still asked"
+            );
+        }
         Box::new(b)
     } else if let Some(t) = TerminalApprover::open() {
         eprintln!("no biometric prompt on this machine, approvals are asked on this terminal");

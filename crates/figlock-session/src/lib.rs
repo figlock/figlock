@@ -20,5 +20,6 @@ pub mod sync;
 
 pub use error::{Fail, FailKind, Res};
 pub use session::{
-    Session, Ui, civil_date, clean, id_hex, now_ms, peek_vault_id, removed_message, title_of,
+    Session, Ui, civil_date, clean, id_hex, long_date, now_ms, peek_vault_id, removed_message,
+    title_of,
 };

@@ -114,6 +114,15 @@ and named by its owner:
   stops retrying and is recorded as `sync.failed` with only that reason; the broker keeps serving what it
   holds. Being offline is not recorded.
 
+### The open desktop vault follows the local folder (FIG-126)
+
+Another process on the same Mac can write to the local folder while the desktop is unlocked: the CLI's
+`figlock add`, or a sync run by the CLI. The desktop does not need a re-unlock for that. Like the broker, it
+calls `Session::refresh` every 15 seconds while unlocked, with or without Drive, and again whenever the window
+gains focus, so a change made on the command line is in the list by the time the person switches back. A change
+to `vault.json` (password or Secret Key change, rotation, revocation) still cannot be absorbed by an open vault;
+the window says to lock and unlock, as it does after a sync.
+
 ## Consequences
 
 - A full local copy exists on every device, as ADR-0010 requires; losing or disconnecting Drive never loses

@@ -59,7 +59,7 @@
   bind:this={dialog}
   aria-labelledby={titleId}
   oncancel={(e) => e.preventDefault()}
-  class="m-auto w-[calc(100vw-2rem)] max-w-120 rounded-(--radius-lg) border border-border bg-surface-raised p-0 text-text shadow-xl backdrop:bg-black/40"
+  class="m-auto w-[calc(100vw-2rem)] max-w-120 rounded-(--radius-lg) border border-border bg-surface-raised p-0 text-text shadow-xl"
 >
   <form class="flex flex-col gap-4 p-6" onsubmit={done}>
     <div class="flex flex-col gap-2">

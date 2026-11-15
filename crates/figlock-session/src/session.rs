@@ -104,12 +104,36 @@ pub fn civil_date(ms: u64) -> String {
     format!("{year:04}-{month:02}-{day:02}")
 }
 
+/// `15 November 2026` (UTC) from Unix milliseconds: the long date the desktop window shows too.
+pub fn long_date(ms: u64) -> String {
+    const MONTHS: [&str; 12] = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let iso = civil_date(ms);
+    let mut parts = iso.split('-');
+    let year = parts.next().unwrap_or_default();
+    let month: usize = parts.next().and_then(|m| m.parse().ok()).unwrap_or(1);
+    let day: u32 = parts.next().and_then(|d| d.parse().ok()).unwrap_or(1);
+    format!("{day} {} {year}", MONTHS[(month - 1) % 12])
+}
+
 /// What a device that finds itself removed from the vault is told (`pairing-recovery.md` 4, step 6). The date
 /// is the removal; the vault does not record who removed the device.
 pub fn removed_message(removed_ms: u64) -> String {
     format!(
         "This device was removed from the vault on {}. Changes made here are no longer accepted. Your copy stays readable. Remove the vault from this device, or join again with a new invite.",
-        civil_date(removed_ms)
+        long_date(removed_ms)
     )
 }
 
@@ -983,6 +1007,13 @@ mod tests {
         use figlock_biometric::Outcome;
 
         use super::*;
+
+        #[test]
+        fn the_removal_date_reads_as_a_long_date() {
+            assert_eq!(long_date(0), "1 January 1970");
+            assert_eq!(long_date(1_794_777_600_000), "15 November 2026");
+            assert!(removed_message(1_794_777_600_000).contains("on 15 November 2026."));
+        }
         use crate::quick::Backend;
 
         #[derive(Default)]
