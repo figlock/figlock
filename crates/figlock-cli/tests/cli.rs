@@ -222,6 +222,22 @@ fn edit_delete_restore_and_export() {
 }
 
 #[test]
+fn restore_finds_a_trashed_item_by_title() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    e.add_login("Mail", &[]);
+    e.ok(&["edit", "bank", "--delete"]);
+
+    // A live item is not a restore target, and a title that matches nothing in the trash says so.
+    let miss = e.run(&["edit", "mail", "--restore"]);
+    assert!(!miss.status.success());
+    assert!(text(&miss.stderr).contains("no trashed item matches"));
+
+    e.ok(&["edit", "bank", "--restore"]);
+    assert!(e.ok(&["find", "bank"]).contains("Bank"));
+}
+
+#[test]
 fn every_command_appends_a_chained_op_file() {
     let e = Env::init();
     e.add_login("One", &[]);
@@ -1030,6 +1046,38 @@ fn sync_is_off_for_a_folder_vault_and_says_how_to_turn_it_on() {
 }
 
 #[test]
+fn a_write_with_sync_off_says_nothing_about_sync() {
+    let e = Env::init();
+    let out = e.run_stdin(
+        &[
+            "add", "--type", "login", "--title", "Quiet", "--secret", "password",
+        ],
+        &format!("{SECRET}\n"),
+    );
+    assert!(out.status.success());
+    assert!(
+        !text(&out.stderr).contains("ynced"),
+        "{}",
+        text(&out.stderr)
+    );
+    let json = e.run_stdin(
+        &[
+            "--json",
+            "add",
+            "--type",
+            "login",
+            "--title",
+            "Quiet two",
+            "--secret",
+            "password",
+        ],
+        &format!("{SECRET}\n"),
+    );
+    let v: Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert!(v.get("sync").is_none(), "{v}");
+}
+
+#[test]
 fn sync_on_needs_a_sign_in_and_changes_nothing_without_one() {
     let e = Env::init();
     let before = fs::read(e.home.path().join("config.json")).unwrap();
@@ -1082,9 +1130,24 @@ fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_rea
         "{}",
         text(&out.stderr)
     );
+    assert!(
+        text(&out.stderr).contains("Saved. Not synced:"),
+        "the write says it was saved but not synced: {}",
+        text(&out.stderr)
+    );
     let found = e.ok(&["find", "Offline item"]);
     assert!(found.contains("Offline item"), "{found}");
     assert_eq!(e.ops().len(), 1, "the write landed in the local folder");
+
+    let json = e.run_stdin(
+        &[
+            "--json", "add", "--type", "login", "--title", "Second", "--secret", "password",
+        ],
+        &format!("{SECRET}\n"),
+    );
+    let v: Value = serde_json::from_slice(&json.stdout).unwrap();
+    assert_eq!(v["sync"]["state"], "failed", "{v}");
+    assert_eq!(v["sync"]["uploaded"], 0);
 
     let sync = e.run(&["sync"]);
     assert!(!sync.status.success());

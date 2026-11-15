@@ -424,9 +424,21 @@ fn variants(raw: &str, aliases: &[(String, String)]) -> Vec<Variant> {
 impl Index {
     /// Index the readable, non-deleted items. Secret field values are never copied.
     pub fn build<'a>(items: impl IntoIterator<Item = &'a ItemView>) -> Self {
+        Self::build_where(items, |v| !v.deleted)
+    }
+
+    /// Index only the trashed items, so a trashed item can be found by title to restore it.
+    pub fn build_trashed<'a>(items: impl IntoIterator<Item = &'a ItemView>) -> Self {
+        Self::build_where(items, |v| v.deleted)
+    }
+
+    fn build_where<'a>(
+        items: impl IntoIterator<Item = &'a ItemView>,
+        keep: impl Fn(&ItemView) -> bool,
+    ) -> Self {
         let entries = items
             .into_iter()
-            .filter(|v| !v.deleted)
+            .filter(|v| keep(v))
             .map(|v| Entry {
                 id: v.id,
                 item_type: v.item_type,

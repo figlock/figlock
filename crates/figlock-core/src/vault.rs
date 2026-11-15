@@ -1978,6 +1978,45 @@ impl Vault {
         Ok(())
     }
 
+    /// Whether `bytes` is a genuine op file of a revoked `device` that `apply_file` turned away only because
+    /// it came after the revocation (`sync.md` 9): it verifies under the device's key and an earlier-epoch
+    /// log key, and an op in it is stamped at or after the revocation or written in or after the rotation
+    /// epoch. That is expected after a revocation. A file that does not verify, a device not in the signed
+    /// revoked list, or a file from before the revocation is not, and stays a warning.
+    pub fn is_late_from_revoked(&self, bytes: &[u8], device: &DeviceId, seq: u64) -> bool {
+        let Some(r) = self.revoked.get(device) else {
+            return false;
+        };
+        let id = FileId {
+            vault_id: &self.vault_id,
+            device_id: device,
+            seq,
+        };
+        let Ok(epoch) = self.file_epoch(bytes) else {
+            return false;
+        };
+        let Ok(key) = self.log_key(epoch) else {
+            return false;
+        };
+        let Ok(payload) = read_file(bytes, key, Some(&r.sign_pub), &id, Kind::Op) else {
+            return false;
+        };
+        let Ok(batch) = OpBatch::decode(&payload) else {
+            return false;
+        };
+        batch.device == *device
+            && batch.seq == seq
+            && batch.ops.iter().any(|op| {
+                let stamp = match op {
+                    Op::ItemCreate { hlc, .. }
+                    | Op::FieldSet { hlc, .. }
+                    | Op::ItemDelete { hlc, .. }
+                    | Op::ItemRestore { hlc, .. } => *hlc,
+                };
+                !accept_from_revoked(r.revoked_at, stamp, epoch, r.epoch)
+            })
+    }
+
     /// Seal one audit record (`crypto.md` 7.5): the next `seq` of this device's audit log, chained to the
     /// previous record by `prev` (its SHA-256, [`crate::ZERO_PREV`] for the first). Fails for an event or
     /// detail member the log does not allow. The caller appends the result with [`crate::audit_frame`].

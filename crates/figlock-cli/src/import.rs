@@ -117,11 +117,12 @@ pub fn import(a: ImportArgs, json: bool) -> Res<()> {
         }
         s.commit().map_err(|_| partial(n * COMMIT_EVERY))?;
     }
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     if json {
-        println!("{}", summary_json(&a, &report, true));
+        println!("{}", pushed.attach(summary_json(&a, &report, true)));
     } else {
         print_summary(&report, true);
+        pushed.announce();
     }
     eprintln!(
         "The export file holds your passwords in plain text. Delete it securely once you have checked the import. \

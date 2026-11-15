@@ -42,6 +42,7 @@ const mac: Device = {
   fingerprint: "1A2B-3C4D",
   thisDevice: true,
   revoked: false,
+  ignoredChanges: 0,
 };
 const phone: Device = {
   id: "bb",
@@ -49,6 +50,7 @@ const phone: Device = {
   fingerprint: "5E6F-7A8B",
   thisDevice: false,
   revoked: false,
+  ignoredChanges: 0,
 };
 
 beforeEach(() => {
@@ -97,6 +99,15 @@ test("this Mac has no revoke button, another device does", async () => {
   expect(screen.getByText(/\(this Mac\)/)).toBeTruthy();
   expect(screen.getAllByRole("button", { name: /^Revoke/ })).toHaveLength(1);
   expect(screen.getByRole("button", { name: "Revoke Phone" })).toBeTruthy();
+});
+
+test("a revoked device shows how many of its later changes were ignored", async () => {
+  core.listDevices.mockResolvedValue([
+    mac,
+    { ...phone, name: null, revoked: true, ignoredChanges: 2 },
+  ]);
+  await toDevices();
+  expect(screen.getByText("2 later changes ignored")).toBeTruthy();
 });
 
 test("revoking asks for the credentials and then shows the device as revoked", async () => {

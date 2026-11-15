@@ -75,9 +75,10 @@ pub fn password_change(json: bool) -> Res<()> {
         },
     )?;
     session.replace_vault_json(&r.vault_json)?;
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     forget_quick_unlock();
     done(json, "The master password is changed.");
+    pushed.announce();
     Ok(())
 }
 
@@ -95,7 +96,7 @@ pub fn secret_key_rotate(json: bool) -> Res<()> {
         },
     )?;
     session.replace_vault_json(&r.vault_json)?;
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     forget_quick_unlock();
     let new = r
         .secret_key
@@ -103,6 +104,7 @@ pub fn secret_key_rotate(json: bool) -> Res<()> {
     keep_secret_key(&new, &r.vault_json);
     show_secret_key(&new, json)?;
     done(json, "The Secret Key is rotated.");
+    pushed.announce();
     Ok(())
 }
 
@@ -205,6 +207,7 @@ pub fn device_list(json: bool) -> Res<()> {
                     "name": d.name,
                     "fingerprint": d.fingerprint,
                     "revoked": d.revoked_at.is_some(),
+                    "ignored_changes": session.ignored_changes(&d.device_id),
                     "this_device": d.device_id == this,
                 })
             })
@@ -221,10 +224,12 @@ pub fn device_list(json: bool) -> Res<()> {
         } else {
             ""
         };
-        let state = if d.revoked_at.is_some() {
-            "  revoked"
-        } else {
-            ""
+        let ignored = session.ignored_changes(&d.device_id);
+        let state = match (d.revoked_at.is_some(), ignored) {
+            (false, _) => String::new(),
+            (true, 0) => "  revoked".to_owned(),
+            (true, 1) => "  (revoked, 1 later change ignored)".to_owned(),
+            (true, n) => format!("  (revoked, {n} later changes ignored)"),
         };
         println!(
             "{}  {}  {}{mark}{state}",
@@ -303,7 +308,7 @@ pub fn device_revoke(
             .revoke_device(&password, &secret_key, &target, now)?
     };
     session.write_revocation(&r)?;
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     if changing {
         forget_quick_unlock();
     }
@@ -328,5 +333,6 @@ pub fn device_revoke(
              of leaving the old ones in place."
         );
     }
+    pushed.announce();
     Ok(())
 }

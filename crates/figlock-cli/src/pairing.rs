@@ -276,7 +276,7 @@ pub fn device_add(a: &DeviceAddArgs, json: bool) -> Res<()> {
     }
     forget_remote(&cfg.place, &invite);
     // Share the new device's record and the answer; a failure is reported and `figlock sync` retries it.
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     if json {
         eprintln!("Added \"{}\".", request.device_name);
     } else {
@@ -285,5 +285,6 @@ pub fn device_add(a: &DeviceAddArgs, json: bool) -> Res<()> {
             request.device_name
         );
     }
+    pushed.announce();
     Ok(())
 }

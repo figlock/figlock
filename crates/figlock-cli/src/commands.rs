@@ -239,11 +239,12 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
         .collect();
     let id = s.vault.add_item(a.item_type, VAULT_NAME, &refs, now_ms())?;
     s.commit()?;
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     if json {
-        print_json(&json!({ "id": id_hex(&id) }))
+        print_json(&pushed.attach(json!({ "id": id_hex(&id) })))
     } else {
         println!("{}", id_hex(&id));
+        pushed.announce();
         Ok(())
     }
 }
@@ -298,11 +299,12 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
         s.vault.restore_item(&id, now)?;
     }
     s.commit()?;
-    crate::sync_cmd::push_after_write();
+    let pushed = crate::sync_cmd::push_after_write();
     if json {
-        print_json(&json!({ "id": id_hex(&id) }))
+        print_json(&pushed.attach(json!({ "id": id_hex(&id) })))
     } else {
         println!("{}", id_hex(&id));
+        pushed.announce();
         Ok(())
     }
 }
