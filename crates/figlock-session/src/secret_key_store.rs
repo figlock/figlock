@@ -143,7 +143,12 @@ impl<B: Backend> SecretKeyStore<B> {
             return Ok(None);
         }
         match self.backend.get_key(vault)? {
-            Some(packed) => unpack(&packed).map(Some),
+            Some(packed) => {
+                if !quick_on {
+                    let _ = self.backend.put_key_plain(vault, &packed);
+                }
+                unpack(&packed).map(Some)
+            }
             None => Ok(None),
         }
     }

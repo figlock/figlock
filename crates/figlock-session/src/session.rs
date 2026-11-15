@@ -154,6 +154,9 @@ pub fn peek_kept_key() -> Res<figlock_core::KeptKey> {
     let vault = vault_id_of(&vault_json)?;
     let vault_gen =
         Vault::sk_gen_in(&vault_json).map_err(|_| Fail::new("vault.json is damaged"))?;
+    if !crate::secret_key_store::system()?.has(&vault) {
+        return Ok(figlock_core::KeptKey::Current);
+    }
     Ok(figlock_core::kept_key(
         config::kept_sk_gen(&vault),
         vault_gen,
@@ -218,18 +221,24 @@ fn credentials<B: quick::Backend, T>(
         }
     };
 
+    let state = if keys.has(vault) {
+        figlock_core::kept_key(keys.kept_gen(vault), vault_gen)
+    } else {
+        figlock_core::KeptKey::Current
+    };
+    if state == figlock_core::KeptKey::RolledBack {
+        return Err(Fail::of(
+            FailKind::VaultRolledBack,
+            "vault.json is older than this device has seen: its Secret Key is from an earlier generation than the one kept here",
+        ));
+    }
     if let Some(offered) = ui.offered_secret_key() {
         let done = try_key(offered)?;
         keep(&done.0);
         return Ok(done);
     }
-    match figlock_core::kept_key(keys.kept_gen(vault), vault_gen) {
-        figlock_core::KeptKey::RolledBack => {
-            return Err(Fail::of(
-                FailKind::VaultRolledBack,
-                "vault.json is older than this device has seen: its Secret Key is from an earlier generation than the one kept here",
-            ));
-        }
+    match state {
+        figlock_core::KeptKey::RolledBack => unreachable!(),
         figlock_core::KeptKey::Current => {
             let kept = keys
                 .get(vault, "unlock your FigLock vault", quick_on)
