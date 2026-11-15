@@ -116,6 +116,8 @@ impl Desk {
         let enabled = cfg.as_ref().is_some_and(|c| c.place.remote.is_some());
         let drive = drive::status()?;
         let s = self.sync_state();
+        // A stored sign-in Google has stopped honouring is not a sign-in: say so, here and in the CLI.
+        let signed_in = drive.signed_in && !sync::sign_in_refused();
         let state = if !enabled {
             "off"
         } else if s.running {
@@ -133,9 +135,9 @@ impl Desk {
         Ok(SyncView {
             enabled,
             state,
-            signed_in: drive.signed_in,
+            signed_in,
             signed_in_secs_ago: config::drive_signed_in_ms()
-                .filter(|_| drive.signed_in)
+                .filter(|_| signed_in)
                 .map(|t| figlock_session::session::now_ms().saturating_sub(t) / 1000),
             can_sign_in: drive.can_sign_in,
             last_sync_secs_ago: sync::last_sync_ms()

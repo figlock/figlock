@@ -18,7 +18,7 @@ use figlock_store::{BlobStore, StoreError};
 use sha2::{Digest, Sha256};
 
 use crate::config::{self, Config, Place};
-use crate::error::Fail;
+use crate::error::{Fail, FailKind};
 
 /// Files copied at once. Enough to hide Drive's per-request latency, few enough to stay under its rate limits.
 const PARALLEL_COPIES: usize = 6;
@@ -115,8 +115,14 @@ impl From<std::io::Error> for SyncError {
 }
 
 impl From<SyncError> for Fail {
+    /// The message stays the CLI's text; the kind lets a window word the cases a person can act on itself.
     fn from(e: SyncError) -> Self {
-        Fail::new(e.to_string())
+        let kind = match e {
+            SyncError::SignIn => FailKind::StorageSignedOut,
+            SyncError::Offline => FailKind::StorageUnreachable,
+            _ => FailKind::Other,
+        };
+        Fail::of(kind, e.to_string())
     }
 }
 
@@ -437,6 +443,31 @@ fn mark_synced(now_ms: u64) {
     }
 }
 
+/// Whether the last sync was refused because Google no longer honours this device's sign-in. Kept in the sync
+/// state so every screen and the CLI agree, without a network call, until a sign-in or a sync works again.
+pub fn sign_in_refused() -> bool {
+    state().is_some_and(|v| v["sign_in_refused"] == true)
+}
+
+fn mark_sign_in_refused() {
+    let Ok(p) = state_path() else { return };
+    let mut v = state().unwrap_or_else(|| serde_json::json!({}));
+    v["sign_in_refused"] = true.into();
+    let _ = fs::write(p, v.to_string());
+}
+
+/// A new sign-in replaces the refused one.
+pub fn clear_sign_in_refused() {
+    let Some(mut v) = state() else { return };
+    if v.as_object_mut()
+        .and_then(|o| o.remove("sign_in_refused"))
+        .is_some()
+        && let Ok(p) = state_path()
+    {
+        let _ = fs::write(p, v.to_string());
+    }
+}
+
 /// When this device last finished a sync, for the status line.
 pub fn last_sync_ms() -> Option<u64> {
     state().and_then(|v| v["last_sync_ms"].as_u64())
@@ -483,7 +514,12 @@ pub fn run(cfg: &Config, confirm_reupload: bool) -> Result<Report, SyncError> {
             own_device: own.as_deref(),
             push_all: !synced_before() || confirm_reupload,
         },
-    )?;
+    )
+    .inspect_err(|e| {
+        if *e == SyncError::SignIn {
+            mark_sign_in_refused();
+        }
+    })?;
     mark_synced(crate::session::now_ms());
     Ok(report)
 }

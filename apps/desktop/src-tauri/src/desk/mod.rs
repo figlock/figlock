@@ -60,12 +60,14 @@ impl From<Fail> for CmdError {
             ),
             FailKind::StorageSignedOut => CmdError::new(
                 "storage_signed_out",
-                "Google Drive no longer accepts the saved sign-in. Sign in to Google Drive again in Settings, then try again.",
+                "Google has stopped FigLock's access. Unlock now and sign in again from Settings.",
             ),
             FailKind::VaultMissing => CmdError::new(
                 "vault_missing",
                 "FigLock could not find your vault where this Mac expects it. Check that the folder is available, then try again.",
             ),
+            FailKind::SignInCancelled => CmdError::new("sign_in_cancelled", f.0),
+            FailKind::SignInTimedOut => CmdError::new("drive_sign_in", f.0),
             FailKind::Other => CmdError::new("failed", f.0),
         }
     }
@@ -429,11 +431,15 @@ impl Desk {
             ),
             Err(_) => (false, false),
         };
+        // Only read the vault's id when its folder is there: with sync on, reading it would make the folder again.
         let (secret_key_kept, secret_key_protection) = match initialised_vault
             .then(secret_key_store::system)
             .and_then(Result::ok)
-            .zip(figlock_session::session::peek_vault_id().ok())
-        {
+            .zip(
+                initialised_vault
+                    .then(|| figlock_session::session::peek_vault_id().ok())
+                    .flatten(),
+            ) {
             Some((keys, vault)) => (keys.has(&vault), keys.protection(&vault)),
             None => (false, None),
         };

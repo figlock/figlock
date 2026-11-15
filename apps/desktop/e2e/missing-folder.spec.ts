@@ -63,6 +63,30 @@ test.describe("a missing vault folder (FIG-118)", () => {
     expect(made).toContain("restore_from_drive");
   });
 
+  test("a restore Google refuses says why and offers to sign in again", async ({ page }) => {
+    await openApp(page, {
+      phase: "locked",
+      folderMissing: { ...MISSING, canRestore: true },
+      // The saved sign-in is still on this Mac, but Google no longer honours it.
+      sync: { signedIn: true },
+      restoreFails: {
+        code: "drive_sign_in",
+        message: "Google has stopped FigLock's access. Sign in again to restore.",
+      },
+    });
+    await page.getByRole("button", { name: "Restore from Google Drive" }).click();
+    await expect(page.getByRole("alert")).toContainText("Google has stopped FigLock's access.");
+    // Still the missing-folder screen: it never claims the folder is fine.
+    await expect(page.getByRole("heading", { name: "Your vault folder is missing" })).toBeVisible();
+    await expect(page.getByText("so there is nothing to recover")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Sign in with Google" }).click();
+    await expect(page.getByRole("heading", { name: "Unlock your vault" })).toBeVisible();
+    const made = await calls(page);
+    expect(made.filter((c) => c === "drive_sign_in")).toHaveLength(1);
+    expect(made.filter((c) => c === "restore_from_drive")).toHaveLength(2);
+  });
+
   test("creating a new vault needs a confirmation, then goes to the create screen", async ({
     page,
   }) => {

@@ -3,6 +3,7 @@
 
 mod support;
 
+use std::sync::Mutex;
 use std::time::Duration;
 
 use figlock_store::{BlobStore, GoogleDrive, StoreError, TokenSource};
@@ -139,6 +140,46 @@ fn no_browser_means_a_timeout() {
     let google = FakeGoogle::start();
     let r = sign_in(&google, Duration::from_millis(300), |_| {});
     assert_eq!(r.unwrap_err(), StoreError::Io(std::io::ErrorKind::TimedOut));
+}
+
+#[test]
+fn cancelling_stops_the_wait_at_once_and_closes_the_listener() {
+    let google = FakeGoogle::start();
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let redirect = std::sync::Arc::new(Mutex::new(String::new()));
+    let (flag, seen) = (cancel.clone(), redirect.clone());
+    let started = std::time::Instant::now();
+    let r = google.oauth().sign_in_until(
+        move |url| {
+            *seen.lock().unwrap() = parse(url).redirect;
+            // The person closes the Google page and presses Cancel.
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(100));
+                flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            });
+        },
+        WAIT,
+        &cancel,
+    );
+    assert_eq!(
+        r.unwrap_err(),
+        StoreError::Io(std::io::ErrorKind::Interrupted)
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(5),
+        "did not wait out the timeout"
+    );
+    // Nothing listens any more, so a late callback finds no one.
+    let port = redirect
+        .lock()
+        .unwrap()
+        .rsplit(':')
+        .next()
+        .unwrap()
+        .trim_end_matches('/')
+        .parse::<u16>()
+        .unwrap();
+    assert!(std::net::TcpStream::connect(("127.0.0.1", port)).is_err());
 }
 
 #[test]

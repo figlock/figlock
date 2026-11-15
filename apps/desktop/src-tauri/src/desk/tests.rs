@@ -618,7 +618,11 @@ fn failures_a_person_can_act_on_get_their_own_code_and_plain_words() {
             "storage_unreachable",
             "connection",
         ),
-        (FailKind::StorageSignedOut, "storage_signed_out", "Sign in"),
+        (
+            FailKind::StorageSignedOut,
+            "storage_signed_out",
+            "sign in again",
+        ),
         (FailKind::VaultMissing, "vault_missing", "folder"),
     ] {
         let e = CmdError::from(Fail::of(
@@ -642,4 +646,53 @@ fn failures_a_person_can_act_on_get_their_own_code_and_plain_words() {
         (e.code, e.message.as_str()),
         ("failed", "vault.json is damaged")
     );
+}
+
+#[test]
+fn a_revoked_google_sign_in_is_not_called_signed_in() {
+    scenario("revoked_sign_in_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn revoked_sign_in_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.recovery_skip(true).unwrap();
+    d.finish_create(false).unwrap();
+    config::save_drive_token(&password()).unwrap();
+    config::set_remote(Some(Remote::Drive)).unwrap();
+    let v = d.sync_status().unwrap();
+    assert!(v.signed_in && v.signed_in_secs_ago.is_some());
+
+    // Google refused the last sync: the token is still on disk, but it is not a sign-in any more.
+    let state = config::home().unwrap().join("sync-state.json");
+    std::fs::write(
+        &state,
+        r#"{"synced":true,"last_sync_ms":1,"sign_in_refused":true}"#,
+    )
+    .unwrap();
+    let v = d.sync_status().unwrap();
+    assert!(!v.signed_in, "the screen must not say signed in");
+    assert_eq!(v.signed_in_secs_ago, None);
+
+    // Signing in again clears it.
+    figlock_session::sync::clear_sign_in_refused();
+    assert!(d.sync_status().unwrap().signed_in);
+}
+
+#[test]
+fn a_dead_google_sign_in_reads_as_plain_words_on_unlock() {
+    let e = CmdError::from(Fail::from(figlock_session::sync::SyncError::SignIn));
+    assert_eq!(e.code, "storage_signed_out");
+    assert!(
+        e.message.contains("Google has stopped FigLock's access"),
+        "{}",
+        e.message
+    );
+    assert!(!e.message.contains("figlock drive login"), "{}", e.message);
 }

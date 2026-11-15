@@ -1,4 +1,5 @@
 import {
+  driveCancelSignIn,
   driveSignIn,
   driveSignOut,
   driveStatus,
@@ -64,10 +65,15 @@ export class StorageChoice {
     try {
       this.drive = await driveSignIn();
     } catch (e) {
-      this.signInError = errorOf(e).message;
+      if (errorOf(e).code !== "sign_in_cancelled") this.signInError = errorOf(e).message;
     } finally {
       this.signingIn = false;
     }
+  }
+
+  /** Stop waiting for the Google page. */
+  cancelSignIn() {
+    return driveCancelSignIn().catch(() => {});
   }
 
   async signOut() {

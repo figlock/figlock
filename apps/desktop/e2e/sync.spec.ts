@@ -26,6 +26,57 @@ test.describe("sync", () => {
     await expect(page.getByText("Sign in to Google again to keep syncing.")).toBeVisible();
   });
 
+  test("a revoked Google sign-in does not say signed in", async ({ page }) => {
+    await openApp(page, {
+      sync: {
+        ...synced,
+        state: "sign_in",
+        signedIn: false,
+        signedInSecsAgo: null,
+        message: "Your Google sign-in has expired. Sign in again to keep syncing.",
+      },
+    });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByText("Your Google sign-in has expired.")).toBeVisible();
+    await expect(page.getByText("Signed in to Google", { exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("google-signin")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Sign in with Google" })).toBeVisible();
+    // Nothing on this screen sends the person to a terminal.
+    await expect(page.getByText("figlock drive login")).toHaveCount(0);
+  });
+
+  test("a Google sign-in can be cancelled while waiting, and says nothing went wrong", async ({
+    page,
+  }) => {
+    await openApp(page, { signInHangs: true });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Turn on sync" }).click();
+    await expect(page.getByRole("button", { name: "Waiting for Google..." })).toBeDisabled();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("button", { name: "Turn on sync" })).toBeEnabled();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByText("storage")).toHaveCount(0);
+    expect(await calls(page)).toContain("drive_cancel_sign_in");
+    expect(await calls(page)).not.toContain("sync_enable");
+  });
+
+  test("a sign-in that runs out of time says so in plain words", async ({ page }) => {
+    await openApp(page);
+    await page.evaluate(() => {
+      (window as any).__core.failNext = {
+        cmd: "drive_sign_in",
+        code: "drive_sign_in",
+        message: "Google sign-in did not finish. Nothing was changed. Try again.",
+      };
+    });
+    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "Turn on sync" }).click();
+    await expect(page.getByRole("alert")).toHaveText(
+      "Google sign-in did not finish. Nothing was changed. Try again.",
+    );
+    await expect(page.getByRole("button", { name: "Turn on sync" })).toBeEnabled();
+  });
+
   test("a vault that is not on Drive turns sync on in one click and turns it off again", async ({
     page,
   }) => {

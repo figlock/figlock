@@ -39,7 +39,11 @@
     folderMissing: opts.folderMissing ?? null,
     // What the person picks in the folder dialog.
     pickedFolder: opts.pickedFolder ?? null,
+    // The Google sign-in waits for the browser until Cancel; restore from Drive fails with this error.
+    signInHangs: opts.signInHangs ?? false,
+    restoreFails: opts.restoreFails ?? null,
   });
+  let cancelSignIn = null;
 
   const now = Date.now();
   const seed = (kind, fields, secrets, ageDays = 1) => {
@@ -138,6 +142,12 @@
       core.folderMissing = null;
     },
     restore_from_drive: () => {
+      if (core.restoreFails) {
+        const failure = core.restoreFails;
+        // The next try works once the person has signed in again.
+        core.restoreFails = null;
+        return fail(failure.code, failure.message);
+      }
       core.folderMissing = null;
     },
     forget_vault: ({ confirmed }) => {
@@ -312,8 +322,17 @@
       return { revoked };
     },
     drive_sign_in: () => {
+      if (core.signInHangs)
+        return new Promise((_, reject) => {
+          cancelSignIn = () =>
+            reject({ code: "sign_in_cancelled", message: "Google sign-in was cancelled." });
+        });
       core.sync = { ...core.sync, signedIn: true, signedInSecsAgo: 0 };
       return { canSignIn: true, signedIn: true };
+    },
+    drive_cancel_sign_in: () => {
+      cancelSignIn?.();
+      cancelSignIn = null;
     },
     drive_status: () => ({ canSignIn: true, signedIn: core.sync.signedIn }),
     devices: () => [

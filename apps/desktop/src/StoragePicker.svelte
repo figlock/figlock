@@ -52,6 +52,7 @@
           {storage.signingIn ? "Waiting for Google..." : "Sign in with Google"}
         </Button>
         {#if storage.signingIn}
+          <Button onclick={() => storage.cancelSignIn()}>Cancel</Button>
           <span class="text-(length:--text-sm) text-text-secondary">
             Finish signing in in your browser.
           </span>

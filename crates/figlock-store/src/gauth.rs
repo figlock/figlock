@@ -20,6 +20,7 @@ use std::fmt;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use base64::Engine;
@@ -121,6 +122,17 @@ impl GoogleOAuth {
     /// Run the browser sign-in. `show_url` receives the consent URL (print it, open it, or both); this call
     /// then blocks until the browser comes back, the user declines, or `timeout` passes.
     pub fn sign_in(&self, show_url: impl FnOnce(&str), timeout: Duration) -> Result<Credentials> {
+        self.sign_in_until(show_url, timeout, &AtomicBool::new(false))
+    }
+
+    /// [`GoogleOAuth::sign_in`] that also stops, with `StoreError::Io(Interrupted)`, as soon as `cancel` is set. The
+    /// loopback listener is closed when this returns, so a cancelled sign-in leaves nothing waiting.
+    pub fn sign_in_until(
+        &self,
+        show_url: impl FnOnce(&str),
+        timeout: Duration,
+        cancel: &AtomicBool,
+    ) -> Result<Credentials> {
         let listener = TcpListener::bind(("127.0.0.1", 0))?;
         let port = listener.local_addr()?.port();
         let redirect = format!("http://127.0.0.1:{port}/");
@@ -144,7 +156,7 @@ impl GoogleOAuth {
             .append_pair("prompt", "consent");
         show_url(consent.as_str());
 
-        let code = wait_for_code(&listener, &state, Instant::now() + timeout)?;
+        let code = wait_for_code(&listener, &state, Instant::now() + timeout, cancel)?;
         let tokens = self.token_request(&[
             ("grant_type", "authorization_code"),
             ("code", &code),
@@ -291,9 +303,17 @@ fn random_token() -> Result<String> {
 }
 
 /// Accept connections until one carries our `state` with a code (or an error), or the deadline passes.
-fn wait_for_code(listener: &TcpListener, state: &str, deadline: Instant) -> Result<String> {
+fn wait_for_code(
+    listener: &TcpListener,
+    state: &str,
+    deadline: Instant,
+    cancel: &AtomicBool,
+) -> Result<String> {
     listener.set_nonblocking(true)?;
     loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(StoreError::Io(std::io::ErrorKind::Interrupted));
+        }
         match listener.accept() {
             Ok((stream, _)) => {
                 if let Some(outcome) = handle_callback(stream, state) {

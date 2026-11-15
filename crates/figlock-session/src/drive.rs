@@ -3,12 +3,13 @@
 //! The refresh token is kept in `drive-token.json` (owner-only) next to the device keys. It only unlocks
 //! ciphertext: the vault is still protected by the master password and Secret Key.
 
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use figlock_store::GoogleOAuth;
+use figlock_store::{GoogleOAuth, StoreError};
 
 use crate::config::{self, StoredDriveToken};
-use crate::error::{Fail, Res};
+use crate::error::{Fail, FailKind, Res};
 
 /// How long the consent page may stay open before sign-in gives up.
 pub const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -59,15 +60,36 @@ pub fn open_browser(url: &str) {
 /// Sign in through the browser and keep the refresh token. Blocks until the person finishes, or
 /// `SIGN_IN_TIMEOUT`. `show_url` gets the consent URL, for a front end that wants to show it as well as open it.
 pub fn sign_in(show_url: impl FnOnce(&str)) -> Res<()> {
+    sign_in_until(show_url, &AtomicBool::new(false))
+}
+
+/// [`sign_in`] that a front end can stop: setting `cancel` ends the wait at once with [`FailKind::SignInCancelled`].
+/// A wait that runs out says so in words ([`FailKind::SignInTimedOut`]), never the storage layer's error text.
+pub fn sign_in_until(show_url: impl FnOnce(&str), cancel: &AtomicBool) -> Res<()> {
     let oauth = GoogleOAuth::from_env().ok_or_else(no_client)?;
-    let creds = oauth.sign_in(
-        |url| {
-            show_url(url);
-            open_browser(url);
-        },
-        SIGN_IN_TIMEOUT,
-    )?;
-    config::save_drive_token(&creds.refresh_token)
+    let creds = oauth
+        .sign_in_until(
+            |url| {
+                show_url(url);
+                open_browser(url);
+            },
+            SIGN_IN_TIMEOUT,
+            cancel,
+        )
+        .map_err(|e| match e {
+            StoreError::Io(std::io::ErrorKind::Interrupted) => Fail::of(
+                FailKind::SignInCancelled,
+                "Google sign-in was cancelled. Nothing was changed.",
+            ),
+            StoreError::Io(std::io::ErrorKind::TimedOut) => Fail::of(
+                FailKind::SignInTimedOut,
+                "Google sign-in did not finish. Nothing was changed. Try again.",
+            ),
+            e => e.into(),
+        })?;
+    config::save_drive_token(&creds.refresh_token)?;
+    crate::sync::clear_sign_in_refused();
+    Ok(())
 }
 
 /// What signing out did.

@@ -255,6 +255,12 @@ async fn drive_status() -> CmdRes<DriveView> {
     desk::drive::status()
 }
 
+/// Ends a Google sign-in that is waiting for the browser, so the person need not wait out the timeout.
+#[tauri::command]
+async fn drive_cancel_sign_in() {
+    desk::drive::cancel_sign_in();
+}
+
 /// Opens the browser to sign in to Google and resolves when the person finishes (or the sign-in times out).
 #[tauri::command]
 async fn drive_sign_in(app: AppHandle) -> CmdRes<DriveView> {
@@ -740,6 +746,7 @@ pub fn run() {
             forget_vault,
             drive_status,
             drive_sign_in,
+            drive_cancel_sign_in,
             drive_sign_out,
             sync_status,
             sync_now,

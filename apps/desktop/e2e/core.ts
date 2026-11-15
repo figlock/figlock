@@ -21,6 +21,10 @@ export type Options = {
   updateUnavailable?: boolean;
   folderMissing?: { path: string; canRestore: boolean };
   pickedFolder?: string;
+  /** The Google sign-in waits for the browser until the person cancels. */
+  signInHangs?: boolean;
+  /** Restore from Google Drive fails with this error (code and words). */
+  restoreFails?: { code: string; message: string };
 };
 
 export const GITHUB: Seed = {

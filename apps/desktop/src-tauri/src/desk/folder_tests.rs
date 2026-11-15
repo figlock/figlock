@@ -133,18 +133,78 @@ fn restoring_without_sync_says_there_is_no_drive_copy_inner() {
 }
 
 #[test]
-fn a_failed_restore_removes_only_a_folder_it_created() {
-    let base = std::env::temp_dir().join(format!("figlock-restore-{}", std::process::id()));
-    let created = base.join("created");
-    let existing = base.join("existing");
-    std::fs::create_dir_all(&created).unwrap();
-    std::fs::create_dir_all(&existing).unwrap();
-    std::fs::write(existing.join("keep.txt"), b"x").unwrap();
+fn a_failed_restore_leaves_no_folder_and_the_missing_screen() {
+    scenario("a_failed_restore_leaves_no_folder_and_the_missing_screen_inner");
+}
 
-    folder::remove_created(&created, false);
-    folder::remove_created(&existing, true);
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn a_failed_restore_leaves_no_folder_and_the_missing_screen_inner() {
+    let d = desk();
+    let (_pw, _key, elsewhere) = locked_vault(&d);
+    // Sync on with a saved sign-in. The build has no Google client, so the download cannot start: a failed restore.
+    config::save_drive_token("revoked-refresh-token").unwrap();
+    config::set_remote(Some(config::Remote::Drive)).unwrap();
+    std::fs::rename(vault_dir(), &elsewhere).unwrap();
+    assert!(
+        d.state()
+            .unwrap()
+            .folder_missing
+            .is_some_and(|m| m.can_restore)
+    );
+    // Reading the state (the window does it all the time) must not make the folder again.
+    assert!(!std::path::Path::new(&vault_dir()).exists());
 
-    assert!(!created.exists());
-    assert!(existing.join("keep.txt").is_file());
-    std::fs::remove_dir_all(&base).unwrap();
+    let err = folder::restore(None).unwrap_err();
+    assert_ne!(
+        err.message,
+        "The vault folder is available, so there is nothing to recover."
+    );
+    assert!(
+        !std::path::Path::new(&vault_dir()).exists(),
+        "no empty folder is left"
+    );
+    assert!(
+        !std::path::Path::new(&vault_dir())
+            .with_file_name(".vault.restoring")
+            .exists()
+    );
+    assert!(
+        d.state().unwrap().folder_missing.is_some(),
+        "still the missing-folder screen"
+    );
+}
+
+#[test]
+fn an_empty_vault_folder_shows_the_missing_screen_not_unlock() {
+    scenario("an_empty_vault_folder_shows_the_missing_screen_not_unlock_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn an_empty_vault_folder_shows_the_missing_screen_not_unlock_inner() {
+    let d = desk();
+    let (_pw, _key, elsewhere) = locked_vault(&d);
+    std::fs::rename(vault_dir(), &elsewhere).unwrap();
+    std::fs::create_dir(vault_dir()).unwrap();
+    let s = d.state().unwrap();
+    assert_eq!(s.phase, "locked");
+    assert!(
+        s.folder_missing.is_some(),
+        "a folder with no vault is not a vault folder"
+    );
+    // Putting the vault back in it returns the normal unlock screen.
+    std::fs::remove_dir(vault_dir()).unwrap();
+    std::fs::rename(&elsewhere, vault_dir()).unwrap();
+    assert!(d.state().unwrap().folder_missing.is_none());
+}
+
+#[test]
+fn a_refused_sign_in_while_restoring_asks_to_sign_in_again() {
+    let e = folder::restore_failure(figlock_session::sync::SyncError::SignIn);
+    assert_eq!(e.code, "drive_sign_in");
+    assert_eq!(
+        e.message,
+        "Google has stopped FigLock's access. Sign in again to restore."
+    );
 }
