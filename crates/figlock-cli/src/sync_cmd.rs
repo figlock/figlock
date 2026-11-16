@@ -375,12 +375,13 @@ fn quiet(limit: Duration) -> Pushed {
 /// follows reads the local vault either way.
 pub fn pull_first() {
     let fresh = sync::last_sync_ms().is_some_and(|t| now_ms().saturating_sub(t) < PULL_AFTER_MS);
-    if !fresh && let Pushed::Failed(why) = quiet(PULL_TIMEOUT) {
-        if warn_once(&format!(
+    if !fresh
+        && let Pushed::Failed(why) = quiet(PULL_TIMEOUT)
+        && warn_once(&format!(
             "not synced with Google Drive ({why}); this device keeps working. Run `figlock sync` when you can"
-        )) {
-            PULL_FAILED.store(true, Ordering::SeqCst);
-        }
+        ))
+    {
+        PULL_FAILED.store(true, Ordering::SeqCst);
     }
 }
 
