@@ -10,6 +10,7 @@
   import OpenExisting from "./OpenExisting.svelte";
   import RemovedDevice from "./RemovedDevice.svelte";
   import Unlock from "./Unlock.svelte";
+  import { onSynced } from "./sync";
   import { updates } from "./updates.svelte";
   import Welcome from "./Welcome.svelte";
   import Workspace from "./Workspace.svelte";
@@ -53,9 +54,15 @@
     const events = ["keydown", "pointerdown", "pointermove", "wheel"] as const;
     for (const e of events) window.addEventListener(e, seen, { passive: true });
     const off = onAutoLock(refresh);
+    // Another device may have removed this one while the window is open; the core learns it on the same
+    // refresh that takes in other changes and says so here, so the window blocks writes at once (FIG-138).
+    const offSynced = onSynced(() => {
+      if (vault?.phase === "unlocked" && vault.removedAtMs === null) void refresh();
+    }).catch(() => () => {});
     return () => {
       for (const e of events) window.removeEventListener(e, seen);
       off.then((f) => f());
+      offSynced.then((f) => f());
     };
   });
 
