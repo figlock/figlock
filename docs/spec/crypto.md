@@ -398,7 +398,7 @@ nothing about the key.
 - A body with `sk_gen` has `min_format_version` 2 (as with the Recovery Key members, 9.3), so a client that
   predates it refuses the file instead of rewriting it without the counter. A reader refuses `sk_gen` of 0 or 1
   (1 is written by omitting it), a value that is not an integer or does not fit 32 bits, `sk_gen` with
-  `min_format_version` 1, and `min_format_version` 2 with neither `sk_gen` nor the Recovery Key members.
+  `min_format_version` 1, and `min_format_version` 2 with none of `sk_gen`, the Recovery Key members and a `revoked` `name` (9.2).
 - A device keeps the `sk_gen` its kept Secret Key belongs to, written with the key and replaced with it. At
   unlock it compares: equal means the kept key is current; the vault's higher means the Secret Key was changed
   on another device and the new one must be typed (the device then keeps it and the number); the vault's
