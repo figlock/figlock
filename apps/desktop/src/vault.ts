@@ -74,6 +74,9 @@ export const locateFolder = (folder: string) => invoke<void>("locate_folder", { 
 export const restoreFromDrive = (folder?: string) =>
   invoke<void>("restore_from_drive", { folder: folder ?? null });
 /** This Mac stops using the vault; nothing in the folder or Drive is deleted. Needs the person's yes. */
+/** A locked Mac that cannot get back in stops using its vault (FIG-139, R3). */
+export const forgetLockedVault = (confirmed: boolean) =>
+  invoke<void>("forget_locked_vault", { confirmed });
 export const forgetVault = (confirmed: boolean) => invoke<void>("forget_vault", { confirmed });
 
 export const createVault = (storage: Storage, password: string) =>

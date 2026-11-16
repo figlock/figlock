@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
+  import CantUnlock from "./CantUnlock.svelte";
   import Create from "./Create.svelte";
   import Forgot from "./Forgot.svelte";
   import NewKitDialog from "./NewKitDialog.svelte";
@@ -20,6 +21,8 @@
   let view = $state<"welcome" | "create" | "open" | "join" | "forgot">("welcome");
   /** The person chose to keep reading the copy of a vault that removed this Mac (FIG-135). */
   let reading = $state(false);
+  /** The locked Mac's way back in: `help` lists the cases, `recovery` is the Recovery Key flow (FIG-139). */
+  let locked = $state<"" | "help" | "recovery">("");
 
   const refresh = () =>
     vaultState().then(
@@ -31,6 +34,7 @@
     notice = "";
     view = "welcome";
     reading = false;
+    locked = "";
   };
 
   onMount(() => {
@@ -110,8 +114,24 @@
       void refresh();
     }}
   />
+{:else if vault.phase === "locked" && locked === "help"}
+  <CantUnlock
+    onrecovery={() => (locked = "recovery")}
+    onback={() => (locked = "")}
+    onremoved={() => {
+      locked = "";
+      void refresh();
+    }}
+  />
+{:else if vault.phase === "locked" && locked === "recovery"}
+  <Forgot
+    here
+    touchAvailable={vault.touchAvailable}
+    onback={() => (locked = "help")}
+    ondone={enter}
+  />
 {:else if vault.phase === "locked"}
-  <Unlock {vault} {notice} ondone={enter} />
+  <Unlock {vault} {notice} ondone={enter} onforgot={() => (locked = "help")} />
 {:else if view === "create"}
   <Create touchAvailable={vault.touchAvailable} onback={() => (view = "welcome")} ondone={enter} />
 {:else if view === "open"}

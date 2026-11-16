@@ -288,6 +288,12 @@ async fn forget_vault(confirmed: bool) -> CmdRes<()> {
     desk::folder::forget(confirmed)
 }
 
+/// A locked Mac that cannot get back in stops using its vault (R3). Needs the person's confirmation.
+#[tauri::command]
+async fn forget_locked_vault(desk: State<'_, Desk>, confirmed: bool) -> CmdRes<()> {
+    desk.forget_locked(confirmed)
+}
+
 /// The vault removed this Mac: stop using it here. Refused unless the vault says so.
 #[tauri::command]
 async fn leave_vault(desk: State<'_, Desk>) -> CmdRes<()> {
@@ -836,6 +842,7 @@ pub fn run() {
             locate_folder,
             restore_from_drive,
             forget_vault,
+            forget_locked_vault,
             drive_status,
             drive_sign_in,
             drive_cancel_sign_in,

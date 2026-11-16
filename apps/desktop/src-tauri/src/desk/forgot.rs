@@ -79,14 +79,14 @@ pub struct NewCredentials {
     pub secret_key: String,
 }
 
-fn fresh_only() -> CmdRes<()> {
+/// The keys of this device: the ones it is set up with when it already has a vault (the Unlock screen, FIG-139,
+/// so it stays the same device and no stale record is left), a new pair on a fresh install.
+fn this_device() -> CmdRes<DeviceKeys> {
     if config::is_initialised()? {
-        return Err(CmdError::new(
-            "failed",
-            "This device already has a vault set up.",
-        ));
+        Ok(config::load_device()?)
+    } else {
+        Ok(DeviceKeys::generate().map_err(Fail::from)?)
     }
-    Ok(())
 }
 
 fn bad_key() -> CmdError {
@@ -119,14 +119,19 @@ impl Desk {
         answers: &[String],
         shares: bool,
     ) -> CmdRes<Found> {
-        fresh_only()?;
         let key = if shares {
             let refs: Vec<&str> = answers.iter().map(String::as_str).collect();
             RecoveryKey::from_shares(&refs).map_err(|_| bad_key())?
         } else {
             RecoveryKey::parse(answers.first().map_or("", String::as_str)).map_err(|_| bad_key())?
         };
-        let place = storage_place(storage, false)?;
+        // A Mac that already has a vault (the Unlock screen, FIG-139) forgets the password of that vault only:
+        // the place is the one it is set up with, whatever the window sends.
+        let place = if config::is_initialised()? {
+            config::load()?.place
+        } else {
+            storage_place(storage, false)?
+        };
         figlock_session::sync::open_from_remote(&place).map_err(Fail::from)?;
         let store = figlock_session::store::open(&place)?;
         let vault_json = store.get("vault.json").map_err(|e| match e {
@@ -226,7 +231,7 @@ impl Desk {
                 new_password,
                 new_recovery_key: new_key,
             },
-            DeviceKeys::generate().map_err(Fail::from)?,
+            this_device()?,
             &Self::device_name(),
             &r.records,
             now_ms(),
@@ -251,7 +256,6 @@ impl Desk {
     /// confirmed. This device's setup is written first and taken back if storage fails, so a failure leaves the
     /// vault as it was.
     pub fn forgot_commit(&self, touch_id: bool) -> CmdRes<super::VaultState> {
-        fresh_only()?;
         let (r, prepared) = {
             let mut inner = self.inner();
             let r = inner.recovering.as_mut().ok_or_else(nothing_to_do)?;
@@ -279,7 +283,10 @@ impl Desk {
             device_name: Self::device_name(),
             autolock_secs: None,
         };
-        config::save(&cfg, vault.device_keys())?;
+        let set_up = config::is_initialised()?;
+        if !set_up {
+            config::save(&cfg, vault.device_keys())?;
+        }
         let store = figlock_session::store::open(&cfg.place)?;
         let written = (|| -> Result<(), figlock_store::StoreError> {
             if let Some(record) = &out.new_record {
@@ -292,7 +299,9 @@ impl Desk {
             store.put_replace("vault.json", &out.vault_json)
         })();
         if let Err(e) = written {
-            config::forget();
+            if !set_up {
+                config::forget();
+            }
             // Put the attempt back so the person can try again with the same key.
             self.inner().recovering = Some(Recovering {
                 prepared: None,

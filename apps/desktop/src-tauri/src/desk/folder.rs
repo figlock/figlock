@@ -8,7 +8,7 @@ use figlock_session::{config, store, sync};
 use figlock_store::StoreError;
 use serde::Serialize;
 
-use super::{CmdError, CmdRes, folder_path};
+use super::{CmdError, CmdRes, Desk, folder_path};
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -172,4 +172,23 @@ pub fn forget(confirmed: bool) -> CmdRes<()> {
     require_missing()?;
     config::forget();
     Ok(())
+}
+
+impl Desk {
+    /// The person cannot unlock and has no way back (no other device, no Recovery Key): this Mac stops using the
+    /// vault so they can open or join one again with their Emergency Kit (`pairing-recovery.md` 6, R3). Only
+    /// while locked. Like `forget`, it leaves the folder, the Drive copy and the kept Secret Key alone.
+    pub fn forget_locked(&self, confirmed: bool) -> CmdRes<()> {
+        if !confirmed {
+            return Err(CmdError::new(
+                "not_confirmed",
+                "Confirm that this Mac should stop using this vault.",
+            ));
+        }
+        if self.inner().session.is_some() {
+            return Err(CmdError::new("failed", "Lock the vault first."));
+        }
+        config::forget();
+        Ok(())
+    }
 }
