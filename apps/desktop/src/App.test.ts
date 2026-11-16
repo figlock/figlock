@@ -15,6 +15,7 @@ const state = vi.hoisted(() => ({
   endRotation: vi.fn(),
   checkKitKey: vi.fn(),
   leaveVault: vi.fn(),
+  synced: [] as (() => void)[],
 }));
 
 vi.mock("./vault", () => ({
@@ -32,6 +33,14 @@ vi.mock("./vault", () => ({
   leaveVault: state.leaveVault,
 }));
 
+vi.mock("./sync", async (original) => ({
+  ...(await original<typeof import("./sync")>()),
+  onSynced: (handler: () => void) => {
+    state.synced.push(handler);
+    return Promise.resolve(() => {});
+  },
+}));
+
 vi.mock("./credentials", () => ({ endRotation: state.endRotation }));
 
 vi.mock("./items", async (original) => ({
@@ -45,6 +54,7 @@ import App from "./App.svelte";
 const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
 
 beforeEach(() => {
+  state.synced = [];
   state.unlock.mockReset();
   state.quickUnlock.mockReset();
   state.current = {
@@ -300,4 +310,16 @@ test("a vault that did not remove this Mac shows no banner and no screen", async
   expect(await screen.findByRole("button", { name: "Settings" })).toBeTruthy();
   expect(screen.queryByTestId("removed-banner")).toBeNull();
   expect(screen.queryByText("This Mac was removed from the vault")).toBeNull();
+});
+
+test("a removal made elsewhere while the window is unlocked is shown after the next refresh", async () => {
+  state.current = { ...state.current, phase: "unlocked", removedAtMs: null };
+  render(App);
+  expect(await screen.findByRole("button", { name: "Settings" })).toBeTruthy();
+  expect(screen.queryByText("This Mac was removed from the vault")).toBeNull();
+
+  // The app core noticed on its refresh and announced it, as it does after any change it takes in.
+  state.current = { ...state.current, removedAtMs: REMOVED };
+  state.synced.forEach((h) => h());
+  expect(await screen.findByText("This Mac was removed from the vault")).toBeTruthy();
 });
