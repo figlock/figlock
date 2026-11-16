@@ -174,6 +174,12 @@
       core.folderMissing = null;
       core.phase = "none";
     },
+    forget_locked_vault: ({ confirmed }) => {
+      if (!confirmed)
+        return fail("not_confirmed", "Confirm that this Mac should stop using this vault.");
+      if (core.phase === "unlocked") return fail("failed", "Lock the vault first.");
+      core.phase = "none";
+    },
     unlock: ({ password, secretKey }) => {
       if (password !== PASSWORD)
         return fail(
