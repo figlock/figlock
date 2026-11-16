@@ -44,10 +44,13 @@
       <div
         class="flex items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3"
       >
-        <Icon
-          name={view.enabled ? "shield-check" : "lock"}
-          class={view.enabled ? "text-success" : "text-text-tertiary"}
-        />
+        {#if view.enabled && PAUSED.includes(view.state)}
+          <Icon name="shield-alert" class="text-warning" />
+        {:else if view.enabled}
+          <Icon name="shield-check" class="text-success" />
+        {:else}
+          <Icon name="lock" class="text-text-tertiary" />
+        {/if}
         <div class="min-w-0 flex-1">
           {#if view.enabled}
             <p class="font-medium">On</p>

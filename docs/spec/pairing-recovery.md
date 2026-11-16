@@ -142,7 +142,8 @@ in the device list on the next sync, from where it can be revoked.
    (`crypto.md` 9.1, threat model D8).
 3. The device rotates `VK` (new `key_epoch`), re-signs `vault.json` with the device in the `revoked` list and
    the `revoked_at` stamp, rewraps the keys and writes a snapshot (`sync.md` 9). The member formats are in
-   `crypto.md` 9.2. The device re-signs the records of the remaining devices with the new authority key
+   `crypto.md` 9.2; the removed device's name goes into the `revoked` entry, sealed (ADR-0036), so the device
+   lists keep showing it. The device re-signs the records of the remaining devices with the new authority key
    (`devices/<id>.json` is replaced, see `sync.md` 3), so it MUST have loaded all current records first.
    Revoking the device itself is refused. On unlock a record that is revoked or does not verify against the
    current authority key is skipped, never trusted, and does not fail the unlock.
@@ -159,8 +160,13 @@ in the device list on the next sync, from where it can be revoked.
    in plain words: "This device was removed from the vault on <date>. Changes made here are no longer
    accepted. Your copy stays readable. Remove the vault from this device, or join again with a new invite."
    The date is the signed `revoked_at`; the list does not name who removed the device, so the message does not
-   either (naming the device needs another signed member, which this rule does not add).
-7. A device that has not synced since the revocation cannot know and behaves as before; the message appears
+   either.
+7. **While the window or session is open (FIG-138).** A long-lived session that refreshes and finds a newer
+   `vault.json` whose `revoked` list names its own device id MUST treat it as removed at once: refuse every
+   write and show the message with that entry's `revoked_at`. It cannot verify the signature (the new authority
+   key needs a full unlock), so this only stops writes; the next full unlock checks the list as in step 6 and is
+   what decides whether the device is removed.
+   A device that has not synced since the revocation cannot know and behaves as before; the message appears
    the first time it opens the vault from a copy that carries the revocation, which asks for a full unlock
    (step 4) because the new `vault.json` is at a higher `key_epoch`. Its own earlier writes that reached the
    others before `revoked_at` stay valid (`sync.md` 9).

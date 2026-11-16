@@ -151,6 +151,53 @@ pub fn open_epoch_key(
     )?)
 }
 
+fn revoked_name_aad(vault_id: &[u8; 16], device_id: &[u8; 16], epoch: u32) -> Vec<u8> {
+    aad("revoked-name", &[vault_id, device_id, &u32be(epoch)])
+}
+
+/// The name of a revoked device, sealed with the Log Key of the epoch the revocation produced (`crypto.md` 9.2).
+pub(crate) fn seal_revoked_name(
+    lk: &Key,
+    name: &str,
+    vault_id: &[u8; 16],
+    device_id: &[u8; 16],
+    epoch: u32,
+) -> Result<Vec<u8>> {
+    seal(
+        lk,
+        name.as_bytes(),
+        &revoked_name_aad(vault_id, device_id, epoch),
+    )
+}
+
+#[cfg(feature = "vector-hooks")]
+pub fn seal_revoked_name_with_nonce(
+    lk: &Key,
+    name: &str,
+    vault_id: &[u8; 16],
+    device_id: &[u8; 16],
+    epoch: u32,
+    nonce: &[u8; 24],
+) -> Result<Vec<u8>> {
+    crate::aead::seal_with_nonce(
+        lk,
+        name.as_bytes(),
+        &revoked_name_aad(vault_id, device_id, epoch),
+        nonce,
+    )
+}
+
+pub fn open_revoked_name(
+    lk: &Key,
+    sealed: &[u8],
+    vault_id: &[u8; 16],
+    device_id: &[u8; 16],
+    epoch: u32,
+) -> Result<String> {
+    let plain = open(lk, sealed, &revoked_name_aad(vault_id, device_id, epoch))?;
+    String::from_utf8(plain.to_vec()).map_err(|_| crate::Error)
+}
+
 pub(crate) fn qu_aad(vault_id: &[u8; 16], device_id: &[u8; 16]) -> Vec<u8> {
     aad("quick-unlock", &[vault_id, device_id])
 }

@@ -109,6 +109,32 @@ fn removed_inner() {
     assert!(Path::new(&vault_dir()).join("vault.json").exists());
 }
 
+#[test]
+fn a_removal_while_the_window_is_unlocked_is_noticed_and_refuses_writes() {
+    scenario("removed_open_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn removed_open_inner() {
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    d.add_item("note", draft("Before")).unwrap();
+    assert_eq!(d.state().unwrap().removed_at_ms, None);
+
+    // Removed by another device while this window stays unlocked: the next refresh tells the window.
+    another_device_removes_this_one(&d, &pw, &key);
+    assert!(d.refresh_local(), "the window must be told to reload");
+    assert!(d.state().unwrap().removed_at_ms.is_some());
+
+    let log = Path::new(&vault_dir()).join("log");
+    let before = walk(&log);
+    let err = d.add_item("note", draft("Lost")).unwrap_err();
+    assert_eq!(err.code, "device_revoked");
+    assert_eq!(walk(&log), before);
+    assert_eq!(d.list_items("").unwrap().len(), 1);
+}
+
 fn walk(dir: &Path) -> usize {
     std::fs::read_dir(dir).map_or(0, |rd| {
         rd.map(|e| {

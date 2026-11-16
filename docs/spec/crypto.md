@@ -336,13 +336,18 @@ under the old `AUK`, is `Vault::revoke_device_and_change_credentials` (ADR-0022 
 Two members are added to the signed body and are omitted while empty (epoch 1 vaults do not have them):
 
 ```
-"revoked":    [ { "device_id": hex16, "sign_pub": hex32, "revoked_at": [wall_ms, counter], "epoch": N } ]
+"revoked":    [ { "device_id": hex16, "sign_pub": hex32, "revoked_at": [wall_ms, counter], "epoch": N, "name": hex (optional) } ]
 "epoch_keys": [ { "from": N, "to": N+1, "sealed": hex } ]
 ```
 
 - `revoked` lists every revoked device. `sign_pub` is kept so that files the device wrote before the
   revocation still verify. `revoked_at` is the revoking device's clock stamp, and `epoch` is the new
   `key_epoch` produced by the revocation. A revoked device's record is not re-signed.
+  An entry may also carry `"name"` (ADR-0036): the device name sealed as
+  `seal(LK_epoch, name, aad("revoked-name", vault_id, device_id, u32(epoch)))`, hex, where `LK_epoch` is the Log Key
+  (6) of the entry's own `epoch`, so later rotations leave it as it is and any device opens it with the key it
+  has for that epoch. The revoking device writes it from the record it removes. A name that does not open is no
+  name. A file with a `name` in any entry has `min_format_version` 2 (9.3).
 - `epoch_keys` has one entry per rotation, in order. `sealed` is the `epoch_key` of step 3 above, sealed under
   the VK of epoch `to`. A reader opens the chain newest first from the current `VK`; entries must be
   contiguous (`to = from + 1`) down to epoch 1, or the file is refused.
@@ -393,7 +398,7 @@ nothing about the key.
 - A body with `sk_gen` has `min_format_version` 2 (as with the Recovery Key members, 9.3), so a client that
   predates it refuses the file instead of rewriting it without the counter. A reader refuses `sk_gen` of 0 or 1
   (1 is written by omitting it), a value that is not an integer or does not fit 32 bits, `sk_gen` with
-  `min_format_version` 1, and `min_format_version` 2 with neither `sk_gen` nor the Recovery Key members.
+  `min_format_version` 1, and `min_format_version` 2 with none of `sk_gen`, the Recovery Key members and a `revoked` `name` (9.2).
 - A device keeps the `sk_gen` its kept Secret Key belongs to, written with the key and replaced with it. At
   unlock it compares: equal means the kept key is current; the vault's higher means the Secret Key was changed
   on another device and the new one must be typed (the device then keeps it and the number); the vault's

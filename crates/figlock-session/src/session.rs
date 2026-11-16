@@ -52,6 +52,9 @@ pub struct Session {
     uncertain: bool,
     /// Ops per revoked device that were skipped because they came after the revocation.
     ignored: BTreeMap<DeviceId, usize>,
+    /// When a newer `vault.json` named this device in its `revoked` list, seen by [`Session::refresh`] while
+    /// this session is open. It cannot be verified without a full unlock, so it only stops writes (FIG-138).
+    removed_hint: Option<u64>,
 }
 
 /// What [`Session::preview`] found.
@@ -141,6 +144,17 @@ pub fn removed_message(removed_ms: u64) -> String {
 
 pub fn id_hex(id: &ItemId) -> String {
     hex::encode(id)
+}
+
+/// The `revoked_at` wall time (milliseconds) of `device` in the `revoked` list of a `vault.json` read as JSON,
+/// without verifying the signature.
+fn revoked_at_in(vault_json: &serde_json::Value, device: &DeviceId) -> Option<u64> {
+    let id = hex::encode(device);
+    vault_json["revoked"]
+        .as_array()?
+        .iter()
+        .find(|e| e["device_id"].as_str() == Some(id.as_str()))
+        .and_then(|e| e["revoked_at"][0].as_u64())
 }
 
 /// `log/<32 hex>/<8 digits>.op` to the writing device and sequence number.
@@ -326,6 +340,7 @@ impl Session {
             ui,
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         }
     }
 
@@ -437,6 +452,7 @@ impl Session {
             ui,
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         session.load_log(now)?;
         Ok((session, auk, creds))
@@ -531,6 +547,12 @@ impl Session {
         let settings_changed = v["revision"].as_u64() != Some(self.vault.revision())
             || v["key_epoch"].as_u64() != Some(u64::from(self.vault.epoch()));
         if settings_changed {
+            // A revocation rotates the key, so it shows up here as a settings change. The list is signed by a
+            // key this session cannot reach yet, so it is a hint: it blocks writes and shows the removed
+            // screen now, and the next full unlock verifies it (FIG-138).
+            self.removed_hint = self
+                .removed_hint
+                .or(revoked_at_in(&v, self.vault.device_id()));
             return Ok(Refreshed {
                 applied: 0,
                 settings_changed: true,
@@ -597,6 +619,7 @@ impl Session {
             ui: Box::new(Silent),
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         session.load_log(now_ms())?;
         let items = session.items(false);
@@ -695,7 +718,10 @@ impl Session {
     /// When this device was removed from the vault, in milliseconds, if the vault says so. A device that has
     /// not synced since the removal cannot know.
     pub fn removed_at_ms(&self) -> Option<u64> {
-        self.vault.revoked_at().map(|s| s.wall)
+        self.vault
+            .revoked_at()
+            .map(|s| s.wall)
+            .or(self.removed_hint)
     }
 
     /// Refuse a write from a device the vault has removed: nothing it writes would be accepted, and saying so
@@ -925,6 +951,7 @@ mod tests {
             ui: Box::new(NoUi),
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         (s, store)
     }
@@ -1009,6 +1036,7 @@ mod tests {
             ui: Box::new(NoUi),
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         (dir, mk(a), mk(b), created.vault_json)
     }
@@ -1103,6 +1131,7 @@ mod tests {
             ui: Box::new(Warnings(warnings.clone())),
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         let b = Session {
             vault: b,
@@ -1110,6 +1139,7 @@ mod tests {
             ui: Box::new(NoUi),
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         // A learns of B's record the way a sync would leave it.
         a.refresh().unwrap();
@@ -1149,6 +1179,7 @@ mod tests {
             ui: Box::new(Warnings(warnings.clone())),
             uncertain: false,
             ignored: BTreeMap::new(),
+            removed_hint: None,
         };
         s.load_log(now).unwrap();
         (s, warnings)

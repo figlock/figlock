@@ -58,6 +58,61 @@
         "old_authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
         "new_authority_pub": "e109d340c6b90f7b741770641cbc10e29cf90239c8459b65e52151981f6ea3f8"
       }
+    },
+    {
+      "name": "revoked-name-seal",
+      "spec": "crypto.md 9.2, ADR-0036",
+      "inputs": {
+        "vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "bb8b7895c05bf9f375d4217069c7ff4a",
+        "epoch": 2,
+        "name": "Work laptop",
+        "nonce": "004c1ebd4bb49cfde64a00c9cc13feb2ffdaa4fa557c195c"
+      },
+      "expected": {
+        "sealed": "01004c1ebd4bb49cfde64a00c9cc13feb2ffdaa4fa557c195c8ed6d4a03b511d64e7235b6bd6371e59fdea2e7fe2436b9c17fb77"
+      }
+    },
+    {
+      "name": "revoked-name-open",
+      "spec": "crypto.md 9.2, ADR-0036",
+      "inputs": {
+        "vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "bb8b7895c05bf9f375d4217069c7ff4a",
+        "epoch": 2,
+        "sealed": "01004c1ebd4bb49cfde64a00c9cc13feb2ffdaa4fa557c195c8ed6d4a03b511d64e7235b6bd6371e59fdea2e7fe2436b9c17fb77"
+      },
+      "expected": {
+        "name": "Work laptop"
+      }
+    },
+    {
+      "name": "revoked-name-other-device",
+      "spec": "crypto.md 9.2, ADR-0036",
+      "inputs": {
+        "vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+        "epoch": 2,
+        "sealed": "01004c1ebd4bb49cfde64a00c9cc13feb2ffdaa4fa557c195c8ed6d4a03b511d64e7235b6bd6371e59fdea2e7fe2436b9c17fb77"
+      },
+      "expected": "reject",
+      "why": "device id is in the AAD"
+    },
+    {
+      "name": "revoked-name-other-epoch",
+      "spec": "crypto.md 9.2, ADR-0036",
+      "inputs": {
+        "vk": "3186f898517d48e3f2b7cc6fb1015dbe67e1ca24c268fc34457f01033b1cce08",
+        "vault_id": "cc632b71c60671f8fbe6eeed081b626c",
+        "device_id": "bb8b7895c05bf9f375d4217069c7ff4a",
+        "epoch": 3,
+        "sealed": "01004c1ebd4bb49cfde64a00c9cc13feb2ffdaa4fa557c195c8ed6d4a03b511d64e7235b6bd6371e59fdea2e7fe2436b9c17fb77"
+      },
+      "expected": "reject",
+      "why": "epoch is in the AAD"
     }
   ]
 }
