@@ -366,6 +366,7 @@ fn initialised_inner() {
         .forgot_find(&elsewhere, &[f.code.clone().unwrap()], false)
         .unwrap();
     assert_eq!(found.items, 1);
+    assert_eq!(found.devices, 0, "this Mac is not another device");
     let new_pw = password();
     let new = d.forgot_prepare(&new_pw, false).unwrap();
     let groups: Vec<&str> = new.secret_key.split('-').collect();
