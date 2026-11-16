@@ -257,10 +257,15 @@ fn timeboxed(cfg: Config, limit: Duration) -> Result<Report, SyncError> {
 /// A command that pulls and pushes would otherwise print the same warning twice.
 static WARNED: AtomicBool = AtomicBool::new(false);
 
-fn warn_once(text: &str) {
-    if !WARNED.swap(true, Ordering::SeqCst) {
+/// Set when the pull before the command failed and said why, so the line after a failed push need not.
+static PULL_FAILED: AtomicBool = AtomicBool::new(false);
+
+fn warn_once(text: &str) -> bool {
+    let first = !WARNED.swap(true, Ordering::SeqCst);
+    if first {
         eprintln!("warning: {text}");
     }
+    first
 }
 
 /// What the automatic sync after a write did, so the command can say so.
@@ -301,7 +306,7 @@ impl Pushed {
                     .to_owned()
             }
             // The pull before the command may already have said why, in a warning just above.
-            Pushed::Failed(_) if WARNED.load(Ordering::SeqCst) => {
+            Pushed::Failed(_) if PULL_FAILED.load(Ordering::SeqCst) => {
                 "Saved. Not synced (see the warning above); run `figlock sync` when you can."
                     .to_owned()
             }
@@ -352,7 +357,7 @@ fn quiet(limit: Duration) -> Pushed {
     match timeboxed(cfg, limit) {
         Ok(report) => {
             for w in &report.warnings {
-                warn_once(warning_text(*w));
+                let _ = warn_once(warning_text(*w));
             }
             Pushed::Synced {
                 uploaded: report.pushed,
@@ -371,9 +376,11 @@ fn quiet(limit: Duration) -> Pushed {
 pub fn pull_first() {
     let fresh = sync::last_sync_ms().is_some_and(|t| now_ms().saturating_sub(t) < PULL_AFTER_MS);
     if !fresh && let Pushed::Failed(why) = quiet(PULL_TIMEOUT) {
-        warn_once(&format!(
+        if warn_once(&format!(
             "not synced with Google Drive ({why}); this device keeps working. Run `figlock sync` when you can"
-        ));
+        )) {
+            PULL_FAILED.store(true, Ordering::SeqCst);
+        }
     }
 }
 
