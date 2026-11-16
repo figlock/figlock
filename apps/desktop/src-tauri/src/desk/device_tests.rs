@@ -113,7 +113,11 @@ fn list_and_revoke_inner() {
     assert!(rows[0].this_device && !rows[0].revoked);
     let gone = rows.iter().find(|r| r.id == phone).unwrap();
     assert!(gone.revoked);
-    assert_eq!(gone.name.as_deref(), Some("Phone"), "a revoked device keeps its name");
+    assert_eq!(
+        gone.name.as_deref(),
+        Some("Phone"),
+        "a revoked device keeps its name"
+    );
 
     // Revoking twice is refused, and the vault still unlocks with the same credentials.
     assert_eq!(
