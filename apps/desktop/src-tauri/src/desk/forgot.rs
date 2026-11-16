@@ -168,7 +168,7 @@ impl Desk {
                 new_password: throwaway.as_str(),
                 new_recovery_key: None,
             },
-            DeviceKeys::generate().map_err(Fail::from)?,
+            this_device()?,
             &Self::device_name(),
             &records,
             now_ms(),
