@@ -18,6 +18,8 @@
 
   /** States where nothing happens until the person acts, so "last synced" would mislead. */
   const PAUSED = ["sign_in", "lost", "foreign"];
+  /** Only a sync that is working gets the green shield; a paused, offline or failing one must not read as healthy. */
+  const HEALTHY = ["idle", "syncing"];
 
   let confirming = $state<"off" | "reupload" | "signout" | "switch" | "delete" | null>(null);
 
@@ -44,7 +46,7 @@
       <div
         class="flex items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3"
       >
-        {#if view.enabled && PAUSED.includes(view.state)}
+        {#if view.enabled && !HEALTHY.includes(view.state)}
           <Icon name="shield-alert" class="text-warning" />
         {:else if view.enabled}
           <Icon name="shield-check" class="text-success" />
