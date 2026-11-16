@@ -307,3 +307,57 @@ fn a_removed_device_is_told_and_refused_writes_but_can_still_read() {
     );
     assert!(text(&devices.stderr).contains("removed from the vault on"));
 }
+
+/// FIG-136: a revoked device has no name left, so `device list` labels it "(name unknown)" instead of repeating
+/// "(revoked)", and the JSON output still carries a null name.
+#[test]
+fn a_revoked_device_with_no_name_is_listed_as_name_unknown() {
+    let v = vault();
+    let store = v.store.path().to_str().unwrap();
+    let second = Machine::new();
+    let opened = second.run(
+        &[
+            "open",
+            "--store",
+            store,
+            "--device-name",
+            "second",
+            "--no-quick-unlock",
+        ],
+        &v.password,
+        Some(&v.secret_key),
+    );
+    assert!(opened.status.success(), "{}", text(&opened.stderr));
+    let sk = Some(v.secret_key.as_str());
+    let list = v.first.run(&["device", "list"], &v.password, sk);
+    let id = text(&list.stdout)
+        .lines()
+        .find(|l| !l.contains("(this device)"))
+        .and_then(|l| l.split_whitespace().next())
+        .expect("the second device is listed")
+        .to_owned();
+    let revoked = v.first.run(&["device", "revoke", &id], &v.password, sk);
+    assert!(revoked.status.success(), "{}", text(&revoked.stderr));
+
+    let out = text(&v.first.run(&["device", "list"], &v.password, sk).stdout);
+    println!("{out}");
+    let line = out.lines().find(|l| l.starts_with(&id)).expect("listed");
+    assert!(line.contains("(name unknown)"), "{line}");
+    assert!(line.contains("revoked"), "{line}");
+    assert!(!line.contains("(revoked) (revoked"), "{line}");
+
+    let json = text(
+        &v.first
+            .run(&["--json", "device", "list"], &v.password, sk)
+            .stdout,
+    );
+    println!("{json}");
+    let rows: serde_json::Value = serde_json::from_str(json.trim()).expect("json");
+    let row = rows
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["revoked"] == true)
+        .expect("revoked row");
+    assert!(row["name"].is_null(), "{row}");
+}
