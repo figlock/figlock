@@ -336,13 +336,18 @@ under the old `AUK`, is `Vault::revoke_device_and_change_credentials` (ADR-0022 
 Two members are added to the signed body and are omitted while empty (epoch 1 vaults do not have them):
 
 ```
-"revoked":    [ { "device_id": hex16, "sign_pub": hex32, "revoked_at": [wall_ms, counter], "epoch": N } ]
+"revoked":    [ { "device_id": hex16, "sign_pub": hex32, "revoked_at": [wall_ms, counter], "epoch": N, "name": hex (optional) } ]
 "epoch_keys": [ { "from": N, "to": N+1, "sealed": hex } ]
 ```
 
 - `revoked` lists every revoked device. `sign_pub` is kept so that files the device wrote before the
   revocation still verify. `revoked_at` is the revoking device's clock stamp, and `epoch` is the new
   `key_epoch` produced by the revocation. A revoked device's record is not re-signed.
+  An entry may also carry `"name"` (ADR-0036): the device name sealed as
+  `seal(LK_epoch, name, aad("revoked-name", vault_id, device_id, u32(epoch)))`, hex, where `LK_epoch` is the Log Key
+  (6) of the entry's own `epoch`, so later rotations leave it as it is and any device opens it with the key it
+  has for that epoch. The revoking device writes it from the record it removes. A name that does not open is no
+  name. A file with a `name` in any entry has `min_format_version` 2 (9.3).
 - `epoch_keys` has one entry per rotation, in order. `sealed` is the `epoch_key` of step 3 above, sealed under
   the VK of epoch `to`. A reader opens the chain newest first from the current `VK`; entries must be
   contiguous (`to = from + 1`) down to epoch 1, or the file is refused.

@@ -64,7 +64,7 @@ pub use items::{open_field, seal_field, unwrap_item_key, wrap_item_key};
 pub use kdf::{KdfParams, derive_pw_key};
 pub use keys::{
     VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, open_quick_unlock,
-    seal_quick_unlock, unwrap_vk, wrap_vk,
+    open_revoked_name, seal_quick_unlock, unwrap_vk, wrap_vk,
 };
 pub use kit::{KIT_VERSION, KitInfo, render_kit, verify_kit_groups};
 pub use merge::{DeviceId, Register, State, Write};
@@ -106,7 +106,10 @@ pub mod vector_hooks {
     pub use crate::file::build_file_with_nonce;
     pub use crate::items::{seal_field_with_nonce, wrap_item_key_with_nonce};
     pub use crate::kdf::hkdf_raw;
-    pub use crate::keys::{epoch_key_with_nonce, seal_quick_unlock_with_nonce, wrap_vk_with_nonce};
+    pub use crate::keys::{
+        epoch_key_with_nonce, seal_quick_unlock_with_nonce, seal_revoked_name_with_nonce,
+        wrap_vk_with_nonce,
+    };
     pub use crate::pairing::seal_to_with;
     pub use crate::quick_se::seal_quick_unlock_se_with;
     pub use crate::signing::canonical_json;

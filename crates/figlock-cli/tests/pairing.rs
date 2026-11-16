@@ -308,10 +308,10 @@ fn a_removed_device_is_told_and_refused_writes_but_can_still_read() {
     assert!(text(&devices.stderr).contains("removed from the vault on"));
 }
 
-/// FIG-136: a revoked device has no name left, so `device list` labels it "(name unknown)" instead of repeating
-/// "(revoked)", and the JSON output still carries a null name.
+/// FIG-138 (ADR-0036): a revoked device keeps its name in `device list` and in the JSON output, and the row says
+/// it is revoked once.
 #[test]
-fn a_revoked_device_with_no_name_is_listed_as_name_unknown() {
+fn a_revoked_device_is_listed_with_its_name() {
     let v = vault();
     let store = v.store.path().to_str().unwrap();
     let second = Machine::new();
@@ -342,7 +342,8 @@ fn a_revoked_device_with_no_name_is_listed_as_name_unknown() {
     let out = text(&v.first.run(&["device", "list"], &v.password, sk).stdout);
     println!("{out}");
     let line = out.lines().find(|l| l.starts_with(&id)).expect("listed");
-    assert!(line.contains("(name unknown)"), "{line}");
+    assert!(line.contains("second"), "{line}");
+    assert!(!line.contains("(name unknown)"), "{line}");
     assert!(line.contains("revoked"), "{line}");
     assert!(!line.contains("(revoked) (revoked"), "{line}");
 
@@ -359,5 +360,5 @@ fn a_revoked_device_with_no_name_is_listed_as_name_unknown() {
         .iter()
         .find(|r| r["revoked"] == true)
         .expect("revoked row");
-    assert!(row["name"].is_null(), "{row}");
+    assert_eq!(row["name"], "second", "{row}");
 }

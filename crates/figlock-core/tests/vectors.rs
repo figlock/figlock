@@ -336,7 +336,33 @@ fn rotation() {
     for c in load("rotation.json") {
         let (i, e) = (&c["inputs"], &c["expected"]);
         let n = name(&c);
-        if i.get("nonce").is_some() {
+        if n.starts_with("revoked-name-") {
+            let lk = fc::derive_vault_keys(&key(&i["vk"])).unwrap().lk;
+            let (vault, device, epoch) = (
+                arr::<16>(&i["vault_id"]),
+                arr::<16>(&i["device_id"]),
+                u32f(&i["epoch"]),
+            );
+            if n == "revoked-name-seal" {
+                let s = vh::seal_revoked_name_with_nonce(
+                    &lk,
+                    i["name"].as_str().unwrap(),
+                    &vault,
+                    &device,
+                    epoch,
+                    &arr(&i["nonce"]),
+                )
+                .unwrap();
+                assert_eq!(s, bytes(&e["sealed"]), "{n}");
+            } else {
+                let r = fc::open_revoked_name(&lk, &bytes(&i["sealed"]), &vault, &device, epoch);
+                if is_reject(&c) {
+                    assert_rejected(r, n);
+                } else {
+                    assert_eq!(r.unwrap(), e["name"].as_str().unwrap(), "{n}");
+                }
+            }
+        } else if i.get("nonce").is_some() {
             let s = vh::epoch_key_with_nonce(
                 &key(&i["new_vk"]),
                 &key(&i["old_vk"]),

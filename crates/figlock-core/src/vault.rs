@@ -15,7 +15,8 @@ use crate::file::{FileId, Kind, build_file, read_file};
 use crate::hlc::{Hlc, Stamp, is_held};
 use crate::invite::{Invite, JoinRequest, device_fingerprint};
 use crate::keys::{
-    VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, unwrap_vk, wrap_vk,
+    VaultKeys, derive_auk, derive_vault_keys, epoch_key, open_epoch_key, open_revoked_name,
+    seal_revoked_name, unwrap_vk, wrap_vk,
 };
 use crate::merge::{DeviceId, Register, State, Write};
 use crate::pairing::{open_seal_to, seal_to};
@@ -118,6 +119,10 @@ struct Revoked {
     sign_pub: [u8; 32],
     revoked_at: Stamp,
     epoch: u32,
+    /// The device name sealed with the Log Key of `epoch`, as `vault.json` carries it (ADR-0036).
+    name_sealed: Option<Vec<u8>>,
+    /// `name_sealed` opened, once the key of `epoch` is at hand; none for an older entry or one that does not open.
+    name: Option<String>,
 }
 
 /// An entry of `epoch_keys`: the key of epoch `from`, sealed under the key of epoch `to`.
@@ -394,7 +399,11 @@ impl Header {
                 _ => return Err(Error),
             },
         };
-        let min_version = if recovery.is_some() || sk_gen > 1 {
+        let names = o
+            .get("revoked")
+            .and_then(Json::as_array)
+            .is_some_and(|l| l.iter().any(|e| e.get("name").is_some()));
+        let min_version = if recovery.is_some() || sk_gen > 1 || names {
             2
         } else {
             1
@@ -480,12 +489,20 @@ fn vault_json_body_with(
             let list: Vec<Json> = revoked
                 .iter()
                 .map(|(id, r)| {
-                    json!({
+                    let mut entry = json!({
                         "device_id": hexs(id), "sign_pub": hexs(&r.sign_pub),
                         "revoked_at": [r.revoked_at.wall, r.revoked_at.counter], "epoch": r.epoch,
-                    })
+                    });
+                    if let Some(sealed) = &r.name_sealed {
+                        entry["name"] = json!(hexs(sealed));
+                    }
+                    entry
                 })
                 .collect();
+            // A sealed name needs version 2, so a client that predates it refuses the file instead of dropping it.
+            if revoked.values().any(|r| r.name_sealed.is_some()) {
+                o.insert("min_format_version".into(), json!(2));
+            }
             o.insert("revoked".into(), Json::Array(list));
         }
         if !epoch_keys.is_empty() {
@@ -513,7 +530,11 @@ fn parse_revoked(o: &Map<String, Json>, epoch: u32) -> Result<BTreeMap<DeviceId,
         };
         let rev_epoch = u32::try_from(e.get("epoch").and_then(Json::as_u64).ok_or(Error)?)
             .map_err(|_| Error)?;
-        if e.len() != 4 || wall > Stamp::MAX_WALL || !(2..=epoch).contains(&rev_epoch) {
+        let name_sealed = e.get("name").map(unhex_vec).transpose()?;
+        if e.len() != 4 + usize::from(name_sealed.is_some())
+            || wall > Stamp::MAX_WALL
+            || !(2..=epoch).contains(&rev_epoch)
+        {
             return Err(Error);
         }
         let id: DeviceId = unhex(e.get("device_id").ok_or(Error)?)?;
@@ -524,6 +545,8 @@ fn parse_revoked(o: &Map<String, Json>, epoch: u32) -> Result<BTreeMap<DeviceId,
                 counter: u16::try_from(counter).map_err(|_| Error)?,
             },
             epoch: rev_epoch,
+            name_sealed,
+            name: None,
         };
         if out.insert(id, entry).is_some() {
             return Err(Error);
@@ -702,7 +725,7 @@ impl Vault {
             return Err(Error);
         }
 
-        let revoked = parse_revoked(o, epoch)?;
+        let mut revoked = parse_revoked(o, epoch)?;
         let epoch_keys = parse_epoch_keys(o, epoch)?;
         // Open the chain newest first: each entry holds the previous epoch's VK under the next one.
         let mut older = BTreeMap::new();
@@ -711,6 +734,17 @@ impl Vault {
             let old = open_epoch_key(&newer, &e.sealed, &vault_id, e.from, e.to)?;
             older.insert(e.from, derive_vault_keys(&old)?);
             newer = old;
+        }
+        // A revoked device's name opens with the Log Key of the epoch its revocation produced.
+        for (id, r) in &mut revoked {
+            let lk = if r.epoch == epoch {
+                Some(&keys.lk)
+            } else {
+                older.get(&r.epoch).map(|k| &k.lk)
+            };
+            r.name = r.name_sealed.as_deref().zip(lk).and_then(|(sealed, lk)| {
+                open_revoked_name(lk, sealed, &vault_id, id, r.epoch).ok()
+            });
         }
 
         let mut vault =
@@ -870,7 +904,7 @@ impl Vault {
         });
         let gone = self.revoked.iter().map(|(id, r)| DeviceInfo {
             device_id: *id,
-            name: None,
+            name: r.name.clone(),
             fingerprint: device_fingerprint(&r.sign_pub),
             revoked_at: Some(r.revoked_at),
         });
@@ -1026,6 +1060,12 @@ impl Vault {
         });
         let mut hlc = self.hlc;
         let revoked_at = hlc.local(now_ms)?;
+        // The record is about to go, and it is the only place the name lives: keep it, sealed (ADR-0036).
+        let name = self.device_meta.get(target).map(|m| m.name.clone());
+        let name_sealed = name
+            .as_deref()
+            .map(|n| seal_revoked_name(&new_keys.lk, n, &self.vault_id, target, new_epoch))
+            .transpose()?;
         let mut revoked = self.revoked.clone();
         revoked.insert(
             *target,
@@ -1033,6 +1073,8 @@ impl Vault {
                 sign_pub: self.devices[target],
                 revoked_at,
                 epoch: new_epoch,
+                name_sealed,
+                name,
             },
         );
 

@@ -115,6 +115,38 @@ fn revoking_rotates_the_epoch_and_signs_the_revoked_list() {
 }
 
 #[test]
+fn a_revoked_device_keeps_its_name_for_every_device_across_later_rotations() {
+    let mut f = fleet();
+    let (b_id, c_id) = (*f.b.device_id(), *f.c.device_id());
+    let r = f.a.revoke_device(pw(), &f.sk, &c_id, T0 + 400).unwrap();
+    let v = vault_json_value(&r.vault_json);
+    // The name is sealed, never written in clear, and a sealed name makes the file version 2.
+    assert!(!String::from_utf8_lossy(&r.vault_json).contains("Work PC"));
+    assert!(v["revoked"][0]["name"].is_string());
+    assert_eq!(v["min_format_version"], 2);
+    let name_of = |vault: &Vault, id| {
+        vault
+            .devices()
+            .into_iter()
+            .find(|d| d.device_id == id)
+            .unwrap()
+            .name
+    };
+    assert_eq!(name_of(&f.a, c_id).as_deref(), Some("Work PC"));
+    // Another device opens the new file from scratch and still reads it.
+    let other = unlock_after(&r, &f.sk, "Laptop", T0 + 500);
+    assert_eq!(name_of(&other, c_id).as_deref(), Some("Work PC"));
+
+    // A later revocation rotates again; the earlier entry keeps its name, sealed under its own epoch.
+    let mut a2 = other;
+    let r2 = a2.revoke_device(pw(), &f.sk, &b_id, T0 + 600).unwrap();
+    assert_eq!(vault_json_value(&r2.vault_json)["key_epoch"], 3);
+    let third = unlock_after(&r2, &f.sk, "Tablet", T0 + 700);
+    assert_eq!(name_of(&third, c_id).as_deref(), Some("Work PC"));
+    assert_eq!(name_of(&third, b_id).as_deref(), Some("Phone"));
+}
+
+#[test]
 fn remaining_devices_unlock_the_new_epoch_and_read_old_and_new_data() {
     let mut f = fleet();
     add_login(&mut f.a, "Before", T0 + 300);

@@ -411,6 +411,22 @@ def rotation():
     cases.append(case("rotation-changes-derived-keys", "crypto.md 9.1", {"old_vk": x(VK), "new_vk": x(vk2)},
                       {"old_lk": x(d_old["lk"]), "new_lk": x(d_new["lk"]),
                        "old_authority_pub": x(d_old["authority_pub"]), "new_authority_pub": x(d_new["authority_pub"])}))
+    # ADR-0036: the revoked device's name, sealed with the Log Key of the entry's epoch.
+    name_nonce = fill("nonce-revoked-name", 24)
+    name = "Work laptop".encode()
+    revoked_aad = r.aad("revoked-name", VAULT_ID, DEVICE_B, r.u32(2))
+    sealed_name = r.seal(d_new["lk"], name, revoked_aad, name_nonce)
+    cases.append(case("revoked-name-seal", "crypto.md 9.2, ADR-0036",
+                      {"vk": x(vk2), "vault_id": x(VAULT_ID), "device_id": x(DEVICE_B), "epoch": 2,
+                       "name": name.decode(), "nonce": x(name_nonce)}, {"sealed": x(sealed_name)}))
+    assert r.open_(d_new["lk"], sealed_name, revoked_aad) == name
+    open_inputs = {"vk": x(vk2), "vault_id": x(VAULT_ID), "device_id": x(DEVICE_B), "epoch": 2,
+                   "sealed": x(sealed_name)}
+    cases.append(case("revoked-name-open", "crypto.md 9.2, ADR-0036", open_inputs, {"name": name.decode()}))
+    cases.append(reject("revoked-name-other-device", "crypto.md 9.2, ADR-0036",
+                        {**open_inputs, "device_id": x(DEVICE_A)}, "device id is in the AAD"))
+    cases.append(reject("revoked-name-other-epoch", "crypto.md 9.2, ADR-0036", {**open_inputs, "epoch": 3},
+                        "epoch is in the AAD"))
     return {"title": "Vault Key rotation", "cases": cases}
 
 
@@ -857,7 +873,16 @@ def verify_case(fname: str, c: dict) -> None:
             else:
                 r.verify_json(b(i["authority_pub"]), ctx, obj, b(i["signature"]))
     elif fname == "rotation.json":
-        if "nonce" in i:
+        if name.startswith("revoked-name-"):
+            lk = r.derive_from_vk(b(i["vk"]))["lk"]
+            a = r.aad("revoked-name", b(i["vault_id"]), b(i["device_id"]), r.u32(i["epoch"]))
+            if name == "revoked-name-seal":
+                assert r.seal(lk, i["name"].encode(), a, b(i["nonce"])) == b(e["sealed"])
+            elif e == "reject":
+                expect_reject(lambda: r.open_(lk, b(i["sealed"]), a))
+            else:
+                assert r.open_(lk, b(i["sealed"]), a).decode() == e["name"]
+        elif "nonce" in i:
             assert r.epoch_key(b(i["new_vk"]), b(i["old_vk"]), b(i["vault_id"]), i["old_epoch"], i["new_epoch"],
                                b(i["nonce"])) == b(e["epoch_key"])
         elif "epoch_key" in i:

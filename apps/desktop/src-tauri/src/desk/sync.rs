@@ -251,12 +251,16 @@ impl Desk {
         let Some(session) = inner.session.as_mut() else {
             return (false, false);
         };
+        // A revocation made elsewhere shows up as a settings change; the window must hear of it at once and
+        // block writes, not at the next unlock (FIG-138).
+        let was_removed = session.removed_at_ms().is_some();
         match session.refresh() {
             Ok(r) => {
+                let removed = !was_removed && session.removed_at_ms().is_some();
                 if r.applied > 0 {
                     inner.cache = None;
                 }
-                (r.applied > 0, r.settings_changed || r.stopped)
+                (r.applied > 0 || removed, r.settings_changed || r.stopped)
             }
             Err(_) => (false, false),
         }

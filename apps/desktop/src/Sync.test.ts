@@ -224,6 +224,10 @@ test("a vault missing from Drive is only uploaded again after the person confirm
     message: "The vault is no longer in your Google Drive. You can upload it again from this Mac.",
   });
   expect(screen.getByTestId("last-sync").textContent).toContain("Sync is paused");
+  // A paused sync is not a healthy one: no green shield beside it.
+  const card = screen.getByTestId("last-sync").closest("div")!.parentElement!;
+  expect(card.querySelector("svg.text-success")).toBeNull();
+  expect(card.querySelector("svg.text-warning")).not.toBeNull();
   await user.click(screen.getByRole("button", { name: /Upload from this Mac/ }));
   const dialog = await screen.findByRole("dialog");
   expect(core.syncNow).not.toHaveBeenCalled();
