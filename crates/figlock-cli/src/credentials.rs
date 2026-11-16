@@ -187,7 +187,7 @@ pub fn secret_key_forget(json: bool) -> Res<()> {
 
 fn label(d: &DeviceInfo) -> String {
     d.name.as_deref().map_or_else(
-        || "(revoked)".to_owned(),
+        || "(name unknown)".to_owned(),
         |n| crate::render::clean(n).into_owned(),
     )
 }
