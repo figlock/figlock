@@ -30,6 +30,11 @@ struct Fixture {
 }
 
 fn fixture(d: &Desk, how: Option<(bool, u8, u8)>) -> Fixture {
+    fixture_with(d, how, true)
+}
+
+/// `fresh_install`: the device's own setup is gone afterwards, as on a Mac that never had the vault.
+fn fixture_with(d: &Desk, how: Option<(bool, u8, u8)>, fresh_install: bool) -> Fixture {
     let pw = password();
     let key = created_key(d, &pw);
     let groups: Vec<&str> = key.split('-').collect();
@@ -84,9 +89,11 @@ fn fixture(d: &Desk, how: Option<(bool, u8, u8)>) -> Fixture {
     )
     .unwrap();
     d.lock();
-    // A fresh install of the app: the device's own setup is gone, the vault in storage is not.
-    figlock_session::config::forget();
-    assert_eq!(d.state().unwrap().phase, "none");
+    if fresh_install {
+        // A fresh install of the app: the device's own setup is gone, the vault in storage is not.
+        figlock_session::config::forget();
+        assert_eq!(d.state().unwrap().phase, "none");
+    }
     Fixture {
         password: pw,
         secret_key: key,
@@ -334,31 +341,44 @@ fn cancel_inner() {
 }
 
 #[test]
-fn a_device_that_is_already_set_up_cannot_start_it() {
+fn a_set_up_mac_that_forgot_its_password_gets_back_in_with_the_recovery_key() {
     scenario("initialised_inner");
 }
 
 #[test]
 #[ignore = "runs as a child of the test above"]
 fn initialised_inner() {
+    // The Unlock screen (FIG-139): this Mac keeps its setup and its vault; only the password is forgotten.
     let d = desk();
-    let pw = password();
-    let key = created_key(&d, &pw);
-    let groups: Vec<&str> = key.split('-').collect();
+    let f = fixture_with(&d, Some((false, 0, 0)), false);
+    assert_eq!(d.state().unwrap().phase, "locked");
+    // The window sends no storage; the vault is the one this Mac is set up with, even if it asks for another.
+    let elsewhere = Storage {
+        path: Some("/nonexistent/elsewhere".to_owned()),
+        drive: false,
+    };
+    let other = RecoveryKey::random().unwrap().format().to_string();
+    assert_eq!(
+        code_of(d.forgot_find(&elsewhere, &[other], false).unwrap_err()),
+        "recovery_failed"
+    );
+    let found = d
+        .forgot_find(&elsewhere, &[f.code.clone().unwrap()], false)
+        .unwrap();
+    assert_eq!(found.items, 1);
+    let new_pw = password();
+    let new = d.forgot_prepare(&new_pw, false).unwrap();
+    let groups: Vec<&str> = new.secret_key.split('-').collect();
     assert!(
         d.check_kit_key(&groups[groups.len() - 2..].join("-"))
             .unwrap()
     );
-    d.recovery_skip(true).unwrap();
-    d.finish_create(false).unwrap();
+    assert_eq!(d.forgot_commit(false).unwrap().phase, "unlocked");
+    assert_eq!(titles(&d), ["Bank"]);
     d.lock();
-    let code = RecoveryKey::random().unwrap().format().to_string();
     assert_eq!(
-        code_of(
-            d.forgot_find(&folder(&vault_dir()), &[code], false)
-                .unwrap_err()
-        ),
-        "failed"
+        d.unlock(&new_pw, Some(&new.secret_key)).unwrap().phase,
+        "unlocked"
     );
 }
 

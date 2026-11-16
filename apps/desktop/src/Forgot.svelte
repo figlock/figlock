@@ -22,8 +22,14 @@
     type VaultState,
   } from "./vault";
 
-  type Props = { touchAvailable: boolean; onback: () => void; ondone: (s: VaultState) => void };
-  let { touchAvailable, onback, ondone }: Props = $props();
+  type Props = {
+    touchAvailable: boolean;
+    /** This Mac already has the vault (the Unlock screen): the vault is the one it is set up with. */
+    here?: boolean;
+    onback: () => void;
+    ondone: (s: VaultState) => void;
+  };
+  let { touchAvailable, here = false, onback, ondone }: Props = $props();
 
   type Step = "key" | "found" | "newkey" | "kit";
   let step = $state<Step>("key");
@@ -96,17 +102,17 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (storage.kind === "folder" && !storage.folder) {
+    if (!here && storage.kind === "folder" && !storage.folder) {
       fieldError.folder = "Choose the folder that holds your vault.";
     }
-    if (storage.kind === "drive" && !storage.ready) error = "Sign in to Google first.";
+    if (!here && storage.kind === "drive" && !storage.ready) error = "Sign in to Google first.";
     if (mode === "code" && code.trim() === "") fieldError.code = "Enter your Recovery Key.";
     if (mode === "cards" && !complete) error = "Enter every card that is needed.";
     if (error || fieldError.folder || fieldError.code) return;
     busy = true;
     try {
       const answers = mode === "code" ? [code] : cards.filter((c) => c.trim() !== "");
-      found = await forgotFind(storage.value, answers, mode === "cards");
+      found = await forgotFind(here ? {} : storage.value, answers, mode === "cards");
       step = "found";
     } catch (e) {
       error = errorOf(e).message;
@@ -185,7 +191,9 @@
   >
     <form class="flex flex-col gap-4" onsubmit={find}>
       {#if error}<Alert>{error}</Alert>{/if}
-      <StoragePicker {storage} folderError={fieldError.folder} />
+      {#if !here}
+        <StoragePicker {storage} folderError={fieldError.folder} />
+      {/if}
       <fieldset class="flex flex-col gap-2">
         <legend class="mb-1 text-(length:--text-sm) font-medium">Your Recovery Key is</legend>
         <label class="flex items-center gap-2">
@@ -238,7 +246,7 @@
       <div class="flex gap-2">
         <Button onclick={back}>Back</Button>
         <div class="flex-1"></div>
-        <Button variant="primary" type="submit" disabled={busy || !storage.ready}>
+        <Button variant="primary" type="submit" disabled={busy || (!here && !storage.ready)}>
           {busy ? "Opening..." : "Continue"}
         </Button>
       </div>

@@ -5,8 +5,14 @@
   import Shell from "./Shell.svelte";
   import { errorOf, quickUnlock, unlock, type VaultState } from "./vault";
 
-  type Props = { vault: VaultState; notice?: string; ondone: (s: VaultState) => void };
-  let { vault, notice = "", ondone }: Props = $props();
+  type Props = {
+    vault: VaultState;
+    notice?: string;
+    ondone: (s: VaultState) => void;
+    /** Can't unlock: show the ways back in (FIG-139). */
+    onforgot: () => void;
+  };
+  let { vault, notice = "", ondone, onforgot }: Props = $props();
 
   let password = $state("");
   let secretKey = $state("");
@@ -133,6 +139,14 @@
         {busy === "touch" ? "Waiting for Touch ID..." : "Use Touch ID"}
       </Button>
     {/if}
+    <button
+      type="button"
+      class="self-center text-(length:--text-sm) text-text-secondary underline underline-offset-2 hover:text-text"
+      disabled={busy !== ""}
+      onclick={onforgot}
+    >
+      I forgot my password or Secret Key
+    </button>
   </form>
   <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
     FigLock locks itself after {timeout} without activity.

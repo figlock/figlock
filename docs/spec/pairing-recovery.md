@@ -226,6 +226,13 @@ except by explicit user action, and the clipboard clears after 30 seconds.
 | R7 | Storage account lost or wiped | Yes, if any device is left | Any device re-uploads its local copy (`sync.md` 8, rollback); with no device and no copy it is lost |
 | R8 | Device stolen | Yes | Revoke it (section 4), rotate the password and Secret Key if it was unlocked |
 
+**From the unlock screen (FIG-139).** A device that already has the vault MUST offer "I forgot my password or
+Secret Key" on its unlock screen, not only on first run. It lists R1 (change the password on another unlocked
+device), R2 (opens the Recovery Key flow for this device's own vault, which keeps the same device identity and
+asks for no storage), R3 and R5 (says plainly that without a device or a Recovery Key the vault cannot be opened and
+that FigLock has no way to reset it, and offers "Remove this vault from this Mac", which leaves the folder, the
+storage copy and the kept Secret Key alone), and R4 (the Emergency Kit, or Show Secret Key on another device).
+
 A device keeps the Secret Key whether or not quick unlock is on (ADR-0034), so R9 is the only time a person who
 has the vault on this device types it again. Rotation on a device updates its own kept key and `sk_gen` in the
 same step; a password change and a revocation leave both alone.
