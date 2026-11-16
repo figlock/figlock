@@ -1131,7 +1131,7 @@ fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_rea
         text(&out.stderr)
     );
     assert!(
-        text(&out.stderr).contains("Saved. Not synced:"),
+        text(&out.stderr).contains("Saved. Not synced"),
         "the write says it was saved but not synced: {}",
         text(&out.stderr)
     );

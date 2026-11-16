@@ -300,8 +300,13 @@ impl Pushed {
                 "Saved. Not synced yet: another sync is running here; run `figlock sync` if it does not catch up."
                     .to_owned()
             }
+            // The pull before the command may already have said why, in a warning just above.
+            Pushed::Failed(_) if WARNED.load(Ordering::SeqCst) => {
+                "Saved. Not synced (see the warning above); run `figlock sync` when you can."
+                    .to_owned()
+            }
             Pushed::Failed(why) => {
-                format!("Saved. Not synced: {why}; run `figlock sync` when you can.")
+                format!("Saved. Not synced ({why}); run `figlock sync` when you can.")
             }
         })
     }
@@ -410,7 +415,7 @@ mod tests {
         assert!(line(&Pushed::Busy).starts_with("Saved. Not synced yet: another sync"));
         assert_eq!(
             line(&Pushed::Failed("no sign-in".to_owned())),
-            "Saved. Not synced: no sign-in; run `figlock sync` when you can."
+            "Saved. Not synced (no sign-in); run `figlock sync` when you can."
         );
     }
 
