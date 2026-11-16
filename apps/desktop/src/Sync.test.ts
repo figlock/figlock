@@ -206,6 +206,13 @@ test("offline is calm: the vault keeps working and sync retries by itself", asyn
   );
 });
 
+test("a failing sync never shows the green shield", async () => {
+  await toSettings({ state: "failed", message: "Sync failed. Try again." });
+  const card = screen.getByTestId("last-sync").closest("div")!.parentElement!;
+  expect(card.querySelector("svg.text-success")).toBeNull();
+  expect(card.querySelector("svg.text-warning")).not.toBeNull();
+});
+
 test("an expired Google sign-in asks to sign in again, then syncs", async () => {
   const user = await toSettings({
     state: "sign_in",
