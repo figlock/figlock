@@ -44,7 +44,7 @@
     <div class="wrap">
       <article class="prose">
         <h1>Privacy</h1>
-        <p class="meta">Last updated 9 November 2026. FigLock 0.1 is an early release of the command line. The apps are not built yet, so parts of this describe how they are designed to work.</p>
+        <p class="meta">Last updated 16 November 2026. FigLock 0.4 is an early release: the Mac app and the command line. The phone apps are not built yet, so parts of this describe how they are designed to work.</p>
 
         <section class="summary" aria-labelledby="summary-title">
           <h2 id="summary-title">The short version</h2>
@@ -90,6 +90,9 @@
 
         <h2>The optional relay</h2>
         <p>If you want to approve an agent request from your phone, an optional relay at <code>relay.figlock.com</code> forwards encrypted approvals between your devices, including through Apple's push notification service. It holds no vault data and no keys, and everything works without it.</p>
+
+        <h2>Updates</h2>
+        <p>The Mac app asks <code>figlock.com/update/latest.json</code> whether a newer version exists, at launch and when you press Check for updates. That request carries no vault data and no account, and it is passed on to the project's GitHub release page. The app installs an update only when you click, and only after checking its signature.</p>
 
         <h2>This website</h2>
         <p>These pages are plain static files. They set no cookies, run no analytics and load nothing from other sites, including fonts. Like any web host, the service that delivers these pages may keep standard request logs, such as the address a request came from and the time. FigLock adds nothing on top of that.</p>
