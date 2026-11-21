@@ -6,12 +6,15 @@ test.describe("Touch ID in Settings (FIG-141)", () => {
     await openApp(page, { items: [GITHUB], touchAvailable: true, quickUnlock: true });
     await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByTestId("touch-id-state")).toContainText("fingerprint");
+    await expect(page.getByTestId("key-where")).toContainText("asks for Touch ID");
     await expectAccessible(page);
 
     await page.getByRole("button", { name: "Turn off Touch ID" }).click();
     await page.getByRole("button", { name: "Turn off Touch ID" }).last().click();
     await expect(page.getByRole("button", { name: "Turn on Touch ID" })).toBeVisible();
     expect(await calls(page)).toContain("turn_touch_id_off");
+    // The Secret Key line follows: with Touch ID off, nothing prompts (ADR-0037).
+    await expect(page.getByTestId("key-where")).not.toContainText("Touch ID");
 
     await page.getByRole("button", { name: "Lock", exact: true }).click();
     await expect(page.getByRole("button", { name: "Use Touch ID" })).toHaveCount(0);

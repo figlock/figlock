@@ -15,6 +15,13 @@
 
   const w = getWorkspace();
 
+  type Props = {
+    /** The newest vault state any Settings panel got back, so a change here shows in its sibling (FIG-143). */
+    latest?: VaultState | null;
+    onstate?: (s: VaultState) => void;
+  };
+  let { latest = null, onstate }: Props = $props();
+
   /** How long a shown key stays on screen. */
   const SHOWN_MS = 30_000;
 
@@ -143,7 +150,9 @@
     error = "";
     busy = true;
     try {
-      info = await keepSecretKey(typed?.password ?? "", typed?.key ?? "");
+      const next = await keepSecretKey(typed?.password ?? "", typed?.key ?? "");
+      info = next;
+      onstate?.(next);
       if (typed) closeTyping();
     } catch (e) {
       const err = errorOf(e);
@@ -163,11 +172,17 @@
     error = "";
     hide();
     try {
-      info = await forgetSecretKey();
+      const next = await forgetSecretKey();
+      info = next;
+      onstate?.(next);
     } catch (e) {
       error = errorOf(e).message;
     }
   }
+
+  $effect(() => {
+    if (latest) info = latest;
+  });
 
   onMount(load);
   onDestroy(hide);

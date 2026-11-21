@@ -11,7 +11,7 @@
   import UpdatePanel from "./UpdatePanel.svelte";
   import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import { ago } from "./sync";
-  import { lock } from "./vault";
+  import { lock, type VaultState } from "./vault";
   import { getWorkspace } from "./workspace";
 
   const { sync, relock } = getWorkspace();
@@ -22,6 +22,8 @@
   /** Only a sync that is working gets the green shield; a paused, offline or failing one must not read as healthy. */
   const HEALTHY = ["idle", "syncing"];
 
+  /** The newest vault state a panel got back, handed to the others so none shows a stale line. */
+  let latest = $state<VaultState | null>(null);
   let confirming = $state<"off" | "reupload" | "signout" | "switch" | "delete" | null>(null);
 
   async function lockToRefresh() {
@@ -203,9 +205,9 @@
     {/if}
   </section>
 
-  <TouchIdPanel />
+  <TouchIdPanel {latest} onstate={(s) => (latest = s)} />
 
-  <SecretKeyPanel />
+  <SecretKeyPanel {latest} onstate={(s) => (latest = s)} />
 
   <AutoLockPanel />
 
