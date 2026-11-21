@@ -363,6 +363,11 @@ enum BrokerCmd {
         /// Never ask; deny every request. For tests and scripts that only need the socket.
         #[arg(long, hide = true)]
         deny_all: bool,
+        /// Run for an agent with nobody at the keyboard: unlock only with quick unlock (never ask for a
+        /// password), refuse to start when nothing could ask for approval, and lock after 30 minutes with no
+        /// request and no live grant. `figlock http` and `figlock run` start it for you when it is needed.
+        #[arg(long)]
+        background: bool,
     },
     /// Show whether the broker is running, its grants and the audit log position.
     Status,
@@ -641,7 +646,10 @@ pub struct ImportArgs {
 #[cfg(unix)]
 fn broker_command(action: BrokerCmd, json: bool) -> error::Res<()> {
     match action {
-        BrokerCmd::Start { deny_all } => broker::cli::start(deny_all),
+        BrokerCmd::Start {
+            deny_all,
+            background,
+        } => broker::cli::start(deny_all, background),
         BrokerCmd::Status => broker::cli::status(json),
         BrokerCmd::Grants => broker::cli::grants(json),
         BrokerCmd::Revoke { grant } => broker::cli::revoke(&grant, json),
@@ -796,7 +804,12 @@ fn main() -> ExitCode {
         Ok(code) => ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1)),
         Err(e) => {
             eprintln!("error: {e}");
-            ExitCode::FAILURE
+            if e.1 == figlock_session::error::FailKind::Unavailable {
+                // `EX_UNAVAILABLE`: nothing could answer, and only a person can change that.
+                ExitCode::from(69)
+            } else {
+                ExitCode::FAILURE
+            }
         }
     }
 }

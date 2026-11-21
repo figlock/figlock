@@ -252,13 +252,10 @@ impl<B: Backend> Quick<B> {
         self.backend.protection(vault)
     }
 
-    /// The kept key, after the policy checks and the prompt.
-    pub fn fetch(&self, vault: &str, now: u64) -> Res<Fetch> {
-        let Some(mut state) = self.state_for(vault) else {
-            return Ok(Fetch::Full(Fallback::Off));
-        };
+    /// Why the kept key can no longer be used, from the stored state alone.
+    fn expired(&self, state: &Value, now: u64) -> Option<&'static str> {
         let num = |k: &str| state[k].as_u64().unwrap_or(0);
-        let expired = if state["boot"] != json!(self.backend.boot_id()) {
+        if state["boot"] != json!(self.backend.boot_id()) {
             Some("this machine restarted since the last full unlock")
         } else if now.saturating_sub(num("last_used")) > self.idle_secs {
             Some("quick unlock timed out from inactivity")
@@ -268,7 +265,25 @@ impl<B: Backend> Quick<B> {
             Some("quick unlock was switched off after too many failed attempts")
         } else {
             None
+        }
+    }
+
+    /// Whether [`fetch`](Self::fetch) would ask for Touch ID right now instead of falling back to the master
+    /// password. Reads state only: it shows no prompt and changes nothing, so a program that cannot type a
+    /// password can decide whether to try (ADR-0040).
+    pub fn usable(&self, vault: &str, now: u64) -> bool {
+        self.state_for(vault)
+            .is_some_and(|s| self.expired(&s, now).is_none())
+            && self.backend.has_key(vault).unwrap_or(false)
+    }
+
+    /// The kept key, after the policy checks and the prompt.
+    pub fn fetch(&self, vault: &str, now: u64) -> Res<Fetch> {
+        let Some(mut state) = self.state_for(vault) else {
+            return Ok(Fetch::Full(Fallback::Off));
         };
+        let num = |k: &str| state[k].as_u64().unwrap_or(0);
+        let expired = self.expired(&state, now);
         if let Some(why) = expired {
             self.backend.delete_key(vault)?;
             return Ok(Fetch::Full(Fallback::Expired(why)));
@@ -502,6 +517,28 @@ mod tests {
         fn boot_id(&self) -> String {
             String::new()
         }
+    }
+
+    #[test]
+    fn usable_tells_whether_touch_id_alone_would_unlock_and_never_asks() {
+        let (_d, fake, quick) = setup();
+        assert!(!quick.usable(VAULT, T0), "off");
+        quick.enable(VAULT, &key(), T0).unwrap();
+        assert!(quick.usable(VAULT, T0 + 10));
+        assert!(!quick.usable("another vault", T0 + 10));
+        // Each way it stops being usable without a password.
+        assert!(!quick.usable(VAULT, T0 + 3601), "idle too long");
+        assert!(!quick.usable(VAULT, T0 + MAX_AGE_SECS + 1), "seven days");
+        *fake.0.boot.borrow_mut() = "a new boot".into();
+        assert!(!quick.usable(VAULT, T0 + 10), "the machine restarted");
+        *fake.0.boot.borrow_mut() = String::new();
+        *fake.0.key.borrow_mut() = None;
+        assert!(!quick.usable(VAULT, T0 + 10), "the kept key is gone");
+        // A keychain that fails is not usable either.
+        let broken = Quick::new(_d.path().to_path_buf(), Broken, 3600);
+        assert!(!broken.usable(VAULT, T0 + 10));
+        // It never showed a prompt or changed what is kept.
+        assert_eq!(fake.0.asked.get(), 0);
     }
 
     #[test]

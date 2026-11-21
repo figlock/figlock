@@ -55,6 +55,14 @@ Testing the agent flow (FIG-146) found three ways the broker asks more than it s
 - Residual: if the client leaves while a system Touch ID window is open, the window cannot be withdrawn; its
   answer is discarded.
 
+## Amendment (FIG-152)
+
+The 5 s cooldown after a denial was keyed on the requesting pid, and every `figlock` call is a new process, so
+an agent that retried straight after a denial was asked again. The cooldown now also covers any process of the
+same verified program (the identity of decision 3: user id, program path, non-empty equal parent chain), for
+every item, so no title is a way around it and nothing is learned about which items exist. A peer without a
+parent chain keeps only the pid rule.
+
 ## Alternatives considered
 
 - Keep the token in a file for the CLI to reuse: a token on disk is a secret value that outlives the process

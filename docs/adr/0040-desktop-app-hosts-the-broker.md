@@ -92,6 +92,14 @@ Facts the design rests on:
 - Notifications can be delayed or hidden by the system. The 60 s deny means an agent waits at most that long
   and the person is never approved by default.
 
+## Step 4 as built (FIG-151)
+
+`figlock http` and `figlock run` start `figlock broker start --background` only when quick unlock can unlock
+without a password (`Quick::usable`, which shows no prompt). The background broker never asks for a password,
+refuses to start where nothing could ask for approval, and locks after 30 minutes with no request and no live
+grant. Otherwise the command exits at once with 69 and says to open FigLock or run `figlock broker start`. A
+broker that answers `locked` exits 69 too.
+
 ## Alternatives considered
 
 - **Keep the CLI daemon and have the app only show approvals.** Needs a second protocol between app and daemon,
