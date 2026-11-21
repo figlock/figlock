@@ -57,6 +57,8 @@ figlock run --item "Cloud account" --env AWS_SECRET_ACCESS_KEY=secret -- terrafo
   program is answered without a new prompt, so repeat calls inside the window are fine. `once` always asks.
 - Make one request at a time and wait for it. Do not retry while a prompt may still be open: the user is
   already being asked, and a second window is noise.
+- Exit code 69 means no broker could answer and a person has to act. Do not retry and do not try to start
+  anything yourself: tell the user, and stop.
 - If a command says the broker is not running or is locked, tell the user to open FigLock and unlock it
   (or run `figlock broker start` in a terminal). You cannot do either for them. When the FigLock app is
   unlocked it answers agents itself and nothing needs starting.

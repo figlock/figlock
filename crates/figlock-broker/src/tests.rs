@@ -2571,7 +2571,8 @@ fn queued_identical_requests_never_cost_a_second_prompt_however_the_threads_inte
                 );
             }
         }
-        // Start the next round with no grant of this one.
+        // The cooldown after a denial ends, and the next round starts with no grant of this one.
+        fx.env.advance(Duration::from_secs(6));
         for g in fx.send(&agent(1), json!({"v":1,"id":"l","op":"grant.list"}))["grants"]
             .as_array()
             .unwrap()
@@ -2620,4 +2621,116 @@ fn the_next_request_in_line_cannot_get_between_the_answer_and_its_outcome() {
             assert_eq!(Fx::code(&second), "denied", "{second}");
         }
     }
+}
+
+// ---- FIG-152: the cooldown after a denial follows the program, not the pid ----
+
+#[test]
+fn a_new_process_of_the_program_just_refused_is_told_busy_without_a_prompt() {
+    let fx = fixture();
+    fx.approver.will(&[Decision::Deny]);
+    let first = fx.request(&agent(100), json!({"name": "github"}), "http", "15m");
+    assert_eq!(Fx::code(&first), "denied");
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    // Every `figlock` call is a new process: a new pid, the same verified program and parents.
+    for (pid, name) in [(101, "github"), (102, "deploy env"), (103, "no such item")] {
+        let r = fx.request(&agent(pid), json!({"name": name}), "http", "15m");
+        assert_eq!(Fx::code(&r), "busy", "{name}");
+    }
+    assert_eq!(
+        fx.approver.calls.load(Ordering::SeqCst),
+        calls,
+        "nobody was asked again"
+    );
+    // After the cooldown the same program may ask again.
+    fx.env.advance(Duration::from_secs(6));
+    fx.approver.will(&[Decision::Allow]);
+    let later = fx.request(&agent(104), json!({"name": "github"}), "http", "15m");
+    assert_eq!(later["ok"], true, "{later}");
+}
+
+#[test]
+fn another_program_is_not_slowed_by_a_denial_it_had_no_part_in() {
+    let fx = fixture();
+    fx.approver.will(&[Decision::Deny]);
+    assert_eq!(
+        Fx::code(&fx.request(&agent(100), json!({"name": "github"}), "http", "15m")),
+        "denied"
+    );
+    let other = PeerId {
+        parents: vec!["/bin/zsh".into(), "/opt/other/other".into()],
+        ..peer(200)
+    };
+    fx.approver.will(&[Decision::Allow]);
+    let r = fx.request(&other, json!({"name": "github"}), "http", "15m");
+    assert_eq!(r["ok"], true, "{r}");
+    // A peer that cannot be identified by its parents keeps only the pid rule.
+    fx.approver.will(&[Decision::Deny]);
+    assert_eq!(
+        Fx::code(&fx.request(&peer(300), json!({"name": "github"}), "http", "once")),
+        "denied"
+    );
+    fx.approver.will(&[Decision::Allow]);
+    let other_pid = fx.request(&peer(301), json!({"name": "github"}), "http", "once");
+    assert_eq!(other_pid["ok"], true, "{other_pid}");
+}
+
+// ---- FIG-151: a background broker locks itself when nobody is using it ----
+
+#[test]
+fn a_broker_is_idle_only_while_it_has_no_requests_and_no_live_grant() {
+    let fx = fixture();
+    assert_eq!(fx.broker.idle_for(), Some(Duration::ZERO));
+    fx.env.advance(Duration::from_secs(60));
+    assert_eq!(fx.broker.idle_for(), Some(Duration::from_secs(60)));
+    // A request starts the count again.
+    let _ = fx.send(&agent(1), json!({"v":1,"id":"s","op":"status"}));
+    assert_eq!(fx.broker.idle_for(), Some(Duration::ZERO));
+    // A live grant is never idle, however long it lasts.
+    let _ = fx.approver_will_allow_then(&agent(2), "github", "http", "15m");
+    fx.env.advance(Duration::from_secs(600));
+    assert_eq!(fx.broker.idle_for(), None);
+    // Once it has ended, the count starts from the last time it was seen alive. The watcher looks every few
+    // seconds, so the first idle reading is at most that long.
+    let mut first = None;
+    for _ in 0..200 {
+        fx.env.advance(Duration::from_secs(10));
+        if let Some(idle) = fx.broker.idle_for() {
+            first = Some(idle);
+            break;
+        }
+    }
+    assert!(
+        first.is_some_and(|d| d <= Duration::from_secs(10)),
+        "{first:?}"
+    );
+    fx.env.advance(Duration::from_secs(120));
+    assert_eq!(
+        fx.broker.idle_for(),
+        Some(first.unwrap() + Duration::from_secs(120))
+    );
+}
+
+#[test]
+fn ending_an_idle_broker_ends_it_for_everyone() {
+    let fx = fixture();
+    fx.broker.end("idle");
+    assert!(fx.broker.is_locked());
+    let names = fx.names();
+    assert_eq!(names.last().map(String::as_str), Some("broker.lock"));
+    let lock = fx.events().into_iter().last().unwrap().1;
+    assert_eq!(lock["reason"], "idle");
+}
+
+#[test]
+fn a_locked_broker_is_unavailable_to_the_caller_and_other_refusals_are_not() {
+    use figlock_session::error::FailKind;
+    let locked =
+        json!({"ok": false, "error": {"code": "locked", "message": "the broker is locked"}});
+    assert_eq!(
+        client::expect_ok(locked).unwrap_err().1,
+        FailKind::Unavailable
+    );
+    let denied = json!({"ok": false, "error": {"code": "denied", "message": "no"}});
+    assert_eq!(client::expect_ok(denied).unwrap_err().1, FailKind::Other);
 }

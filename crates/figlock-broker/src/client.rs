@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use super::server::{Line, read_line};
-use figlock_session::error::{Fail, Res};
+use figlock_session::error::{Fail, FailKind, Res};
 
 /// Most responses are small; the largest is an `http.request` answer (a 4 MiB body in base64, plus headers).
 /// This only bounds a broken or hostile peer.
@@ -20,7 +20,10 @@ const WAIT: Duration = Duration::from_secs(120);
 pub fn call(socket: &Path, op: &str, members: Value) -> Res<Value> {
     let mut stream = UnixStream::connect(socket).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused => {
-            Fail::new("no broker is running; open FigLock and unlock it, or start one with `figlock broker start`")
+            Fail::of(
+                FailKind::Unavailable,
+                "no broker is running; open FigLock and unlock it, or start one with `figlock broker start`",
+            )
         }
         _ => Fail::from(e),
     })?;
@@ -54,5 +57,11 @@ pub fn expect_ok(resp: Value) -> Res<Value> {
     let msg = resp["error"]["message"]
         .as_str()
         .unwrap_or("request failed");
-    Err(Fail::new(format!("{msg} ({code})")))
+    // A locked broker is something only a person can fix, so it exits like a missing one (ADR-0040).
+    let kind = if code == "locked" {
+        FailKind::Unavailable
+    } else {
+        FailKind::Other
+    };
+    Err(Fail::of(kind, format!("{msg} ({code})")))
 }

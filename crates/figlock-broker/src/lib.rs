@@ -6,6 +6,7 @@
 
 pub mod approve;
 pub mod audit;
+pub mod autostart;
 pub mod b64;
 pub mod client;
 pub mod grants;
@@ -62,6 +63,9 @@ struct Denial {
     peer: PeerId,
     scope: Scope,
     mode: Mode,
+    /// Until when the same program is told `busy` (FIG-152): a new `figlock` process has a new pid, so the pid
+    /// alone never matches the program that was just refused.
+    until: Duration,
 }
 
 /// How many denials are remembered.
@@ -109,6 +113,8 @@ pub struct Broker {
     /// request it started is queued without sleeping.
     #[cfg(test)]
     at_gate: std::sync::atomic::AtomicUsize,
+    /// When a request last came in, or a grant was last seen alive, for [`Broker::idle_for`].
+    active: Mutex<Duration>,
     /// A pause between the person's answer and the outcome being recorded, to make the gap between them
     /// long enough for a test to see whether the next request can get into it.
     #[cfg(test)]
@@ -195,6 +201,7 @@ impl Broker {
         env: Arc<dyn Env>,
         uid: u32,
     ) -> Result<Broker, Code> {
+        let started = env.now();
         let mut st = State {
             host,
             grants: GrantTable::default(),
@@ -207,6 +214,7 @@ impl Broker {
         Ok(Broker {
             state: Mutex::new(st),
             gate: Mutex::new(()),
+            active: Mutex::new(started),
             #[cfg(test)]
             at_gate: std::sync::atomic::AtomicUsize::new(0),
             #[cfg(test)]
@@ -244,6 +252,20 @@ impl Broker {
         false
     }
 
+    /// How long the broker has had nothing to do: no request and no live grant. `None` while a grant is live.
+    /// A background broker locks itself when this passes its limit (ADR-0040).
+    pub fn idle_for(&self) -> Option<Duration> {
+        let mut st = self.lock_state();
+        self.sweep(&mut st);
+        let now = self.env.now();
+        let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
+        if !st.grants.is_empty() {
+            *active = now;
+            return None;
+        }
+        Some(now.saturating_sub(*active))
+    }
+
     pub fn is_locked(&self) -> bool {
         self.lock_state().host.is_locked()
     }
@@ -266,6 +288,7 @@ impl Broker {
             Ok(r) => r,
             Err(m) => return Reply::line(err(&m.id, Code::BadRequest)),
         };
+        *self.active.lock().unwrap_or_else(|e| e.into_inner()) = self.env.now();
         let id = req.id;
         let locked = self.is_locked();
         let result = match req.op {
@@ -540,6 +563,12 @@ impl Broker {
         peer.pid
             .and_then(|p| st.denied_until.get(&p))
             .is_some_and(|until| now < *until)
+            // The same verified program, whichever item it asks for next, so a title is no way around it and
+            // nothing leaks about which items exist.
+            || st
+                .denials
+                .iter()
+                .any(|d| now < d.until && same_program(&d.peer, peer))
             || st.grants.len() >= MAX_GRANTS
     }
 
@@ -725,6 +754,7 @@ impl Broker {
                     peer: peer.clone(),
                     scope: g.scope.clone(),
                     mode: g.mode,
+                    until: self.env.now() + DENY_COOLDOWN,
                 });
             }
             let _ = st.log(

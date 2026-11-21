@@ -329,6 +329,53 @@ fn talking_to_a_missing_broker_says_so() {
 }
 
 #[test]
+fn an_agent_command_with_no_broker_and_no_quick_unlock_stops_at_once_with_exit_69() {
+    let env = Env::new();
+    let started = std::time::Instant::now();
+    for args in [
+        vec!["http", "--item", "GitHub", "https://api.github.com/user"],
+        vec!["run", "--item", "GitHub", "--", "true"],
+    ] {
+        let out = env.run(&args, PW, Some(&env.secret_key), None);
+        // `EX_UNAVAILABLE`: nothing could answer and a person has to act, which a caller can tell apart from
+        // its own request failing.
+        assert_eq!(
+            out.status.code(),
+            Some(69),
+            "{args:?}: {}",
+            text(&out.stderr)
+        );
+        let err = text(&out.stderr);
+        assert!(err.contains("no broker is running"), "{err}");
+        assert!(err.contains("figlock broker start"), "{err}");
+        assert!(err.contains("open FigLock"), "{err}");
+    }
+    // It did not wait for anything: no prompt was opened and no background broker was waited on.
+    assert!(
+        started.elapsed() < Duration::from_secs(20),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(!env.socket().exists());
+}
+
+#[test]
+fn a_background_broker_never_asks_for_a_password() {
+    let env = Env::new();
+    // Quick unlock is off for this vault, so there is no way to unlock without typing a password.
+    let out = env.run(
+        &["broker", "start", "--background"],
+        PW,
+        Some(&env.secret_key),
+        None,
+    );
+    assert!(!out.status.success());
+    let err = text(&out.stderr);
+    assert!(err.contains("background broker"), "{err}");
+    assert!(!env.socket().exists(), "it must not start serving");
+}
+
+#[test]
 fn a_password_change_made_while_the_broker_runs_locks_it() {
     let env = Env::new();
     let mut broker = env.start_broker();

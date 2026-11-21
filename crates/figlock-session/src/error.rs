@@ -31,6 +31,10 @@ pub enum FailKind {
     /// This device is in the vault's signed revoked list: it can read its copy but its changes are no longer
     /// accepted (FIG-135).
     DeviceRevoked,
+    /// Nothing can answer right now and nothing that could be started will do without a person: no broker is
+    /// running, or it is locked. The CLI exits with 69 (`EX_UNAVAILABLE`) so a caller can tell this from a
+    /// failure of its own request (ADR-0040).
+    Unavailable,
 }
 
 #[derive(Debug)]

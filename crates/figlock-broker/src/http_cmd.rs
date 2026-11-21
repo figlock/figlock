@@ -121,6 +121,8 @@ pub fn read_body(data: &str) -> Res<String> {
 }
 
 pub fn run(spec: &HttpSpec, include: bool, fail: bool) -> Res<i32> {
-    let reply = execute(&server::socket_path()?, spec)?;
+    let socket = server::socket_path()?;
+    crate::autostart::ensure(&socket)?;
+    let reply = execute(&socket, spec)?;
     show(&reply, include, fail, &mut std::io::stdout())
 }

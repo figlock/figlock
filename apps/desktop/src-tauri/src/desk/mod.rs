@@ -102,6 +102,8 @@ impl From<Fail> for CmdError {
             ),
             // The message is the whole sentence the window shows (`removed_message`).
             FailKind::DeviceRevoked => CmdError::new("device_revoked", f.0),
+            // Only the CLI's broker client raises it; the window shows the message as it is.
+            FailKind::Unavailable => CmdError::new("unavailable", f.0),
             FailKind::Other => CmdError::new("failed", f.0),
         }
     }

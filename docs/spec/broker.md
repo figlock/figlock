@@ -159,7 +159,9 @@ removed), the scope in plain words (item titles are looked up by the broker, so 
 wording of an item), the mode and the duration. `reveal` and `vault` scopes are marked loud. The approver
 returns allow or deny, or nothing within 60 s, which is deny.
 
-- Prompts are shown one at a time. After a deny, the same pid gets `busy` for 5 s (approval fatigue, G8).
+- Prompts are shown one at a time. After a deny, the same pid, and any process of the same verified program
+  (user id, program path and a non-empty chain of parent programs, as in 3.1 reuse), gets `busy` for 5 s,
+  whichever item it asks for, so a new `figlock` process cannot ask again at once (approval fatigue, G8).
 - A request that waited behind another prompt is decided again when it reaches the front: if the prompt
   before it approved a grant that covers it (3.1, reuse) it is answered without a prompt, and if the person
   just denied the same identity, scope and mode it is `denied` without one. So identical concurrent requests
@@ -321,6 +323,14 @@ headers first). It exits 22 on a status of 400 or more with `--fail`.
 `figlock broker start` (foreground), `figlock broker status`, `figlock broker grants`,
 `figlock broker revoke <grant id>`, `figlock broker lock`, and `figlock audit [--tail N]` (unlocks the vault,
 verifies and prints the log with the same redaction as the log itself). All accept `--json`.
+`broker start --background` is what `figlock http` and `figlock run` start when no broker answers and quick unlock
+is valid (ADR-0040): it unlocks with quick unlock only and never asks for a password, refuses to start when this
+Mac cannot show a Touch ID prompt and there is no terminal, runs detached with its error output in
+`<run dir>/broker.log`, and locks itself (`broker.lock`, reason `idle`) after 30 minutes with no request and no live
+grant. With no broker and no valid quick unlock, `http` and `run` stop at once with exit code 69
+(`EX_UNAVAILABLE`) and a line that says to open FigLock and unlock it or run `figlock broker start`; a broker
+that answers `locked` gives the same exit code.
+
 `broker start` has a hidden `--deny-all` that never asks anyone and denies every request; it exists for tests
 and scripts, can only reduce access, and is also the behaviour when no terminal is available.
 

@@ -31,12 +31,9 @@ pub struct RunSpec {
 const SIGNAL_BASE: i32 = 128;
 
 pub fn run(spec: &RunSpec) -> Res<i32> {
-    execute(
-        &server::socket_path()?,
-        spec,
-        std::io::stdout(),
-        std::io::stderr(),
-    )
+    let socket = server::socket_path()?;
+    crate::autostart::ensure(&socket)?;
+    execute(&socket, spec, std::io::stdout(), std::io::stderr())
 }
 
 /// Ask for approval, fetch the variables, start the program and copy its output through the scrubber.

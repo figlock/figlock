@@ -3,16 +3,19 @@
 use crate::prompt;
 use std::fs;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde_json::{Value, json};
+use zeroize::Zeroizing;
 
 use figlock_broker::approve::{Approver, BiometricApprover, DenyAll, TerminalApprover};
 use figlock_broker::audit::{self, AuditWriter};
 use figlock_broker::client::{call, expect_ok};
 use figlock_broker::peer::{SystemEnv, my_uid};
 use figlock_broker::{Broker, server, syncer};
+use figlock_core::SecretKey;
 use figlock_session::error::{Fail, Res};
-use figlock_session::session::Session;
+use figlock_session::session::{Session, Ui};
 
 fn print_json(v: &Value) -> Res<()> {
     println!(
@@ -22,17 +25,60 @@ fn print_json(v: &Value) -> Res<()> {
     Ok(())
 }
 
-/// Unlock the vault once, then serve until someone runs `figlock broker lock`.
-pub fn start(deny_all: bool) -> Res<()> {
+/// A background broker locks itself after this long with no request and no live grant (ADR-0040).
+const IDLE_LOCK: Duration = Duration::from_secs(30 * 60);
+/// How often the idle check looks.
+const IDLE_CHECK: Duration = Duration::from_secs(10);
+
+/// What a broker started for an agent has instead of a keyboard: it can use quick unlock, and it can never ask
+/// for the master password.
+struct NoPrompt;
+
+impl Ui for NoPrompt {
+    fn password(&self) -> Res<Zeroizing<String>> {
+        Err(Fail::new(
+            "a background broker cannot ask for the master password; open FigLock and unlock it, or run `figlock broker start` in a terminal",
+        ))
+    }
+
+    fn secret_key(&self) -> Res<SecretKey> {
+        Err(Fail::new(
+            "a background broker cannot ask for the Secret Key; open FigLock and unlock it, or run `figlock broker start` in a terminal",
+        ))
+    }
+
+    fn notice(&self, message: &str) {
+        eprintln!("{message}");
+    }
+
+    fn warn(&self, message: &str) {
+        eprintln!("warning: {message}");
+    }
+}
+
+/// Unlock the vault once, then serve until someone runs `figlock broker lock`. In the background, only with
+/// quick unlock, only if something can ask for approval, and until it has been idle for 30 minutes.
+pub fn start(deny_all: bool, background: bool) -> Res<()> {
+    // A broker nobody can approve for is refused before anything is unlocked, so Touch ID is not spent on it.
+    let biometric = BiometricApprover::open();
+    if background && !deny_all && biometric.is_none() {
+        return Err(Fail::new(
+            "this Mac cannot show a Touch ID prompt and there is no terminal to ask on, so a background broker could approve nothing; run `figlock broker start` in a terminal",
+        ));
+    }
     crate::sync_cmd::pull_first();
-    let session = Session::open(prompt::terminal())?;
+    let session = if background {
+        Session::open(Box::new(NoPrompt))?
+    } else {
+        Session::open(prompt::terminal())?
+    };
     let log = audit::path_for(&session.vault)?;
     let writer = AuditWriter::open(&log, &session.vault)?;
     let socket = server::socket_path()?;
     let listener = server::bind(&socket)?;
     let approver: Box<dyn Approver> = if deny_all {
         Box::new(DenyAll)
-    } else if let Some(b) = BiometricApprover::open() {
+    } else if let Some(b) = biometric {
         eprintln!("approvals are asked with Touch ID or your device password, every time");
         if std::env::var("FIGLOCK_DEVICE_KEYS").is_ok_and(|v| v == "file") {
             // That setting only moves where the device keys live; there is no setting that skips the prompt.
@@ -59,6 +105,19 @@ pub fn start(deny_all: bool) -> Res<()> {
     eprintln!("broker listening on {}", socket.display());
     let broker = Arc::new(broker);
     syncer::spawn(broker.clone());
+    if background {
+        let watched = broker.clone();
+        std::thread::spawn(move || {
+            while !watched.is_locked() {
+                std::thread::sleep(IDLE_CHECK);
+                if watched.idle_for().is_some_and(|d| d >= IDLE_LOCK) {
+                    eprintln!("nobody used the broker for 30 minutes, so it locked");
+                    watched.end("idle");
+                    return;
+                }
+            }
+        });
+    }
     let served = server::serve(&listener, &broker);
     drop(listener);
     let _ = fs::remove_file(&socket);
