@@ -122,6 +122,25 @@ fn write_line(w: &mut impl Write, line: &str) -> io::Result<()> {
     w.flush()
 }
 
+/// Whether the client is still there: a peek at the socket that never blocks and never takes data. An end of
+/// stream means it closed or went away, so a client must keep its sending side open until it has its answer
+/// (ADR-0039).
+pub(super) fn still_connected(stream: &UnixStream) -> bool {
+    use nix::errno::Errno;
+    use nix::sys::socket::{MsgFlags, recv};
+    use std::os::fd::AsRawFd;
+    let mut byte = [0u8; 1];
+    match recv(
+        stream.as_raw_fd(),
+        &mut byte,
+        MsgFlags::MSG_PEEK | MsgFlags::MSG_DONTWAIT,
+    ) {
+        Ok(0) => false,
+        Ok(_) | Err(Errno::EAGAIN | Errno::EINTR) => true,
+        Err(_) => false,
+    }
+}
+
 fn connection(stream: UnixStream, who: peer::PeerId, broker: &Broker, stop: &AtomicBool) {
     let Ok(read_half) = stream.try_clone() else {
         return;
@@ -132,7 +151,7 @@ fn connection(stream: UnixStream, who: peer::PeerId, broker: &Broker, stop: &Ato
     loop {
         match read_line(&mut reader, MAX_LINE) {
             Ok(Line::Text(line)) => {
-                let reply = broker.handle_line(&who, &line);
+                let reply = broker.handle_line_live(&who, &line, &|| still_connected(&writer));
                 if write_line(&mut writer, &reply.line).is_err() {
                     return;
                 }

@@ -15,7 +15,7 @@ pub mod proto;
 pub mod server;
 pub mod syncer;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -28,7 +28,7 @@ use zeroize::Zeroizing;
 use crate::scrub::Scrubber;
 use approve::{APPROVAL_WAIT, ApprovalRequest, Approver, Decision};
 use audit::AuditWriter;
-use grants::{Authorized, Env, GrantTable, ItemInfo, MAX_GRANTS};
+use grants::{Authorized, Env, GrantTable, ItemInfo, MAX_GRANTS, Want, same_program};
 use peer::PeerId;
 use proto::{
     Code, GrantRequest, HttpRequest, MAX_VARS, Mode, Op, Scope, Ttl, env_name, err, ok,
@@ -45,7 +45,22 @@ struct State {
     grants: GrantTable,
     audit: AuditWriter,
     denied_until: HashMap<u32, Duration>,
+    /// Counts denials, so a request that queued can tell whether the same thing was denied while it waited.
+    deny_seq: u64,
+    /// The most recent denials, newest last (ADR-0039).
+    denials: VecDeque<Denial>,
 }
+
+/// What a person said no to, kept briefly so identical requests that queued behind it get the same answer.
+struct Denial {
+    seq: u64,
+    peer: PeerId,
+    scope: Scope,
+    mode: Mode,
+}
+
+/// How many denials are remembered.
+const DENIALS_KEPT: usize = 32;
 
 impl State {
     fn vault(&mut self) -> Option<&mut Vault> {
@@ -163,6 +178,8 @@ impl Broker {
             grants: GrantTable::default(),
             audit,
             denied_until: HashMap::new(),
+            deny_seq: 0,
+            denials: VecDeque::new(),
         };
         st.log(env.unix_ms(), "broker.start", json!({}))?;
         Ok(Broker {
@@ -210,8 +227,15 @@ impl Broker {
         self.lock_state().grants.len()
     }
 
-    /// Serve one request line from an admitted peer.
+    /// Serve one request line from an admitted peer whose client is taken to be still there.
+    #[cfg(test)]
     pub fn handle_line(&self, peer: &PeerId, line: &str) -> Reply {
+        self.handle_line_live(peer, line, &|| true)
+    }
+
+    /// [`handle_line`](Self::handle_line), with `alive` telling whether the client is still connected. A
+    /// request whose client has gone is not worth a prompt (ADR-0039).
+    pub fn handle_line_live(&self, peer: &PeerId, line: &str, alive: &dyn Fn() -> bool) -> Reply {
         let req = match parse_request(line) {
             Ok(r) => r,
             Err(m) => return Reply::line(err(&m.id, Code::BadRequest)),
@@ -224,7 +248,7 @@ impl Broker {
             _ if locked => Err(Code::Locked),
             Op::GrantList => Ok(self.grant_list()),
             Op::GrantRevoke { grant } => self.revoke(&grant).map(|()| json!({})),
-            Op::GrantRequest(g) => self.grant_request(peer, g),
+            Op::GrantRequest(g) => self.grant_request(peer, g, alive),
             Op::RunEnv { token, item, vars } => self.run_env(&token, &item, &vars),
             Op::HttpRequest(r) => self.http_request(&r),
             Op::Lock => {
@@ -483,7 +507,58 @@ impl Broker {
         self.busy_locked(&st, peer)
     }
 
-    fn grant_request(&self, peer: &PeerId, g: GrantRequest) -> Result<Value, Code> {
+    /// Answer from a grant that already covers the request, if there is one (ADR-0039). Writes
+    /// `grant.requested` with the covering grant's id, and no `grant.approved`: nobody was asked.
+    fn answer_from_grant(
+        &self,
+        peer: &PeerId,
+        g: &GrantRequest,
+        details: &Value,
+    ) -> Result<Option<Value>, Code> {
+        let mut st = self.lock_state();
+        self.sweep(&mut st);
+        if st.session.is_none() {
+            return Err(Code::Locked);
+        }
+        let want = Want {
+            peer,
+            scope: &g.scope,
+            mode: g.mode,
+            ttl: g.ttl,
+        };
+        let Some((id, token)) = st.grants.reuse(self.env.as_ref(), &want)? else {
+            return Ok(None);
+        };
+        let mut d = details.clone();
+        if let Some(o) = d.as_object_mut() {
+            o.insert("grant".into(), json!(id));
+        }
+        let t = self.env.unix_ms();
+        if let Err(code) = st.log(t, "grant.requested", d) {
+            // The token was added before the record failed; ending the grant is the safe way back.
+            st.grants.revoke(&id);
+            return Err(code);
+        }
+        let left = st
+            .grants
+            .find_id(&id)
+            .and_then(|gr| st.grants.remaining(gr, self.env.as_ref()));
+        let (mode, ttl) = st
+            .grants
+            .find_id(&id)
+            .map_or((g.mode, g.ttl), |gr| (gr.mode, gr.ttl));
+        Ok(Some(json!({"grant": {
+            "id": id, "token": token, "mode": mode.as_str(), "scope": g.scope.to_json(),
+            "ttl": ttl.as_str(), "expires_in": left.map(|d| d.as_secs()),
+        }})))
+    }
+
+    fn grant_request(
+        &self,
+        peer: &PeerId,
+        g: GrantRequest,
+        alive: &dyn Fn() -> bool,
+    ) -> Result<Value, Code> {
         if self.is_busy(peer) {
             return Err(Code::Busy);
         }
@@ -501,12 +576,13 @@ impl Broker {
         let reason = g.reason.as_deref().map(|r| audit_clean_text(r, 200));
         let scope_label = g.scope.label();
 
-        let request = {
+        let (request, details, arrived) = {
             let mut st = self.lock_state();
             self.sweep(&mut st);
             if self.busy_locked(&st, peer) {
                 return Err(Code::Busy);
             }
+            let arrived = st.deny_seq;
             let vault = st.vault().ok_or(Code::Locked)?;
             let (scope_words, loud) = Self::scope_words(vault, &g.scope, g.mode)?;
             let mut d = json!({
@@ -519,9 +595,7 @@ impl Broker {
             if let (Some(o), Some(r)) = (d.as_object_mut(), &reason) {
                 o.insert("reason".into(), json!(r));
             }
-            let t = self.env.unix_ms();
-            st.log(t, "grant.requested", d)?;
-            ApprovalRequest {
+            let request = ApprovalRequest {
                 peer: peer.clone(),
                 label: label.clone(),
                 reason,
@@ -529,12 +603,51 @@ impl Broker {
                 mode: g.mode,
                 ttl: g.ttl,
                 loud,
-            }
+            };
+            (request, d, arrived)
         };
 
-        // The state lock is not held while the user decides; only one prompt is shown at a time.
+        // An approved grant that covers this answers it without a prompt, even while another prompt is open.
+        if let Some(answer) = self.answer_from_grant(peer, &g, &details)? {
+            return Ok(answer);
+        }
+
+        // The state lock is not held while the user decides; only one prompt is shown at a time. A request
+        // that waited here is decided again at the front of the queue (ADR-0039).
         let decision = {
             let _one_at_a_time = self.gate.lock().unwrap_or_else(|e| e.into_inner());
+            if !alive() {
+                return Err(Code::Denied);
+            }
+            if let Some(answer) = self.answer_from_grant(peer, &g, &details)? {
+                return Ok(answer);
+            }
+            {
+                let mut st = self.lock_state();
+                if st.session.is_none() {
+                    return Err(Code::Locked);
+                }
+                let t = self.env.unix_ms();
+                // Written before the prompt opens, as before.
+                st.log(t, "grant.requested", details.clone())?;
+                let joined = st.denials.iter().any(|d| {
+                    d.seq > arrived
+                        && d.mode == g.mode
+                        && d.scope == g.scope
+                        && same_program(&d.peer, peer)
+                });
+                if joined {
+                    let _ = st.log(
+                        t,
+                        "grant.denied",
+                        json!({
+                            "peer": audit_peer(peer), "scope": scope_label, "mode": g.mode.as_str(),
+                            "ttl": g.ttl.as_str(), "code": Code::Denied.as_str(),
+                        }),
+                    );
+                    return Err(Code::Denied);
+                }
+            }
             self.approver.approve(&request, self.wait)
         };
 
@@ -543,10 +656,25 @@ impl Broker {
             return Err(Code::Locked);
         }
         let t = self.env.unix_ms();
-        if decision == Decision::Deny {
-            if let Some(pid) = peer.pid {
-                let until = self.env.now() + DENY_COOLDOWN;
-                st.denied_until.insert(pid, until);
+        // Allowed, but nobody is waiting for the answer any more: no grant is made.
+        let left_while_asked = decision == Decision::Allow && !alive();
+        if decision == Decision::Deny || left_while_asked {
+            if decision == Decision::Deny {
+                if let Some(pid) = peer.pid {
+                    let until = self.env.now() + DENY_COOLDOWN;
+                    st.denied_until.insert(pid, until);
+                }
+                st.deny_seq += 1;
+                let seq = st.deny_seq;
+                if st.denials.len() == DENIALS_KEPT {
+                    st.denials.pop_front();
+                }
+                st.denials.push_back(Denial {
+                    seq,
+                    peer: peer.clone(),
+                    scope: g.scope.clone(),
+                    mode: g.mode,
+                });
             }
             let _ = st.log(
                 t,
