@@ -82,6 +82,9 @@ Facts the design rests on:
 - The app gains a notification plugin, a card, a socket thread and a banner. The app's lock paths must also end
   broker grants, which adds a way for a lock to be missed; one test per lock path (auto-lock, sleep, quit,
   revocation) covers it.
+- Step 2 (FIG-149) ties each unlock to its own broker through an epoch that every lock path already moves, so
+  no lock path calls into the broker and the lock order stays broker state, then session. The cost: an app lock
+  writes no `broker.lock` audit record (the signing keys are gone), and the next unlock writes `broker.start`.
 - Two hosts can never serve at once, so a grant never lives in two places. Taking over ends the CLI broker's
   grants, which is why it needs a click.
 - A same-user process that can reach the app's window could click Approve, but the click only starts the

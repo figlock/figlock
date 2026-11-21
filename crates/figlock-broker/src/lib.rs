@@ -12,6 +12,7 @@ pub mod grants;
 pub mod host;
 pub mod http;
 pub mod http_cmd;
+pub mod hub;
 pub mod peer;
 pub mod proto;
 pub mod run_cmd;
@@ -108,6 +109,10 @@ pub struct Broker {
     /// request it started is queued without sleeping.
     #[cfg(test)]
     at_gate: std::sync::atomic::AtomicUsize,
+    /// A pause between the person's answer and the outcome being recorded, to make the gap between them
+    /// long enough for a test to see whether the next request can get into it.
+    #[cfg(test)]
+    stall_after_answer: Mutex<Duration>,
     approver: Box<dyn Approver>,
     env: Arc<dyn Env>,
     uid: u32,
@@ -204,6 +209,8 @@ impl Broker {
             gate: Mutex::new(()),
             #[cfg(test)]
             at_gate: std::sync::atomic::AtomicUsize::new(0),
+            #[cfg(test)]
+            stall_after_answer: Mutex::new(Duration::ZERO),
             approver,
             env,
             uid,
@@ -382,6 +389,20 @@ impl Broker {
         drop(st);
         self.lock_for(Some(reason));
         Absorbed::Locked
+    }
+
+    /// The host took in changes (a sync, or another process on this machine wrote): end the grants whose
+    /// item is gone. The host does its own refreshing, so unlike [`absorb`](Self::absorb) this reads nothing.
+    pub fn items_changed(&self) {
+        let mut st = self.lock_state();
+        if !st.host.is_locked() {
+            self.end_grants_on_gone_items(&mut st);
+        }
+    }
+
+    /// Lock the broker for `reason` (recorded): every grant ends and the host is told to forget its session.
+    pub fn end(&self, reason: &str) {
+        self.lock_for(Some(reason));
     }
 
     /// End the grants whose single item was deleted elsewhere. A record that cannot be written does not keep
@@ -640,8 +661,10 @@ impl Broker {
         #[cfg(test)]
         self.at_gate
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        // The gate is held until the outcome is recorded, so the next request in the queue sees a denial or a
+        // grant made while it waited.
+        let _one_at_a_time = self.gate.lock().unwrap_or_else(|e| e.into_inner());
         let decision = {
-            let _one_at_a_time = self.gate.lock().unwrap_or_else(|e| e.into_inner());
             if !alive() {
                 return Err(Code::Denied);
             }
@@ -676,6 +699,8 @@ impl Broker {
             }
             self.approver.approve(&request, self.wait)
         };
+        #[cfg(test)]
+        std::thread::sleep(*self.stall_after_answer.lock().unwrap());
 
         let mut st = self.lock_state();
         if st.host.is_locked() {

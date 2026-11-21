@@ -1332,6 +1332,7 @@ name = "figlock-desktop"
 version = "0.5.0"
 dependencies = [
  "figlock-biometric",
+ "figlock-broker",
  "figlock-core",
  "figlock-session",
  "figlock-store",

@@ -205,7 +205,7 @@ impl Code {
             Code::NoGrant => "there is no such grant",
             Code::Expired => "the grant has ended",
             Code::NotAllowed => "the grant does not cover this",
-            Code::Locked => "the broker is locked",
+            Code::Locked => "the broker is locked; unlock FigLock (or run `figlock broker start`)",
             Code::Busy => "try again later",
             Code::AuditFailed => "the audit log could not be written",
             Code::Upstream => "the request could not be completed",

@@ -50,6 +50,11 @@ export const errorOf = (e: unknown): CmdError =>
     : { code: "failed", message: "Something went wrong. Try again." };
 
 export const vaultState = () => invoke<VaultState>("vault_state");
+
+/** Who answers agents on the broker socket: this window, a broker started in a terminal, or nobody. */
+export type BrokerMode = "off" | "hosting" | "cli";
+export const brokerStatus = () => invoke<BrokerMode>("broker_status");
+export const brokerTakeOver = () => invoke<BrokerMode>("broker_take_over");
 export const suggestedFolder = () => invoke<string | null>("suggested_folder");
 export const chooseFolder = () => invoke<string | null>("choose_folder");
 

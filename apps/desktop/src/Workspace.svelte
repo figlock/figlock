@@ -4,6 +4,7 @@
 
   import GeneratorPage from "./GeneratorPage.svelte";
   import HealthPage from "./HealthPage.svelte";
+  import BrokerBanner from "./BrokerBanner.svelte";
   import RemovedBanner from "./RemovedBanner.svelte";
   import SecretKeyBanner from "./SecretKeyBanner.svelte";
   import Settings from "./Settings.svelte";
@@ -310,6 +311,7 @@
         <RemovedBanner {removedAtMs} onoptions={onremoved} />
       {/if}
       <SecretKeyBanner />
+      <BrokerBanner />
     </div>
 
     <div bind:this={scroller} class="min-h-0 overflow-auto bg-bg">
