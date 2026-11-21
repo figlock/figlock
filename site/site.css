@@ -135,12 +135,7 @@ h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height
 .window-bar { display: flex; gap: 0.4rem; align-items: center; height: 1.75rem; padding-inline: var(--space-3); background: var(--color-surface-sunken); border-bottom: var(--hairline) solid var(--color-border); }
 .window-bar i { width: 0.6rem; height: 0.6rem; border-radius: var(--radius-full); background: var(--color-border-strong); opacity: 0.55; }
 .window img { display: block; width: 100%; height: auto; }
-.window img.shot--dark { display: none; }
-@media (prefers-color-scheme: dark) { .window img.shot--light { display: none; } .window img.shot--dark { display: block; } }
-:root[data-theme="dark"] .window img.shot--light { display: none; }
-:root[data-theme="dark"] .window img.shot--dark { display: block; }
-:root[data-theme="light"] .window img.shot--light { display: block; }
-:root[data-theme="light"] .window img.shot--dark { display: none; }
+.window picture { display: block; }
 
 .hero-chip {
   position: relative; z-index: 2; width: min(100%, 21rem); margin: calc(var(--space-6) * -1) 0 0 var(--space-4);

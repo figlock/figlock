@@ -89,8 +89,10 @@
         <figure class="hero-visual">
           <div class="window">
             <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
-            <img class="shot--light" src="/img/app-light.png" width="2200" height="1440" alt="The FigLock Mac app in light mode, showing the Cloudflare login with the username, a hidden password and the website." fetchpriority="high">
-            <img class="shot--dark" src="/img/app-dark.png" width="2200" height="1440" alt="The FigLock Mac app in dark mode, showing the Cloudflare login with the username, a hidden password and the website." fetchpriority="high">
+            <picture>
+              <source srcset="/img/app-dark.png" media="(prefers-color-scheme: dark)">
+              <img src="/img/app-light.png" width="2200" height="1440" alt="The FigLock Mac app showing the Cloudflare login with the username, a hidden password and the website." fetchpriority="high">
+            </picture>
           </div>
           <div class="hero-chip" role="img" aria-label="Mock-up of an agent request: approve Claude Code to use the GitHub token for 15 minutes, with Approve with Touch ID and Deny.">
             <div class="sheet-head" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg> AGENT REQUEST</div>
