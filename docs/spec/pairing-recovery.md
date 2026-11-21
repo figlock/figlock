@@ -208,7 +208,7 @@ Forced verification (MUST, vault creation and each new kit):
 
 **On demand (FIG-134).** Settings, Secret Key has "Save Emergency Kit", and the CLI has
 `figlock secret-key kit <path>`. Both read the kept Secret Key behind the same gate as Show Secret Key (Touch
-ID or the device password, or none when quick unlock is off and the key is in the login keychain, ADR-0034),
+ID or the device password, or none when quick unlock is off, ADR-0037),
 render the PDF in memory and write it only to the path the person picks, owner-only and never over an existing
 file without `--force`. A device that keeps no key makes it only from the master password and Secret Key typed
 and checked against the vault; the CLI refuses and says so. A kit saved again holds the same Secret Key as the
