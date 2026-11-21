@@ -104,6 +104,10 @@ pub struct Broker {
     state: Mutex<State>,
     /// One approval prompt at a time.
     gate: Mutex<()>,
+    /// Requests that have reached the gate, counted before they wait on it, so a test can tell when every
+    /// request it started is queued without sleeping.
+    #[cfg(test)]
+    at_gate: std::sync::atomic::AtomicUsize,
     approver: Box<dyn Approver>,
     env: Arc<dyn Env>,
     uid: u32,
@@ -198,6 +202,8 @@ impl Broker {
         Ok(Broker {
             state: Mutex::new(st),
             gate: Mutex::new(()),
+            #[cfg(test)]
+            at_gate: std::sync::atomic::AtomicUsize::new(0),
             approver,
             env,
             uid,
@@ -631,6 +637,9 @@ impl Broker {
 
         // The state lock is not held while the user decides; only one prompt is shown at a time. A request
         // that waited here is decided again at the front of the queue (ADR-0039).
+        #[cfg(test)]
+        self.at_gate
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let decision = {
             let _one_at_a_time = self.gate.lock().unwrap_or_else(|e| e.into_inner());
             if !alive() {
