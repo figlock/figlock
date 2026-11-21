@@ -946,7 +946,14 @@ fn over_a_real_socket_approval_use_and_lock_work_end_to_end() {
         "the prompt names the real caller: {shown}"
     );
 
-    let denied = client::call(&socket, "grant.request", members).unwrap();
+    // The same request again is answered by the grant, with no prompt (ADR-0039); a longer one is asked.
+    let again = client::call(&socket, "grant.request", members.clone()).unwrap();
+    assert_eq!(again["ok"], true, "{again}");
+    assert_eq!(again["grant"]["id"], granted["grant"]["id"]);
+    assert_eq!(approver.calls.load(Ordering::SeqCst), 1);
+    let mut longer = members;
+    longer["ttl"] = json!("1d");
+    let denied = client::call(&socket, "grant.request", longer).unwrap();
     assert_eq!(denied["error"]["code"], "denied");
     let listed = client::call(&socket, "grant.list", json!({})).unwrap();
     assert_eq!(listed["grants"].as_array().unwrap().len(), 1);
@@ -2069,4 +2076,264 @@ fn without_a_remote_the_local_folder_is_still_looked_at() {
     let mut syncer = syncer::Syncer::new(t0);
     assert!(syncer.step(t0 + Duration::from_secs(16), &d.broker, None));
     assert_eq!(d.grant(item_scope(&id))["ok"], true);
+}
+
+// ---- FIG-146 / ADR-0039: one prompt per request, nothing for a client that left, reuse of a grant ----
+
+fn agent(pid: u32) -> PeerId {
+    PeerId {
+        parents: vec!["/bin/zsh".into(), "/opt/agent/agent".into()],
+        ..peer(pid)
+    }
+}
+
+fn token_of(r: &Value) -> String {
+    r["grant"]["token"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn a_repeat_request_inside_an_approved_grant_gets_a_new_token_and_no_prompt() {
+    let fx = fixture();
+    let first = fx.approver_will_allow_then(&agent(100), "github", "http", "15m");
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    // A new process each time: the pid differs, the verified program chain is the same.
+    let again = fx.request(&agent(200), json!({"name": "github"}), "http", "15m");
+    assert_eq!(again["ok"], true, "{again}");
+    assert_eq!(
+        fx.approver.calls.load(Ordering::SeqCst),
+        calls,
+        "nobody was asked"
+    );
+    assert_eq!(again["grant"]["id"], first["grant"]["id"]);
+    assert_ne!(token_of(&again), token_of(&first));
+    assert_eq!(fx.grants(), 1);
+    // Both tokens work, and the expiry was not extended.
+    let host = Some("api.github.com");
+    for t in [token_of(&first), token_of(&again)] {
+        assert!(
+            fx.broker
+                .authorize(&t, &fx.github, Mode::Http, host)
+                .is_ok()
+        );
+    }
+    fx.env.advance(Duration::from_secs(14 * 60));
+    let late = fx.request(&agent(300), json!({"name": "github"}), "http", "15m");
+    assert!(
+        late["grant"]["expires_in"].as_u64().unwrap() <= 60,
+        "{late}"
+    );
+    // Ending the grant ends every token of it.
+    let id = first["grant"]["id"].as_str().unwrap();
+    let r = fx.send(
+        &agent(1),
+        json!({"v":1,"id":"k","op":"grant.revoke","grant":id}),
+    );
+    assert_eq!(r["ok"], true);
+    for t in [token_of(&first), token_of(&again), token_of(&late)] {
+        assert!(
+            fx.broker
+                .authorize(&t, &fx.github, Mode::Http, host)
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn a_reused_request_is_logged_as_a_request_that_names_the_grant_and_has_no_approval() {
+    let fx = fixture();
+    let first = fx.approver_will_allow_then(&agent(100), "github", "http", "15m");
+    let _ = fx.request(&agent(200), json!({"name": "github"}), "http", "15m");
+    let names = fx.names();
+    assert_eq!(
+        names.iter().filter(|n| *n == "grant.approved").count(),
+        1,
+        "{names:?}"
+    );
+    let requested: Vec<_> = fx
+        .events()
+        .into_iter()
+        .filter(|(e, _)| e == "grant.requested")
+        .collect();
+    assert_eq!(requested.len(), 2);
+    assert!(requested[0].1.get("grant").is_none());
+    assert_eq!(requested[1].1["grant"], first["grant"]["id"]);
+}
+
+#[test]
+fn what_a_grant_does_not_cover_still_asks() {
+    let fx = fixture();
+    let p = agent(100);
+    let _ = fx.approver_will_allow_then(&p, "github", "http", "15m");
+    let asked = |fx: &Fx, p: &PeerId, name: &str, mode: &str, ttl: &str| {
+        let before = fx.approver.calls.load(Ordering::SeqCst);
+        fx.approver.will(&[Decision::Allow]);
+        let r = fx.request(p, json!({"name": name}), mode, ttl);
+        let _ = r;
+        fx.approver.calls.load(Ordering::SeqCst) > before
+    };
+    // Longer, single use, another item or mode, another program chain, and a peer nobody can identify.
+    assert!(asked(&fx, &p, "github", "http", "1d"));
+    assert!(asked(&fx, &p, "github", "http", "once"));
+    assert!(asked(&fx, &p, "github", "http", "session"));
+    assert!(asked(&fx, &p, "deploy env", "run", "15m"));
+    assert!(asked(&fx, &p, "github", "run", "15m"));
+    let other = PeerId {
+        parents: vec!["/bin/zsh".into(), "/opt/other/other".into()],
+        ..peer(101)
+    };
+    assert!(asked(&fx, &other, "github", "http", "15m"));
+    assert!(
+        asked(&fx, &peer(102), "github", "http", "15m"),
+        "no parents: always asked"
+    );
+    // Reveal is never reused.
+    fx.approver.will(&[Decision::Allow, Decision::Allow]);
+    let before = fx.approver.calls.load(Ordering::SeqCst);
+    for _ in 0..2 {
+        let r = fx.request(&p, item_scope(&fx.github), "reveal", "once");
+        assert_eq!(r["ok"], true, "{r}");
+    }
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), before + 2);
+}
+
+#[test]
+fn a_shorter_request_is_covered_by_a_longer_grant_and_an_expired_grant_covers_nothing() {
+    let fx = fixture();
+    let p = agent(100);
+    let first = fx.approver_will_allow_then(&p, "github", "http", "1d");
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    let again = fx.request(&agent(101), json!({"name": "github"}), "http", "15m");
+    assert_eq!(again["grant"]["id"], first["grant"]["id"], "{again}");
+    assert_eq!(
+        again["grant"]["ttl"], "1d",
+        "the answer says what covers it"
+    );
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), calls);
+    fx.env.advance(Duration::from_secs(25 * 60 * 60));
+    fx.approver.will(&[Decision::Allow]);
+    let r = fx.request(&agent(102), json!({"name": "github"}), "http", "1d");
+    assert_eq!(r["ok"], true);
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), calls + 1);
+}
+
+#[test]
+fn a_grant_keeps_at_most_32_tokens_and_the_oldest_goes_first() {
+    let fx = fixture();
+    let first = fx.approver_will_allow_then(&agent(1), "github", "http", "15m");
+    let mut tokens = vec![token_of(&first)];
+    for pid in 2..40 {
+        let r = fx.request(&agent(pid), json!({"name": "github"}), "http", "15m");
+        tokens.push(token_of(&r));
+    }
+    assert_eq!(fx.grants(), 1);
+    let host = Some("api.github.com");
+    let works = |t: &String| fx.broker.authorize(t, &fx.github, Mode::Http, host).is_ok();
+    assert!(!works(&tokens[0]), "the oldest token was dropped");
+    assert!(works(tokens.last().unwrap()));
+}
+
+#[test]
+fn identical_requests_that_queue_behind_a_prompt_cost_one_prompt() {
+    let fx = Arc::new(fixture());
+    *fx.approver.pause.lock().unwrap() = Duration::from_millis(200);
+    fx.approver.will(&[Decision::Allow]);
+    let threads: Vec<_> = (0..4u32)
+        .map(|i| {
+            let fx = fx.clone();
+            std::thread::spawn(move || {
+                fx.request(&agent(500 + i), json!({"name": "github"}), "http", "15m")
+            })
+        })
+        .collect();
+    let answers: Vec<Value> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), 1, "{answers:?}");
+    assert_eq!(fx.approver.max_in_flight.load(Ordering::SeqCst), 1);
+    for a in &answers {
+        assert_eq!(a["ok"], true, "{a}");
+    }
+    assert_eq!(fx.grants(), 1);
+}
+
+#[test]
+fn identical_requests_that_queue_behind_a_prompt_that_is_denied_are_denied_too() {
+    let fx = Arc::new(fixture());
+    *fx.approver.pause.lock().unwrap() = Duration::from_millis(200);
+    fx.approver.will(&[Decision::Deny]);
+    let threads: Vec<_> = (0..4u32)
+        .map(|i| {
+            let fx = fx.clone();
+            std::thread::spawn(move || {
+                fx.request(&agent(600 + i), json!({"name": "github"}), "http", "15m")
+            })
+        })
+        .collect();
+    let answers: Vec<Value> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), 1, "{answers:?}");
+    for a in &answers {
+        assert!(matches!(Fx::code(a), "denied" | "busy"), "{a}");
+    }
+    assert_eq!(fx.grants(), 0);
+}
+
+#[test]
+fn a_request_whose_client_has_gone_opens_no_prompt() {
+    let fx = fixture();
+    let p = agent(100);
+    let line = json!({"v":1,"id":"r","op":"grant.request","scope":{"name":"github"},
+                      "mode":"http","ttl":"15m"})
+    .to_string();
+    fx.approver.will(&[Decision::Allow]);
+    let r = fx.broker.handle_line_live(&p, &line, &|| false);
+    assert_eq!(
+        Fx::code(&serde_json::from_str::<Value>(&r.line).unwrap()),
+        "denied"
+    );
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(fx.grants(), 0);
+    assert!(!fx.names().contains(&"grant.requested".to_owned()));
+}
+
+#[test]
+fn a_client_that_leaves_while_the_person_decides_gets_no_grant() {
+    let fx = fixture();
+    let p = agent(100);
+    let line = json!({"v":1,"id":"r","op":"grant.request","scope":{"name":"github"},
+                      "mode":"http","ttl":"15m"})
+    .to_string();
+    fx.approver.will(&[Decision::Allow]);
+    // Present when the prompt opens, gone when it is answered.
+    let polls = AtomicUsize::new(0);
+    let r = fx
+        .broker
+        .handle_line_live(&p, &line, &|| polls.fetch_add(1, Ordering::SeqCst) < 1);
+    assert_eq!(
+        Fx::code(&serde_json::from_str::<Value>(&r.line).unwrap()),
+        "denied"
+    );
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(fx.grants(), 0);
+    assert!(!fx.names().contains(&"grant.approved".to_owned()));
+}
+
+#[test]
+fn the_server_sees_a_client_that_closed_its_end() {
+    use std::os::unix::net::UnixStream;
+    let (a, b) = UnixStream::pair().unwrap();
+    assert!(server::still_connected(&a));
+    drop(b);
+    assert!(!server::still_connected(&a));
+}
+
+impl Fx {
+    fn grants(&self) -> usize {
+        self.broker.grant_count()
+    }
+
+    /// Approve one request for `name` and return the answer.
+    fn approver_will_allow_then(&self, p: &PeerId, name: &str, mode: &str, ttl: &str) -> Value {
+        self.approver.will(&[Decision::Allow]);
+        let r = self.request(p, json!({"name": name}), mode, ttl);
+        assert_eq!(r["ok"], true, "{r}");
+        r
+    }
 }

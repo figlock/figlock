@@ -19,6 +19,8 @@ const DAY: Duration = Duration::from_secs(24 * 60 * 60);
 const SESSION_CAP: Duration = Duration::from_secs(12 * 60 * 60);
 /// How many ended grants are remembered, so a late use gets `expired` rather than `no_grant`.
 const TOMBSTONES: usize = 256;
+/// Tokens one grant may hold (ADR-0039). A use follows its request within moments, so the oldest can go.
+const MAX_TOKENS: usize = 32;
 
 /// Everything the grant table needs from the outside world.
 pub trait Env: Send + Sync {
@@ -31,7 +33,8 @@ pub trait Env: Send + Sync {
 
 pub struct Grant {
     pub id: String,
-    token_hash: [u8; 32],
+    /// The hash of every token handed out for this grant, oldest first; the first is the approved request's.
+    token_hashes: Vec<[u8; 32]>,
     pub scope: Scope,
     pub mode: Mode,
     pub ttl: Ttl,
@@ -119,7 +122,9 @@ impl GrantTable {
             .partition(|g| Self::live(g, env));
         self.grants = live;
         for g in &dead {
-            self.tombstone(g.token_hash);
+            for h in &g.token_hashes {
+                self.tombstone(*h);
+            }
         }
         dead
     }
@@ -152,7 +157,7 @@ impl GrantTable {
         let id = random_hex::<8>()?;
         self.grants.push(Grant {
             id: id.clone(),
-            token_hash: hash(&token),
+            token_hashes: vec![hash(&token)],
             scope,
             mode,
             ttl,
@@ -162,6 +167,34 @@ impl GrantTable {
             session_pid,
         });
         Ok((id, token))
+    }
+
+    /// A live grant that already covers this request (ADR-0039, `broker.md` 3.1), or `None` when the person has
+    /// to be asked. On a match a new token is added to that grant and returned with the grant's id; the
+    /// expiry does not change.
+    pub fn reuse(
+        &mut self,
+        env: &dyn Env,
+        want: &Want<'_>,
+    ) -> Result<Option<(String, String)>, Code> {
+        if !want.reusable() {
+            return Ok(None);
+        }
+        let Some(g) = self.grants.iter_mut().find(|g| {
+            g.mode == want.mode
+                && g.scope == *want.scope
+                && g.ttl.reusable_for(want.ttl)
+                && same_program(&g.peer, want.peer)
+                && Self::live(g, env)
+        }) else {
+            return Ok(None);
+        };
+        let token = random_hex::<32>()?;
+        if g.token_hashes.len() == MAX_TOKENS {
+            g.token_hashes.remove(0);
+        }
+        g.token_hashes.push(hash(&token));
+        Ok(Some((g.id.clone(), token)))
     }
 
     /// Remove a grant by id.
@@ -178,8 +211,10 @@ impl GrantTable {
         // Visit every grant so the time taken does not depend on which one matched.
         let mut found = None;
         for (i, g) in self.grants.iter().enumerate() {
-            if bool::from(g.token_hash.ct_eq(token_hash)) {
-                found = Some(i);
+            for h in &g.token_hashes {
+                if bool::from(h.ct_eq(token_hash)) {
+                    found = Some(i);
+                }
             }
         }
         found
@@ -219,8 +254,10 @@ impl GrantTable {
             grant_id: Some(id.clone()),
         };
         if !Self::live(&self.grants[at], env) {
-            self.grants.remove(at);
-            self.tombstone(h);
+            let gone = self.grants.remove(at);
+            for t in &gone.token_hashes {
+                self.tombstone(*t);
+            }
             return Err(refused(Code::Expired));
         }
         let g = &self.grants[at];
@@ -244,6 +281,33 @@ impl GrantTable {
         }
         Ok(Authorized { grant_id: id })
     }
+}
+
+/// What a request asks for, to compare against the grants already made.
+pub struct Want<'a> {
+    pub peer: &'a PeerId,
+    pub scope: &'a Scope,
+    pub mode: Mode,
+    pub ttl: Ttl,
+}
+
+impl Want<'_> {
+    /// `reveal`, `once` and `session` are asked about every time, and only an item is matched.
+    fn reusable(&self) -> bool {
+        matches!(self.mode, Mode::Http | Mode::Run)
+            && matches!(self.ttl, Ttl::Min15 | Ttl::Day | Ttl::UntilLock)
+            && matches!(self.scope, Scope::Item(_))
+    }
+}
+
+/// The same verified program: user, program path and the chain of parent programs. A peer without a path or
+/// without parents is never the same, so the person is asked (ADR-0039). Pids are not compared.
+pub fn same_program(a: &PeerId, b: &PeerId) -> bool {
+    a.uid == b.uid
+        && a.exe.is_some()
+        && a.exe == b.exe
+        && !a.parents.is_empty()
+        && a.parents == b.parents
 }
 
 fn valid_host(h: &str) -> bool {

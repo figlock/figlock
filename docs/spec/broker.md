@@ -118,6 +118,14 @@ long** (`ttl`).
 - `reveal` requires `scope` to be one `item` and `ttl` to be `once`; anything else is `bad_request`. A reveal
   therefore needs its own approval every time (G6).
 - At most 64 grants are live; more requests get `busy`.
+- **Reuse (ADR-0039).** A request that an active grant already covers is answered with a new token for that
+  grant and no prompt. It covers when the verified identity is the same (user id, program path and a non-empty
+  chain of parent program paths, all equal; pids are not compared), the scope is the same item, the mode is
+  the same and is `http` or `run`, the grant's ttl is `15m`, `1d` or `until-lock` and at least as long as the
+  requested one, and the grant is live. `once`, `session` and `reveal` always prompt, and so does a peer
+  without a program path or parents. All tokens of a grant end with it and the expiry is never extended; a
+  grant keeps at most 32 tokens (the oldest is dropped). The audit record is `grant.requested` with `grant`
+  set to the covering grant's id, and no `grant.approved`.
 
 Success response of `grant.request`:
 
@@ -143,6 +151,12 @@ wording of an item), the mode and the duration. `reveal` and `vault` scopes are 
 returns allow or deny, or nothing within 60 s, which is deny.
 
 - Prompts are shown one at a time. After a deny, the same pid gets `busy` for 5 s (approval fatigue, G8).
+- A request that waited behind another prompt is decided again when it reaches the front: if the prompt
+  before it approved a grant that covers it (3.1, reuse) it is answered without a prompt, and if the person
+  just denied the same identity, scope and mode it is `denied` without one. So identical concurrent requests
+  cost one prompt.
+- A request whose client has disconnected is dropped before its prompt opens, and a grant is not issued if the
+  client left while the person was deciding (ADR-0039).
 - A grant is created only after the audit record `grant.approved` was written (section 5, fail closed).
 - On macOS the daemon asks with Touch ID (the system prompt, which accepts the device password on a Mac
   without biometrics). The prompt is one line, built by the broker from what the operating system verified:

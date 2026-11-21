@@ -51,8 +51,12 @@ figlock run --item "Cloud account" --env AWS_SECRET_ACCESS_KEY=secret -- terrafo
 
 ## Approvals and time
 
-- Each new request opens a Touch ID prompt on the user's machine. Use `--ttl` to ask for `once`, `15m`
+- A new request opens a Touch ID prompt on the user's machine. Use `--ttl` to ask for `once`, `15m`
   (default), `1d` or `until-lock`. Ask for the shortest that fits the job.
+- While an approved `15m`, `1d` or `until-lock` grant is live, the same item and mode from the same
+  program is answered without a new prompt, so repeat calls inside the window are fine. `once` always asks.
+- Make one request at a time and wait for it. Do not retry while a prompt may still be open: the user is
+  already being asked, and a second window is noise.
 - If a command says the broker is not running or the vault is locked, tell the user to run
   `figlock broker start` in a terminal. You cannot start it for them.
 - `figlock broker status` and `figlock broker grants` show what is active (never a token).

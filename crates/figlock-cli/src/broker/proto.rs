@@ -58,6 +58,18 @@ impl Ttl {
         }
     }
 
+    /// Whether a grant with this ttl may answer a request for `asked` without a prompt: both must be one of
+    /// `15m`, `1d`, `until-lock`, and this one at least as long (ADR-0039).
+    pub fn reusable_for(self, asked: Ttl) -> bool {
+        let rank = |t: Ttl| match t {
+            Ttl::Min15 => Some(1),
+            Ttl::Day => Some(2),
+            Ttl::UntilLock => Some(3),
+            Ttl::Once | Ttl::Session => None,
+        };
+        matches!((rank(self), rank(asked)), (Some(have), Some(want)) if have >= want)
+    }
+
     fn parse(s: &str) -> Option<Ttl> {
         match s {
             "once" => Some(Ttl::Once),
