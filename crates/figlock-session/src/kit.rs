@@ -115,7 +115,7 @@ mod tests {
         let fake = Fake::default();
         let keys = SecretKeyStore::new(fake.clone(), true);
         let key = SecretKey::random().unwrap();
-        keys.put(VAULT, &key, 1, true).unwrap();
+        keys.put(VAULT, &key, 1).unwrap();
         let shown = keys.get(VAULT, "show", true).unwrap().unwrap().format();
         let pdf = kit_from_kept_key(&keys, VAULT, true, &place(), 1_794_000_000_000)
             .unwrap()
@@ -129,8 +129,7 @@ mod tests {
     fn without_the_prompt_confirmed_there_is_no_kit() {
         let fake = Fake::default();
         let keys = SecretKeyStore::new(fake.clone(), true);
-        keys.put(VAULT, &SecretKey::random().unwrap(), 1, true)
-            .unwrap();
+        keys.put(VAULT, &SecretKey::random().unwrap(), 1).unwrap();
         for answer in [Outcome::Declined, Outcome::TimedOut, Outcome::Unavailable] {
             fake.0.answer.set(Some(answer));
             assert!(

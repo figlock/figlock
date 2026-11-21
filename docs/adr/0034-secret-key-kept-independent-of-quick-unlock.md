@@ -1,6 +1,6 @@
 # ADR-0034: The Secret Key stays on the device whatever quick unlock does, and a counter says when it changed
 
-- Status: Accepted
+- Status: Accepted (amended by ADR-0037: the key always sits in the login keychain, not the Secure Enclave)
 - Date: 2026-11-15
 - Decision: D34 in `docs/decisions.md`
 - Amends: ADR-0027

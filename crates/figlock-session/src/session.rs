@@ -265,7 +265,6 @@ fn credentials<B: quick::Backend, T>(
     vault: &str,
     password: &str,
     keys: &SecretKeyStore<B>,
-    quick_on: bool,
     ui: &dyn Ui,
     open: &dyn Fn(&Key) -> Res<Result<T, figlock_core::Error>>,
 ) -> Res<(SecretKey, Key, T)> {
@@ -278,7 +277,7 @@ fn credentials<B: quick::Backend, T>(
     };
     let keep = |secret_key: &SecretKey| {
         if keys.available()
-            && let Err(e) = keys.put(vault, secret_key, vault_gen, quick_on)
+            && let Err(e) = keys.put(vault, secret_key, vault_gen)
         {
             ui.warn(&format!("the Secret Key was not kept on this device: {e}"));
         }
@@ -304,7 +303,7 @@ fn credentials<B: quick::Backend, T>(
         figlock_core::KeptKey::RolledBack => unreachable!(),
         figlock_core::KeptKey::Current => {
             let kept = keys
-                .get(vault, "unlock your FigLock vault", quick_on)
+                .get_quiet(vault, "unlock your FigLock vault")
                 .unwrap_or_else(|e| {
                     ui.warn(&format!(
                         "the Secret Key kept on this device was not read: {e}"
@@ -417,7 +416,6 @@ impl Session {
             }
         }
         let mut creds = None;
-        let quick_on = quick.status(&vault_id).0;
         let ((vault, new_record), auk) = match quick_unlocked {
             Some(done) => done,
             None => {
@@ -428,7 +426,6 @@ impl Session {
                     &vault_id,
                     &password,
                     &keys,
-                    quick_on,
                     ui.as_ref(),
                     &unlock,
                 )?;
@@ -1376,7 +1373,6 @@ mod tests {
                 &self,
                 password: &str,
                 keys: &SecretKeyStore<Fake>,
-                quick_on: bool,
                 ui: &Typed,
             ) -> Res<(SecretKey, Key, Vault)> {
                 let records = [self.device_record.clone()];
@@ -1385,7 +1381,6 @@ mod tests {
                     &self.vault,
                     password,
                     keys,
-                    quick_on,
                     ui,
                     &|auk: &Key| {
                         Ok(Vault::unlock_with_key(
@@ -1452,9 +1447,9 @@ mod tests {
         fn a_kept_key_unlocks_without_asking_for_it() {
             let r = rig();
             let keys = SecretKeyStore::new(Fake::default(), true);
-            keys.put(&r.vault, &r.sk, 1, true).unwrap();
+            keys.put(&r.vault, &r.sk, 1).unwrap();
             let ui = ui(None);
-            let (sk, _, _) = r.creds(&r.pw, &keys, true, &ui).unwrap();
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
             assert_eq!(sk.expose(), r.sk.expose());
             assert_eq!(ui.asked.get(), 0);
         }
@@ -1464,9 +1459,9 @@ mod tests {
             let r = rig();
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
-            keys.put(&r.vault, &r.sk, 1, false).unwrap();
+            keys.put(&r.vault, &r.sk, 1).unwrap();
             let ui = ui(None);
-            let (sk, _, _) = r.creds(&r.pw, &keys, false, &ui).unwrap();
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
             assert_eq!(sk.expose(), r.sk.expose());
             assert_eq!(ui.asked.get(), 0, "the master password is all it needed");
             assert_eq!(fake.0.prompts.get(), 0, "no Touch ID or device password");
@@ -1478,7 +1473,7 @@ mod tests {
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
             let ui = ui(Some(&r.sk));
-            r.creds(&r.pw, &keys, false, &ui).unwrap();
+            r.creds(&r.pw, &keys, &ui).unwrap();
             assert_eq!(ui.asked.get(), 1);
             assert_eq!(kept(&fake), Some(*r.sk.expose()));
             assert_eq!(keys.kept_gen(&r.vault), 1);
@@ -1489,11 +1484,11 @@ mod tests {
             let r = rig();
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
-            keys.put(&r.vault, &r.sk, 1, false).unwrap();
+            keys.put(&r.vault, &r.sk, 1).unwrap();
             // A key is on hand if it were asked for; it must not be.
             let ui = ui(Some(&r.sk));
             let wrong = SecretKey::random().unwrap().format().to_string();
-            let e = code(r.creds(&wrong, &keys, false, &ui));
+            let e = code(r.creds(&wrong, &keys, &ui));
             assert_eq!(e, FailKind::WrongPassword);
             assert_eq!(ui.asked.get(), 0, "a wrong password never asks for the key");
             assert!(ui.notices.borrow().is_empty());
@@ -1506,11 +1501,11 @@ mod tests {
             let (r, old) = rotated();
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
-            keys.put(&r.vault, &old, 1, false).unwrap();
+            keys.put(&r.vault, &old, 1).unwrap();
 
             // The vault is at generation 2, this device's key at 1: it asks, after saying why.
             let ui1 = ui(Some(&r.sk));
-            let (sk, _, _) = r.creds(&r.pw, &keys, false, &ui1).unwrap();
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui1).unwrap();
             assert_eq!(sk.expose(), r.sk.expose());
             assert_eq!(ui1.asked.get(), 1);
             assert_eq!(ui1.notices.borrow().len(), 1);
@@ -1520,7 +1515,7 @@ mod tests {
 
             // Next time the kept key is current: no question, no notice.
             let ui2 = ui(None);
-            let (sk, _, _) = r.creds(&r.pw, &keys, false, &ui2).unwrap();
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui2).unwrap();
             assert_eq!(sk.expose(), r.sk.expose());
             assert_eq!(ui2.asked.get(), 0);
             assert!(ui2.notices.borrow().is_empty());
@@ -1531,10 +1526,10 @@ mod tests {
             let (r, old) = rotated();
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
-            keys.put(&r.vault, &old, 1, false).unwrap();
+            keys.put(&r.vault, &old, 1).unwrap();
             let ui = ui(Some(&r.sk));
             let wrong = SecretKey::random().unwrap().format().to_string();
-            assert!(r.creds(&wrong, &keys, false, &ui).is_err());
+            assert!(r.creds(&wrong, &keys, &ui).is_err());
             assert_eq!(kept(&fake), Some(*old.expose()));
             assert_eq!(keys.kept_gen(&r.vault), 1);
         }
@@ -1559,7 +1554,7 @@ mod tests {
             let r = rig();
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
-            keys.put(&r.vault, &SecretKey::random().unwrap(), 1, false)
+            keys.put(&r.vault, &SecretKey::random().unwrap(), 1)
                 .unwrap();
             let records = [r.device_record.clone()];
             let (sk, _, _) = credentials(
@@ -1567,7 +1562,6 @@ mod tests {
                 &r.vault,
                 &r.pw,
                 &keys,
-                false,
                 &Offers(SecretKey::from_bytes(*r.sk.expose())),
                 &|auk: &Key| {
                     Ok(Vault::unlock_with_key(
@@ -1591,9 +1585,9 @@ mod tests {
             let r = rig();
             let keys = SecretKeyStore::new(Fake::default(), true);
             // This device saw generation 2 (it keeps that key), and the file on storage says 1.
-            keys.put(&r.vault, &r.sk, 2, false).unwrap();
+            keys.put(&r.vault, &r.sk, 2).unwrap();
             let ui = ui(Some(&r.sk));
-            let e = code(r.creds(&r.pw, &keys, false, &ui));
+            let e = code(r.creds(&r.pw, &keys, &ui));
             assert_eq!(e, FailKind::VaultRolledBack);
             assert_eq!(ui.asked.get(), 0);
         }
@@ -1604,7 +1598,7 @@ mod tests {
             let fake = Fake::default();
             let keys = SecretKeyStore::new(fake.clone(), true);
             let ui = ui(Some(&SecretKey::random().unwrap()));
-            assert!(r.creds(&r.pw, &keys, false, &ui).is_err());
+            assert!(r.creds(&r.pw, &keys, &ui).is_err());
             assert_eq!(kept(&fake), None);
         }
 
@@ -1613,7 +1607,7 @@ mod tests {
             let r = rig();
             let keys = SecretKeyStore::new(Fake::default(), false);
             let ui = ui(Some(&r.sk));
-            let (sk, _, _) = r.creds(&r.pw, &keys, false, &ui).unwrap();
+            let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
             assert_eq!(sk.expose(), r.sk.expose());
             assert_eq!(ui.asked.get(), 1);
         }

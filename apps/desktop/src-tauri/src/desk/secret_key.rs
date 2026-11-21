@@ -89,7 +89,7 @@ impl Desk {
         let vault = peek_vault_id()?;
         let keys = secret_key_store::system()?;
         if keys.available() {
-            keys.put(&vault, &key, sk_gen, secret_key_store::quick_on(&vault))?;
+            keys.put(&vault, &key, sk_gen)?;
         }
         self.inner().held_key = Some(key);
         self.state()
