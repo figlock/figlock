@@ -126,6 +126,11 @@ export const forgetSecretKey = () => invoke<VaultState>("forget_secret_key");
 /** How long the vault waits without activity before it locks, in seconds. Applies at once. */
 export const setAutolock = (secs: number) => invoke<VaultState>("set_autolock", { secs });
 export const quickUnlock = () => invoke<VaultState>("quick_unlock");
+/** Stop unlocking with Touch ID; the Secret Key stays kept on this Mac. */
+export const turnTouchIdOff = () => invoke<VaultState>("turn_touch_id_off");
+/** Unlock with Touch ID from now on. The master password confirms; the Secret Key only when none is on hand. */
+export const turnTouchIdOn = (password: string, secretKey: string) =>
+  invoke<VaultState>("turn_touch_id_on", { password, secretKey });
 export const lock = () => invoke<void>("lock");
 export const activity = () => invoke<void>("activity");
 

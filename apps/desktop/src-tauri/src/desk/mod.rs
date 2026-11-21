@@ -1010,6 +1010,7 @@ pub mod recovery;
 pub mod removed;
 pub mod secret_key;
 pub mod sync;
+pub mod touch_id;
 pub mod update;
 
 #[cfg(test)]

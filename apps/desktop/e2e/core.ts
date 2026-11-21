@@ -31,6 +31,11 @@ export type Options = {
   secretKeyStale?: boolean;
   /** The vault removed this Mac at this time (Unix milliseconds): every change is refused. */
   removedAtMs?: number;
+  /** This Mac has Touch ID, and it unlocks this vault. */
+  touchAvailable?: boolean;
+  quickUnlock?: boolean;
+  /** This window holds the Secret Key it unlocked with (the default). */
+  keyHeld?: boolean;
   /** This Mac keeps no Secret Key. */
   keyNotKept?: boolean;
   /** The person cancels the save dialog of the Emergency Kit. */
