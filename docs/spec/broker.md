@@ -176,6 +176,16 @@ returns allow or deny, or nothing within 60 s, which is deny.
   prompt: `FIGLOCK_DEVICE_KEYS=file` only moves where the device keys are kept, and the broker says so when it
   starts. The daemon also prints when a prompt is open and how it ended (approved, cancelled, timed out).
 
+When the desktop app hosts the broker (ADR-0040) the approver is a **card**. The app posts a notification
+("<program> wants <item> for <ttl>", from the same verified text as the system prompt) and shows a card with what
+`describe` shows: the verified program and the programs that started it, the claimed label and reason marked
+not checked, the scope in words, the mode, the duration and any loud wording. **Approve runs the system Touch ID
+or device-password prompt**, the same one the CLI daemon uses, and only an accepted prompt is an allow. Not now,
+closing the card, a cancelled or failed prompt and no answer in 60 s are deny, and a second press while the
+prompt is open does not open another. A click on the notification only brings the window forward. If the card
+cannot be shown (no window, or no notification could be posted and the window is not in front) the broker
+asks with the system prompt directly, and without that with a terminal, and without that denies.
+
 ### 3.3 Authorising a use
 
 Every use of a grant goes through one check, `authorize(token, item, mode, host?)`, which returns the grant

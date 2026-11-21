@@ -25,6 +25,10 @@ use tauri_plugin_dialog::DialogExt;
 const LOCKED_EVENT: &str = "figlock://locked";
 /// The window is told a sync ran, so it can reload the items and the sync status.
 const SYNCED_EVENT: &str = "figlock://synced";
+/// An agent asks for a secret; the payload is the card to show (ADR-0040).
+const AGENT_REQUEST_EVENT: &str = "figlock://agent-request";
+/// A request was answered or timed out; the payload is its id.
+const AGENT_DONE_EVENT: &str = "figlock://agent-request-done";
 
 #[tauri::command]
 async fn vault_state(desk: State<'_, Desk>) -> CmdRes<VaultState> {
@@ -603,6 +607,23 @@ fn broker_take_over(desk: State<'_, Desk>) -> CmdRes<desk::broker_host::Mode> {
     desk.take_over_broker()
 }
 
+/// The agent requests waiting for an answer, for a window that opened after one came in (ADR-0040).
+#[tauri::command]
+async fn agent_requests(desk: State<'_, Desk>) -> CmdRes<Vec<desk::agent_requests::Card>> {
+    Ok(desk.agent_cards())
+}
+
+/// The person pressed a button on a request card. Approve opens the system Touch ID prompt and only an
+/// accepted prompt allows the request; this waits for it, so it must not run on the main thread.
+#[tauri::command(async)]
+fn agent_decide(
+    desk: State<'_, Desk>,
+    id: u64,
+    approve: bool,
+) -> CmdRes<desk::agent_requests::Decided> {
+    Ok(desk.agent_decide(id, approve))
+}
+
 /// The window saw keyboard or pointer input; restarts the idle timer.
 #[tauri::command]
 async fn activity(desk: State<'_, Desk>) -> CmdRes<()> {
@@ -794,9 +815,37 @@ async fn save_file(
     Ok(true)
 }
 
+/// Show an agent request to the person. True when someone can see it: the window is up and either a
+/// notification went out or the window is already in front.
+fn agent_event(handle: &tauri::AppHandle, event: &desk::agent_requests::Event) -> bool {
+    use desk::agent_requests::Event;
+    use tauri_plugin_notification::NotificationExt;
+    match event {
+        Event::Open(card) => {
+            let Some(window) = tauri::Manager::get_webview_window(handle, "main") else {
+                return false;
+            };
+            let in_front = window.is_focused().unwrap_or(false);
+            let notified = handle
+                .notification()
+                .builder()
+                .title("FigLock")
+                .body(card.headline())
+                .show()
+                .is_ok();
+            if !notified && !in_front {
+                return false;
+            }
+            handle.emit(AGENT_REQUEST_EVENT, &**card).is_ok()
+        }
+        Event::Closed(id) => handle.emit(AGENT_DONE_EVENT, id).is_ok(),
+    }
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Desk::new())
         .manage(desk::update::Pending::default())
         // Coming back to the window picks up what the CLI wrote while it was in the background (FIG-126).
@@ -817,6 +866,12 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+            // An agent request shows a card in the window and posts a notification (ADR-0040). If neither can
+            // be seen, the broker falls back to the direct Touch ID prompt.
+            let handle = app.handle().clone();
+            tauri::Manager::state::<Desk>(app.handle())
+                .approvals()
+                .set_sink(Box::new(move |event| agent_event(&handle, event)));
             // Agents can ask for secrets as soon as the vault is unlocked, with no terminal step (ADR-0040).
             tauri::Manager::state::<Desk>(app.handle()).host_broker();
             // Locks as the Mac goes to sleep or the screen locks, before anyone sees it again (FIG-131).
@@ -915,6 +970,8 @@ pub fn run() {
             turn_touch_id_on,
             lock,
             broker_status,
+            agent_requests,
+            agent_decide,
             broker_take_over,
             activity,
             update_check,

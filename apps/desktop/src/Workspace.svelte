@@ -4,6 +4,7 @@
 
   import GeneratorPage from "./GeneratorPage.svelte";
   import HealthPage from "./HealthPage.svelte";
+  import AgentRequests from "./AgentRequests.svelte";
   import BrokerBanner from "./BrokerBanner.svelte";
   import RemovedBanner from "./RemovedBanner.svelte";
   import SecretKeyBanner from "./SecretKeyBanner.svelte";
@@ -312,6 +313,7 @@
       {/if}
       <SecretKeyBanner />
       <BrokerBanner />
+      <AgentRequests />
     </div>
 
     <div bind:this={scroller} class="min-h-0 overflow-auto bg-bg">
