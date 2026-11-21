@@ -247,9 +247,17 @@ impl Desk {
     /// process on this Mac such as the CLI (FIG-126, ADR-0026). Returns whether the list changed and whether the
     /// vault needs a fresh unlock.
     fn absorb_local(&self) -> (bool, bool) {
+        let (changed, needs_unlock, stale) = self.absorb_in_session();
+        // The broker hears of it with no session lock held.
+        self.tell_broker(changed, stale);
+        (changed, needs_unlock)
+    }
+
+    /// `(list changed, needs a fresh unlock, the vault's settings changed or this device was removed)`.
+    fn absorb_in_session(&self) -> (bool, bool, bool) {
         let mut inner = self.inner();
         let Some(session) = inner.session.as_mut() else {
-            return (false, false);
+            return (false, false, false);
         };
         // A revocation made elsewhere shows up as a settings change; the window must hear of it at once and
         // block writes, not at the next unlock (FIG-138).
@@ -260,9 +268,13 @@ impl Desk {
                 if r.applied > 0 {
                     inner.cache = None;
                 }
-                (r.applied > 0 || removed, r.settings_changed || r.stopped)
+                (
+                    r.applied > 0 || removed,
+                    r.settings_changed || r.stopped,
+                    r.settings_changed || removed,
+                )
             }
-            Err(_) => (false, false),
+            Err(_) => (false, false, false),
         }
     }
 

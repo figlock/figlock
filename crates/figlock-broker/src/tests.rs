@@ -2428,3 +2428,98 @@ fn locking_the_broker_locks_the_host() {
     assert_eq!(host.locks.load(Ordering::SeqCst), 1);
     assert!(host.is_locked());
 }
+
+// ---- FIG-149 / ADR-0040: one socket for a vault that locks and unlocks ----
+
+fn started_broker() -> Arc<Broker> {
+    let vault = figlock_core::Vault::create(&random_hex(8), "L", KdfParams::FLOOR, T)
+        .unwrap()
+        .0;
+    let writer = AuditWriter::with_sink(Box::new(Mem::default()), 0, 0, ZERO_PREV);
+    Arc::new(
+        Broker::start(
+            solo(vault),
+            writer,
+            Box::new(approve::DenyAll),
+            Arc::new(TestEnv::new()),
+            uid(),
+        )
+        .unwrap(),
+    )
+}
+
+fn ask(hub: &hub::Hub, op: &str) -> Value {
+    use server::Dispatch;
+    let line = json!({"v":1,"id":"h","op":op}).to_string();
+    serde_json::from_str(&hub.handle(&peer(1), &line, &|| true).line).unwrap()
+}
+
+#[test]
+fn a_hub_with_nothing_unlocked_answers_locked_and_nothing_else() {
+    use server::Dispatch;
+    let hub = hub::Hub::new();
+    assert_eq!(ask(&hub, "hello")["locked"], true);
+    assert_eq!(ask(&hub, "status")["locked"], true);
+    for op in ["grant.list", "lock"] {
+        assert_eq!(Fx::code(&ask(&hub, op)), "locked", "{op}");
+    }
+    let bad = hub.handle(&peer(1), "not json", &|| true);
+    assert_eq!(
+        Fx::code(&serde_json::from_str::<Value>(&bad.line).unwrap()),
+        "bad_request"
+    );
+    assert!(hub.admit(&peer(1)));
+    let stranger = PeerId {
+        uid: uid() + 1,
+        ..peer(1)
+    };
+    assert!(!hub.admit(&stranger));
+}
+
+#[test]
+fn a_hub_routes_to_the_current_broker_and_survives_it_locking() {
+    use server::Dispatch;
+    let hub = hub::Hub::new();
+    let first = started_broker();
+    hub.set(first.clone());
+    assert_eq!(ask(&hub, "status")["locked"], false);
+    // `lock` ends that broker, but the hub keeps serving.
+    let line = json!({"v":1,"id":"k","op":"lock"}).to_string();
+    let r = hub.handle(&peer(1), &line, &|| true);
+    assert!(!r.exit, "the socket stays up for the next unlock");
+    assert!(first.is_locked());
+    assert_eq!(ask(&hub, "status")["locked"], true);
+    // The next unlock is a new broker with no grants of the old one.
+    hub.set(started_broker());
+    assert_eq!(ask(&hub, "status")["locked"], false);
+    assert_eq!(ask(&hub, "status")["grants"], 0);
+    hub.clear();
+    assert_eq!(ask(&hub, "hello")["locked"], true);
+}
+
+#[test]
+fn a_hub_serves_a_real_socket_until_it_is_stopped() {
+    let hub = Arc::new(hub::Hub::new());
+    let tmp = tempfile::Builder::new()
+        .prefix("fl")
+        .tempdir_in("/tmp")
+        .unwrap();
+    let socket = tmp.path().join("run").join("b.sock");
+    let listener = server::bind(&socket).unwrap();
+    assert!(server::live(&socket));
+    let serving = {
+        let hub = hub.clone();
+        std::thread::spawn(move || server::serve(&listener, &hub))
+    };
+    let hello = client::call(&socket, "hello", json!({})).unwrap();
+    assert_eq!(hello["locked"], true);
+    hub.set(started_broker());
+    assert_eq!(
+        client::call(&socket, "status", json!({})).unwrap()["locked"],
+        false
+    );
+    // A second broker may not take the socket while the hub answers on it.
+    assert!(server::bind(&socket).is_err());
+    hub.stop();
+    serving.join().unwrap().unwrap();
+}

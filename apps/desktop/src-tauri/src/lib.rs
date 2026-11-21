@@ -591,6 +591,18 @@ async fn lock(desk: State<'_, Desk>) -> CmdRes<()> {
     Ok(())
 }
 
+/// Who answers agents on the broker socket: this window, a broker started in a terminal, or nobody (ADR-0040).
+#[tauri::command]
+async fn broker_status(desk: State<'_, Desk>) -> CmdRes<desk::broker_host::Mode> {
+    Ok(desk.broker_mode())
+}
+
+/// Stop the broker running in a terminal and host here instead. Its grants end.
+#[tauri::command]
+async fn broker_take_over(desk: State<'_, Desk>) -> CmdRes<desk::broker_host::Mode> {
+    desk.take_over_broker()
+}
+
 /// The window saw keyboard or pointer input; restarts the idle timer.
 #[tauri::command]
 async fn activity(desk: State<'_, Desk>) -> CmdRes<()> {
@@ -805,6 +817,8 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+            // Agents can ask for secrets as soon as the vault is unlocked, with no terminal step (ADR-0040).
+            tauri::Manager::state::<Desk>(app.handle()).host_broker();
             // Locks as the Mac goes to sleep or the screen locks, before anyone sees it again (FIG-131).
             let handle = app.handle().clone();
             figlock_biometric::power::watch_sleep(move || {
@@ -900,6 +914,8 @@ pub fn run() {
             turn_touch_id_off,
             turn_touch_id_on,
             lock,
+            broker_status,
+            broker_take_over,
             activity,
             update_check,
             update_install,
@@ -928,6 +944,12 @@ pub fn run() {
             clear_staged,
             save_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("the FigLock desktop app failed to start");
+        .build(tauri::generate_context!())
+        .expect("the FigLock desktop app failed to start")
+        .run(|app, event| {
+            // Frees the broker socket so the next start (or a CLI broker) finds it clean.
+            if let tauri::RunEvent::Exit = event {
+                tauri::Manager::state::<Desk>(app).stop_broker();
+            }
+        });
 }

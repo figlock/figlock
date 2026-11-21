@@ -20,7 +20,7 @@ const WAIT: Duration = Duration::from_secs(120);
 pub fn call(socket: &Path, op: &str, members: Value) -> Res<Value> {
     let mut stream = UnixStream::connect(socket).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound | std::io::ErrorKind::ConnectionRefused => {
-            Fail::new("no broker is running; start one with `figlock broker start`")
+            Fail::new("no broker is running; open FigLock and unlock it, or start one with `figlock broker start`")
         }
         _ => Fail::from(e),
     })?;

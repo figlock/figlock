@@ -175,6 +175,9 @@ struct Reissued {
 
 struct Inner {
     session: Option<Session>,
+    /// Counts unlocks and locks. A broker started for one unlock stops serving when this moves on, so a
+    /// grant can never outlive the session it was approved for (ADR-0040).
+    epoch: u64,
     /// The Secret Key this session was unlocked with, kept in memory until it locks (ADR-0030). Set by a full
     /// unlock, create, open or join that had the key, replaced when the key rotates, dropped with the session.
     held_key: Option<SecretKey>,
@@ -201,7 +204,9 @@ struct Inner {
 }
 
 pub struct Desk {
-    inner: Mutex<Inner>,
+    inner: Arc<Mutex<Inner>>,
+    /// The agent broker this window hosts (ADR-0040): the socket, and the broker of the current unlock.
+    hosting: broker_host::Hosting,
     sync: Mutex<sync::SyncState>,
     kdf: KdfParams,
     /// The idle time before the vault locks; Settings changes it without a restart.
@@ -218,6 +223,7 @@ impl Inner {
             c.clear();
         }
         self.session = None;
+        self.epoch += 1;
         self.held_key = None;
         self.inviting = None;
         self.recovery = None;
@@ -393,8 +399,9 @@ impl Desk {
     ) -> Self {
         let (now, wall) = (clock.now(), clock.wall());
         Desk {
-            inner: Mutex::new(Inner {
+            inner: Arc::new(Mutex::new(Inner {
                 session: None,
+                epoch: 0,
                 held_key: None,
                 cache: None,
                 staged: std::collections::HashMap::new(),
@@ -409,7 +416,8 @@ impl Desk {
                 active_at: now,
                 ticked_at: now,
                 ticked_wall: wall,
-            }),
+            })),
+            hosting: broker_host::Hosting::default(),
             sync: Mutex::new(sync::SyncState::new()),
             kdf,
             autolock: Mutex::new(autolock),
@@ -874,12 +882,14 @@ impl Desk {
         let mut inner = self.inner();
         inner.drop_session();
         inner.session = Some(session);
+        inner.epoch += 1;
         inner.held_key = held;
         inner.active_at = self.clock.now();
         inner.ticked_at = self.clock.now();
         inner.ticked_wall = self.clock.wall();
         drop(inner);
         self.clear_needs_unlock();
+        self.start_broker();
     }
 
     /// Drop the unlocked vault. Its keys are zeroed as it drops.
@@ -1004,6 +1014,7 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
     Ok(canonical)
 }
 
+pub mod broker_host;
 pub mod cli_tool;
 pub mod credentials;
 pub mod devices;
@@ -1021,6 +1032,8 @@ pub mod sync;
 pub mod touch_id;
 pub mod update;
 
+#[cfg(test)]
+mod broker_host_tests;
 #[cfg(test)]
 mod cli_tool_tests;
 #[cfg(test)]

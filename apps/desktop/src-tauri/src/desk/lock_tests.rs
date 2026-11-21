@@ -147,3 +147,135 @@ fn autolock_inner() {
         assert_eq!(config::load().unwrap().autolock_secs.is_some(), secs != 300);
     }
 }
+
+// ---- FIG-149 / ADR-0040: grants end with the unlock they were approved for ----
+
+struct AllowAll;
+
+impl figlock_broker::approve::Approver for AllowAll {
+    fn approve(
+        &self,
+        _: &figlock_broker::approve::ApprovalRequest,
+        _: Duration,
+    ) -> figlock_broker::approve::Decision {
+        figlock_broker::approve::Decision::Allow
+    }
+}
+
+fn agent() -> figlock_broker::peer::PeerId {
+    figlock_broker::peer::PeerId {
+        uid: figlock_broker::peer::my_uid(),
+        pid: Some(4242),
+        exe: Some("/usr/local/bin/figlock".into()),
+        parents: vec!["/bin/zsh".into(), "/opt/agent/agent".into()],
+    }
+}
+
+fn ask(hub: &figlock_broker::hub::Hub, line: &str) -> serde_json::Value {
+    use figlock_broker::server::Dispatch;
+    serde_json::from_str(&hub.handle(&agent(), line, &|| true).line).unwrap()
+}
+
+const GRANT_VAULT: &str = r#"{"v":1,"id":"g","op":"grant.request","scope":{"vault":true},"mode":"run","ttl":"until-lock"}"#;
+const STATUS: &str = r#"{"v":1,"id":"s","op":"status"}"#;
+const GRANTS: &str = r#"{"v":1,"id":"l","op":"grant.list"}"#;
+
+#[test]
+fn a_grant_ends_on_every_way_the_window_locks() {
+    scenario("broker_grants_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn broker_grants_inner() {
+    *super::broker_host::TEST_APPROVER.lock().unwrap() = Some(|| Box::new(AllowAll));
+    let clock = FakeClock::new();
+    let d = desk_on(&clock);
+    let hub = d.host_for_test();
+    // Nothing is unlocked yet: agents are told so.
+    assert_eq!(ask(&hub, STATUS)["locked"], true);
+    let (pw, key) = unlocked(&d);
+
+    for name in ["lock", "sleep", "idle"] {
+        assert_eq!(
+            ask(&hub, STATUS)["locked"],
+            false,
+            "{name}: unlocked broker"
+        );
+        let granted = ask(&hub, GRANT_VAULT);
+        assert_eq!(granted["ok"], true, "{name}: {granted}");
+        assert_eq!(ask(&hub, GRANTS)["grants"].as_array().unwrap().len(), 1);
+        match name {
+            "lock" => d.lock(),
+            "sleep" => assert!(d.lock_for_sleep()),
+            // Ticks 10 s apart, under the sleep gap, until the 300 s idle time is up.
+            _ => {
+                for _ in 0..31 {
+                    clock.awake(Duration::from_secs(10));
+                    let _ = d.tick();
+                }
+            }
+        }
+        assert_eq!(d.state().unwrap().phase, "locked", "{name}");
+        // The grant is gone with the session, with no call from the lock path to the broker.
+        assert_eq!(ask(&hub, STATUS)["locked"], true, "{name}");
+        assert_eq!(ask(&hub, GRANTS)["error"]["code"], "locked", "{name}");
+        assert_eq!(ask(&hub, GRANT_VAULT)["error"]["code"], "locked", "{name}");
+        // The next unlock is a fresh broker: nothing from before comes back.
+        d.unlock(&pw, Some(&key)).unwrap();
+        assert_eq!(ask(&hub, STATUS)["locked"], false, "{name}: after unlock");
+        assert_eq!(
+            ask(&hub, GRANTS)["grants"].as_array().unwrap().len(),
+            0,
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn unlocking_again_replaces_the_broker_and_its_grants() {
+    scenario("broker_replace_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn broker_replace_inner() {
+    *super::broker_host::TEST_APPROVER.lock().unwrap() = Some(|| Box::new(AllowAll));
+    let d = Desk::with(KdfParams::FLOOR, Duration::from_secs(300), Duration::ZERO);
+    let hub = d.host_for_test();
+    let (pw, key) = unlocked(&d);
+    assert_eq!(ask(&hub, GRANT_VAULT)["ok"], true);
+    // A second unlock while unlocked swaps the session; the grant of the first one does not survive it.
+    d.unlock(&pw, Some(&key)).unwrap();
+    assert_eq!(ask(&hub, GRANTS)["grants"].as_array().unwrap().len(), 0);
+    assert_eq!(ask(&hub, STATUS)["locked"], false);
+}
+
+#[test]
+fn a_broker_that_locks_itself_leaves_the_window_unlocked_and_a_changed_vault_ends_grants() {
+    scenario("broker_self_lock_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn broker_self_lock_inner() {
+    *super::broker_host::TEST_APPROVER.lock().unwrap() = Some(|| Box::new(AllowAll));
+    let d = Desk::with(KdfParams::FLOOR, Duration::from_secs(300), Duration::ZERO);
+    let hub = d.host_for_test();
+    unlocked(&d);
+    assert_eq!(ask(&hub, GRANT_VAULT)["ok"], true);
+    // The vault's settings changed on another device: the grants end, the person's window is untouched.
+    d.tell_broker(false, true);
+    assert_eq!(ask(&hub, STATUS)["locked"], true);
+    assert_eq!(d.state().unwrap().phase, "unlocked");
+    // `figlock broker lock` against the app does the same.
+    let again = {
+        d.unlock_for_test_restart(&hub);
+        ask(&hub, GRANT_VAULT)
+    };
+    assert_eq!(again["ok"], true);
+    let line = r#"{"v":1,"id":"k","op":"lock"}"#;
+    assert_eq!(ask(&hub, line)["ok"], true);
+    assert_eq!(ask(&hub, STATUS)["locked"], true);
+    assert_eq!(d.state().unwrap().phase, "unlocked");
+}

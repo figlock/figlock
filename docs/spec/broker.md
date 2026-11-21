@@ -36,6 +36,15 @@ MUST, SHOULD and MAY are used as in RFC 2119.
   act for it within limits. A token is not a secret value; revealing a value is a separate mode (3.2).
 - There is one broker per user and vault. A second `broker start` fails if a live broker answers on the
   socket.
+- **The desktop app as host (ADR-0040).** While the FigLock app runs it serves the socket itself, from the
+  session its window holds, so no `broker start` and no second unlock are needed. Each unlock gets a broker of
+  its own, tied to that unlock: when the window locks (by hand, on sleep, on idle) or another unlock replaces it,
+  that broker answers `locked` to everything and every grant it made is gone. While nothing is unlocked the
+  socket stays up and answers `hello` and `status` with `locked`, and every other request with `locked`, so an
+  agent is told to unlock FigLock instead of finding no broker. An app lock writes no `broker.lock` record,
+  because the keys that sign it are gone; the next unlock writes `broker.start`. A `lock` request ends the
+  current broker but not the window. A CLI broker that was running first keeps the socket until the person
+  clicks the banner that stops it (a `lock` request) and lets the app host.
 
 ## 2. Socket and peer authentication
 

@@ -12,6 +12,7 @@ pub mod grants;
 pub mod host;
 pub mod http;
 pub mod http_cmd;
+pub mod hub;
 pub mod peer;
 pub mod proto;
 pub mod run_cmd;
@@ -382,6 +383,20 @@ impl Broker {
         drop(st);
         self.lock_for(Some(reason));
         Absorbed::Locked
+    }
+
+    /// The host took in changes (a sync, or another process on this machine wrote): end the grants whose
+    /// item is gone. The host does its own refreshing, so unlike [`absorb`](Self::absorb) this reads nothing.
+    pub fn items_changed(&self) {
+        let mut st = self.lock_state();
+        if !st.host.is_locked() {
+            self.end_grants_on_gone_items(&mut st);
+        }
+    }
+
+    /// Lock the broker for `reason` (recorded): every grant ends and the host is told to forget its session.
+    pub fn end(&self, reason: &str) {
+        self.lock_for(Some(reason));
     }
 
     /// End the grants whose single item was deleted elsewhere. A record that cannot be written does not keep

@@ -10,9 +10,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
-use super::Broker;
 use super::peer;
 use super::proto::{Code, MAX_LINE, err};
+use super::{Broker, Reply};
 use figlock_session::config;
 use figlock_session::error::{Fail, Res};
 
@@ -43,6 +43,38 @@ fn dir_is_private(owner: u32, mode: u32, me: u32) -> bool {
     owner == me && mode & 0o077 == 0
 }
 
+/// Whether something is answering on the socket right now (a broker is hosting).
+pub fn live(path: &Path) -> bool {
+    UnixStream::connect(path).is_ok()
+}
+
+/// What the accept loop needs from whoever answers: the broker itself, or a hub that routes to one
+/// (ADR-0040).
+pub trait Dispatch: Send + Sync {
+    /// Whether to serve this connection (only the broker's own user); a refusal may be recorded.
+    fn admit(&self, peer: &peer::PeerId) -> bool;
+    /// Answer one request line. `alive` says whether the client is still connected.
+    fn handle(&self, peer: &peer::PeerId, line: &str, alive: &dyn Fn() -> bool) -> Reply;
+    /// Whether the accept loop should end.
+    fn finished(&self) -> bool;
+    /// Whether a reply that says `exit` ends the accept loop.
+    fn exit_ends_serving(&self) -> bool {
+        true
+    }
+}
+
+impl Dispatch for Broker {
+    fn admit(&self, peer: &peer::PeerId) -> bool {
+        Broker::admit(self, peer)
+    }
+    fn handle(&self, peer: &peer::PeerId, line: &str, alive: &dyn Fn() -> bool) -> Reply {
+        self.handle_line_live(peer, line, alive)
+    }
+    fn finished(&self) -> bool {
+        self.is_locked()
+    }
+}
+
 /// Create the socket: refuse an unsafe directory, replace a dead socket, never replace a live one.
 pub fn bind(path: &Path) -> Res<UnixListener> {
     if path.as_os_str().len() > MAX_SOCKET_PATH {
@@ -63,7 +95,11 @@ pub fn bind(path: &Path) -> Res<UnixListener> {
             return Err(Fail::new("something else is at the broker's socket path"));
         }
         match UnixStream::connect(path) {
-            Ok(_) => return Err(Fail::new("a broker is already running")),
+            Ok(_) => {
+                return Err(Fail::new(
+                    "a broker is already running (the FigLock app, or `figlock broker start` in another terminal)",
+                ));
+            }
             Err(e) if e.kind() == io::ErrorKind::ConnectionRefused => fs::remove_file(path)?,
             Err(e) => return Err(e.into()),
         }
@@ -141,7 +177,7 @@ pub(super) fn still_connected(stream: &UnixStream) -> bool {
     }
 }
 
-fn connection(stream: UnixStream, who: peer::PeerId, broker: &Broker, stop: &AtomicBool) {
+fn connection(stream: UnixStream, who: peer::PeerId, d: &dyn Dispatch, stop: &AtomicBool) {
     let Ok(read_half) = stream.try_clone() else {
         return;
     };
@@ -151,12 +187,14 @@ fn connection(stream: UnixStream, who: peer::PeerId, broker: &Broker, stop: &Ato
     loop {
         match read_line(&mut reader, MAX_LINE) {
             Ok(Line::Text(line)) => {
-                let reply = broker.handle_line_live(&who, &line, &|| still_connected(&writer));
+                let reply = d.handle(&who, &line, &|| still_connected(&writer));
                 if write_line(&mut writer, &reply.line).is_err() {
                     return;
                 }
                 if reply.exit {
-                    stop.store(true, Ordering::SeqCst);
+                    if d.exit_ends_serving() {
+                        stop.store(true, Ordering::SeqCst);
+                    }
                     return;
                 }
             }
@@ -170,12 +208,12 @@ fn connection(stream: UnixStream, who: peer::PeerId, broker: &Broker, stop: &Ato
 }
 
 /// Serve until a client locks the broker. Each connection gets a thread; at most [`MAX_CONNECTIONS`].
-pub fn serve(listener: &UnixListener, broker: &Arc<Broker>) -> Res<()> {
+pub fn serve<D: Dispatch + 'static>(listener: &UnixListener, broker: &Arc<D>) -> Res<()> {
     listener.set_nonblocking(true)?;
     let stop = Arc::new(AtomicBool::new(false));
     let active = Arc::new(AtomicUsize::new(0));
     // The broker can lock itself (a revocation arrived), which ends the loop too.
-    while !stop.load(Ordering::SeqCst) && !broker.is_locked() {
+    while !stop.load(Ordering::SeqCst) && !broker.finished() {
         let stream = match listener.accept() {
             Ok((s, _)) => s,
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
@@ -205,7 +243,7 @@ pub fn serve(listener: &UnixListener, broker: &Arc<Broker>) -> Res<()> {
         }
         let (broker, stop, active) = (broker.clone(), stop.clone(), active.clone());
         std::thread::spawn(move || {
-            connection(stream, who, &broker, &stop);
+            connection(stream, who, &*broker, &stop);
             active.fetch_sub(1, Ordering::SeqCst);
         });
     }
