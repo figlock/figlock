@@ -60,12 +60,12 @@
         </picture>
       </a>
       <nav class="site-nav" aria-label="Main">
-        <a href="/install/">Install</a>
         <a href="/#features">Features</a>
+        <a href="/#how-it-works">How it works</a>
+        <a href="/install/">Install</a>
         <a href="/#whats-next">What's next</a>
-        <a href="/privacy/">Privacy</a>
-        <a href="/terms/">Terms</a>
       </nav>
+      <a class="button button--primary header-cta" href="/install/#mac-app">Download</a>
     </div>
   </header>
 
@@ -80,18 +80,138 @@
           <h1 id="hero-title">One vault for you and your agents</h1>
           <p class="lede">FigLock keeps your passwords, API tokens and notes in one encrypted vault that lives in storage you already own. When an AI agent needs a token, you approve it with Touch ID and the agent uses it without seeing it.</p>
           <div class="actions">
-            <a class="button button--primary" href="/install/#mac-app">Download for Mac</a>
-            <a class="button" href="/install/">Command line and other installs</a>
+            <a class="button button--primary" href="/install/#mac-app">Download for Mac <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+            <a class="button" href="/install/">Other ways to install</a>
           </div>
           <p class="fineprint">Free and open source. Mac app for Apple silicon and Intel, command line for macOS and Linux.</p>
         </div>
 
-        <figure class="sheet">
-          <div class="sheet-card" role="img" aria-label="Mock-up of the agent approval sheet: Approve Claude Code to use GitHub token for 15 minutes, with Approve with Touch ID and Deny.">
-            <div class="sheet-head" aria-hidden="true">
-              <svg class="icon" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-              AGENT REQUEST
+        <figure class="hero-visual">
+          <div class="window">
+            <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <img class="shot--light" src="/img/app-light.png" width="2200" height="1440" alt="The FigLock Mac app in light mode, showing the Cloudflare login with the username, a hidden password and the website." fetchpriority="high">
+            <img class="shot--dark" src="/img/app-dark.png" width="2200" height="1440" alt="The FigLock Mac app in dark mode, showing the Cloudflare login with the username, a hidden password and the website." fetchpriority="high">
+          </div>
+          <div class="hero-chip" role="img" aria-label="Mock-up of an agent request: approve Claude Code to use the GitHub token for 15 minutes, with Approve with Touch ID and Deny.">
+            <div class="sheet-head" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg> AGENT REQUEST</div>
+            <p aria-hidden="true">Approve Claude Code to use GitHub token for 15 minutes</p>
+            <div class="chip-actions" aria-hidden="true"><span><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg> Approve with Touch ID</span><span>Deny</span></div>
+          </div>
+          <figcaption>The Mac app with made-up data. The approval card is a mock-up.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section class="trust" aria-label="At a glance">
+      <div class="wrap">
+        <ul>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg> Free and open source</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> Ciphertext in storage you own</li>
+          <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg> Agents approved with Touch ID</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section" aria-labelledby="principles-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <p class="eyebrow">Three promises</p>
+            <h2 class="display" id="principles-title">A quieter way to keep secrets.</h2>
+          </div>
+          <p>No server of ours, no account to create, and nothing handed to an agent that it doesn't need.</p>
+        </div>
+        <ul class="cols cols--3">
+          <li class="col reveal">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+            <h3>Your storage, not ours</h3>
+            <p>The vault is ciphertext in Google Drive, iCloud Drive or a folder you choose. We don't run a server or a database that holds your data.</p>
+          </li>
+          <li class="col col--agent reveal">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+            <h3>Agents use, they don't hold</h3>
+            <p>By default FigLock adds the token to the agent's web request itself. It can also inject the token into a command and scrub it from the output. Showing a raw value is opt-in per item and needs its own approval every time.</p>
+          </li>
+          <li class="col reveal">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+            <h3>Open and standard</h3>
+            <p>Free, and licensed MIT or Apache-2.0. Only standard cryptography, written down with test vectors, and an outside audit before we invite other people to rely on it.</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section section--tight" aria-labelledby="look-title">
+      <div class="wrap">
+        <div class="look reveal">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">A look inside</p>
+              <h2 class="display" id="look-title">Familiar from the first minute.</h2>
             </div>
+            <p>Logins, tokens and notes in a calm window that follows your Mac, in light and dark.</p>
+          </div>
+          <div class="look-stage">
+            <div class="window window--light">
+              <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <img src="/img/app-light.png" width="2200" height="1440" loading="lazy" alt="The FigLock Mac app in light mode with the vault sections on the left and a login on the right.">
+            </div>
+            <div class="window window--dark">
+              <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <img src="/img/app-dark.png" width="2200" height="1440" loading="lazy" alt="The FigLock Mac app in dark mode with the vault sections on the left and a login on the right.">
+            </div>
+          </div>
+          <p class="look-note">Screenshots of the Mac app with made-up sample data, not a real vault.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="how-it-works" aria-labelledby="how-title">
+      <div class="wrap">
+        <div class="section-head reveal">
+          <div>
+            <p class="eyebrow">How it works</p>
+            <h2 class="display" id="how-title">Set up once. Then forget it.</h2>
+          </div>
+          <p>A good first five minutes, one choice at a time.</p>
+        </div>
+        <ol class="numbers">
+          <li class="reveal">
+            <h3>Create a vault with two secrets</h3>
+            <p>Your master password plus a Secret Key that stays on your devices. You save the Secret Key in an Emergency Kit, and we ask you to check you saved it. You also choose a Recovery Key, so a forgotten password is not the end of your vault.</p>
+          </li>
+          <li class="reveal">
+            <h3>Pick where it lives</h3>
+            <p>The vault always lives in a folder on your computer. Keep it in iCloud Drive or another synced folder, or turn on Google Drive sync in one step. Titles, URLs and usernames are encrypted too, so the provider sees only file counts, sizes and times.</p>
+          </li>
+          <li class="reveal">
+            <h3>Find things fast, on any device</h3>
+            <p>Search is local and forgives typos, so "clodflare" still finds Cloudflare. Every device keeps its own encrypted copy and works offline. Add another device by approving it from one you already trust, and remove a lost one in a click.</p>
+          </li>
+          <li class="reveal">
+            <h3>Let an agent work without the key</h3>
+            <p>The agent asks, you approve for a limited time and scope, and every use goes into an encrypted audit log you can read.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="band" aria-labelledby="agents-title">
+      <div class="wrap band-grid">
+        <div class="band-copy reveal">
+          <p class="eyebrow">Built for agents</p>
+          <h2 class="display" id="agents-title">Your agent can use a secret. It can't keep it.</h2>
+          <p>Start the broker and an agent asks for access. FigLock draws the prompt itself, never the agent, and names exactly what will happen. You approve with Touch ID, for a limited time and only for hosts you list.</p>
+          <ul class="ticks">
+            <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Broker HTTP calls, with the token added for the agent</span></li>
+            <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Or inject it into a command and scrub it from the output</span></li>
+            <li><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg><span>Reveal is opt-in per item and needs its own approval every time</span></li>
+          </ul>
+          <a class="button" href="/install/">Set it up <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+        <figure class="sheet reveal">
+          <div class="sheet-card" role="img" aria-label="Mock-up of the agent approval sheet: Approve Claude Code to use GitHub token for 15 minutes, with Approve with Touch ID and Deny.">
+            <div class="sheet-head" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg> AGENT REQUEST</div>
             <h3 aria-hidden="true">Approve Claude Code to use GitHub token for 15 minutes</h3>
             <dl aria-hidden="true">
               <dt>Who</dt><dd>Claude Code, started from Terminal</dd>
@@ -101,92 +221,42 @@
               <dt>For</dt><dd>15 minutes</dd>
             </dl>
             <div class="sheet-actions" aria-hidden="true">
-              <span class="button button--primary">
-                <svg class="icon" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
-                Approve with Touch ID
-              </span>
+              <span class="button button--primary"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg> Approve with Touch ID</span>
               <span class="button">Deny</span>
             </div>
           </div>
-          <figcaption>A mock-up with made-up data. FigLock draws this prompt itself, never the agent.</figcaption>
+          <figcaption>A mock-up with made-up data.</figcaption>
         </figure>
-      </div>
-    </section>
-
-    <section class="section" aria-labelledby="principles-title">
-      <div class="wrap">
-        <h2 id="principles-title">Built around three promises</h2>
-        <ul class="cards cards--3">
-          <li class="card">
-            <h3>
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
-              Your storage, not ours
-            </h3>
-            <p>The vault is ciphertext in Google Drive, iCloud Drive or a folder you choose. We don't run a server or a database that holds your data.</p>
-          </li>
-          <li class="card card--agent">
-            <h3>
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
-              Agents use, they don't hold
-            </h3>
-            <p>By default FigLock adds the token to the agent's web request itself. It can also inject the token into a command and scrub it from the output. Showing a raw value is opt-in per item and needs its own approval every time.</p>
-          </li>
-          <li class="card">
-            <h3>
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
-              Open and standard
-            </h3>
-            <p>Free, and licensed MIT or Apache-2.0. Only standard cryptography, written down with test vectors, and an outside audit before we invite other people to rely on it.</p>
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <section class="section" id="how-it-works" aria-labelledby="how-title">
-      <div class="wrap">
-        <h2 id="how-title">How it works</h2>
-        <ol class="steps">
-          <li>
-            <h3>Create a vault with two secrets</h3>
-            <p>Your master password plus a Secret Key that stays on your devices. You save the Secret Key in an Emergency Kit, and we ask you to check you saved it. You also choose a Recovery Key, so a forgotten password is not the end of your vault.</p>
-          </li>
-          <li>
-            <h3>Pick where it lives</h3>
-            <p>The vault always lives in a folder on your computer. Keep it in iCloud Drive or another synced folder, or turn on Google Drive sync in one step. Titles, URLs and usernames are encrypted too, so the provider sees only file counts, sizes and times.</p>
-          </li>
-          <li>
-            <h3>Find things fast, on any device</h3>
-            <p>Search is local and forgives typos, so "clodflare" still finds Cloudflare. Every device keeps its own encrypted copy and works offline. Add another device by approving it from one you already trust, and remove a lost one in a click.</p>
-          </li>
-          <li>
-            <h3>Let an agent work without handing over the key</h3>
-            <p>The agent asks, you approve for a limited time and scope, and every use goes into an encrypted audit log you can read.</p>
-          </li>
-        </ol>
       </div>
     </section>
 
     <section class="section" id="features" aria-labelledby="features-title">
       <div class="wrap">
-        <h2 id="features-title">What you get today</h2>
-        <p class="section-lede">The Mac app and the command line open the same vault and use the same encryption, so you can use whichever fits the moment.</p>
-        <ul class="cards cards--3">
-          <li class="card"><h3>Passwords, tokens and notes</h3><p>Logins, API tokens, notes and documents with files attached. Search forgives typos, deleted items go to a trash you can restore from, and the generator makes passwords and passphrases with a strength meter.</p></li>
-          <li class="card"><h3>Quick unlock</h3><p>Unlock with Touch ID, your Apple Watch or your device password. Your Secret Key stays on the Mac, and the app locks itself when you step away or the Mac sleeps. You choose how soon.</p></li>
-          <li class="card"><h3>Sync you control</h3><p>Optional Google Drive sync keeps an encrypted copy in a hidden app folder, and works offline. You can turn it off, sign in with another account, or delete the Drive copy with a typed confirmation.</p></li>
-          <li class="card"><h3>Many devices, no surprises</h3><p>Add a device by approving it with Touch ID on one you already have, see every paired device, and revoke one at once. A revoked device is told, so it never silently loses work.</p></li>
-          <li class="card"><h3>Recovery that is yours</h3><p>An Emergency Kit and a Recovery Key you can split into shares for people you trust. Forgot your password or Secret Key? The app walks you through the way back in.</p></li>
-          <li class="card"><h3>Password health</h3><p>A report on weak, reused and old passwords, with an opt-in breach check that never sends your passwords anywhere.</p></li>
-          <li class="card card--agent"><h3><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg> Agent broker</h3><p>Start the broker and agents can call an API with your token added for them, or run a command with the token injected and scrubbed from the output. Approvals are time-boxed, limited to hosts you list, and logged.</p></li>
-          <li class="card"><h3>Updates you click</h3><p>The Mac app checks a signed feed and installs a new version only when you say so. The command line is one <code>brew upgrade</code> away.</p></li>
-          <li class="card"><h3>Command line inside</h3><p>The app can install the <code>figlock</code> command for you, so scripts and agents work against the same vault from a terminal.</p></li>
+        <div class="section-head reveal">
+          <div>
+            <p class="eyebrow">What you get today</p>
+            <h2 class="display" id="features-title">Everything in one calm place.</h2>
+          </div>
+          <p>The Mac app and the command line open the same vault and use the same encryption, so you can use whichever fits the moment.</p>
+        </div>
+        <ul class="cols cols--3">
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><h3>Passwords, tokens and notes</h3><p>Logins, API tokens, notes and documents with files attached. Search forgives typos, deleted items go to a trash you can restore from, and the generator makes passwords and passphrases with a strength meter.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg><h3>Quick unlock</h3><p>Unlock with Touch ID, your Apple Watch or your device password. Your Secret Key stays on the Mac, and the app locks itself when you step away or the Mac sleeps. You choose how soon.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg><h3>Sync you control</h3><p>Optional Google Drive sync keeps an encrypted copy in a hidden app folder, and works offline. You can turn it off, sign in with another account, or delete the Drive copy with a typed confirmation.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg><h3>Many devices, no surprises</h3><p>Add a device by approving it with Touch ID on one you already have, see every paired device, and revoke one at once. A revoked device is told, so it never silently loses work.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path d="m4.93 4.93 4.24 4.24"/><path d="m14.83 9.17 4.24-4.24"/><path d="m14.83 14.83 4.24 4.24"/><path d="m9.17 14.83-4.24 4.24"/></svg><h3>Recovery that is yours</h3><p>An Emergency Kit and a Recovery Key you can split into shares for people you trust. Forgot your password or Secret Key? The app walks you through the way back in.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg><h3>Password health</h3><p>A report on weak, reused and old passwords, with an opt-in breach check that never sends your passwords anywhere.</p></li>
+          <li class="col col--agent reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg><h3>Agent broker</h3><p>Start the broker and agents can call an API with your token added for them, or run a command with the token injected and scrubbed from the output. Approvals are time-boxed, limited to hosts you list, and logged.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><h3>Updates you click</h3><p>The Mac app checks a signed feed and installs a new version only when you say so. The command line is one <code>brew upgrade</code> away.</p></li>
+          <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg><h3>Command line inside</h3><p>The app can install the <code>figlock</code> command for you, so scripts and agents work against the same vault from a terminal.</p></li>
         </ul>
       </div>
     </section>
 
     <section class="section" id="install" aria-labelledby="install-title">
       <div class="wrap">
-        <h2 id="install-title">Install it in a minute</h2>
+        <p class="eyebrow">Install</p>
+        <h2 class="display" id="install-title">Install it in a minute.</h2>
         <p class="section-lede">Download the Mac app, or install the command line with Homebrew or the installer, then run <code>figlock --help</code>.</p>
         <ul class="cards cards--3 cards--install">
           <li class="card">
@@ -235,7 +305,8 @@
 
     <section class="section" id="whats-next" aria-labelledby="next-title">
       <div class="wrap">
-        <h2 id="next-title">Where it runs, and what's next</h2>
+        <p class="eyebrow">Where it runs</p>
+        <h2 class="display" id="next-title">What's next.</h2>
         <p class="section-lede">The Mac app and the command line are out. The phone apps follow, in this order. We have no dates yet. Each one ships when it is ready and has been checked, and every one uses the same core and the same encryption.</p>
 
         <div class="roadmap">
@@ -398,7 +469,8 @@
 
     <section class="section" aria-labelledby="status-title">
       <div class="wrap">
-        <h2 id="status-title">Where we are</h2>
+        <p class="eyebrow">Honest status</p>
+        <h2 class="display" id="status-title">Where we are.</h2>
         <div class="notice" role="note">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
           <p>FigLock is an early release. Version 0.4 is the Mac app and the command line, and it has had no outside security audit yet. Please don't store real secrets in anything built from it until the audit is done and published. The phone apps above are planned and not built yet.</p>
@@ -409,8 +481,17 @@
 
   <footer class="site-footer">
     <div class="wrap">
-      <p>FigLock is free software, dual licensed MIT or Apache-2.0.</p>
+      <div class="foot-brand">
+        <a class="brand" href="/" aria-label="FigLock home">
+          <picture>
+            <source srcset="/logo/lockups/figlock-lockup-horizontal-on-dark.svg" media="(prefers-color-scheme: dark)">
+            <img src="/logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="114" height="32">
+          </picture>
+        </a>
+        <p>FigLock is free software, dual licensed MIT or Apache-2.0.</p>
+      </div>
       <ul>
+        <li><a href="/install/">Install</a></li>
         <li><a href="/privacy/">Privacy</a></li>
         <li><a href="/terms/">Terms</a></li>
         <li><a href="mailto:security@figlock.com">Report a security issue</a></li>
