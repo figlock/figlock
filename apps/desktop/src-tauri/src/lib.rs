@@ -599,7 +599,7 @@ async fn broker_status(desk: State<'_, Desk>) -> CmdRes<desk::broker_host::Mode>
 
 /// Stop the broker running in a terminal and host here instead. Its grants end.
 #[tauri::command]
-async fn broker_take_over(desk: State<'_, Desk>) -> CmdRes<desk::broker_host::Mode> {
+fn broker_take_over(desk: State<'_, Desk>) -> CmdRes<desk::broker_host::Mode> {
     desk.take_over_broker()
 }
 

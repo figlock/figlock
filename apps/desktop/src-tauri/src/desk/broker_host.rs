@@ -51,6 +51,8 @@ pub enum Mode {
 pub struct Hosting {
     hub: Mutex<Option<Arc<Hub>>>,
     mode: Mutex<Mode>,
+    /// Held while a new unlock's broker is built and set, so overlapping unlocks cannot leave an older one in place.
+    starting: Mutex<()>,
 }
 
 impl Hosting {
@@ -193,6 +195,7 @@ impl Desk {
         let Some(hub) = self.hosting.hub() else {
             return;
         };
+        let _starting = self.hosting.starting.lock().unwrap_or_else(|e| e.into_inner());
         hub.clear();
         let (epoch, opened) = {
             let inner = self.inner();
