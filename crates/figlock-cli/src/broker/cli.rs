@@ -6,11 +6,11 @@ use std::sync::Arc;
 
 use serde_json::{Value, json};
 
-use super::approve::{Approver, BiometricApprover, DenyAll, TerminalApprover};
-use super::audit::{self, AuditWriter};
-use super::client::{call, expect_ok};
-use super::peer::{SystemEnv, my_uid};
-use super::{Broker, server, syncer};
+use figlock_broker::approve::{Approver, BiometricApprover, DenyAll, TerminalApprover};
+use figlock_broker::audit::{self, AuditWriter};
+use figlock_broker::client::{call, expect_ok};
+use figlock_broker::peer::{SystemEnv, my_uid};
+use figlock_broker::{Broker, server, syncer};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::Session;
 

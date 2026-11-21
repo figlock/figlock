@@ -4,23 +4,19 @@
 //! hidden prompt (or stdin for field values). `get` and `export` hide secret values unless asked.
 
 #[cfg(unix)]
-mod b64;
 #[cfg(unix)]
 mod broker;
 mod commands;
 mod credentials;
 mod drive;
 #[cfg(unix)]
-mod http;
 mod import;
 mod pairing;
 mod prompt;
 mod quick;
 mod render;
 #[cfg(unix)]
-mod run;
 #[cfg(unix)]
-mod scrub;
 mod skill;
 mod sync_cmd;
 
@@ -674,7 +670,7 @@ fn audit_command(_: &AuditArgs, _: bool) -> error::Res<()> {
 
 #[cfg(unix)]
 fn run_command(a: RunArgs) -> error::Res<i32> {
-    run::run(&run::RunSpec {
+    figlock_broker::run_cmd::run(&figlock_broker::run_cmd::RunSpec {
         item: a.item.or(a.bundle).unwrap_or_default(),
         vars: a.env,
         ttl: a.ttl.as_str().to_owned(),
@@ -685,13 +681,17 @@ fn run_command(a: RunArgs) -> error::Res<i32> {
 
 #[cfg(unix)]
 fn http_command(a: HttpArgs) -> error::Res<i32> {
-    let body = a.data.as_deref().map(http::read_body).transpose()?;
+    let body = a
+        .data
+        .as_deref()
+        .map(figlock_broker::http_cmd::read_body)
+        .transpose()?;
     let method = a
         .method
         .unwrap_or_else(|| if body.is_some() { "POST" } else { "GET" }.to_owned())
         .to_ascii_uppercase();
-    http::run(
-        &http::HttpSpec {
+    figlock_broker::http_cmd::run(
+        &figlock_broker::http_cmd::HttpSpec {
             item: a.item,
             method,
             url: a.url,

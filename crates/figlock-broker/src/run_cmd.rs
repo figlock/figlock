@@ -11,9 +11,9 @@ use std::process::{Command, Stdio};
 use serde_json::json;
 use zeroize::Zeroizing;
 
-use crate::broker::client::{call, expect_ok};
-use crate::broker::server;
+use crate::client::{call, expect_ok};
 use crate::scrub::{MIN_LEN, Scrubber};
+use crate::server;
 use figlock_session::error::{Fail, Res};
 
 /// What to run and which secrets it gets.

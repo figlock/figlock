@@ -1,6 +1,6 @@
 # ADR-0040: The desktop app hosts the broker, and approvals start from a notification
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 - Decision: D40 in `docs/decisions.md`
 - Amends: ADR-0019
@@ -31,8 +31,8 @@ Facts the design rests on:
    unlocked it serves the broker socket, using the session it already holds. There is no second unlock and no
    `broker start`. The CLI daemon stays as the headless host (decision 6).
 2. **The broker no longer owns the session.** The broker rules move out of the CLI binary into a library
-   crate, `figlock-broker`. The broker asks a `SessionHost` for the vault (`with_session`, which answers
-   "locked" when there is none) instead of holding a `Session`. The CLI daemon implements the host over its
+   crate, `figlock-broker`. The broker asks a `SessionHost` for the vault (`session()`, a guard that is
+   `None` when locked, plus `is_locked()` and `lock()`) instead of holding a `Session`. The CLI daemon implements the host over its
    own session; the app implements it over `Desk`'s. When the host locks (auto-lock, sleep, quit, a revoked
    device) every grant ends, exactly as the broker locking does today. No change to the socket protocol, the
    grant rules, the audit log or their vectors.
