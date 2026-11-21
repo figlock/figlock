@@ -301,7 +301,10 @@ fn keep_held_rotated_elsewhere_inner() {
     // Blank fields mean "keep the key this window already holds".
     let blank = String::new();
     // Nothing changed: the held key is current, so the only thing in the way is this Mac having no secure place.
-    assert_eq!(code_of(d.keep_secret_key(&blank, &blank).unwrap_err()), "not_kept");
+    assert_eq!(
+        code_of(d.keep_secret_key(&blank, &blank).unwrap_err()),
+        "not_kept"
+    );
     // Another window rotates the key and the file syncs here: the held key is the old one.
     let other = desk();
     other.unlock(&pw, Some(&key)).unwrap();
