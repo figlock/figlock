@@ -109,6 +109,10 @@ pub struct Broker {
     /// request it started is queued without sleeping.
     #[cfg(test)]
     at_gate: std::sync::atomic::AtomicUsize,
+    /// A pause between the person's answer and the outcome being recorded, to make the gap between them
+    /// long enough for a test to see whether the next request can get into it.
+    #[cfg(test)]
+    stall_after_answer: Mutex<Duration>,
     approver: Box<dyn Approver>,
     env: Arc<dyn Env>,
     uid: u32,
@@ -205,6 +209,8 @@ impl Broker {
             gate: Mutex::new(()),
             #[cfg(test)]
             at_gate: std::sync::atomic::AtomicUsize::new(0),
+            #[cfg(test)]
+            stall_after_answer: Mutex::new(Duration::ZERO),
             approver,
             env,
             uid,
@@ -693,6 +699,8 @@ impl Broker {
             }
             self.approver.approve(&request, self.wait)
         };
+        #[cfg(test)]
+        std::thread::sleep(*self.stall_after_answer.lock().unwrap());
 
         let mut st = self.lock_state();
         if st.host.is_locked() {

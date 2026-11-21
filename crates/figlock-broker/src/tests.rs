@@ -2523,3 +2523,101 @@ fn a_hub_serves_a_real_socket_until_it_is_stopped() {
     hub.stop();
     serving.join().unwrap().unwrap();
 }
+
+#[test]
+fn queued_identical_requests_never_cost_a_second_prompt_however_the_threads_interleave() {
+    // The outcome of the prompt (the grant, or the denial) must be on record before the next request in line
+    // is looked at; run it many times so a gap between the two shows up.
+    let fx = Arc::new(fixture());
+    let rounds = 150usize;
+    for round in 0..rounds {
+        let before = fx.approver.calls.load(Ordering::SeqCst);
+        // Each round's prompt waits until its four requests have all reached the gate.
+        let target = 4 * (round + 1);
+        let broker = fx.broker.clone();
+        *fx.approver.hook.lock().unwrap() = Some(Box::new(move || {
+            let give_up = std::time::Instant::now() + Duration::from_secs(30);
+            while broker.at_gate.load(Ordering::SeqCst) < target
+                && std::time::Instant::now() < give_up
+            {
+                std::thread::yield_now();
+            }
+        }));
+        let allow = round % 2 == 0;
+        fx.approver.will(&[if allow {
+            Decision::Allow
+        } else {
+            Decision::Deny
+        }]);
+        let threads: Vec<_> = (0..4u32)
+            .map(|i| {
+                let fx = fx.clone();
+                std::thread::spawn(move || {
+                    let pid = 1000 + u32::try_from(round).unwrap() * 4 + i;
+                    fx.request(&agent(pid), json!({"name": "github"}), "http", "15m")
+                })
+            })
+            .collect();
+        let answers: Vec<Value> = threads.into_iter().map(|t| t.join().unwrap()).collect();
+        let prompts = fx.approver.calls.load(Ordering::SeqCst) - before;
+        assert_eq!(prompts, 1, "round {round}: {answers:?}");
+        for a in &answers {
+            if allow {
+                assert_eq!(a["ok"], true, "round {round}: {a}");
+            } else {
+                assert!(
+                    matches!(Fx::code(a), "denied" | "busy"),
+                    "round {round}: {a}"
+                );
+            }
+        }
+        // Start the next round with no grant of this one.
+        for g in fx.send(&agent(1), json!({"v":1,"id":"l","op":"grant.list"}))["grants"]
+            .as_array()
+            .unwrap()
+        {
+            let id = g["id"].as_str().unwrap();
+            fx.send(
+                &agent(1),
+                json!({"v":1,"id":"k","op":"grant.revoke","grant":id}),
+            );
+        }
+    }
+}
+
+#[test]
+fn the_next_request_in_line_cannot_get_between_the_answer_and_its_outcome() {
+    for allow in [true, false] {
+        let fx = Arc::new(fixture());
+        // A long gap between "the person answered" and "the grant or denial is recorded".
+        *fx.broker.stall_after_answer.lock().unwrap() = Duration::from_millis(400);
+        fx.approver.will(&[if allow {
+            Decision::Allow
+        } else {
+            Decision::Deny
+        }]);
+        let first = {
+            let fx = fx.clone();
+            std::thread::spawn(move || {
+                fx.request(&agent(10), json!({"name": "github"}), "http", "15m")
+            })
+        };
+        while fx.approver.calls.load(Ordering::SeqCst) == 0 {
+            std::thread::yield_now();
+        }
+        // Queued behind the prompt that has just been answered.
+        let second = fx.request(&agent(11), json!({"name": "github"}), "http", "15m");
+        let first = first.join().unwrap();
+        assert_eq!(
+            fx.approver.calls.load(Ordering::SeqCst),
+            1,
+            "allow={allow}: {first} / {second}"
+        );
+        if allow {
+            assert_eq!(second["ok"], true, "{second}");
+            assert_eq!(second["grant"]["id"], first["grant"]["id"]);
+        } else {
+            assert_eq!(Fx::code(&second), "denied", "{second}");
+        }
+    }
+}
