@@ -50,7 +50,8 @@ impl Approver for DenyAll {
     }
 }
 
-fn how(mode: Mode) -> &'static str {
+/// What the mode means, in a sentence the person approving reads.
+pub fn how(mode: Mode) -> &'static str {
     match mode {
         Mode::Http => {
             "http: figlock makes the request and adds the secret; the program never sees it"
@@ -60,7 +61,8 @@ fn how(mode: Mode) -> &'static str {
     }
 }
 
-fn duration(ttl: Ttl) -> &'static str {
+/// How long the approval lasts, in words.
+pub fn duration(ttl: Ttl) -> &'static str {
     match ttl {
         Ttl::Once => "one use",
         Ttl::Min15 => "15 minutes",

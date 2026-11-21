@@ -1014,6 +1014,7 @@ fn folder_path(folder: &str, create: bool) -> CmdRes<PathBuf> {
     Ok(canonical)
 }
 
+pub mod agent_requests;
 pub mod broker_host;
 pub mod cli_tool;
 pub mod credentials;
@@ -1032,6 +1033,8 @@ pub mod sync;
 pub mod touch_id;
 pub mod update;
 
+#[cfg(test)]
+mod agent_request_tests;
 #[cfg(test)]
 mod broker_host_tests;
 #[cfg(test)]

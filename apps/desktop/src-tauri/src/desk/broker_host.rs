@@ -22,6 +22,7 @@ use figlock_broker::peer::{SystemEnv, my_uid};
 use figlock_broker::{Broker, client, server};
 use figlock_session::session::Session;
 
+use super::agent_requests::{Approvals, CardApprover};
 use super::{CmdError, CmdRes, Desk, Inner};
 
 /// What a test answers prompts with, instead of the system's Touch ID prompt.
@@ -53,6 +54,8 @@ pub struct Hosting {
     mode: Mutex<Mode>,
     /// Held while a new unlock's broker is built and set, so overlapping unlocks cannot leave an older one in place.
     starting: Mutex<()>,
+    /// The cards waiting for the person, shared with the window (`lib.rs` gives it somewhere to show them).
+    pub approvals: Arc<Approvals>,
 }
 
 impl Hosting {
@@ -153,6 +156,20 @@ impl Desk {
         }
     }
 
+    /// The cards the person has not answered yet.
+    pub fn agent_cards(&self) -> Vec<super::agent_requests::Card> {
+        self.hosting.approvals.waiting()
+    }
+
+    /// The person pressed a button on a card (see [`Approvals::decide`]).
+    pub fn agent_decide(&self, id: u64, approve: bool) -> super::agent_requests::Decided {
+        self.hosting.approvals.decide(id, approve)
+    }
+
+    pub fn approvals(&self) -> Arc<Approvals> {
+        self.hosting.approvals.clone()
+    }
+
     pub fn broker_mode(&self) -> Mode {
         self.hosting.mode()
     }
@@ -221,10 +238,15 @@ impl Desk {
             epoch,
             ended: AtomicBool::new(false),
         });
-        let approver: Box<dyn Approver> = match BiometricApprover::open() {
+        // The card when the window can show it; otherwise the direct system prompt, or no.
+        let fallback: Box<dyn Approver> = match BiometricApprover::open() {
             Some(b) => Box::new(b),
             None => Box::new(DenyAll),
         };
+        let approver: Box<dyn Approver> = Box::new(CardApprover {
+            approvals: self.hosting.approvals.clone(),
+            fallback,
+        });
         #[cfg(test)]
         let approver = TEST_APPROVER
             .lock()
