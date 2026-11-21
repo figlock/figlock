@@ -188,8 +188,9 @@
         {#if info.secretKeyKept}
           <p class="font-medium">Kept on this Mac</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="key-where">
-            Stored {where}. Showing it asks for Touch ID or your device password. You only type it
-            again if another device changes it.
+            Stored {where}.
+            {#if info.quickUnlock}Showing it asks for Touch ID or your device password.{/if}
+            You only type it again if another device changes it.
           </p>
         {:else}
           <p class="font-medium">Not kept on this Mac</p>

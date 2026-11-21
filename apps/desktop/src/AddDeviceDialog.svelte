@@ -18,13 +18,15 @@
     keyKept: boolean;
     /** The session holds the key and nothing prompts for it, so there is no Touch ID step (ADR-0030). */
     keyHeld?: boolean;
+    /** Touch ID unlock is on, so reading the kept key asks for it (ADR-0037). Off, nothing prompts. */
+    touchOn?: boolean;
     /** The vault locked or another device changed it: the dialog has nothing left to do. */
     onerror: (code: string, message: string) => void;
     /** The new device was approved; `devices` is the refreshed list. */
     onadded: (devices: Device[], name: string) => void;
     onclose: () => void;
   };
-  let { keyKept, keyHeld = false, onerror, onadded, onclose }: Props = $props();
+  let { keyKept, keyHeld = false, touchOn = false, onerror, onadded, onclose }: Props = $props();
 
   /** The new device is asked about every 3 seconds, as the pairing spec says. */
   const POLL_MS = 3000;
@@ -132,9 +134,10 @@
       const err = errorOf(e);
       if (err.code === "needs_secret_key") {
         typeKey = true;
-        error = keyKept
-          ? "Touch ID did not release the Secret Key. Enter your master password and Secret Key to approve."
-          : err.message;
+        error =
+          keyKept && touchOn
+            ? "Touch ID did not release the Secret Key. Enter your master password and Secret Key to approve."
+            : err.message;
       } else if (err.code === "bad_secret_key") fieldError.key = err.message;
       else if (err.code === "wrong_credentials") error = err.message;
       else if (err.code === "expired" || err.code === "no_invite") {
@@ -205,14 +208,23 @@
           />
         {:else}
           <p class="text-text-secondary">
-            Approving asks for Touch ID, then sends your Secret Key to the new device. It still
-            needs your master password.
+            {#if touchOn}
+              Approving asks for Touch ID, then sends your Secret Key to the new device. It still
+              needs your master password.
+            {:else}
+              Approving sends your Secret Key to the new device. It still needs your master
+              password.
+            {/if}
           </p>
         {/if}
         <div class="grid grid-cols-2 gap-2">
           <Button onclick={decline} disabled={busy}>Cancel</Button>
           <Button variant="primary" type="submit" disabled={busy}>
-            {busy ? "Approving..." : askKey || askPassword ? "Approve" : "Approve with Touch ID"}
+            {busy
+              ? "Approving..."
+              : askKey || askPassword || !touchOn
+                ? "Approve"
+                : "Approve with Touch ID"}
           </Button>
         </div>
       </form>

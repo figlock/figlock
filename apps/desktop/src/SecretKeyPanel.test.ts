@@ -242,3 +242,22 @@ test("keeping it again types nothing when the window holds the key", async () =>
   expect(core.keepSecretKey).toHaveBeenCalledWith("", "");
   expect(await screen.findByText("Kept on this Mac")).toBeTruthy();
 });
+
+test("the kept key only promises a Touch ID prompt when Touch ID is on", async () => {
+  core.vaultState.mockResolvedValue({ ...kept, quickUnlock: true });
+  await toSettings();
+  expect((await screen.findByTestId("key-where")).textContent).toContain("asks for Touch ID");
+});
+
+test("with Touch ID off the kept key panel says nothing about a prompt", async () => {
+  core.vaultState.mockResolvedValue({
+    ...kept,
+    quickUnlock: false,
+    secretKeyProtection: "keychain",
+  });
+  await toSettings();
+  const text = (await screen.findByTestId("key-where")).textContent ?? "";
+  expect(text).toContain("keychain");
+  expect(text).not.toContain("Touch ID");
+  expect(text).not.toContain("device password");
+});
