@@ -111,7 +111,9 @@
         bind:value={secretKey}
         error={fieldError.key}
         disabled={busy !== ""}
-        help="It is on your Emergency Kit. You can paste the whole key into any box."
+        help={vault.secretKeyOptedOut
+          ? "You stopped keeping it on this Mac, so it is asked for each time. Turn it back on in Settings after you unlock."
+          : "It is on your Emergency Kit. You can paste the whole key into any box."}
       />
     {:else}
       <p class="text-(length:--text-xs) leading-4 text-text-tertiary">

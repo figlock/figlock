@@ -5,6 +5,7 @@
   import {
     errorOf,
     forgetSecretKey,
+    keepSecretKey,
     saveEmergencyKitAgain,
     showSecretKey,
     vaultState,
@@ -19,7 +20,12 @@
 
   let info = $state<Pick<
     VaultState,
-    "secretKeyKept" | "secretKeyProtection" | "secretKeyHeld" | "quickUnlock" | "touchAvailable"
+    | "secretKeyKept"
+    | "secretKeyProtection"
+    | "secretKeyHeld"
+    | "secretKeyOptedOut"
+    | "quickUnlock"
+    | "touchAvailable"
   > | null>(null);
   let shown = $state("");
   let busy = $state(false);
@@ -27,8 +33,9 @@
   let confirming = $state(false);
   /** The Emergency Kit was saved just now. */
   let kitSaved = $state(false);
-  /** Asking for the master password and Secret Key, because this Mac has no kept key to make the kit from. */
+  /** Asking for the master password and Secret Key: to make the kit when this Mac keeps none, or to keep it again. */
   let typing = $state(false);
+  let typingFor = $state<"kit" | "keep">("kit");
   let typedPassword = $state("");
   let typedKey = $state("");
   let typedError = $state<{ password?: string; key?: string }>({});
@@ -51,7 +58,9 @@
       ? ""
       : !info.touchAvailable
         ? "This Mac has no secure place to keep it."
-        : "You stopped keeping it here.",
+        : info.secretKeyOptedOut
+          ? "You stopped keeping it here."
+          : "It is not kept yet.",
   );
 
   async function load() {
@@ -95,8 +104,10 @@
       if (kitSaved) closeTyping();
     } catch (e) {
       const err = errorOf(e);
-      if (err.code === "no_secret_key") typing = true;
-      else if (err.code === "bad_secret_key") typedError = { key: err.message };
+      if (err.code === "no_secret_key") {
+        typingFor = "kit";
+        typing = true;
+      } else if (err.code === "bad_secret_key") typedError = { key: err.message };
       else if (typing) error = err.message;
       else error = failure(w, e);
     } finally {
@@ -120,7 +131,31 @@
       typedError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
     if (typedError.password || typedError.key) return;
-    void saveKit({ password: typedPassword, key: typedKey });
+    if (typingFor === "keep") void keepAgain({ password: typedPassword, key: typedKey });
+    else void saveKit({ password: typedPassword, key: typedKey });
+  }
+
+  /**
+   * Keep the key on this Mac again (FIG-142). An unlocked window already holds the key it unlocked with, so then
+   * nothing is typed at all; otherwise the dialog asks for the master password and Secret Key once.
+   */
+  async function keepAgain(typed?: { password: string; key: string }) {
+    error = "";
+    busy = true;
+    try {
+      info = await keepSecretKey(typed?.password ?? "", typed?.key ?? "");
+      if (typed) closeTyping();
+    } catch (e) {
+      const err = errorOf(e);
+      if (err.code === "needs_secret_key") {
+        typingFor = "keep";
+        typing = true;
+      } else if (err.code === "bad_secret_key") typedError = { key: err.message };
+      else if (typing) error = err.message;
+      else error = failure(w, e);
+    } finally {
+      busy = false;
+    }
   }
 
   async function forget() {
@@ -159,13 +194,22 @@
         {:else}
           <p class="font-medium">Not kept on this Mac</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="key-why">
-            {notKeptWhy} You type it from your Emergency Kit each time you unlock.
+            {notKeptWhy}
+            {#if info.secretKeyOptedOut || !info.touchAvailable}
+              You type it from your Emergency Kit each time you unlock.
+            {:else}
+              Keep it here and the master password is all you type.
+            {/if}
             {#if info.secretKeyHeld}This window holds it until you lock.{/if}
           </p>
         {/if}
       </div>
       {#if info.secretKeyKept}
         <Button onclick={show} disabled={busy}>{busy ? "Waiting..." : "Show Secret Key"}</Button>
+      {:else if info.touchAvailable}
+        <Button onclick={() => keepAgain()} disabled={busy}>
+          {busy ? "Keeping..." : "Keep it on this Mac"}
+        </Button>
       {/if}
     </div>
 
@@ -181,7 +225,16 @@
     {/if}
 
     <div class="flex flex-wrap items-center gap-2">
-      <Button onclick={() => (info?.secretKeyKept ? saveKit() : (typing = true))} disabled={busy}>
+      <Button
+        onclick={() => {
+          if (info?.secretKeyKept) void saveKit();
+          else {
+            typingFor = "kit";
+            typing = true;
+          }
+        }}
+        disabled={busy}
+      >
         <Icon name="download" />Save Emergency Kit
       </Button>
       {#if info.secretKeyKept}
@@ -216,12 +269,17 @@
     <form class="flex flex-col gap-4 p-6" onsubmit={submitTyped}>
       <div class="flex flex-col gap-2">
         <h2 id="kit-title" class="text-(length:--text-md) leading-6 font-semibold">
-          Save your Emergency Kit
+          {typingFor === "keep" ? "Keep your Secret Key on this Mac" : "Save your Emergency Kit"}
         </h2>
         <p class="text-text-secondary">
-          This Mac is not keeping your Secret Key, so type it from your old kit. Your master
-          password confirms it is the right one. The kit is made on this Mac and saved only where
-          you choose.
+          {#if typingFor === "keep"}
+            Type your Secret Key from your Emergency Kit once. Your master password confirms it is
+            the right one. After that this Mac keeps it and the master password is all you type.
+          {:else}
+            This Mac is not keeping your Secret Key, so type it from your old kit. Your master
+            password confirms it is the right one. The kit is made on this Mac and saved only where
+            you choose.
+          {/if}
         </p>
       </div>
       {#if error}<Alert>{error}</Alert>{/if}
@@ -237,7 +295,11 @@
       <div class="grid grid-cols-2 gap-2">
         <Button onclick={closeTyping} disabled={busy}>Cancel</Button>
         <Button variant="primary" type="submit" disabled={busy}>
-          {busy ? "Saving..." : "Save kit"}
+          {#if typingFor === "keep"}
+            {busy ? "Keeping..." : "Keep it"}
+          {:else}
+            {busy ? "Saving..." : "Save kit"}
+          {/if}
         </Button>
       </div>
     </form>

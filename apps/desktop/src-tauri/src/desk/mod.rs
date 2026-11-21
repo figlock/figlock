@@ -126,6 +126,9 @@ pub struct VaultState {
     pub secret_key_stale: bool,
     /// How the kept key is protected (`secure-enclave` or `keychain`), when one is kept.
     pub secret_key_protection: Option<&'static str>,
+    /// The person stopped keeping the key on this Mac, so it is asked for at every unlock until they keep it
+    /// again from Settings (FIG-142). Not set for a Mac that merely has none yet.
+    pub secret_key_opted_out: bool,
     /// This unlocked session holds the Secret Key it was unlocked with, so steps that rewrap the vault key
     /// need not ask for it again (ADR-0030). Gone when the vault locks; says nothing about a restart.
     pub secret_key_held: bool,
@@ -480,7 +483,7 @@ impl Desk {
             Err(_) => (false, false),
         };
         // Only read the vault's id when its folder is there: with sync on, reading it would make the folder again.
-        let (secret_key_kept, secret_key_protection) = match initialised_vault
+        let (secret_key_kept, secret_key_protection, secret_key_opted_out) = match initialised_vault
             .then(secret_key_store::system)
             .and_then(Result::ok)
             .zip(
@@ -488,8 +491,12 @@ impl Desk {
                     .then(|| figlock_session::session::peek_vault_id().ok())
                     .flatten(),
             ) {
-            Some((keys, vault)) => (keys.has(&vault), keys.protection(&vault)),
-            None => (false, None),
+            Some((keys, vault)) => (
+                keys.has(&vault),
+                keys.protection(&vault),
+                keys.opted_out(&vault),
+            ),
+            None => (false, None, false),
         };
         // Only a device that keeps a key can have an out-of-date one; without one the key is typed anyway.
         let secret_key_stale = secret_key_kept
@@ -503,6 +510,7 @@ impl Desk {
             secret_key_kept,
             secret_key_stale,
             secret_key_protection,
+            secret_key_opted_out,
             secret_key_held,
             autolock_secs: self.autolock().as_secs(),
             recovery_enabled,

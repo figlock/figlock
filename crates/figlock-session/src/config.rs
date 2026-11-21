@@ -431,6 +431,43 @@ pub(crate) fn set_kept_sk_gen_in(home: &Path, vault: &str, sk_gen: Option<u32>) 
     Ok(())
 }
 
+fn key_opt_out_path(home: &Path) -> PathBuf {
+    home.join("secret-key-opt-out.json")
+}
+
+/// Whether the person stopped keeping the Secret Key on this device for `vault` (FIG-142). Not secret. While
+/// it is set nothing keeps the key again, not even a full unlock with the key typed.
+pub fn key_opted_out(vault: &str) -> bool {
+    home().is_ok_and(|h| key_opted_out_in(&h, vault))
+}
+
+pub(crate) fn key_opted_out_in(home: &Path, vault: &str) -> bool {
+    fs::read(key_opt_out_path(home))
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v.get(vault).and_then(Value::as_bool))
+        .unwrap_or(false)
+}
+
+pub(crate) fn set_key_opted_out_in(home: &Path, vault: &str, opted_out: bool) -> Res<()> {
+    private_dir(home)?;
+    let mut all = fs::read(key_opt_out_path(home))
+        .ok()
+        .and_then(|raw| serde_json::from_slice::<Value>(&raw).ok())
+        .and_then(|v| v.as_object().cloned())
+        .unwrap_or_default();
+    if opted_out {
+        all.insert(vault.to_owned(), json!(true));
+    } else {
+        all.remove(vault);
+    }
+    let path = key_opt_out_path(home);
+    let tmp = path.with_extension("tmp");
+    fs::write(&tmp, Value::Object(all).to_string())?;
+    fs::rename(&tmp, &path)?;
+    Ok(())
+}
+
 /// Keep how long the desktop waits without activity before it locks, in `config.json`. `None` goes back to
 /// the default.
 pub fn set_autolock(secs: Option<u64>) -> Res<Config> {

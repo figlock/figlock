@@ -7,6 +7,7 @@ const core = vi.hoisted(() => ({
   vaultState: vi.fn(),
   showSecretKey: vi.fn(),
   forgetSecretKey: vi.fn(),
+  keepSecretKey: vi.fn(),
   saveKit: vi.fn(),
   syncStatus: vi.fn(),
   onSynced: vi.fn(),
@@ -31,13 +32,19 @@ vi.mock("./vault", () => ({
   vaultState: core.vaultState,
   showSecretKey: core.showSecretKey,
   forgetSecretKey: core.forgetSecretKey,
+  keepSecretKey: core.keepSecretKey,
   saveEmergencyKitAgain: core.saveKit,
 }));
 
 import Workspace from "./Workspace.svelte";
 
 const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
-const notKept = { secretKeyKept: false, secretKeyProtection: null, touchAvailable: true };
+const notKept = {
+  secretKeyKept: false,
+  secretKeyProtection: null,
+  secretKeyOptedOut: true,
+  touchAvailable: true,
+};
 const kept = { secretKeyKept: true, secretKeyProtection: "secure-enclave" };
 
 beforeEach(() => {
@@ -225,4 +232,13 @@ test("a Mac that keeps no key makes the kit from the password and key typed, che
   await user.click(within(dialog).getByRole("button", { name: "Save kit" }));
   expect((await screen.findByTestId("kit-saved")).textContent).toContain("Saved");
   expect(screen.queryByRole("dialog", { name: "Save your Emergency Kit" })).toBeNull();
+});
+
+test("keeping it again types nothing when the window holds the key", async () => {
+  core.vaultState.mockResolvedValue({ ...notKept, secretKeyHeld: true });
+  core.keepSecretKey.mockResolvedValueOnce({ ...kept, secretKeyOptedOut: false });
+  const user = await toSettings();
+  await user.click(await screen.findByRole("button", { name: "Keep it on this Mac" }));
+  expect(core.keepSecretKey).toHaveBeenCalledWith("", "");
+  expect(await screen.findByText("Kept on this Mac")).toBeTruthy();
 });

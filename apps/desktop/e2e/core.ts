@@ -34,6 +34,8 @@ export type Options = {
   /** This Mac has Touch ID, and it unlocks this vault. */
   touchAvailable?: boolean;
   quickUnlock?: boolean;
+  /** The person stopped keeping the Secret Key on this Mac (FIG-142). */
+  keyOptedOut?: boolean;
   /** This window holds the Secret Key it unlocked with (the default). */
   keyHeld?: boolean;
   /** This Mac keeps no Secret Key. */

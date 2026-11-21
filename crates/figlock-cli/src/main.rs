@@ -156,8 +156,10 @@ enum SecretKeyCmd {
     /// Save the Emergency Kit PDF again, made now from the Secret Key kept on this device, after Touch ID or
     /// the device password.
     Kit(KitArgs),
-    /// Stop keeping the Secret Key on this device. The next full unlock asks for it.
+    /// Stop keeping the Secret Key on this device. Every full unlock asks for it until you run `keep`.
     Forget,
+    /// Keep the Secret Key on this device again, after asking for the master password and Secret Key once.
+    Keep,
 }
 
 #[derive(Args)]
@@ -758,6 +760,7 @@ fn main() -> ExitCode {
             SecretKeyCmd::Show => credentials::secret_key_show(json),
             SecretKeyCmd::Kit(a) => credentials::secret_key_kit(&a.path, a.force, json),
             SecretKeyCmd::Forget => credentials::secret_key_forget(json),
+            SecretKeyCmd::Keep => credentials::secret_key_keep(json),
         }),
         Command::Device { action } => ok(match action {
             DeviceCmd::List => credentials::device_list(json),
