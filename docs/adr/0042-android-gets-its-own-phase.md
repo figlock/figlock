@@ -1,6 +1,6 @@
 # ADR-0042: Android gets its own phase after iOS
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-22
 - Decision: D42 in `docs/decisions.md`
 - Supersedes in part: ADR-0001 (the "Android in the same phase" part only)

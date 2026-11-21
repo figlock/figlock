@@ -1,6 +1,6 @@
 # ADR-0041: iOS app architecture - app group vault, Rust sync engine, shared keychain, iPhone only
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-22
 - Decision: D41 in `docs/decisions.md`
 - Builds on: ADR-0004 (native shell, shared Rust core), ADR-0025, ADR-0026, ADR-0027, ADR-0034, ADR-0037, ADR-0038
