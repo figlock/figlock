@@ -36,8 +36,7 @@ answers, and several are expensive to change later. What the code and specs say 
 both using a shared Swift package (`Shared`) that wraps the generated bindings. Bundle ids, the App Group and
 the keychain access group are created under the existing Apple Developer account (FIG-44). The app is built
 for **iPhone only** in v1 (`TARGETED_DEVICE_FAMILY = 1`, not offered as an iPhone app on Mac or Vision). Minimum
-version is **iOS 18** (proposed: modern credential provider API, one test matrix; the owner may raise or lower
-it before FIG-155). iPad is a later task (FIG-178) with its own layout ADR; nothing in v1 may assume a phone
+version is **iOS 18** (confirmed by the owner: modern credential provider API, one test matrix). iPad is a later task (FIG-178) with its own layout ADR; nothing in v1 may assume a phone
 screen size in the core or in `Shared`.
 
 **2. The vault is always a local folder in the App Group container** (the ADR-0026 rule, with the container as
@@ -84,7 +83,7 @@ background time, so a stale copy shows its "last synced" time (ADR-0026) rather 
 - Full master-password unlock is required after the quick unlock limits of `crypto.md` 8. **"After an app restart"
   does not apply on iOS**, where the system ends and restarts processes at will; it is replaced by "after the phone
   restarts" (detected from the boot session) so the rule keeps its intent. This changes a default in `crypto.md`
-  8 and needs the owner's confirmation.
+  8 (confirmed by the owner); the same change is made to `crypto.md` 8 by FIG-160.
 - Secret screens are blanked in the app switcher and screen capture is blocked (`DESIGN.md` 8). Clipboard copies use
   local-only, expiring pasteboard items.
 
@@ -96,7 +95,8 @@ background time, so a stale copy shows its "last synced" time (ADR-0026) rather 
   one secret it was asked for) and releases it when done. Whether a full replay fits the memory limit with
   10,000 items is **measured in FIG-166 before the extension is built out**. If it does not fit, the app writes a
   compact autofill index sealed under `AUK` into the container after each commit, and the extension reads that
-  instead. Either way the extension holds one secret at a time and zeroizes it.
+  instead. The index is a fallback only (confirmed by the owner): build it only if the measurement says the
+  replay does not fit. Either way the extension holds one secret at a time and zeroizes it.
 - Identity store: the app registers domain and username (no secrets) with `ASCredentialIdentityStore` so QuickType
   suggestions work; the store is cleared on lock-out of the vault and on "remove this vault from this iPhone".
 - Passkeys and one-time codes are a spike (FIG-167), not part of the first extension.
