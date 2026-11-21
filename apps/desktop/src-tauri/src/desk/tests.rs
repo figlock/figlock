@@ -169,8 +169,13 @@ fn create_lock_and_unlock_inner() {
     assert_eq!(d.state().unwrap().phase, "locked");
 
     assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
+    // Turning Touch ID off when it was never on is harmless and leaves the vault open (FIG-141).
+    assert!(!d.turn_touch_id_off().unwrap().quick_unlock);
+    assert_eq!(d.state().unwrap().phase, "unlocked");
     // Touch ID was never turned on, so it cannot unlock, and says to type the credentials.
     d.lock();
+    assert_eq!(code_of(d.turn_touch_id_off().unwrap_err()), "locked");
+    assert_eq!(code_of(d.turn_touch_id_on(&pw, "").unwrap_err()), "locked");
     assert_eq!(code_of(d.quick_unlock().unwrap_err()), "quick_unavailable");
     assert_eq!(d.state().unwrap().phase, "locked");
     // A second vault cannot be made over the first.

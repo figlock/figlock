@@ -7,6 +7,7 @@
   import DeleteDriveDialog from "./DeleteDriveDialog.svelte";
   import Devices from "./Devices.svelte";
   import RecoveryPanel from "./RecoveryPanel.svelte";
+  import TouchIdPanel from "./TouchIdPanel.svelte";
   import UpdatePanel from "./UpdatePanel.svelte";
   import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import { ago } from "./sync";
@@ -201,6 +202,8 @@
       {/if}
     {/if}
   </section>
+
+  <TouchIdPanel />
 
   <SecretKeyPanel />
 

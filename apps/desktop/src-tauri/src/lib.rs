@@ -554,6 +554,22 @@ async fn forget_secret_key(desk: State<'_, Desk>) -> CmdRes<VaultState> {
     desk.forget_secret_key()
 }
 
+/// Stop unlocking this vault with Touch ID.
+#[tauri::command]
+async fn turn_touch_id_off(desk: State<'_, Desk>) -> CmdRes<VaultState> {
+    desk.turn_touch_id_off()
+}
+
+/// Unlock this vault with Touch ID from now on; the master password confirms it.
+#[tauri::command]
+async fn turn_touch_id_on(
+    desk: State<'_, Desk>,
+    password: String,
+    secret_key: String,
+) -> CmdRes<VaultState> {
+    desk.turn_touch_id_on(&password, &secret_key)
+}
+
 #[tauri::command]
 async fn quick_unlock(desk: State<'_, Desk>) -> CmdRes<VaultState> {
     desk.quick_unlock()
@@ -870,6 +886,8 @@ pub fn run() {
             update_secret_key,
             set_autolock,
             quick_unlock,
+            turn_touch_id_off,
+            turn_touch_id_on,
             lock,
             activity,
             update_check,

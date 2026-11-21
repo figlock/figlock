@@ -50,6 +50,11 @@
     secretKeyStale: opts.secretKeyStale ?? false,
     // The vault removed this Mac (FIG-135): when, in Unix milliseconds, or null.
     removedAtMs: opts.removedAtMs ?? null,
+    // This window holds the Secret Key it unlocked with (ADR-0030).
+    keyHeld: opts.keyHeld ?? true,
+    // Touch ID: whether this Mac has it, and whether it unlocks this vault (FIG-141).
+    touchAvailable: opts.touchAvailable ?? false,
+    quickUnlock: opts.quickUnlock ?? false,
     // This Mac keeps no Secret Key, so the Emergency Kit is made from what the person types (FIG-134).
     keyNotKept: opts.keyNotKept ?? false,
     // What the save dialog does: the kits written so far, and whether the person cancels the dialog.
@@ -79,12 +84,12 @@
   const state = () => ({
     phase: core.phase,
     version: "9.9.9",
-    quickUnlock: false,
-    touchAvailable: false,
+    quickUnlock: core.quickUnlock,
+    touchAvailable: core.touchAvailable,
     secretKeyKept: !core.keyNotKept,
     secretKeyStale: core.secretKeyStale,
     secretKeyProtection: core.keyNotKept ? null : "keychain",
-    secretKeyHeld: true,
+    secretKeyHeld: core.keyHeld,
     autolockSecs: core.autolockSecs,
     recoveryEnabled: false,
     pendingKit: null,
@@ -196,6 +201,30 @@
         core.secretKeyStale = false;
       }
       core.phase = "unlocked";
+      return state();
+    },
+    quick_unlock: () => {
+      if (!core.quickUnlock)
+        return fail("quick_unavailable", "Touch ID is off. Type your master password.");
+      core.phase = "unlocked";
+      return state();
+    },
+    turn_touch_id_off: () => {
+      core.quickUnlock = false;
+      return state();
+    },
+    turn_touch_id_on: ({ password, secretKey }) => {
+      if (core.keyNotKept && !secretKey)
+        return fail(
+          "needs_secret_key",
+          "Type your Secret Key from your Emergency Kit to continue.",
+        );
+      if (password !== PASSWORD || (core.keyNotKept && secretKey !== KEY))
+        return fail(
+          "wrong_credentials",
+          "That master password and Secret Key do not match this vault.",
+        );
+      core.quickUnlock = true;
       return state();
     },
     update_secret_key: ({ password, secretKey }) => {
