@@ -2235,12 +2235,15 @@ fn a_grant_keeps_at_most_32_tokens_and_the_oldest_goes_first() {
 #[test]
 fn identical_requests_that_queue_behind_a_prompt_cost_one_prompt() {
     let fx = Arc::new(fixture());
-    *fx.approver.pause.lock().unwrap() = Duration::from_millis(200);
+    *fx.approver.pause.lock().unwrap() = Duration::from_millis(1500);
     fx.approver.will(&[Decision::Allow]);
+    let start = Arc::new(std::sync::Barrier::new(4));
     let threads: Vec<_> = (0..4u32)
         .map(|i| {
             let fx = fx.clone();
+            let start = start.clone();
             std::thread::spawn(move || {
+                start.wait();
                 fx.request(&agent(500 + i), json!({"name": "github"}), "http", "15m")
             })
         })
@@ -2257,12 +2260,15 @@ fn identical_requests_that_queue_behind_a_prompt_cost_one_prompt() {
 #[test]
 fn identical_requests_that_queue_behind_a_prompt_that_is_denied_are_denied_too() {
     let fx = Arc::new(fixture());
-    *fx.approver.pause.lock().unwrap() = Duration::from_millis(200);
+    *fx.approver.pause.lock().unwrap() = Duration::from_millis(1500);
     fx.approver.will(&[Decision::Deny]);
+    let start = Arc::new(std::sync::Barrier::new(4));
     let threads: Vec<_> = (0..4u32)
         .map(|i| {
             let fx = fx.clone();
+            let start = start.clone();
             std::thread::spawn(move || {
+                start.wait();
                 fx.request(&agent(600 + i), json!({"name": "github"}), "http", "15m")
             })
         })
