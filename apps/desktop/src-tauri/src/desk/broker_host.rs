@@ -195,7 +195,11 @@ impl Desk {
         let Some(hub) = self.hosting.hub() else {
             return;
         };
-        let _starting = self.hosting.starting.lock().unwrap_or_else(|e| e.into_inner());
+        let _starting = self
+            .hosting
+            .starting
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         hub.clear();
         let (epoch, opened) = {
             let inner = self.inner();
