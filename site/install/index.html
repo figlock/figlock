@@ -55,7 +55,7 @@
     <div class="wrap">
       <article class="prose">
         <h1>Install FigLock</h1>
-        <p class="meta">Version 0.4.0: the Mac app, and the command line for macOS and Linux.</p>
+        <p class="meta">Version 0.5.0: the Mac app, and the command line for macOS and Linux.</p>
         <p>Pick one way below. Each takes about a minute, and then you can create a vault in about five.</p>
 
         <div class="notice" role="note">
@@ -64,7 +64,7 @@
         </div>
 
         <h2 id="mac-app">The Mac app</h2>
-        <p><a class="button button--primary" href="/download/v0.4.0/FigLock-0.4.0-universal.dmg">Download FigLock 0.4.0 for Mac</a></p>
+        <p><a class="button button--primary" href="/download/v0.5.0/FigLock-0.5.0-universal.dmg">Download FigLock 0.5.0 for Mac</a></p>
         <p>Open the disk image and drag FigLock to Applications. It is signed and notarized, runs on Apple silicon and Intel Macs, and has the command line inside: <strong>Settings &gt; Command line tool</strong> installs <code>figlock</code> for you. The app checks for updates at launch and installs one only when you click. Create a vault in the app, or open an existing one, and add this Mac to it with a device invite.</p>
 
         <h2 id="homebrew">Homebrew (macOS, command line)</h2>
@@ -82,7 +82,7 @@
           <li>Tells you if that folder isn't on your path yet.</li>
         </ol>
         <p>It never asks for admin rights. You can <a href="/install.sh">read the installer</a> before you run it. To choose a version or a folder:</p>
-        <pre class="code code--cmd"><code>curl -fsSL https://figlock.com/install.sh | FIGLOCK_VERSION=v0.4.0 FIGLOCK_INSTALL_DIR="$HOME/bin" sh</code></pre>
+        <pre class="code code--cmd"><code>curl -fsSL https://figlock.com/install.sh | FIGLOCK_VERSION=v0.5.0 FIGLOCK_INSTALL_DIR="$HOME/bin" sh</code></pre>
 
         <h2 id="manual">Download it yourself</h2>
         <p>Every build and the checksum list are on the <a href="https://github.com/figlock/figlock/releases/latest">latest release page</a>. Pick the file for your machine:</p>
@@ -92,19 +92,19 @@
               <tr><th scope="col">Machine</th><th scope="col">File</th></tr>
             </thead>
             <tbody>
-              <tr><th scope="row">Mac, Apple silicon or Intel</th><td><code>figlock-0.4.0-universal-apple-darwin.tar.gz</code></td></tr>
-              <tr><th scope="row">Linux, x86_64</th><td><code>figlock-0.4.0-x86_64-unknown-linux-musl.tar.gz</code></td></tr>
-              <tr><th scope="row">Linux, ARM64</th><td><code>figlock-0.4.0-aarch64-unknown-linux-musl.tar.gz</code></td></tr>
+              <tr><th scope="row">Mac, Apple silicon or Intel</th><td><code>figlock-0.5.0-universal-apple-darwin.tar.gz</code></td></tr>
+              <tr><th scope="row">Linux, x86_64</th><td><code>figlock-0.5.0-x86_64-unknown-linux-musl.tar.gz</code></td></tr>
+              <tr><th scope="row">Linux, ARM64</th><td><code>figlock-0.5.0-aarch64-unknown-linux-musl.tar.gz</code></td></tr>
             </tbody>
           </table>
         </div>
         <p>Check the file against the list, then unpack it. On Linux use <code>sha256sum</code> in place of <code>shasum -a 256</code>.</p>
-        <pre class="code code--cmd"><code>grep figlock-0.4.0-universal-apple-darwin.tar.gz SHA256SUMS | shasum -a 256 -c</code></pre>
-        <pre class="code code--cmd"><code>tar -xzf figlock-0.4.0-universal-apple-darwin.tar.gz &amp;&amp; ./figlock --version</code></pre>
+        <pre class="code code--cmd"><code>grep figlock-0.5.0-universal-apple-darwin.tar.gz SHA256SUMS | shasum -a 256 -c</code></pre>
+        <pre class="code code--cmd"><code>tar -xzf figlock-0.5.0-universal-apple-darwin.tar.gz &amp;&amp; ./figlock --version</code></pre>
 
         <h2 id="check">Check it works</h2>
         <pre class="code code--cmd"><code>figlock --version</code></pre>
-        <p>You should see <code>figlock 0.4.0</code>. If your shell says <code>command not found</code>, add the install folder to your path:</p>
+        <p>You should see <code>figlock 0.5.0</code>. If your shell says <code>command not found</code>, add the install folder to your path:</p>
         <pre class="code code--cmd"><code>echo 'export PATH="$HOME/.local/bin:$PATH"' &gt;&gt; ~/.zshrc &amp;&amp; exec zsh</code></pre>
 
         <h2 id="first-steps">Your first five minutes</h2>
