@@ -16,6 +16,8 @@ export type VaultState = {
   secretKeyStale: boolean;
   /** How the kept key is protected, when there is one. */
   secretKeyProtection: "secure-enclave" | "keychain" | null;
+  /** The person stopped keeping the key on this Mac; it is asked for at every unlock until they keep it again (FIG-142). */
+  secretKeyOptedOut: boolean;
   /** This unlocked session holds the Secret Key it was unlocked with, until the vault locks (ADR-0030). */
   secretKeyHeld: boolean;
   autolockSecs: number;
@@ -123,6 +125,9 @@ export const showSecretKey = () => invoke<string>("show_secret_key");
 export const updateSecretKey = (password: string, secretKey: string) =>
   invoke<VaultState>("update_secret_key", { password, secretKey });
 export const forgetSecretKey = () => invoke<VaultState>("forget_secret_key");
+/** Keep the Secret Key on this Mac again. Blank fields use the key this unlocked window holds. */
+export const keepSecretKey = (password: string, secretKey: string) =>
+  invoke<VaultState>("keep_secret_key", { password, secretKey });
 /** How long the vault waits without activity before it locks, in seconds. Applies at once. */
 export const setAutolock = (secs: number) => invoke<VaultState>("set_autolock", { secs });
 export const quickUnlock = () => invoke<VaultState>("quick_unlock");

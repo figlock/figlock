@@ -9,7 +9,7 @@
 //! unavailable and the key is typed, as before.
 
 use std::cell::RefCell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use figlock_biometric::Outcome;
@@ -43,6 +43,12 @@ enum Gens {
     Memory(RefCell<BTreeMap<String, u32>>),
 }
 
+/// Where the "stopped keeping it" choice is written: this device's config folder, or memory for tests.
+enum OptOuts {
+    Disk(PathBuf),
+    Memory(RefCell<BTreeSet<String>>),
+}
+
 /// Whether quick unlock is on for `vault` on this device, which decides how the Secret Key is kept and read.
 pub fn quick_on(vault: &str) -> bool {
     crate::quick::system().is_ok_and(|q| q.status(vault).0)
@@ -53,6 +59,7 @@ pub struct SecretKeyStore<B: Backend> {
     /// Off when `FIGLOCK_DEVICE_KEYS=file` (headless machines, CI, tests): those keep nothing in a keystore.
     enabled: bool,
     gens: Gens,
+    opt_outs: OptOuts,
 }
 
 /// This machine's store: the Secure Enclave on a Mac that has one, else the login keychain.
@@ -68,6 +75,7 @@ pub fn system() -> Res<SecretKeyStore<Hardware<Chip, System>>> {
         backend,
         enabled: !std::env::var("FIGLOCK_DEVICE_KEYS").is_ok_and(|v| v == "file"),
         gens: Gens::Disk(config::home()?),
+        opt_outs: OptOuts::Disk(config::home()?),
     })
 }
 
@@ -78,6 +86,7 @@ impl<B: Backend> SecretKeyStore<B> {
             backend,
             enabled,
             gens: Gens::Memory(RefCell::new(BTreeMap::new())),
+            opt_outs: OptOuts::Memory(RefCell::new(BTreeSet::new())),
         }
     }
 
@@ -108,8 +117,47 @@ impl<B: Backend> SecretKeyStore<B> {
                 "this device cannot keep the Secret Key; it will be asked for when needed",
             ));
         }
+        if self.opted_out(vault) {
+            return Ok(());
+        }
         self.backend.put_key_plain(vault, &pack(key))?;
         self.set_gen(vault, Some(sk_gen))
+    }
+
+    /// Whether the person stopped keeping the key on this device (FIG-142). While that holds, `put` keeps
+    /// nothing: a full unlock with the key typed does not quietly bring it back, and the key is asked for
+    /// each time, as the person chose.
+    pub fn opted_out(&self, vault: &str) -> bool {
+        match &self.opt_outs {
+            OptOuts::Disk(home) => config::key_opted_out_in(home, vault),
+            OptOuts::Memory(m) => m.borrow().contains(vault),
+        }
+    }
+
+    fn set_opted_out(&self, vault: &str, on: bool) -> Res<()> {
+        match &self.opt_outs {
+            OptOuts::Disk(home) => config::set_key_opted_out_in(home, vault, on),
+            OptOuts::Memory(m) => {
+                if on {
+                    m.borrow_mut().insert(vault.to_owned());
+                } else {
+                    m.borrow_mut().remove(vault);
+                }
+                Ok(())
+            }
+        }
+    }
+
+    /// The person's choice to stop keeping the key here: drop it and remember the choice.
+    pub fn opt_out(&self, vault: &str) -> Res<()> {
+        self.set_opted_out(vault, true)?;
+        self.forget(vault)
+    }
+
+    /// The person's choice to keep the key here again: forget the opt-out and keep `key` as a fresh start.
+    pub fn keep_again(&self, vault: &str, key: &SecretKey, sk_gen: u32) -> Res<()> {
+        self.set_opted_out(vault, false)?;
+        self.put(vault, key, sk_gen)
     }
 
     /// Whether a key is kept for `vault`, without asking the person.
@@ -330,6 +378,7 @@ mod tests {
             backend: fake,
             enabled: true,
             gens: Gens::Disk(dir.path().to_path_buf()),
+            opt_outs: OptOuts::Disk(dir.path().to_path_buf()),
         };
         let key = SecretKey::random().unwrap();
         on_disk(Fake::default()).put(VAULT, &key, 5).unwrap();
@@ -395,5 +444,41 @@ mod tests {
         fake.0.answer.set(Some(Outcome::Declined));
         assert!(s.get_quiet(VAULT, "test").unwrap().is_none());
         assert!(fake.0.on_chip.get());
+    }
+
+    #[test]
+    fn after_opting_out_nothing_keeps_the_key_until_the_person_keeps_it_again() {
+        let (s, _) = store();
+        let key = SecretKey::random().unwrap();
+        s.put(VAULT, &key, 1).unwrap();
+        s.opt_out(VAULT).unwrap();
+        assert!(!s.has(VAULT));
+        assert!(s.opted_out(VAULT));
+        // A full unlock with the key typed asks to keep it; the choice wins.
+        s.put(VAULT, &key, 1).unwrap();
+        assert!(!s.has(VAULT), "an opted out Mac stays opted out");
+        s.keep_again(VAULT, &key, 2).unwrap();
+        assert!(!s.opted_out(VAULT));
+        assert!(s.has(VAULT));
+        assert_eq!(s.kept_gen(VAULT), 2);
+        assert_eq!(
+            s.get_quiet(VAULT, "test").unwrap().unwrap().expose(),
+            key.expose()
+        );
+    }
+
+    #[test]
+    fn the_opt_out_is_per_vault_and_survives_a_new_store() {
+        let dir = tempfile::tempdir().unwrap();
+        let on_disk = || SecretKeyStore {
+            backend: Fake::default(),
+            enabled: true,
+            gens: Gens::Disk(dir.path().to_path_buf()),
+            opt_outs: OptOuts::Disk(dir.path().to_path_buf()),
+        };
+        on_disk().opt_out(VAULT).unwrap();
+        let again = on_disk();
+        assert!(again.opted_out(VAULT));
+        assert!(!again.opted_out("ffffffffffffffffffffffffffffffff"));
     }
 }

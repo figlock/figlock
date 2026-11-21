@@ -172,15 +172,35 @@ pub fn secret_key_kit(path: &str, force: bool, json: bool) -> Res<()> {
     Ok(())
 }
 
-/// `figlock secret-key forget`: stop keeping the Secret Key on this device. The next full unlock asks for it.
+/// `figlock secret-key forget`: stop keeping the Secret Key on this device. The choice is remembered, so every
+/// full unlock asks for the key until `figlock secret-key keep` (FIG-142).
 pub fn secret_key_forget(json: bool) -> Res<()> {
-    secret_key_store::system()?.forget(&peek_vault_id()?)?;
+    secret_key_store::system()?.opt_out(&peek_vault_id()?)?;
     if json {
         println!("{}", json!({ "kept": false }));
     } else {
         println!(
-            "The Secret Key is no longer kept on this device. The next full unlock asks for it."
+            "The Secret Key is no longer kept on this device. Every full unlock asks for it until you run `figlock secret-key keep`."
         );
+    }
+    Ok(())
+}
+
+/// `figlock secret-key keep`: keep the Secret Key on this device again. It asks for the master password and
+/// Secret Key once, checks them against the vault, and from then on the master password is all that is typed.
+pub fn secret_key_keep(json: bool) -> Res<()> {
+    let keys = secret_key_store::system()?;
+    if !keys.available() {
+        return Err(Fail::new("this device cannot keep the Secret Key"));
+    }
+    let (_session, _password, secret_key) = Session::open_for_change(prompt::terminal())?;
+    let vault = peek_vault_id()?;
+    let sk_gen = figlock_core::Vault::sk_gen_in(&figlock_session::session::peek_vault_json()?)?;
+    keys.keep_again(&vault, &secret_key, sk_gen)?;
+    if json {
+        println!("{}", json!({ "kept": true }));
+    } else {
+        println!("The Secret Key is kept on this device again.");
     }
     Ok(())
 }

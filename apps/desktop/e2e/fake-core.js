@@ -50,6 +50,8 @@
     secretKeyStale: opts.secretKeyStale ?? false,
     // The vault removed this Mac (FIG-135): when, in Unix milliseconds, or null.
     removedAtMs: opts.removedAtMs ?? null,
+    // The person stopped keeping the Secret Key here: it is asked for at every unlock until kept again (FIG-142).
+    keyOptedOut: opts.keyOptedOut ?? false,
     // This window holds the Secret Key it unlocked with (ADR-0030).
     keyHeld: opts.keyHeld ?? true,
     // Touch ID: whether this Mac has it, and whether it unlocks this vault (FIG-141).
@@ -86,9 +88,10 @@
     version: "9.9.9",
     quickUnlock: core.quickUnlock,
     touchAvailable: core.touchAvailable,
-    secretKeyKept: !core.keyNotKept,
+    secretKeyKept: !core.keyNotKept && !core.keyOptedOut,
     secretKeyStale: core.secretKeyStale,
-    secretKeyProtection: core.keyNotKept ? null : "keychain",
+    secretKeyProtection: core.keyNotKept || core.keyOptedOut ? null : "keychain",
+    secretKeyOptedOut: core.keyOptedOut,
     secretKeyHeld: core.keyHeld,
     autolockSecs: core.autolockSecs,
     recoveryEnabled: false,
@@ -191,6 +194,14 @@
           "wrong_password",
           "That password did not open the vault. Check it and try again.",
         );
+      // An opted out Mac keeps no key, so it must be typed; typing it does not bring the keeping back.
+      if (core.keyOptedOut && !secretKey)
+        return fail("needs_secret_key", "This Mac does not have your Secret Key.");
+      if (core.keyOptedOut && secretKey !== KEY)
+        return fail(
+          "wrong_credentials",
+          "That master password and Secret Key do not match this vault.",
+        );
       if (core.secretKeyStale) {
         if (!secretKey) return fail("needs_secret_key", "This Mac does not have your Secret Key.");
         if (secretKey !== NEW_KEY)
@@ -201,6 +212,24 @@
         core.secretKeyStale = false;
       }
       core.phase = "unlocked";
+      return state();
+    },
+    forget_secret_key: () => {
+      core.keyOptedOut = true;
+      return state();
+    },
+    keep_secret_key: ({ password, secretKey }) => {
+      if (!secretKey && !core.keyHeld)
+        return fail(
+          "needs_secret_key",
+          "Type your Secret Key from your Emergency Kit to continue.",
+        );
+      if (secretKey && (password !== PASSWORD || secretKey !== KEY))
+        return fail(
+          "wrong_credentials",
+          "That master password and Secret Key do not match this vault.",
+        );
+      core.keyOptedOut = false;
       return state();
     },
     quick_unlock: () => {
@@ -404,7 +433,7 @@
       return { ...core.sync };
     },
     save_emergency_kit_again: ({ password, secretKey }) => {
-      if (core.keyNotKept) {
+      if (core.keyNotKept || core.keyOptedOut) {
         if (!password || !secretKey)
           return fail("no_secret_key", "This Mac is not keeping your Secret Key.");
         if (password !== PASSWORD || secretKey !== KEY)

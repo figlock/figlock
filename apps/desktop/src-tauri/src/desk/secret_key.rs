@@ -1,7 +1,7 @@
 //! The Secret Key kept on this device (ADR-0027): showing it again and letting it go. Reading it asks for Touch
 //! ID or the device password, so a person at an unlocked, unattended Mac cannot read it out.
 
-use figlock_core::Vault;
+use figlock_core::{SecretKey, Vault};
 use figlock_session::kit;
 use figlock_session::secret_key_store;
 use figlock_session::session::{now_ms, peek_vault_id};
@@ -95,12 +95,59 @@ impl Desk {
         self.state()
     }
 
-    /// Stop keeping the Secret Key on this Mac. The next full unlock asks for it.
+    /// Stop keeping the Secret Key on this Mac. The choice is remembered: every full unlock asks for the key
+    /// until the person keeps it again (FIG-142). The open session keeps holding it until it locks (ADR-0030).
     pub fn forget_secret_key(&self) -> CmdRes<VaultState> {
         if self.inner().session.is_none() {
             return Err(locked());
         }
-        secret_key_store::system()?.forget(&peek_vault_id()?)?;
+        secret_key_store::system()?.opt_out(&peek_vault_id()?)?;
+        self.state()
+    }
+
+    /// Keep the Secret Key on this Mac again. The open session already holds the key it unlocked with, so then
+    /// nothing is typed; otherwise the master password and Secret Key are asked for once and checked.
+    pub fn keep_secret_key(&self, password: &str, secret_key: &str) -> CmdRes<VaultState> {
+        if self.inner().session.is_none() {
+            return Err(locked());
+        }
+        let typed = secret_key.trim();
+        let key = if typed.is_empty() {
+            let needs_key = || {
+                CmdError::new(
+                    "needs_secret_key",
+                    "Type your Secret Key from your Emergency Kit to continue.",
+                )
+            };
+            let current = Vault::sk_gen_in(&figlock_session::session::peek_vault_json()?)
+                .map_err(|_| wrong_credentials())?;
+            let inner = self.inner();
+            let unlocked_with = inner.session.as_ref().map(|s| s.vault.sk_gen());
+            if unlocked_with != Some(current) {
+                return Err(needs_key());
+            }
+            inner
+                .held_key
+                .as_ref()
+                .map(|k| SecretKey::from_bytes(*k.expose()))
+                .ok_or_else(needs_key)?
+        } else {
+            let key = parse_secret_key(typed)?;
+            let vault_json = figlock_session::session::peek_vault_json()?;
+            Vault::verify_credentials(&vault_json, password, &key)
+                .map_err(|_| wrong_credentials())?;
+            key
+        };
+        let vault_json = figlock_session::session::peek_vault_json()?;
+        let sk_gen = Vault::sk_gen_in(&vault_json).map_err(|_| wrong_credentials())?;
+        let keys = secret_key_store::system()?;
+        if !keys.available() {
+            return Err(CmdError::new(
+                "not_kept",
+                "This Mac has no secure place to keep the Secret Key.",
+            ));
+        }
+        keys.keep_again(&peek_vault_id()?, &key, sk_gen)?;
         self.state()
     }
 }
