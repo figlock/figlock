@@ -1,6 +1,6 @@
 # ADR-0001: iOS first, Android right after
 
-- Status: Accepted
+- Status: Accepted (the "Android in the same phase" part is superseded by ADR-0042)
 - Date: 2026-11-03
 - Decision: D1 in `docs/decisions.md`
 
