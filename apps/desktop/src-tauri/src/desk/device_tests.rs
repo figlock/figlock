@@ -287,3 +287,25 @@ fn held_key_rotation_inner() {
     );
     assert_eq!(d.unlock(&pw, Some(&new_key)).unwrap().phase, "unlocked");
 }
+
+#[test]
+fn keeping_the_held_key_asks_again_when_the_key_was_rotated_elsewhere() {
+    scenario("keep_held_rotated_elsewhere_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn keep_held_rotated_elsewhere_inner() {
+    let d = desk();
+    let (pw, key) = unlocked(&d);
+    // Nothing changed: the held key is current, so the only thing in the way is this Mac having no secure place.
+    assert_eq!(code_of(d.keep_secret_key("", "").unwrap_err()), "not_kept");
+    // Another window rotates the key and the file syncs here: the held key is the old one.
+    let other = desk();
+    other.unlock(&pw, Some(&key)).unwrap();
+    other.change_credentials(&pw, None, None, true).unwrap();
+    assert_eq!(
+        code_of(d.keep_secret_key("", "").unwrap_err()),
+        "needs_secret_key"
+    );
+}

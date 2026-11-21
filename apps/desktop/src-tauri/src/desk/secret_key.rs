@@ -113,16 +113,24 @@ impl Desk {
         }
         let typed = secret_key.trim();
         let key = if typed.is_empty() {
-            self.inner()
+            let needs_key = || {
+                CmdError::new(
+                    "needs_secret_key",
+                    "Type your Secret Key from your Emergency Kit to continue.",
+                )
+            };
+            let current = Vault::sk_gen_in(&figlock_session::session::peek_vault_json()?)
+                .map_err(|_| wrong_credentials())?;
+            let inner = self.inner();
+            let unlocked_with = inner.session.as_ref().map(|s| s.vault.sk_gen());
+            if unlocked_with != Some(current) {
+                return Err(needs_key());
+            }
+            inner
                 .held_key
                 .as_ref()
                 .map(|k| SecretKey::from_bytes(*k.expose()))
-                .ok_or_else(|| {
-                    CmdError::new(
-                        "needs_secret_key",
-                        "Type your Secret Key from your Emergency Kit to continue.",
-                    )
-                })?
+                .ok_or_else(needs_key)?
         } else {
             let key = parse_secret_key(typed)?;
             let vault_json = figlock_session::session::peek_vault_json()?;
