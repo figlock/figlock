@@ -157,7 +157,8 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 | 2     | Broker + skill                          | Claude Code deploys and calls GitHub with no token in the transcript       |
 | 3     | Desktop app + Google Drive              | Mac and Windows/Linux sync through Google Drive; pairing under a minute    |
 | 4     | WASM core + browser extension           | Log in to 20 everyday sites from the extension                            |
-| 5     | iOS, then Android                       | iOS autofill works; agent grant approved from iPhone; Android at parity    |
+| 5     | iOS app (iPhone only in v1)             | iOS autofill works; agent grant approved from iPhone; TestFlight build on the owner's phone |
+| 5b    | Android app                             | Android at parity with iOS; Play internal track build installed            |
 | 6     | Public release                          | Audit fixed and published; new user set up in under 3 minutes             |
 
 ## 10. Risks
