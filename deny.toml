@@ -9,7 +9,9 @@ version = 2
 # proc-macro-error is unmaintained (RUSTSEC-2024-0370). It is only a proc-macro dependency of glib-macros 0.18,
 # which Tauri 2's Linux GTK3 backend (gtk 0.18) uses at build time; it is not in the macOS or Windows builds.
 # Revisit when Tauri moves to gtk4 or a newer gtk-rs.
-ignore = ["RUSTSEC-2026-0374", "RUSTSEC-2024-0370"]
+# chrono is unmaintained (RUSTSEC-2026-0543), with no safe upgrade. It is only a transitive dependency of
+# zxcvbn (password strength estimation in figlock-core). Revisit when zxcvbn drops it.
+ignore = ["RUSTSEC-2026-0374", "RUSTSEC-2024-0370", "RUSTSEC-2026-0543"]
 
 [licenses]
 version = 2
