@@ -100,7 +100,7 @@ impl Desk {
             // the old one must not stay, or unlock would use it and never ask for the key.
             let sk_gen = Vault::sk_gen_in(&changed.vault_json).unwrap_or(1);
             if let Ok(keys) = secret_key_store::system()
-                && !(keys.available() && keys.put(&vault_id, &key, sk_gen, touch_was_on).is_ok())
+                && !(keys.available() && keys.put(&vault_id, &key, sk_gen).is_ok())
             {
                 let _ = keys.forget(&vault_id);
             }

@@ -130,9 +130,8 @@ fn keep_secret_key(created: &figlock_core::Created) {
         _ => return,
     };
     let kept = session::vault_id_of(&created.vault_json).and_then(|vault| {
-        // Quick unlock is offered after this, so it is off now: the key goes where no prompt is needed, and
-        // is moved up if quick unlock is turned on.
-        keys.put(&vault, &created.secret_key, 1, false)
+        // The key goes where no prompt is needed to unlock, whether or not quick unlock is turned on (ADR-0037).
+        keys.put(&vault, &created.secret_key, 1)
     });
     if let Err(e) = kept {
         eprintln!("warning: the Secret Key was not kept on this device: {e}");

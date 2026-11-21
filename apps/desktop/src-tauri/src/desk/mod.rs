@@ -848,12 +848,8 @@ impl Desk {
         if touch_id {
             // Touch ID is a convenience: failing to turn it on never undoes the setup.
             if let (Ok(vault), Ok(q)) = (figlock_session::session::peek_vault_id(), quick::system())
-                && q.enable(&vault, &auk, now_ms() / 1000).is_ok()
             {
-                // The Secret Key moves up to the chip with Touch ID; it is the same key (ADR-0034).
-                if let Ok(keys) = secret_key_store::system() {
-                    let _ = keys.retier(&vault, true, "keep your Secret Key with Touch ID");
-                }
+                let _ = q.enable(&vault, &auk, now_ms() / 1000);
             }
         }
         self.install_holding(session, held);

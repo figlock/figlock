@@ -29,7 +29,7 @@ fn keep_secret_key(sk: &SecretKey, vault_json: &[u8]) {
         }
         let vault = peek_vault_id()?;
         let sk_gen = figlock_core::Vault::sk_gen_in(vault_json)?;
-        keys.put(&vault, sk, sk_gen, secret_key_store::quick_on(&vault))
+        keys.put(&vault, sk, sk_gen)
     });
     if let Err(e) = kept {
         eprintln!("warning: the new Secret Key was not kept on this device: {e}");

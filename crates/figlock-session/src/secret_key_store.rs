@@ -3,8 +3,9 @@
 //!
 //! It reuses the quick unlock backends (`quick_se.rs`: a Secure Enclave key with the login keychain
 //! underneath) with its own slot, so it has its own chip key and files and is never opened with the unlock
-//! key's. Unlike the unlock key it has no idle or age limit: it is meant to survive restarts. Every read still
-//! asks for Touch ID or the device password. Where the platform has no backend yet (FIG-105) the store is
+//! key's. Unlike the unlock key it has no idle or age limit: it is meant to survive restarts. It sits in the
+//! login keychain and unlocking reads it with no prompt; showing it or handing it to a new device asks for
+//! Touch ID or the device password when quick unlock is on (ADR-0037). Where the platform has no backend yet (FIG-105) the store is
 //! unavailable and the key is typed, as before.
 
 use std::cell::RefCell;
@@ -99,20 +100,15 @@ impl<B: Backend> SecretKeyStore<B> {
     }
 
     /// Keep `key` for `vault`, replacing what was kept, together with the `sk_gen` of the vault it opens
-    /// (`crypto.md` 9.4). With quick unlock on it goes to the strongest tier the Mac has, read after a prompt;
-    /// with it off to the login keychain, read with none (ADR-0034).
-    pub fn put(&self, vault: &str, key: &SecretKey, sk_gen: u32, quick_on: bool) -> Res<()> {
+    /// (`crypto.md` 9.4). It always goes to the login keychain, read with no prompt, whether or not quick
+    /// unlock is on: typing the master password must never raise a second prompt (ADR-0037).
+    pub fn put(&self, vault: &str, key: &SecretKey, sk_gen: u32) -> Res<()> {
         if !self.available() {
             return Err(Fail::new(
                 "this device cannot keep the Secret Key; it will be asked for when needed",
             ));
         }
-        let packed = pack(key);
-        if quick_on {
-            self.backend.put_key(vault, &packed)?;
-        } else {
-            self.backend.put_key_plain(vault, &packed)?;
-        }
+        self.backend.put_key_plain(vault, &pack(key))?;
         self.set_gen(vault, Some(sk_gen))
     }
 
@@ -129,14 +125,15 @@ impl<B: Backend> SecretKeyStore<B> {
         }
     }
 
-    /// The kept key. A key in the login keychain is read with no prompt when quick unlock is off; one on the
-    /// chip, or any key while quick unlock is on, is read after Touch ID or the device password. `None` when
-    /// nothing is kept or the person did not confirm; the caller then asks for the key.
-    pub fn get(&self, vault: &str, reason: &str, quick_on: bool) -> Res<Option<SecretKey>> {
+    /// The kept key with no prompt, for unlocking with the master password. A key an older build left on the
+    /// chip sits behind a prompt: it is read once after Touch ID or the device password and moved to the
+    /// login keychain, so it never asks again. `None` when nothing is kept or the person did not confirm; the
+    /// caller then asks for the key.
+    pub fn get_quiet(&self, vault: &str, reason: &str) -> Res<Option<SecretKey>> {
         if !self.has(vault) {
             return Ok(None);
         }
-        if !quick_on && let Some(packed) = self.backend.get_key_quiet(vault)? {
+        if let Some(packed) = self.backend.get_key_quiet(vault)? {
             return unpack(&packed).map(Some);
         }
         if self.backend.confirm(vault, reason) != Outcome::Confirmed {
@@ -144,29 +141,27 @@ impl<B: Backend> SecretKeyStore<B> {
         }
         match self.backend.get_key(vault)? {
             Some(packed) => {
-                if !quick_on {
-                    let _ = self.backend.put_key_plain(vault, &packed);
-                }
+                let _ = self.backend.put_key_plain(vault, &packed);
                 unpack(&packed).map(Some)
             }
             None => Ok(None),
         }
     }
 
-    /// Move the kept key to the tier that matches quick unlock, keeping the same key and `sk_gen` (turning
-    /// quick unlock on or off never deletes the key or makes a new one). Reading a key off the chip asks the
-    /// person; when they decline it stays where it was.
-    pub fn retier(&self, vault: &str, quick_on: bool, reason: &str) -> Res<()> {
-        // Quietly when it sits in the keychain (moving up to the chip), after the prompt when it is on the chip.
-        let Some(key) = self.get(vault, reason, false)? else {
-            return Ok(());
-        };
-        let packed = pack(&key);
-        if quick_on {
-            self.backend.put_key(vault, &packed)
-        } else {
-            self.backend.put_key_plain(vault, &packed)
+    /// The kept key for a deliberate release (show it, make a kit, approve a new device). With quick unlock
+    /// on the person confirms first with Touch ID or the device password; with it off the key is read with
+    /// no prompt, as before.
+    pub fn get(&self, vault: &str, reason: &str, quick_on: bool) -> Res<Option<SecretKey>> {
+        if !self.has(vault) {
+            return Ok(None);
         }
+        if quick_on
+            && self.backend.get_key_quiet(vault)?.is_some()
+            && self.backend.confirm(vault, reason) != Outcome::Confirmed
+        {
+            return Ok(None);
+        }
+        self.get_quiet(vault, reason)
     }
 
     /// Drop the kept key and the generation kept with it.
@@ -202,6 +197,8 @@ mod tests {
         key: RefCell<Option<[u8; 32]>>,
         answer: Cell<Option<Outcome>>,
         asked: Cell<u32>,
+        /// The key sits behind a prompt, as an older build left it on the chip.
+        on_chip: Cell<bool>,
     }
 
     #[derive(Clone, Default)]
@@ -221,6 +218,16 @@ mod tests {
         }
         fn get_key(&self, _: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
             Ok((*self.0.key.borrow()).map(Zeroizing::new))
+        }
+        fn put_key_plain(&self, v: &str, key: &[u8; 32]) -> Res<()> {
+            self.0.on_chip.set(false);
+            self.put_key(v, key)
+        }
+        fn get_key_quiet(&self, v: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
+            if self.0.on_chip.get() {
+                return Ok(None);
+            }
+            self.get_key(v)
         }
         fn has_key(&self, _: &str) -> Res<bool> {
             Ok(self.0.key.borrow().is_some())
@@ -243,7 +250,7 @@ mod tests {
     fn a_kept_key_comes_back_after_the_prompt() {
         let (s, fake) = store();
         let key = SecretKey::random().unwrap();
-        s.put(VAULT, &key, 1, true).unwrap();
+        s.put(VAULT, &key, 1).unwrap();
         assert!(s.has(VAULT));
         let got = s.get(VAULT, "test", true).unwrap().unwrap();
         assert_eq!(got.expose(), key.expose());
@@ -260,8 +267,7 @@ mod tests {
     #[test]
     fn a_declined_prompt_hands_out_nothing() {
         let (s, fake) = store();
-        s.put(VAULT, &SecretKey::random().unwrap(), 1, true)
-            .unwrap();
+        s.put(VAULT, &SecretKey::random().unwrap(), 1).unwrap();
         for answer in [Outcome::Declined, Outcome::TimedOut, Outcome::Unavailable] {
             fake.0.answer.set(Some(answer));
             assert!(s.get(VAULT, "test", true).unwrap().is_none());
@@ -275,8 +281,8 @@ mod tests {
     fn putting_again_replaces_the_key() {
         let (s, _) = store();
         let (old, new) = (SecretKey::random().unwrap(), SecretKey::random().unwrap());
-        s.put(VAULT, &old, 1, true).unwrap();
-        s.put(VAULT, &new, 1, true).unwrap();
+        s.put(VAULT, &old, 1).unwrap();
+        s.put(VAULT, &new, 1).unwrap();
         assert_eq!(
             s.get(VAULT, "test", true).unwrap().unwrap().expose(),
             new.expose()
@@ -286,8 +292,7 @@ mod tests {
     #[test]
     fn forgetting_removes_it() {
         let (s, _) = store();
-        s.put(VAULT, &SecretKey::random().unwrap(), 1, true)
-            .unwrap();
+        s.put(VAULT, &SecretKey::random().unwrap(), 1).unwrap();
         s.forget(VAULT).unwrap();
         assert!(!s.has(VAULT));
         assert!(s.get(VAULT, "test", true).unwrap().is_none());
@@ -303,25 +308,6 @@ mod tests {
     }
 
     #[test]
-    fn with_quick_unlock_off_a_login_keychain_key_is_read_without_a_prompt() {
-        let (s, fake) = store();
-        let key = SecretKey::random().unwrap();
-        s.put(VAULT, &key, 1, false).unwrap();
-        let got = s.get(VAULT, "test", false).unwrap().unwrap();
-        assert_eq!(got.expose(), key.expose());
-        assert_eq!(fake.0.asked.get(), 0, "no Touch ID or device password");
-    }
-
-    #[test]
-    fn with_quick_unlock_on_the_same_key_is_read_after_the_prompt() {
-        let (s, fake) = store();
-        s.put(VAULT, &SecretKey::random().unwrap(), 1, true)
-            .unwrap();
-        assert!(s.get(VAULT, "test", true).unwrap().is_some());
-        assert_eq!(fake.0.asked.get(), 1);
-    }
-
-    #[test]
     fn the_generation_is_kept_with_the_key_and_goes_with_it() {
         let (s, _) = store();
         assert_eq!(
@@ -329,29 +315,12 @@ mod tests {
             1,
             "a key kept before the counter existed"
         );
-        s.put(VAULT, &SecretKey::random().unwrap(), 3, false)
-            .unwrap();
+        s.put(VAULT, &SecretKey::random().unwrap(), 3).unwrap();
         assert_eq!(s.kept_gen(VAULT), 3);
-        s.put(VAULT, &SecretKey::random().unwrap(), 4, true)
-            .unwrap();
+        s.put(VAULT, &SecretKey::random().unwrap(), 4).unwrap();
         assert_eq!(s.kept_gen(VAULT), 4);
         s.forget(VAULT).unwrap();
         assert_eq!(s.kept_gen(VAULT), 1);
-    }
-
-    #[test]
-    fn turning_quick_unlock_on_or_off_moves_the_key_and_never_replaces_it() {
-        let (s, _) = store();
-        let key = SecretKey::random().unwrap();
-        s.put(VAULT, &key, 2, false).unwrap();
-        s.retier(VAULT, true, "test").unwrap();
-        s.retier(VAULT, false, "test").unwrap();
-        assert!(s.has(VAULT));
-        assert_eq!(s.kept_gen(VAULT), 2);
-        assert_eq!(
-            s.get(VAULT, "test", false).unwrap().unwrap().expose(),
-            key.expose()
-        );
     }
 
     #[test]
@@ -363,7 +332,7 @@ mod tests {
             gens: Gens::Disk(dir.path().to_path_buf()),
         };
         let key = SecretKey::random().unwrap();
-        on_disk(Fake::default()).put(VAULT, &key, 5, false).unwrap();
+        on_disk(Fake::default()).put(VAULT, &key, 5).unwrap();
         let again = on_disk(Fake::default());
         assert_eq!(again.kept_gen(VAULT), 5);
         assert_eq!(again.kept_gen("ffffffffffffffffffffffffffffffff"), 1);
@@ -376,12 +345,55 @@ mod tests {
         let fake = Fake::default();
         let s = SecretKeyStore::new(fake.clone(), false);
         assert!(!s.available());
-        assert!(
-            s.put(VAULT, &SecretKey::random().unwrap(), 1, true)
-                .is_err()
-        );
+        assert!(s.put(VAULT, &SecretKey::random().unwrap(), 1).is_err());
         assert!(fake.0.key.borrow().is_none());
         assert!(s.get(VAULT, "test", true).unwrap().is_none());
         assert!(s.forget(VAULT).is_ok());
+    }
+
+    #[test]
+    fn unlocking_with_the_password_never_prompts_even_with_quick_unlock_on() {
+        let (s, fake) = store();
+        let key = SecretKey::random().unwrap();
+        s.put(VAULT, &key, 1).unwrap();
+        let got = s.get_quiet(VAULT, "test").unwrap().unwrap();
+        assert_eq!(got.expose(), key.expose());
+        assert_eq!(fake.0.asked.get(), 0, "no Touch ID or device password");
+    }
+
+    #[test]
+    fn showing_the_key_with_quick_unlock_on_asks_once_and_with_it_off_never() {
+        let (s, fake) = store();
+        s.put(VAULT, &SecretKey::random().unwrap(), 1).unwrap();
+        assert!(s.get(VAULT, "test", true).unwrap().is_some());
+        assert_eq!(fake.0.asked.get(), 1);
+        assert!(s.get(VAULT, "test", false).unwrap().is_some());
+        assert_eq!(fake.0.asked.get(), 1);
+        fake.0.answer.set(Some(Outcome::Declined));
+        assert!(s.get(VAULT, "test", true).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_key_left_on_the_chip_is_read_once_then_moved_so_it_never_prompts_again() {
+        let (s, fake) = store();
+        let key = SecretKey::random().unwrap();
+        s.put(VAULT, &key, 1).unwrap();
+        fake.0.on_chip.set(true);
+        let got = s.get_quiet(VAULT, "test").unwrap().unwrap();
+        assert_eq!(got.expose(), key.expose());
+        assert_eq!(fake.0.asked.get(), 1);
+        assert!(!fake.0.on_chip.get(), "moved to the login keychain");
+        assert!(s.get_quiet(VAULT, "test").unwrap().is_some());
+        assert_eq!(fake.0.asked.get(), 1);
+    }
+
+    #[test]
+    fn a_declined_prompt_leaves_a_chip_key_where_it_was() {
+        let (s, fake) = store();
+        s.put(VAULT, &SecretKey::random().unwrap(), 1).unwrap();
+        fake.0.on_chip.set(true);
+        fake.0.answer.set(Some(Outcome::Declined));
+        assert!(s.get_quiet(VAULT, "test").unwrap().is_none());
+        assert!(fake.0.on_chip.get());
     }
 }
