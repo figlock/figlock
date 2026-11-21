@@ -1,0 +1,32 @@
+[package]
+name = "figlock-broker"
+description = "The broker rules: grants, approvals, audit log and the socket server, shared by the CLI daemon and the desktop app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+figlock-core = { version = "0.5.0", path = "../figlock-core" }
+figlock-biometric = { version = "0.5.0", path = "../figlock-biometric" }
+figlock-session = { version = "0.5.0", path = "../figlock-session" }
+figlock-store = { version = "0.5.0", path = "../figlock-store" }
+getrandom.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+zeroize.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+ureq.workspace = true
+url.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+p256.workspace = true
+
+[lints]
+workspace = true

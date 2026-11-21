@@ -32,6 +32,10 @@ impl Sink for FileSink {
     }
 }
 
+/// A record could not be written (a bad member, a full disk, a broken chain). Nothing was changed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AppendFailed;
+
 pub struct AuditWriter {
     sink: Box<dyn Sink>,
     len: u64,
@@ -104,22 +108,28 @@ impl AuditWriter {
 
     /// Seal, frame, write and flush one record. State advances only when the bytes are on disk; on a
     /// failed write the partial record is cut off again, or, if that fails too, the writer refuses forever.
-    pub fn append(&mut self, vault: &Vault, t: u64, ev: &str, d: Value) -> Result<(), ()> {
+    pub fn append(
+        &mut self,
+        vault: &Vault,
+        t: u64,
+        ev: &str,
+        d: Value,
+    ) -> Result<(), AppendFailed> {
         if self.broken {
-            return Err(());
+            return Err(AppendFailed);
         }
         let d: Map<String, Value> = match d {
             Value::Object(m) => m,
-            _ => return Err(()),
+            _ => return Err(AppendFailed),
         };
         let seq = self.seq + 1;
         let record = vault
             .seal_audit(seq, &self.prev, t, ev, &d)
-            .map_err(|_| ())?;
-        let framed = audit_frame(&record).map_err(|_| ())?;
+            .map_err(|_| AppendFailed)?;
+        let framed = audit_frame(&record).map_err(|_| AppendFailed)?;
         if self.sink.append(&framed).is_err() {
             self.broken = self.sink.truncate(self.len).is_err();
-            return Err(());
+            return Err(AppendFailed);
         }
         self.len += framed.len() as u64;
         self.seq = seq;

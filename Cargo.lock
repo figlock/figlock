@@ -1262,10 +1262,9 @@ dependencies = [
 ]
 
 [[package]]
-name = "figlock-cli"
+name = "figlock-broker"
 version = "0.5.0"
 dependencies = [
- "clap",
  "figlock-biometric",
  "figlock-core",
  "figlock-session",
@@ -1274,13 +1273,29 @@ dependencies = [
  "hex",
  "nix",
  "p256",
- "rpassword",
  "serde_json",
  "sha2 0.11.1",
  "subtle",
  "tempfile",
  "ureq",
  "url",
+ "zeroize",
+]
+
+[[package]]
+name = "figlock-cli"
+version = "0.5.0"
+dependencies = [
+ "clap",
+ "figlock-broker",
+ "figlock-core",
+ "figlock-session",
+ "figlock-store",
+ "getrandom 0.4.3",
+ "hex",
+ "rpassword",
+ "serde_json",
+ "tempfile",
  "zeroize",
 ]
 

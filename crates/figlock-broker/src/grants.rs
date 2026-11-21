@@ -90,6 +90,10 @@ impl GrantTable {
         self.grants.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.grants.is_empty()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Grant> {
         self.grants.iter()
     }
@@ -352,6 +356,12 @@ pub mod testenv {
     pub struct TestEnv {
         pub now: Mutex<Duration>,
         pub alive: Mutex<Set<u32>>,
+    }
+
+    impl Default for TestEnv {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     impl TestEnv {

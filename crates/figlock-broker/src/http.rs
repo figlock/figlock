@@ -68,7 +68,7 @@ fn send(
     url: &Url,
     body: Option<&[u8]>,
     secret_header: &str,
-) -> Result<Incoming, ()> {
+) -> Result<Incoming, Refused> {
     let mut b = ureq::http::Request::builder()
         .method(method)
         .uri(url.as_str());
@@ -77,10 +77,10 @@ fn send(
     }
     b = b.header(&out.auth_header, secret_header);
     let resp = match body {
-        Some(data) => agent.run(b.body(data).map_err(|_| ())?),
-        None => agent.run(b.body(()).map_err(|_| ())?),
+        Some(data) => agent.run(b.body(data).map_err(|_| Refused)?),
+        None => agent.run(b.body(()).map_err(|_| Refused)?),
     }
-    .map_err(|_| ())?;
+    .map_err(|_| Refused)?;
     let status = resp.status().as_u16();
     let headers = resp
         .headers()
@@ -92,7 +92,7 @@ fn send(
         .into_reader()
         .take(MAX_RESPONSE as u64 + 1)
         .read_to_end(&mut data)
-        .map_err(|_| ())?;
+        .map_err(|_| Refused)?;
     let truncated = data.len() > MAX_RESPONSE;
     data.truncate(MAX_RESPONSE);
     Ok(Incoming {
@@ -110,6 +110,10 @@ fn location(r: &Incoming) -> Option<&str> {
         .map(|(_, v)| v.as_str())
 }
 
+/// The request was not sent or the answer is not usable; the caller says only `upstream`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Refused;
+
 /// Send `out` with `secret_header` as the value of its auth header. A redirect is followed only when
 /// `allow_hop` says its host may receive the secret (it also records the decision); otherwise the redirect
 /// response itself is returned and the secret goes no further. The first URL is checked by the caller.
@@ -117,7 +121,7 @@ pub fn fetch(
     out: &Outgoing,
     secret_header: &Zeroizing<String>,
     allow_hop: &mut dyn FnMut(&str) -> bool,
-) -> Result<Incoming, ()> {
+) -> Result<Incoming, Refused> {
     let agent = agent();
     let mut url = out.url.clone();
     let mut method = out.method.clone();
@@ -144,7 +148,7 @@ pub fn fetch(
         }
         url = next;
     }
-    Err(())
+    Err(Refused)
 }
 
 #[cfg(test)]

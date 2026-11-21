@@ -1194,7 +1194,7 @@ pub(super) mod run_command {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::run::{RunSpec, execute};
+    use crate::run_cmd::{RunSpec, execute};
 
     #[derive(Clone, Default)]
     struct Buf(Arc<Mutex<Vec<u8>>>);
@@ -1371,7 +1371,7 @@ mod http_command {
 
     use super::run_command::{Served, serve};
     use super::*;
-    use crate::http::{HttpSpec, Reply, execute};
+    use crate::http_cmd::{HttpSpec, Reply, execute};
 
     #[derive(Clone, Debug)]
     struct Seen {
@@ -1662,7 +1662,7 @@ mod http_command {
         assert_eq!(r.status, 302);
         assert_eq!(
             w.seen.lock().unwrap().len(),
-            crate::broker::http::MAX_REDIRECTS + 1,
+            crate::http::MAX_REDIRECTS + 1,
             "the original request plus the limit, and no more"
         );
         // The once grant is spent; another request needs another approval, which is refused here.
@@ -1684,7 +1684,7 @@ mod http_command {
     fn a_long_response_is_cut_and_says_so() {
         let s = serve();
         s.fx.approver.will(&[Decision::Allow]);
-        let big = vec![b'a'; crate::broker::http::MAX_RESPONSE + 1000];
+        let big = vec![b'a'; crate::http::MAX_RESPONSE + 1000];
         let w = web(move |_, _| ("HTTP/1.1 200 OK".to_owned(), big.clone()));
         let r = go(
             &s,
@@ -1692,7 +1692,7 @@ mod http_command {
         )
         .unwrap();
         assert!(r.truncated);
-        assert_eq!(r.body.len(), crate::broker::http::MAX_RESPONSE);
+        assert_eq!(r.body.len(), crate::http::MAX_RESPONSE);
     }
 
     #[test]
@@ -2336,4 +2336,83 @@ impl Fx {
         assert_eq!(r["ok"], true, "{r}");
         r
     }
+}
+
+// ---- FIG-148 / ADR-0040: the broker serves a vault some other part of the program holds ----
+
+/// A host that owns nothing itself: it wraps another and counts how often the broker told it to lock.
+struct Spy {
+    inner: host::LocalHost,
+    locks: AtomicUsize,
+}
+
+impl host::SessionHost for Spy {
+    fn session(&self) -> Option<Box<dyn std::ops::DerefMut<Target = Session> + '_>> {
+        self.inner.session()
+    }
+    fn is_locked(&self) -> bool {
+        self.inner.is_locked()
+    }
+    fn lock(&self) {
+        self.locks.fetch_add(1, Ordering::SeqCst);
+        self.inner.lock();
+    }
+}
+
+#[test]
+fn a_broker_on_a_host_it_does_not_own_serves_and_locks_through_it() {
+    let vault = figlock_core::Vault::create(&random_hex(8), "L", KdfParams::FLOOR, T)
+        .unwrap()
+        .0;
+    let host = Arc::new(Spy {
+        inner: host::LocalHost::new(solo(vault)),
+        locks: AtomicUsize::new(0),
+    });
+    let writer = AuditWriter::with_sink(Box::new(Mem::default()), 0, 0, ZERO_PREV);
+    let broker = Broker::start_on(
+        host.clone(),
+        writer,
+        Box::new(approve::DenyAll),
+        Arc::new(TestEnv::new()),
+        uid(),
+    )
+    .unwrap();
+    let p = peer(1);
+    let status = |b: &Broker| -> Value {
+        serde_json::from_str(&b.handle_line(&p, r#"{"v":1,"id":"s","op":"status"}"#).line).unwrap()
+    };
+    assert_eq!(status(&broker)["locked"], false);
+    // The host locks for its own reasons: the broker sees it and refuses to serve.
+    host.lock();
+    assert!(broker.is_locked());
+    assert_eq!(status(&broker)["locked"], true);
+    let r = broker.handle_line(&p, r#"{"v":1,"id":"g","op":"grant.list"}"#);
+    assert_eq!(
+        serde_json::from_str::<Value>(&r.line).unwrap()["error"]["code"],
+        "locked"
+    );
+}
+
+#[test]
+fn locking_the_broker_locks_the_host() {
+    let vault = figlock_core::Vault::create(&random_hex(8), "L", KdfParams::FLOOR, T)
+        .unwrap()
+        .0;
+    let host = Arc::new(Spy {
+        inner: host::LocalHost::new(solo(vault)),
+        locks: AtomicUsize::new(0),
+    });
+    let writer = AuditWriter::with_sink(Box::new(Mem::default()), 0, 0, ZERO_PREV);
+    let broker = Broker::start_on(
+        host.clone(),
+        writer,
+        Box::new(approve::DenyAll),
+        Arc::new(TestEnv::new()),
+        uid(),
+    )
+    .unwrap();
+    let r = broker.handle_line(&peer(1), r#"{"v":1,"id":"k","op":"lock"}"#);
+    assert!(r.exit);
+    assert_eq!(host.locks.load(Ordering::SeqCst), 1);
+    assert!(host.is_locked());
 }

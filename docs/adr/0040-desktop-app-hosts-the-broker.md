@@ -1,6 +1,6 @@
 # ADR-0040: The desktop app hosts the broker, and approvals start from a notification
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 - Decision: D40 in `docs/decisions.md`
 - Amends: ADR-0019

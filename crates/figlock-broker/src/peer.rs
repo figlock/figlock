@@ -114,6 +114,12 @@ pub struct SystemEnv {
     start: Instant,
 }
 
+impl Default for SystemEnv {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemEnv {
     pub fn new() -> Self {
         SystemEnv {

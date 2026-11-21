@@ -3,7 +3,7 @@
 //! `AGENTS.md` (denied request, tampered log, second broker, wrong password, secret in output).
 //!
 //! The daemon runs with `--deny-all`, so nothing here can open a prompt on the tester's terminal. The
-//! approve path is covered over a real socket in `src/broker/tests.rs`.
+//! approve path is covered over a real socket in `crates/figlock-broker/src/tests.rs`.
 #![cfg(unix)]
 
 use std::fs;

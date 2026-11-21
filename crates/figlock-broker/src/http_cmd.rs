@@ -8,8 +8,8 @@ use std::path::Path;
 use serde_json::json;
 
 use crate::b64;
-use crate::broker::client::{call, expect_ok};
-use crate::broker::server;
+use crate::client::{call, expect_ok};
+use crate::server;
 use figlock_session::error::{Fail, Res};
 
 pub struct HttpSpec {
