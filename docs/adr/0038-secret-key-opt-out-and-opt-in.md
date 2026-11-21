@@ -34,4 +34,5 @@ No crypto or file format change.
 - **Treat any Mac with no key as opted out:** a Mac that never had one yet would never keep one.
 - **Clear the choice at the next full unlock with the key typed:** the bug being fixed.
 - **Ask for the master password again on keep when the window holds the key:** it was checked at unlock and the
-  key never leaves the process; a second ask adds friction and no safety.
+  key never leaves the process; a second ask adds friction and no safety. The held key is still refused, and the key asked for,
+  when the vault's `sk_gen` moved on since this window unlocked.
