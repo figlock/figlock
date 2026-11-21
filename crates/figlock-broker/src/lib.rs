@@ -655,8 +655,10 @@ impl Broker {
         #[cfg(test)]
         self.at_gate
             .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        // The gate is held until the outcome is recorded, so the next request in the queue sees a denial or a
+        // grant made while it waited.
+        let _one_at_a_time = self.gate.lock().unwrap_or_else(|e| e.into_inner());
         let decision = {
-            let _one_at_a_time = self.gate.lock().unwrap_or_else(|e| e.into_inner());
             if !alive() {
                 return Err(Code::Denied);
             }
