@@ -7,6 +7,13 @@
 
   const w = getWorkspace();
 
+  type Props = {
+    /** The newest vault state any Settings panel got back, so a change here shows in its sibling (FIG-143). */
+    latest?: VaultState | null;
+    onstate?: (s: VaultState) => void;
+  };
+  let { latest = null, onstate }: Props = $props();
+
   let info = $state<Pick<
     VaultState,
     "quickUnlock" | "touchAvailable" | "secretKeyKept" | "secretKeyHeld"
@@ -39,7 +46,9 @@
     confirmingOff = false;
     error = "";
     try {
-      info = await turnTouchIdOff();
+      const next = await turnTouchIdOff();
+      info = next;
+      onstate?.(next);
     } catch (e) {
       error = failure(w, e);
     }
@@ -70,7 +79,9 @@
     if (fieldError.password || fieldError.key) return;
     busy = true;
     try {
-      info = await turnTouchIdOn(password, askKey ? secretKey : "");
+      const next = await turnTouchIdOn(password, askKey ? secretKey : "");
+      info = next;
+      onstate?.(next);
       close();
     } catch (err) {
       const e2 = errorOf(err);
@@ -83,6 +94,10 @@
       busy = false;
     }
   }
+
+  $effect(() => {
+    if (latest) info = latest;
+  });
 
   onMount(load);
 </script>

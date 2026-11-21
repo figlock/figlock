@@ -103,7 +103,11 @@ beforeEach(() => {
     localFolder: null,
   } satisfies SyncView);
   core.listDevices.mockResolvedValue([mac]);
-  core.vaultState.mockResolvedValue({ secretKeyKept: true, secretKeyProtection: "keychain" });
+  core.vaultState.mockResolvedValue({
+    secretKeyKept: true,
+    secretKeyProtection: "keychain",
+    quickUnlock: true,
+  });
   core.addDeviceStart.mockResolvedValue(invite);
   core.addDeviceStatus.mockResolvedValue(waiting);
   core.addDeviceCancel.mockResolvedValue(undefined);
@@ -220,4 +224,21 @@ test("an offline start is explained and leaves no code", async () => {
   await user.click(await screen.findByRole("button", { name: "Add a device" }));
   expect(await screen.findByText(/could not reach Google Drive/)).toBeTruthy();
   expect(screen.queryByTestId("invite-code")).toBeNull();
+});
+
+test("with Touch ID off, approving never mentions or asks for Touch ID", async () => {
+  core.vaultState.mockResolvedValue({
+    secretKeyKept: true,
+    secretKeyProtection: "keychain",
+    quickUnlock: false,
+  });
+  const user = await openDialog();
+  core.addDeviceStatus.mockResolvedValue(asked);
+  await vi.advanceTimersByTimeAsync(3100);
+  const dialog = await screen.findByRole("dialog");
+  expect(await within(dialog).findByText('Add "Home Laptop"?')).toBeTruthy();
+  expect(within(dialog).queryByText(/Touch ID/)).toBeNull();
+  core.addDeviceApprove.mockResolvedValue([mac, laptop]);
+  await user.click(within(dialog).getByRole("button", { name: "Approve" }));
+  expect(core.addDeviceApprove).toHaveBeenCalledWith("", "");
 });

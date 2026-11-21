@@ -8,6 +8,7 @@ const core = vi.hoisted(() => ({
   showSecretKey: vi.fn(),
   forgetSecretKey: vi.fn(),
   keepSecretKey: vi.fn(),
+  turnTouchIdOn: vi.fn(),
   saveKit: vi.fn(),
   syncStatus: vi.fn(),
   onSynced: vi.fn(),
@@ -33,6 +34,8 @@ vi.mock("./vault", () => ({
   showSecretKey: core.showSecretKey,
   forgetSecretKey: core.forgetSecretKey,
   keepSecretKey: core.keepSecretKey,
+  turnTouchIdOn: core.turnTouchIdOn,
+  turnTouchIdOff: vi.fn(),
   saveEmergencyKitAgain: core.saveKit,
 }));
 
@@ -241,4 +244,48 @@ test("keeping it again types nothing when the window holds the key", async () =>
   await user.click(await screen.findByRole("button", { name: "Keep it on this Mac" }));
   expect(core.keepSecretKey).toHaveBeenCalledWith("", "");
   expect(await screen.findByText("Kept on this Mac")).toBeTruthy();
+});
+
+test("the kept key only promises a Touch ID prompt when Touch ID is on", async () => {
+  core.vaultState.mockResolvedValue({ ...kept, quickUnlock: true });
+  await toSettings();
+  expect((await screen.findByTestId("key-where")).textContent).toContain("asks for Touch ID");
+});
+
+test("with Touch ID off the kept key panel says nothing about a prompt", async () => {
+  core.vaultState.mockResolvedValue({
+    ...kept,
+    quickUnlock: false,
+    secretKeyProtection: "keychain",
+  });
+  await toSettings();
+  const text = (await screen.findByTestId("key-where")).textContent ?? "";
+  expect(text).toContain("keychain");
+  expect(text).not.toContain("Touch ID");
+  expect(text).not.toContain("device password");
+});
+
+test("turning Touch ID on in Settings updates the Secret Key line at once", async () => {
+  core.vaultState.mockResolvedValue({
+    ...kept,
+    secretKeyProtection: "keychain",
+    secretKeyHeld: true,
+    quickUnlock: false,
+    touchAvailable: true,
+  });
+  core.turnTouchIdOn.mockResolvedValue({
+    ...kept,
+    secretKeyProtection: "keychain",
+    secretKeyHeld: true,
+    quickUnlock: true,
+    touchAvailable: true,
+  });
+  const user = await toSettings();
+  expect((await screen.findByTestId("key-where")).textContent).not.toContain("Touch ID");
+  await user.click(await screen.findByRole("button", { name: "Turn on Touch ID" }));
+  await user.type(screen.getByLabelText("Master password"), "pw");
+  await user.click(screen.getByRole("button", { name: "Turn on" }));
+  await waitFor(() =>
+    expect(screen.getByTestId("key-where").textContent).toContain("asks for Touch ID"),
+  );
 });
