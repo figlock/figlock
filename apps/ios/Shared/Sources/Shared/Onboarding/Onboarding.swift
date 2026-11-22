@@ -203,7 +203,7 @@ public struct Onboarding: Sendable {
         do {
             try await Task.detached(priority: .userInitiated) {
                 let engine = SyncEngine(
-                    local: local, remote: remote, state: state, clock: SystemClock(), ownDevice: nil)
+                    local: local, remote: remote, state: state, clock: SyncRunClock(), ownDevice: nil)
                 _ = try engine.run(confirmReupload: false)
             }.value
         } catch let failure as SyncFailure {

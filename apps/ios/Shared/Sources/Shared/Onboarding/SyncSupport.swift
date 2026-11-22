@@ -1,13 +1,15 @@
 import FigLockFFI
 import Foundation
 
-/// The wall clock for the sync engine.
-public final class SystemClock: SyncClock {
+/// The clock for one sync run: it always answers with the moment the run started. The engine stamps the sync
+/// state when it finishes, and an edit made while the run was listing files may have missed it, so the state
+/// must say when the run began for `PendingSync` to keep such an edit marked as not synced. Make one per run.
+public final class SyncRunClock: SyncClock {
+    private let startedMs = UInt64(Date().timeIntervalSince1970 * 1000)
+
     public init() {}
 
-    public func nowMs() -> UInt64 {
-        UInt64(Date().timeIntervalSince1970 * 1000)
-    }
+    public func nowMs() -> UInt64 { startedMs }
 }
 
 /// The small record a device keeps about its syncing (`SyncStateStore`), in the device folder of the container.
