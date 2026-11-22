@@ -3,7 +3,9 @@ import {
   onSynced,
   syncDeleteRemote,
   syncDisable,
+  syncDisableRemote,
   syncEnable,
+  syncEnableIcloud,
   syncNow,
   syncSignOut,
   syncStatus,
@@ -64,8 +66,17 @@ export class SyncStatus {
     }
   }
 
-  now(reupload = false) {
-    return this.#act(() => syncNow(reupload));
+  /** Sync every place, or only `remote` (its id). */
+  now(reupload = false, remote?: string) {
+    return this.#act(() => (remote === undefined ? syncNow(reupload) : syncNow(reupload, remote)));
+  }
+  /** Turn iCloud Drive sync on. Fails with words that say what to switch on when iCloud Drive is off. */
+  enableIcloud() {
+    return this.#act(syncEnableIcloud);
+  }
+  /** Turn one place off (its id), leaving the others. */
+  disableRemote(id: string) {
+    return this.#act(() => syncDisableRemote(id));
   }
   enable() {
     return this.#act(syncEnable);
@@ -171,6 +182,6 @@ export class SyncStatus {
       this.busy = false;
       await this.refresh();
     }
-    await this.now();
+    await this.now(false, "drive");
   }
 }

@@ -17,6 +17,33 @@ pub struct MissingFolder {
     pub path: String,
     /// Sync was on, so a copy may be in Google Drive.
     pub can_restore: bool,
+    /// Sync to iCloud Drive was on, so a copy may be in its `FigLock` folder.
+    pub can_restore_icloud: bool,
+}
+
+/// Where a restore reads the vault from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RestoreFrom {
+    Drive,
+    Icloud,
+}
+
+impl RestoreFrom {
+    fn name(self) -> &'static str {
+        match self {
+            RestoreFrom::Drive => "Google Drive",
+            RestoreFrom::Icloud => "iCloud Drive",
+        }
+    }
+}
+
+/// The iCloud Drive folder this vault syncs to, if it does.
+fn icloud_remote(place: &config::Place) -> Option<config::Remote> {
+    place
+        .remotes
+        .iter()
+        .find(|r| matches!(r, config::Remote::Folder(p) if figlock_session::icloud::is_icloud_path(p)))
+        .cloned()
 }
 
 /// `Some` when this device is set up but its local vault folder is not there, or is there with no vault in it (an
@@ -27,6 +54,7 @@ pub fn missing() -> Option<MissingFolder> {
     (!place.local.join("vault.json").is_file()).then(|| MissingFolder {
         path: place.local.display().to_string(),
         can_restore: place.has_drive(),
+        can_restore_icloud: icloud_remote(&place).is_some(),
     })
 }
 
@@ -65,18 +93,37 @@ pub fn locate(folder: &str) -> CmdRes<()> {
 /// A folder with nothing in it is filled in a sibling folder first and renamed into place once the download is
 /// whole, so a restore that fails (Google refused the sign-in, the network dropped) leaves nothing on disk and a
 /// quit halfway never leaves a vault folder that only looks set up.
-pub fn restore(folder: Option<&str>) -> CmdRes<()> {
+pub fn restore(folder: Option<&str>, from: RestoreFrom) -> CmdRes<()> {
     require_missing()?;
     let mut place = config::load()?.place;
-    if !place.has_drive() {
-        return Err(CmdError::new(
-            "failed",
-            "Sync was not turned on for this vault, so there is no copy in Google Drive.",
-        ));
-    }
-    if config::load_drive_token()?.is_none() {
-        return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
-    }
+    // Only the place the person chose is read: another one may hold an older copy or be unreachable.
+    let remote = match from {
+        RestoreFrom::Drive => {
+            if !place.has_drive() {
+                return Err(CmdError::new(
+                    "failed",
+                    "Sync was not turned on for this vault, so there is no copy in Google Drive.",
+                ));
+            }
+            if config::load_drive_token()?.is_none() {
+                return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
+            }
+            config::Remote::Drive
+        }
+        RestoreFrom::Icloud => {
+            let remote = icloud_remote(&place).ok_or_else(|| {
+                CmdError::new(
+                    "failed",
+                    "Sync to iCloud Drive was not turned on for this vault, so there is no copy there.",
+                )
+            })?;
+            if let config::Remote::Folder(p) = &remote {
+                figlock_session::icloud::check_arrived(p)?;
+            }
+            remote
+        }
+    };
+    place.remotes = vec![remote];
     let target = match folder.map(str::trim).filter(|f| !f.is_empty()) {
         Some(f) => absolute(f)?,
         None => config::default_local_dir()?,
@@ -84,12 +131,12 @@ pub fn restore(folder: Option<&str>) -> CmdRes<()> {
     if holds_files(&target) {
         // Something is already there: fill it in place, which refuses a different vault.
         place.local = folder_path(&target.display().to_string(), false)?;
-        fetch(&place)?;
+        fetch(&place, from)?;
     } else {
         let staging = staging_for(&target);
         let _ = std::fs::remove_dir_all(&staging);
         place.local = staging.clone();
-        let moved = fetch(&place).and_then(|()| move_into_place(&staging, &target));
+        let moved = fetch(&place, from).and_then(|()| move_into_place(&staging, &target));
         if let Err(e) = moved {
             let _ = std::fs::remove_dir_all(&staging);
             return Err(e);
@@ -133,12 +180,12 @@ fn move_into_place(staging: &std::path::Path, target: &std::path::Path) -> CmdRe
     std::fs::rename(staging, target).map_err(failed)
 }
 
-fn fetch(place: &config::Place) -> CmdRes<()> {
+fn fetch(place: &config::Place, from: RestoreFrom) -> CmdRes<()> {
     sync::open_from_remote(place).map_err(restore_failure)?;
     if store::open_local(&place.local)?.get("vault.json").is_err() {
         return Err(CmdError::new(
             "no_vault",
-            "There is no FigLock vault in this Google Drive.",
+            format!("There is no FigLock vault in {}.", from.name()),
         ));
     }
     Ok(())
@@ -153,7 +200,7 @@ pub(super) fn restore_failure(e: sync::SyncError) -> CmdError {
         ),
         sync::SyncError::Offline | sync::SyncError::Busy => CmdError::new(
             "storage_unreachable",
-            "FigLock could not reach Google Drive. Check your connection, then try again.",
+            "FigLock could not reach where the vault is stored. Check your connection, then try again.",
         ),
         e => Fail::from(e).into(),
     }

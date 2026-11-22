@@ -11,7 +11,7 @@ use std::thread::sleep;
 use std::time::{Duration, Instant};
 
 use figlock_core::{DeviceKeys, Invite, Key, SecretKey, Vault};
-use figlock_session::config::{self, Config, Place, Remote};
+use figlock_session::config::{self, Config, Place};
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::{Session, now_ms, peek_vault_id};
 use figlock_session::{join, secret_key_store, store, sync};
@@ -19,7 +19,7 @@ use figlock_store::StoreError;
 use serde_json::json;
 
 use crate::commands::offer_quick_unlock;
-use crate::{DeviceAddArgs, JoinArgs, OpenArgs, WhereArgs, prompt, quick};
+use crate::{DeviceAddArgs, JoinArgs, OpenArgs, WhereArgs, prompt, quick, remotes};
 
 /// How often to look for the other device's file.
 const POLL: Duration = Duration::from_secs(2);
@@ -36,18 +36,16 @@ fn place_for(a: &WhereArgs) -> Res<Place> {
         Some(path) => path.clone(),
         None => config::default_local_dir()?,
     };
-    let remotes = if a.drive {
-        vec![Remote::Drive]
-    } else {
-        Vec::new()
-    };
-    // A Drive copy is downloaded into this folder, so it may not exist yet.
+    // The folder is looked for, never made: one made here before the other device's has arrived would be synced
+    // as a second folder.
+    let remotes = a.remotes.resolve(false)?;
+    // A synced copy is downloaded into this folder, so it may not exist yet.
     if !remotes.is_empty() {
         std::fs::create_dir_all(&local)?;
     }
     let local = std::fs::canonicalize(&local).map_err(|_| {
         Fail::new(format!(
-            "there is no vault folder at {}; give the folder with --store, or use --drive",
+            "there is no vault folder at {}; give the folder with --store, or use --drive, --icloud or --sync-folder",
             local.display()
         ))
     })?;
@@ -89,9 +87,7 @@ fn settle(
     if cfg.place.syncs()
         && let Err(e) = sync::run(cfg, false)
     {
-        eprintln!(
-            "warning: the first sync with Google Drive failed: {e}. Run `figlock sync` to retry."
-        );
+        eprintln!("warning: the first sync failed: {e}. Run `figlock sync` to retry.");
     }
     offer_quick_unlock(choice(at), json, &vault_id, || -> Res<Key> { Ok(auk) });
     Ok(())
@@ -103,6 +99,8 @@ pub fn join(a: JoinArgs, json: bool) -> Res<()> {
         return Err(already_set_up());
     }
     let place = place_for(&a.at)?;
+    remotes::wait_for_icloud(&place.remotes, a.at.wait_for_sync)?;
+    remotes::open_from_remote_waiting(&place, a.at.wait_for_sync)?;
     let attempt = join::begin(place, &a.code, &a.at.device_name, now_ms())?;
     eprintln!(
         "Asked to join. Check that your other device shows this fingerprint before you approve:\n\n  {}\n",
@@ -146,8 +144,9 @@ pub fn open(a: OpenArgs, json: bool) -> Res<()> {
         return Err(already_set_up());
     }
     let place = place_for(&a.at)?;
-    // Downloads the vault into the local folder when it lives in Drive.
-    sync::open_from_remote(&place)?;
+    // Downloads the vault into the local folder when it lives in Drive or a synced folder.
+    remotes::wait_for_icloud(&place.remotes, a.at.wait_for_sync)?;
+    remotes::open_from_remote_waiting(&place, a.at.wait_for_sync)?;
     let vault_json = store::open(&place)?
         .get("vault.json")
         .map_err(|e| match e {

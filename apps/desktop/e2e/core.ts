@@ -19,7 +19,13 @@ export type Options = {
   cli?: { state: string };
   update?: { version: string; notes?: string };
   updateUnavailable?: boolean;
-  folderMissing?: { path: string; canRestore: boolean };
+  folderMissing?: { path: string; canRestore: boolean; canRestoreIcloud?: boolean };
+  /** iCloud Drive on this Mac: an Apple computer by default, and on. `help` is what to switch on when it is not. */
+  icloud?: { available?: boolean; ready?: boolean; help?: string };
+  /** Sync to iCloud Drive is already on, in this state, with this message. */
+  icloudOn?: boolean;
+  icloudState?: string;
+  icloudMessage?: string;
   pickedFolder?: string;
   /** The Google sign-in waits for the browser until the person cancels. */
   signInHangs?: boolean;

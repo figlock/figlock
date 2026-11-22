@@ -41,19 +41,46 @@ vi.mock("./vault", () => ({
 
 import Workspace from "./Workspace.svelte";
 
-const view = (over: Partial<SyncView> = {}): SyncView => ({
-  enabled: true,
-  state: "idle",
-  signedIn: true,
-  signedInSecsAgo: 3 * 86_400,
-  canSignIn: true,
-  lastSyncSecsAgo: 120,
-  message: null,
-  fork: false,
-  needsUnlock: false,
-  localFolder: "/Users/test/FigLock",
-  ...over,
-});
+const NO_ICLOUD = { available: false, ready: false, folderExists: false, help: null };
+
+/**
+ * A sync view. Unless `remotes` is given, the Google Drive row follows the plain fields (`enabled`, `state`,
+ * `lastSyncSecsAgo`, `message`), as it did when Drive was the only place.
+ */
+const view = (over: Partial<SyncView> = {}): SyncView => {
+  const base = {
+    enabled: true,
+    state: "idle" as const,
+    signedIn: true,
+    signedInSecsAgo: 3 * 86_400,
+    canSignIn: true,
+    lastSyncSecsAgo: 120,
+    message: null,
+    fork: false,
+    needsUnlock: false,
+    localFolder: "/Users/test/FigLock",
+    icloud: NO_ICLOUD,
+    ...over,
+  };
+  return {
+    ...base,
+    remotes:
+      over.remotes ??
+      (base.enabled && base.state !== "off"
+        ? [
+            {
+              id: "drive",
+              kind: "drive" as const,
+              name: "Google Drive",
+              path: null,
+              state: base.state,
+              lastSyncSecsAgo: base.lastSyncSecsAgo,
+              message: base.message,
+            },
+          ]
+        : []),
+  };
+};
 
 let onlocked = vi.fn();
 let emit: () => void = () => {};
@@ -191,7 +218,7 @@ test("sync now syncs and shows the result", async () => {
   core.syncNow.mockResolvedValue(view({ lastSyncSecsAgo: 1 }));
   await user.click(screen.getByRole("button", { name: /Sync now/ }));
   await waitFor(() => expect(screen.getByTestId("last-sync").textContent).toContain("just now"));
-  expect(core.syncNow).toHaveBeenCalledWith(false);
+  expect(core.syncNow).toHaveBeenCalledWith(false, "drive");
 });
 
 test("offline is calm: the vault keeps working and sync retries by itself", async () => {
@@ -221,7 +248,7 @@ test("an expired Google sign-in asks to sign in again, then syncs", async () => 
   core.driveSignIn.mockResolvedValue({ canSignIn: true, signedIn: true });
   core.syncNow.mockResolvedValue(view());
   await user.click(screen.getByRole("button", { name: "Sign in with Google" }));
-  await waitFor(() => expect(core.syncNow).toHaveBeenCalledWith(false));
+  await waitFor(() => expect(core.syncNow).toHaveBeenCalledWith(false, "drive"));
   expect(core.driveSignIn).toHaveBeenCalledTimes(1);
 });
 
@@ -247,7 +274,7 @@ test("a vault missing from Drive is only uploaded again after the person confirm
   await user.click(
     within(await screen.findByRole("dialog")).getByRole("button", { name: "Upload again" }),
   );
-  await waitFor(() => expect(core.syncNow).toHaveBeenCalledWith(true));
+  await waitFor(() => expect(core.syncNow).toHaveBeenCalledWith(true, "drive"));
 });
 
 test("a different vault in Drive pauses sync and says nothing was changed", async () => {

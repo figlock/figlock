@@ -65,6 +65,7 @@ test("a folder is the default and is sent without Drive", async () => {
   expect(core.createVault.mock.calls[0][0]).toEqual({
     path: "/Users/test/FigLock",
     drive: false,
+    icloud: false,
   });
 });
 
@@ -87,6 +88,7 @@ test("syncing with Google Drive needs a sign-in first, and keeps the local folde
   expect(core.createVault.mock.calls[0][0]).toEqual({
     path: "/Users/test/FigLock",
     drive: true,
+    icloud: false,
   });
 });
 

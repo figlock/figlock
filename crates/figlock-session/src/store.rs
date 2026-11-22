@@ -33,6 +33,12 @@ pub fn open_remote(remote: &Remote, local: &std::path::Path) -> Res<Box<dyn Blob
         Remote::Drive => open_drive(),
         Remote::Folder(path) => {
             check_remote_folder(local, path)?;
+            // `LocalFolder::open` makes a missing folder. In iCloud Drive that must not happen on its own: a
+            // `FigLock` folder made here before the other device's has arrived is synced as a second folder
+            // ("FigLock 2"). A folder that was there and is gone means iCloud Drive was turned off.
+            if crate::icloud::is_icloud_path(path) && !path.is_dir() {
+                return Err(Fail::new(crate::icloud::missing_message(path)));
+            }
             Ok(Box::new(LocalFolder::open(path)?))
         }
     }

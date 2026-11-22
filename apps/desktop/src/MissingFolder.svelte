@@ -11,6 +11,7 @@
     forgetVault,
     locateFolder,
     restoreFromDrive,
+    restoreFromIcloud,
     type MissingFolder,
   } from "./vault";
 
@@ -23,7 +24,7 @@
   };
   let { missing, onchanged, oncreate }: Props = $props();
 
-  let busy = $state<"" | "locate" | "restore" | "forget">("");
+  let busy = $state<"" | "locate" | "restore" | "restore-icloud" | "forget">("");
   let error = $state("");
   /** Google has stopped honouring this Mac's sign-in (or there is none): restoring needs a new one first. */
   let needsSignIn = $state(false);
@@ -32,7 +33,7 @@
   /** Which step needs the person's yes before this Mac stops using the vault. */
   let confirming = $state<"" | "create" | "remove">("");
 
-  async function run(kind: "locate" | "restore", step: () => Promise<boolean>) {
+  async function run(kind: "locate" | "restore" | "restore-icloud", step: () => Promise<boolean>) {
     error = "";
     needsSignIn = false;
     busy = kind;
@@ -70,6 +71,13 @@
       return true;
     });
   };
+
+  /** iCloud Drive has no sign-in: restoring only needs its folder to be there. */
+  const restoreIcloud = () =>
+    run("restore-icloud", async () => {
+      await restoreFromIcloud();
+      return true;
+    });
 
   async function forget(next: "create" | "remove") {
     confirming = "";
@@ -121,6 +129,13 @@
         {#if signingIn}
           <Button block onclick={() => driveCancelSignIn().catch(() => {})}>Cancel</Button>
         {/if}
+      {/if}
+      {#if missing.canRestoreIcloud}
+        <Button block onclick={restoreIcloud} disabled={busy !== ""}>
+          {busy === "restore-icloud"
+            ? "Restoring from iCloud Drive..."
+            : "Restore from iCloud Drive folder"}
+        </Button>
       {/if}
       <Button block onclick={() => (confirming = "create")} disabled={busy !== ""}>
         Create a new vault

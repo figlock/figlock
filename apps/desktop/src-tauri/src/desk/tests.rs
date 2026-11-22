@@ -35,6 +35,8 @@ pub(super) fn scenario_in(module: &str, name: &str) {
         .env("FIGLOCK_CLIPBOARD_COPY", dir.path().join("copy.sh"))
         .env("FIGLOCK_CLIPBOARD_PASTE", dir.path().join("paste.sh"))
         .env("FIGLOCK_TEST_DIR", dir.path())
+        // Never the real iCloud Drive: a scenario that wants one makes this folder.
+        .env("FIGLOCK_ICLOUD_DIR", dir.path().join("icloud"))
         .output()
         .unwrap();
     assert!(
@@ -67,6 +69,7 @@ pub(super) fn folder(path: &str) -> Storage {
     Storage {
         path: Some(path.to_owned()),
         drive: false,
+        icloud: false,
     }
 }
 
@@ -75,6 +78,7 @@ fn drive_only() -> Storage {
     Storage {
         path: None,
         drive: true,
+        icloud: false,
     }
 }
 
@@ -385,11 +389,13 @@ fn picking_neither_a_folder_nor_drive_is_refused() {
     let none = Storage {
         path: None,
         drive: false,
+        icloud: false,
     };
     assert_eq!(code_of(storage_place(&none, true).unwrap_err()), "folder");
     let blank = Storage {
         path: Some("  ".into()),
         drive: false,
+        icloud: false,
     };
     assert_eq!(code_of(storage_place(&blank, true).unwrap_err()), "folder");
 }
@@ -422,7 +428,7 @@ fn sync_off_inner() {
         Some(canonical(&vault_dir()).as_str())
     );
     assert!(!d.sync_tick(), "no sync runs while it is off");
-    assert_eq!(d.sync_now(false).unwrap().state, "off");
+    assert_eq!(d.sync_now(None, false).unwrap().state, "off");
 
     // Not signed in: nothing is changed.
     assert_eq!(code_of(d.sync_enable().unwrap_err()), "drive_sign_in");
@@ -515,7 +521,7 @@ fn sync_failing_inner() {
     assert!(v.enabled);
     assert_eq!(v.state, "idle", "nothing has failed yet");
 
-    assert_eq!(d.sync_now(false).unwrap().state, "failed");
+    assert_eq!(d.sync_now(None, false).unwrap().state, "failed");
     let v = d.sync_status().unwrap();
     assert!(v.message.is_some());
     assert!(!d.sync_tick(), "backing off: not due again yet");
@@ -718,4 +724,117 @@ fn a_dead_google_sign_in_reads_as_plain_words_on_unlock() {
         e.message
     );
     assert!(!e.message.contains("figlock drive login"), "{}", e.message);
+}
+
+#[test]
+fn icloud_is_its_own_place_with_its_own_state_and_never_needs_a_sign_in() {
+    scenario("icloud_remote_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn icloud_remote_inner() {
+    let d = desk();
+    let pw = password();
+    let key = created_key(&d, &pw);
+    let groups: Vec<&str> = key.split('-').collect();
+    d.check_kit_key(&groups[groups.len() - 2..].join("-"))
+        .unwrap();
+    d.recovery_skip(true).unwrap();
+    d.finish_create(false).unwrap();
+
+    // iCloud Drive off or signed out: a clear error that says what to switch on, and nothing changes.
+    let v = d.sync_status().unwrap();
+    assert!(v.icloud.available && !v.icloud.ready);
+    assert!(
+        v.icloud
+            .help
+            .as_deref()
+            .unwrap()
+            .contains("System Settings")
+    );
+    let err = d.sync_enable_icloud().unwrap_err();
+    assert_eq!(err.code, "failed");
+    assert!(err.message.contains("System Settings"), "{}", err.message);
+    assert!(!config::load().unwrap().place.syncs());
+
+    // iCloud Drive on: no sign-in step. The folder and its README are made, and the first sync uploads.
+    let icloud = std::path::PathBuf::from(std::env::var("FIGLOCK_ICLOUD_DIR").unwrap());
+    std::fs::create_dir_all(&icloud).unwrap();
+    let v = d.sync_enable_icloud().unwrap();
+    assert!(v.enabled && v.icloud.ready && v.icloud.folder_exists);
+    assert_eq!(v.state, "idle");
+    assert_eq!(v.remotes.len(), 1);
+    let row = &v.remotes[0];
+    assert_eq!(
+        (row.kind, row.name.as_str(), row.state),
+        ("icloud", "iCloud Drive", "idle")
+    );
+    assert!(row.last_sync_secs_ago.is_some());
+    assert!(icloud.join("FigLock/vault.json").is_file());
+    assert!(icloud.join("FigLock/README.txt").is_file());
+    assert!(!v.signed_in, "iCloud has no sign-in");
+
+    // Google Drive can be on beside it; each is its own row, and sync-now of one leaves the other alone.
+    config::add_remote(Remote::Drive).unwrap();
+    let v = d.sync_status().unwrap();
+    assert_eq!(
+        v.remotes.iter().map(|r| r.kind).collect::<Vec<_>>(),
+        ["icloud", "drive"]
+    );
+    let v = d.sync_now(Some(&v.remotes[0].id), false).unwrap();
+    assert_eq!(v.remotes[0].state, "idle");
+    assert_eq!(v.remotes[1].state, "idle", "Drive has not been tried yet");
+    // Drive fails (no sign-in) without touching iCloud's state or slowing it.
+    let v = d.sync_now(Some("drive"), false).unwrap();
+    assert_eq!(v.remotes[1].state, "failed");
+    assert_eq!(v.remotes[0].state, "idle");
+    assert_eq!(
+        v.state, "failed",
+        "the sidebar word is the one that needs attention"
+    );
+
+    // iCloud Drive signed out mid-use: unavailable at once, clear words, and no data lost.
+    let folder = icloud.join("FigLock");
+    let away = icloud.with_file_name("icloud-away");
+    std::fs::rename(&icloud, &away).unwrap();
+    let v = d.sync_status().unwrap();
+    assert_eq!(v.remotes[0].state, "unavailable");
+    assert!(
+        v.remotes[0]
+            .message
+            .as_deref()
+            .unwrap()
+            .contains("System Settings")
+    );
+    let v = d.sync_now(Some(&v.remotes[0].id), false).unwrap();
+    assert_eq!(v.remotes[0].state, "unavailable");
+    assert!(
+        !folder.exists(),
+        "FigLock never recreates iCloud Drive's folder"
+    );
+    assert!(d.list_items("").unwrap().is_empty());
+    // And it recovers by itself when iCloud Drive is back with its files.
+    std::fs::rename(&away, &icloud).unwrap();
+    let v = d.sync_now(Some(&v.remotes[0].id), false).unwrap();
+    assert_eq!(v.remotes[0].state, "idle");
+
+    // Turn iCloud off alone: Drive stays configured.
+    let id = v.remotes[0].id.clone();
+    let v = d.sync_disable_remote(&id).unwrap();
+    assert_eq!(v.remotes.len(), 1);
+    assert_eq!(v.remotes[0].kind, "drive");
+    assert!(
+        folder.join("vault.json").is_file(),
+        "the copy in iCloud is left alone"
+    );
+}
+
+#[test]
+fn a_window_can_ask_for_icloud_as_where_a_vault_lives() {
+    let s: Storage = serde_json::from_str(r#"{"icloud":true}"#).unwrap();
+    assert_eq!(s.there(), "iCloud Drive");
+    let both: Storage =
+        serde_json::from_str(r#"{"path":"/tmp/v","drive":true,"icloud":true}"#).unwrap();
+    assert!(both.drive && both.icloud);
 }

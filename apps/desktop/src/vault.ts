@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+import type { IcloudView } from "./sync";
+
 /** What the window may know about the vault. Keys and plaintext stay in the Rust side (ADR-0020). */
 export type VaultState = {
   /** `none`: nothing set up on this device. */
@@ -39,6 +41,8 @@ export type MissingFolder = {
   path: string;
   /** Sync was on, so a copy may be in Google Drive. */
   canRestore: boolean;
+  /** Sync to iCloud Drive was on, so a copy may be in its `FigLock` folder. */
+  canRestoreIcloud: boolean;
 };
 
 /** A failed command: a code to branch on and a message that is safe to show. */
@@ -59,10 +63,11 @@ export const suggestedFolder = () => invoke<string | null>("suggested_folder");
 export const chooseFolder = () => invoke<string | null>("choose_folder");
 
 /**
- * Where a vault is kept (ADR-0026): always a folder on this Mac, and optionally synced to the hidden app
- * folder in the person's Google Drive. `drive` without a `path` means the default folder.
+ * Where a vault is kept (ADR-0026, ADR-0043): always a folder on this Mac, and optionally synced to the hidden
+ * app folder in the person's Google Drive, the `FigLock` folder in iCloud Drive, or both. `drive` or `icloud`
+ * without a `path` means the default folder.
  */
-export type Storage = { path?: string; drive?: boolean };
+export type Storage = { path?: string; drive?: boolean; icloud?: boolean };
 
 /** `canSignIn` is false in a build without a Google client (source builds, ADR-0021). */
 export type DriveStatus = { canSignIn: boolean; signedIn: boolean };
@@ -75,11 +80,17 @@ export const driveCancelSignIn = () => invoke<void>("drive_cancel_sign_in");
 /** `revoked` is false when Google could not be reached, so access may still be there. */
 export const driveSignOut = () => invoke<{ revoked: boolean }>("drive_sign_out");
 
+/** Whether iCloud Drive can be used on this Mac. Needs no vault, so setup screens can ask. */
+export const icloudStatus = () => invoke<IcloudView>("icloud_status");
+
 /** The folder was moved: point this Mac at it. Refused when it holds no vault. */
 export const locateFolder = (folder: string) => invoke<void>("locate_folder", { folder });
 /** Downloads the vault from Google Drive into a new local folder; sign in first. */
 export const restoreFromDrive = (folder?: string) =>
   invoke<void>("restore_from_drive", { folder: folder ?? null });
+/** Copies the vault from the `FigLock` folder in iCloud Drive into a new local folder. */
+export const restoreFromIcloud = (folder?: string) =>
+  invoke<void>("restore_from_icloud", { folder: folder ?? null });
 /** This Mac stops using the vault; nothing in the folder or Drive is deleted. Needs the person's yes. */
 /** A locked Mac that cannot get back in stops using its vault (FIG-139, R3). */
 export const forgetLockedVault = (confirmed: boolean) =>

@@ -2,11 +2,48 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 export type SyncState =
-  "off" | "idle" | "syncing" | "offline" | "sign_in" | "lost" | "foreign" | "failed";
+  | "off"
+  | "idle"
+  | "syncing"
+  | "offline"
+  | "sign_in"
+  | "lost"
+  | "foreign"
+  | "unavailable"
+  | "waiting"
+  | "failed";
 
-/** How Google Drive sync is going, with nothing secret in it. */
+/** One place the vault syncs to, with its own state: one failing never holds up another (ADR-0043). */
+export type RemoteView = {
+  /** Stable name to act on it: `drive`, or `folder:<path>`. */
+  id: string;
+  kind: "drive" | "icloud" | "folder";
+  /** "Google Drive", "iCloud Drive", or the folder's name. */
+  name: string;
+  path: string | null;
+  state: Exclude<SyncState, "off">;
+  lastSyncSecsAgo: number | null;
+  /** Words for the person when this place needs attention. */
+  message: string | null;
+};
+
+/** iCloud Drive on this Mac. It has no sign-in: it is a folder the system syncs. */
+export type IcloudView = {
+  /** An Apple computer, where iCloud Drive can exist. */
+  available: boolean;
+  /** iCloud Drive is on and signed in. */
+  ready: boolean;
+  /** `iCloud Drive/FigLock` already exists. */
+  folderExists: boolean;
+  /** What to switch on in System Settings when it is not ready. */
+  help: string | null;
+};
+
+/** How sync is going to every place, with nothing secret in it. */
 export type SyncView = {
+  /** Sync is on to at least one place. */
   enabled: boolean;
+  /** All places in one word, for the sidebar. */
   state: SyncState;
   signedIn: boolean;
   /** How long ago this Mac signed in to Google; the sign-in carries no account name. */
@@ -21,12 +58,23 @@ export type SyncView = {
   /** Another device changed the password, keys or devices: lock and unlock to take it in. */
   needsUnlock: boolean;
   localFolder: string | null;
+  remotes: RemoteView[];
+  icloud: IcloudView;
 };
 
 export const syncStatus = () => invoke<SyncView>("sync_status");
-/** `reupload` is the person's yes to uploading everything again after the vault was lost from Drive. */
-export const syncNow = (reupload = false) => invoke<SyncView>("sync_now", { reupload });
+/**
+ * Sync now: every place, or only `remote` (its id). `reupload` is the person's yes to uploading everything again
+ * after the vault was lost from a place.
+ */
+export const syncNow = (reupload = false, remote?: string) =>
+  invoke<SyncView>("sync_now", { remote: remote ?? null, reupload });
 export const syncEnable = () => invoke<SyncView>("sync_enable");
+/** Turns iCloud Drive sync on: no sign-in; makes `iCloud Drive/FigLock` when it is not there. */
+export const syncEnableIcloud = () => invoke<SyncView>("sync_enable_icloud");
+/** Stops syncing to one place (its id), leaving the others. Nothing already stored there is touched. */
+export const syncDisableRemote = (remote: string) =>
+  invoke<SyncView>("sync_disable_remote", { remote });
 /**
  * Signs out of Google and turns sync off. The vault on this Mac and the copy in Drive are kept. `revoked` is
  * false when Google could not be reached, so access may still be there.
@@ -60,6 +108,9 @@ export function ago(secs: number | null): string {
 
 /** The short line under the sidebar: what the person most needs to know about sync right now. */
 export function badge(v: SyncView): { text: string; attention: boolean } {
+  // The place that needs attention, so the line can name it.
+  const at = v.remotes.find((r) => r.state === v.state);
+  const where = !at || at.kind === "drive" ? "Drive" : at.name;
   switch (v.state) {
     case "syncing":
       return { text: "Syncing...", attention: false };
@@ -68,7 +119,11 @@ export function badge(v: SyncView): { text: string; attention: boolean } {
     case "sign_in":
       return { text: "Sign in to keep syncing", attention: true };
     case "lost":
-      return { text: "Vault missing from Drive", attention: true };
+      return { text: `Vault missing from ${where}`, attention: true };
+    case "unavailable":
+      return { text: `${where} not available`, attention: true };
+    case "waiting":
+      return { text: "Waiting for iCloud...", attention: false };
     case "foreign":
       return { text: "Sync paused", attention: true };
     case "failed":

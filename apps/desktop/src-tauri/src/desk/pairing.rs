@@ -9,7 +9,6 @@ use figlock_session::{config, sync};
 use serde::Serialize;
 
 use super::devices::{DeviceRow, revoke_credentials_error};
-use super::sync::Kind;
 use super::{CmdError, CmdRes, Desk, KeyFrom, parse_secret_key};
 
 /// An open invite, and the request that arrived for it. Not `Debug`: it holds the invite secret.
@@ -102,11 +101,11 @@ impl Desk {
             (offer, expires)
         };
         // With Drive sync the new device finds the invite there, so it has to arrive before the code is shown.
-        if self.run_sync(false) && self.sync_state().kind != Kind::Idle {
+        if self.run_sync(false) && self.sync_state().none_synced() {
             self.add_device_cancel()?;
             return Err(CmdError::new(
                 "offline",
-                "FigLock could not reach Google Drive, so the new device could not find the invite. Check your connection and try again.",
+                "FigLock could not reach where your vault is synced, so the new device could not find the invite. Check your connection and try again.",
             ));
         }
         let qr = qr_rows(&offer.code)
