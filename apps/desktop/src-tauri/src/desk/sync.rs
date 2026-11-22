@@ -116,7 +116,7 @@ impl Desk {
 
     pub fn sync_status(&self) -> CmdRes<SyncView> {
         let cfg = config::load().ok();
-        let enabled = cfg.as_ref().is_some_and(|c| c.place.remote.is_some());
+        let enabled = cfg.as_ref().is_some_and(|c| c.place.has_drive());
         let drive = drive::status()?;
         let s = self.sync_state();
         // A stored sign-in Google has stopped honouring is not a sign-in: say so, here and in the CLI.
@@ -161,9 +161,9 @@ impl Desk {
     /// Sign out of Google: turn sync off first (a Mac with sync on and no sign-in would only sit at "sign in
     /// again"), then revoke the token and forget it. The vault on this Mac and the copy in Drive are left alone.
     pub fn sync_sign_out(&self) -> CmdRes<super::drive::SignedOut> {
-        if config::load().is_ok_and(|c| c.place.remote.is_some()) {
-            config::set_remote(None)?;
-            sync::forget_state();
+        if config::load().is_ok_and(|c| c.place.has_drive()) {
+            config::remove_remote(&Remote::Drive)?;
+            sync::forget_state_of(&Remote::Drive);
             *self.sync_state() = SyncState::new();
         }
         super::drive::sign_out()
@@ -181,7 +181,7 @@ impl Desk {
         let Ok(cfg) = config::load() else {
             return false;
         };
-        if cfg.place.remote.is_none() {
+        if !cfg.place.syncs() {
             return false;
         }
         self.sync_state().running = true;
@@ -315,22 +315,23 @@ impl Desk {
     /// different vault in Drive or a dead sign-in leaves the device as it was.
     pub fn sync_enable(&self) -> CmdRes<SyncView> {
         let cfg = config::load()?;
-        if cfg.place.remote.is_some() {
+        if cfg.place.has_drive() {
             return self.sync_status();
         }
         if !drive::status()?.signed_in {
             return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
         }
-        sync::forget_state();
-        let cfg = config::set_remote(Some(Remote::Drive))?;
-        match sync::run(&cfg, false) {
+        sync::forget_state_of(&Remote::Drive);
+        let cfg = config::add_remote(Remote::Drive)?;
+        // Only Drive's first sync decides whether it stays on.
+        match sync::run_remote(&cfg, &Remote::Drive, false) {
             Ok(_) => {
                 *self.sync_state() = SyncState::new();
                 self.sync_status()
             }
             Err(e) => {
-                config::set_remote(None)?;
-                sync::forget_state();
+                config::remove_remote(&Remote::Drive)?;
+                sync::forget_state_of(&Remote::Drive);
                 Err(CmdError::new(
                     "sync_failed",
                     format!(
@@ -383,8 +384,8 @@ impl Desk {
 
     /// Stop syncing. The vault on this Mac and the copy in Drive are left alone.
     pub fn sync_disable(&self) -> CmdRes<SyncView> {
-        config::set_remote(None)?;
-        sync::forget_state();
+        config::remove_remote(&Remote::Drive)?;
+        sync::forget_state_of(&Remote::Drive);
         *self.sync_state() = SyncState::new();
         self.sync_status()
     }

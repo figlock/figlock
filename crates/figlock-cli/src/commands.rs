@@ -41,7 +41,11 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
             Some(path) => path.clone(),
             None => config::default_local_dir()?,
         },
-        remote: a.drive.then_some(Remote::Drive),
+        remotes: if a.drive {
+            vec![Remote::Drive]
+        } else {
+            Vec::new()
+        },
     };
     // Only a definite "not there" lets init continue: an unreachable or signed-out store must not look like
     // an empty one, or a second vault could be created next to the first. Nothing is created before this.
@@ -94,7 +98,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         }))?;
     } else {
         println!("Vault created in {}", cfg.place.local.display());
-        if cfg.place.remote.is_some() {
+        if cfg.place.syncs() {
             println!("Synced to your Google Drive (hidden app folder)");
         }
         println!("Secret Key: {}", secret_key.as_str());
@@ -104,7 +108,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
          you need the written copy to recover the vault or to add a device when no other one is at hand."
     );
     keep_secret_key(&created);
-    if cfg.place.remote.is_some()
+    if cfg.place.syncs()
         && let Err(e) = figlock_session::sync::run(&cfg, false)
     {
         eprintln!(

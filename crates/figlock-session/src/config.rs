@@ -17,19 +17,69 @@ use zeroize::Zeroizing;
 use crate::error::{Fail, FailKind, Res};
 use crate::keystore::{self, SecretStore};
 
-/// A second location the local vault is kept matched to by sync (ADR-0026).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Another location the local vault is kept matched to by sync (ADR-0026, FIG-196).
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Remote {
     /// The hidden appDataFolder in the Google Drive this device is signed in to (`figlock drive login`).
     Drive,
+    /// A second folder, such as one in iCloud Drive or Dropbox, mirrored like Drive. Never the local folder.
+    Folder(PathBuf),
+}
+
+impl Remote {
+    /// A stable name for this remote: the key of its sync state, and how a message refers to it.
+    pub fn id(&self) -> String {
+        match self {
+            Remote::Drive => "drive".to_owned(),
+            Remote::Folder(p) => format!("folder:{}", p.display()),
+        }
+    }
+
+    /// Words for a person: "Google Drive" or the folder's path.
+    pub fn label(&self) -> String {
+        match self {
+            Remote::Drive => "Google Drive".to_owned(),
+            Remote::Folder(p) => p.display().to_string(),
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        match self {
+            Remote::Drive => json!("drive"),
+            Remote::Folder(p) => json!({ "folder": p.to_string_lossy() }),
+        }
+    }
+
+    fn from_json(v: &Value) -> Option<Remote> {
+        match v {
+            Value::String(s) if s == "drive" => Some(Remote::Drive),
+            Value::Object(o) => o
+                .get("folder")
+                .and_then(Value::as_str)
+                .filter(|p| !p.is_empty())
+                .map(|p| Remote::Folder(p.into())),
+            _ => None,
+        }
+    }
 }
 
 /// Where this device's vault lives: always a local folder (possibly itself synced by iCloud Drive, Dropbox,
-/// Syncthing), and optionally a remote that sync keeps matched to it.
+/// Syncthing), and any number of remotes that sync keeps matched to it, each on its own.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Place {
     pub local: PathBuf,
-    pub remote: Option<Remote>,
+    pub remotes: Vec<Remote>,
+}
+
+impl Place {
+    /// Whether this device syncs anywhere.
+    pub fn syncs(&self) -> bool {
+        !self.remotes.is_empty()
+    }
+
+    pub fn has_drive(&self) -> bool {
+        self.remotes.contains(&Remote::Drive)
+    }
 }
 
 pub struct Config {
@@ -162,9 +212,8 @@ fn config_body(cfg: &Config) -> Res<String> {
         .to_str()
         .ok_or_else(|| Fail::new("the store path is not valid text"))?;
     let mut body = json!({ "store": path, "device_name": cfg.device_name });
-    match cfg.place.remote {
-        None => {}
-        Some(Remote::Drive) => body["remote"] = json!("drive"),
+    if cfg.place.syncs() {
+        body["remotes"] = Value::Array(cfg.place.remotes.iter().map(Remote::to_json).collect());
     }
     if let Some(secs) = cfg.autolock_secs {
         body["autolock_secs"] = json!(secs);
@@ -344,11 +393,21 @@ fn load_in(home: &Path) -> Res<Config> {
             .ok_or_else(|| Fail::new("config.json is damaged"))
     };
     let unknown = || Fail::new("config.json names a storage kind this version does not know");
-    let remote = match v.get("remote").and_then(Value::as_str) {
-        None => None,
-        Some("drive") => Some(Remote::Drive),
-        Some(_) => return Err(unknown()),
-    };
+    // `remotes` is the list; a config from before FIG-196 has one optional `remote` string instead.
+    let mut remotes = Vec::new();
+    match (v.get("remotes"), v.get("remote")) {
+        (Some(Value::Array(list)), _) => {
+            for item in list {
+                let r = Remote::from_json(item).ok_or_else(unknown)?;
+                if !remotes.contains(&r) {
+                    remotes.push(r);
+                }
+            }
+        }
+        (Some(_), _) => return Err(unknown()),
+        (None, Some(one)) => remotes.push(Remote::from_json(one).ok_or_else(unknown)?),
+        (None, None) => {}
+    }
     let (local, legacy) = match v.get("store_kind").and_then(Value::as_str) {
         None => (get("store")?.into(), false),
         // A Drive-only device from before ADR-0026: it gets a local folder, filled from Drive on first use.
@@ -358,7 +417,7 @@ fn load_in(home: &Path) -> Res<Config> {
     let cfg = Config {
         place: Place {
             local,
-            remote: if legacy { Some(Remote::Drive) } else { remote },
+            remotes: if legacy { vec![Remote::Drive] } else { remotes },
         },
         device_name: get("device_name")?,
         autolock_secs: v.get("autolock_secs").and_then(Value::as_u64),
@@ -371,15 +430,42 @@ fn load_in(home: &Path) -> Res<Config> {
     Ok(cfg)
 }
 
-/// Turn the remote on or off for this device, keeping everything else in `config.json`.
-pub fn set_remote(remote: Option<Remote>) -> Res<Config> {
-    set_remote_in(&home()?, remote)
+/// Add a remote to this device (a remote it already has stays as it is), keeping everything else in
+/// `config.json`. Refuses a folder that is, holds or is inside the local vault folder.
+pub fn add_remote(remote: Remote) -> Res<Config> {
+    add_remote_in(&home()?, remote)
 }
 
-fn set_remote_in(home: &Path, remote: Option<Remote>) -> Res<Config> {
+fn add_remote_in(home: &Path, remote: Remote) -> Res<Config> {
     let mut cfg = load_in(home)?;
-    cfg.place.remote = remote;
+    if let Remote::Folder(p) = &remote {
+        crate::store::check_remote_folder(&cfg.place.local, p)?;
+    }
+    if !cfg.place.remotes.contains(&remote) {
+        cfg.place.remotes.push(remote);
+    }
     fs::write(config_path(home), config_body(&cfg)?)?;
+    Ok(cfg)
+}
+
+/// Stop syncing to one remote, leaving the others.
+pub fn remove_remote(remote: &Remote) -> Res<Config> {
+    remove_remote_in(&home()?, remote)
+}
+
+fn remove_remote_in(home: &Path, remote: &Remote) -> Res<Config> {
+    let mut cfg = load_in(home)?;
+    cfg.place.remotes.retain(|r| r != remote);
+    fs::write(config_path(home), config_body(&cfg)?)?;
+    Ok(cfg)
+}
+
+/// Stop syncing anywhere.
+pub fn clear_remotes() -> Res<Config> {
+    let home = home()?;
+    let mut cfg = load_in(&home)?;
+    cfg.place.remotes.clear();
+    fs::write(config_path(&home), config_body(&cfg)?)?;
     Ok(cfg)
 }
 
@@ -680,7 +766,7 @@ mod tests {
         Config {
             place: Place {
                 local: "/vault".into(),
-                remote: Some(Remote::Drive),
+                remotes: vec![Remote::Drive],
             },
             device_name: "Laptop".into(),
             autolock_secs: None,
@@ -856,7 +942,7 @@ mod tests {
         let mut c = cfg();
         c.place = Place {
             local: d.path().join("v"),
-            remote: None,
+            remotes: Vec::new(),
         };
         save_in(d.path(), &c, &keys, None).unwrap();
         let back = load_in(d.path()).unwrap();
@@ -867,7 +953,7 @@ mod tests {
                 .contains("remote")
         );
 
-        c.place.remote = Some(Remote::Drive);
+        c.place.remotes = vec![Remote::Drive];
         fs::write(config_path(d.path()), config_body(&c).unwrap()).unwrap();
         assert_eq!(load_in(d.path()).unwrap().place, c.place);
     }
@@ -892,7 +978,7 @@ mod tests {
         );
         assert_eq!(load_in(d.path()).unwrap().autolock_secs, Some(900));
         // Another change to `config.json` keeps it.
-        set_remote_in(d.path(), None).unwrap();
+        remove_remote_in(d.path(), &Remote::Drive).unwrap();
         set_local_in(d.path(), d.path().join("moved")).unwrap();
         assert_eq!(load_in(d.path()).unwrap().autolock_secs, Some(900));
 
@@ -910,7 +996,7 @@ mod tests {
         .unwrap();
         let c = load_in(d.path()).unwrap();
         assert_eq!(c.place.local, d.path().join("vault"));
-        assert_eq!(c.place.remote, Some(Remote::Drive));
+        assert_eq!(c.place.remotes, [Remote::Drive]);
         assert_eq!(c.device_name, "Old");
         let text = fs::read_to_string(config_path(d.path())).unwrap();
         assert!(!text.contains("store_kind"), "rewritten in the new shape");
@@ -937,13 +1023,97 @@ mod tests {
         let d = tempfile::tempdir().unwrap();
         let keys = DeviceKeys::generate().unwrap();
         let mut c = cfg();
-        c.place.remote = None;
+        c.place.remotes.clear();
         save_in(d.path(), &c, &keys, None).unwrap();
-        let on = set_remote_in(d.path(), Some(Remote::Drive)).unwrap();
-        assert_eq!(on.place.remote, Some(Remote::Drive));
-        assert_eq!(load_in(d.path()).unwrap().place.remote, Some(Remote::Drive));
-        let off = set_remote_in(d.path(), None).unwrap();
+        let on = add_remote_in(d.path(), Remote::Drive).unwrap();
+        assert_eq!(on.place.remotes, [Remote::Drive]);
+        assert_eq!(load_in(d.path()).unwrap().place.remotes, [Remote::Drive]);
+        let off = remove_remote_in(d.path(), &Remote::Drive).unwrap();
         assert_eq!(off.place, c.place);
         assert_eq!(load_in(d.path()).unwrap().device_name, "Laptop");
+    }
+
+    #[test]
+    fn a_config_from_before_the_list_reads_unchanged_and_is_written_in_the_new_shape() {
+        let d = tempfile::tempdir().unwrap();
+        let old = r#"{"store":"/v","remote":"drive","device_name":"Old"}"#;
+        fs::write(config_path(d.path()), old).unwrap();
+        let c = load_in(d.path()).unwrap();
+        assert_eq!(c.place.remotes, [Remote::Drive]);
+        assert_eq!(
+            fs::read_to_string(config_path(d.path())).unwrap(),
+            old,
+            "reading rewrites nothing"
+        );
+
+        // The next change writes the list; the old `remote` key is gone.
+        let c = add_remote_in(d.path(), Remote::Folder(d.path().join("icloud"))).unwrap();
+        let text = fs::read_to_string(config_path(d.path())).unwrap();
+        assert!(text.contains("\"remotes\""), "{text}");
+        assert!(!text.contains("\"remote\""), "{text}");
+        assert_eq!(load_in(d.path()).unwrap().place, c.place);
+        assert_eq!(c.place.remotes.len(), 2);
+    }
+
+    #[test]
+    fn several_remotes_round_trip_in_order_without_duplicates() {
+        let d = tempfile::tempdir().unwrap();
+        let keys = DeviceKeys::generate().unwrap();
+        let mut c = cfg();
+        c.place = Place {
+            local: d.path().join("v"),
+            remotes: Vec::new(),
+        };
+        save_in(d.path(), &c, &keys, None).unwrap();
+        let folder = Remote::Folder(d.path().join("icloud"));
+        add_remote_in(d.path(), folder.clone()).unwrap();
+        add_remote_in(d.path(), Remote::Drive).unwrap();
+        add_remote_in(d.path(), folder.clone()).unwrap();
+        assert_eq!(
+            load_in(d.path()).unwrap().place.remotes,
+            [folder.clone(), Remote::Drive]
+        );
+        // Turning one off leaves the other.
+        remove_remote_in(d.path(), &Remote::Drive).unwrap();
+        assert_eq!(load_in(d.path()).unwrap().place.remotes, [folder]);
+    }
+
+    #[test]
+    fn a_folder_remote_that_is_the_local_folder_is_refused() {
+        let d = tempfile::tempdir().unwrap();
+        let keys = DeviceKeys::generate().unwrap();
+        let mut c = cfg();
+        let local = d.path().join("v");
+        fs::create_dir_all(&local).unwrap();
+        c.place = Place {
+            local: local.clone(),
+            remotes: Vec::new(),
+        };
+        save_in(d.path(), &c, &keys, None).unwrap();
+        // The same directory, spelled differently, and one inside the other.
+        for bad in [
+            local.clone(),
+            local.join("."),
+            local.join("sub"),
+            d.path().to_path_buf(),
+        ] {
+            assert!(
+                add_remote_in(d.path(), Remote::Folder(bad.clone())).is_err(),
+                "{bad:?}"
+            );
+        }
+        assert!(load_in(d.path()).unwrap().place.remotes.is_empty());
+        assert!(add_remote_in(d.path(), Remote::Folder(d.path().join("other"))).is_ok());
+    }
+
+    #[test]
+    fn an_unknown_entry_in_the_list_is_refused() {
+        let d = tempfile::tempdir().unwrap();
+        fs::write(
+            config_path(d.path()),
+            r#"{"store":"/v","remotes":["drive",{"s3":"b"}],"device_name":"x"}"#,
+        )
+        .unwrap();
+        assert!(load_in(d.path()).is_err());
     }
 }

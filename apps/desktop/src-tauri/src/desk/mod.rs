@@ -696,7 +696,7 @@ impl Desk {
             return Err(Fail::from(e).into());
         }
         // The vault is safe on this device either way; a failed first upload is retried by the next sync.
-        if cfg.place.remote.is_some() {
+        if cfg.place.syncs() {
             let _ = figlock_session::sync::run(&cfg, false);
         }
         let key = SecretKey::from_bytes(*c.created.secret_key.expose());
@@ -998,7 +998,11 @@ fn storage_place(storage: &Storage, create: bool) -> CmdRes<Place> {
     }
     Ok(Place {
         local,
-        remote: storage.drive.then_some(Remote::Drive),
+        remotes: if storage.drive {
+            vec![Remote::Drive]
+        } else {
+            Vec::new()
+        },
     })
 }
 

@@ -121,7 +121,7 @@ mod tests {
     fn folder(path: &std::path::Path) -> Place {
         Place {
             local: path.into(),
-            remote: None,
+            remotes: Vec::new(),
         }
     }
 

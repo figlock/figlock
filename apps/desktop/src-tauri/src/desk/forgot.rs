@@ -310,7 +310,7 @@ impl Desk {
             return Err(Fail::from(e).into());
         }
         // The vault is safe on this device either way; a failed first upload is retried by the next sync.
-        if cfg.place.remote.is_some() {
+        if cfg.place.syncs() {
             let _ = figlock_session::sync::run(&cfg, false);
         }
         self.inner().recovery = None;

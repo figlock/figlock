@@ -17,8 +17,8 @@ with Drive as an optional second location synced in the background.
 - **Every device has a local vault folder.** The person picks it, or, when they choose Drive without picking
   one, it is `<app data dir>/vault`. All reads and writes go to the local folder, so the app and CLI work
   offline and never wait on the network.
-- **Drive is an optional remote.** Device config holds the local folder (required) and `remote` (absent or
-  `drive`). Choosing Drive at setup means "local copy plus sync", never Drive alone.
+- **Drive is an optional remote.** Device config holds the local folder (required) and a list of remotes (ADR-0043:
+  `drive` and folders; before it a single `remote`, absent or `drive`). Choosing Drive at setup means "local copy plus sync", never Drive alone.
 - **Turning Drive on later** signs in, then uploads what is already local. **Turning it off** stops syncing
   and leaves the local copy and the Drive data alone (signing out is a separate step, ADR-0021). The desktop Settings (FIG-120) shows
   whether this Mac is signed in to Google and since when (the app-folder scope gives no email, so no account

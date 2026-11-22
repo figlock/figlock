@@ -26,7 +26,7 @@ pub fn missing() -> Option<MissingFolder> {
     let place = config::load().ok()?.place;
     (!place.local.join("vault.json").is_file()).then(|| MissingFolder {
         path: place.local.display().to_string(),
-        can_restore: place.remote.is_some(),
+        can_restore: place.has_drive(),
     })
 }
 
@@ -68,7 +68,7 @@ pub fn locate(folder: &str) -> CmdRes<()> {
 pub fn restore(folder: Option<&str>) -> CmdRes<()> {
     require_missing()?;
     let mut place = config::load()?.place;
-    if place.remote.is_none() {
+    if !place.has_drive() {
         return Err(CmdError::new(
             "failed",
             "Sync was not turned on for this vault, so there is no copy in Google Drive.",

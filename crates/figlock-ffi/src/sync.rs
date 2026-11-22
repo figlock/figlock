@@ -152,6 +152,9 @@ pub enum SyncFailure {
     ForeignVault,
     /// The remote has no vault but this device synced to it before. Uploading again needs a yes.
     RemoteLost,
+    /// `vault.json` is listed but its bytes are not on this device yet (iCloud Drive) and the wait ran
+    /// out. Not a missing vault: retry shortly.
+    NotDownloaded,
     /// A `vault.json` that is not valid.
     Damaged,
     /// Another sync with this engine is running.
@@ -177,6 +180,7 @@ impl From<SyncError> for SyncFailure {
             SyncError::Offline => SyncFailure::Offline,
             SyncError::ForeignVault => SyncFailure::ForeignVault,
             SyncError::RemoteLost => SyncFailure::RemoteLost,
+            SyncError::NotDownloaded => SyncFailure::NotDownloaded,
             SyncError::Damaged => SyncFailure::Damaged,
             SyncError::Busy => SyncFailure::Busy,
             SyncError::NotConfirmed => SyncFailure::NotConfirmed,

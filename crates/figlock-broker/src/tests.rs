@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use figlock_core::{ItemType, KdfParams, ZERO_PREV};
+use figlock_session::config::Remote;
 use figlock_session::sync::SyncError;
 use figlock_store::BlobStore;
 use serde_json::{Value, json};
@@ -1969,13 +1970,13 @@ fn a_remote_that_fails_never_blocks_a_grant() {
     let t0 = std::time::Instant::now();
     let mut syncer = syncer::Syncer::new(t0);
     let calls = std::cell::Cell::new(0);
-    let mut offline = || {
+    let mut offline = |_: &Remote| {
         calls.set(calls.get() + 1);
         Err(SyncError::Offline)
     };
     for n in 0..4 {
         let at = t0 + Duration::from_secs(n * 400);
-        assert!(syncer.step(at, &d.broker, Some(&mut offline)));
+        assert!(syncer.step(at, &d.broker, &[Remote::Drive], &mut offline));
         assert_eq!(d.grant(item_scope(&id))["ok"], true);
     }
     assert_eq!(calls.get(), 4, "it keeps trying, at its own pace");
@@ -1992,7 +1993,7 @@ fn failures_back_off_and_a_healthy_sync_returns_to_fifteen_seconds() {
     let mut syncer = syncer::Syncer::new(t0);
     let calls = std::cell::Cell::new(0);
     let ok = std::cell::Cell::new(false);
-    let mut run = || {
+    let mut run = |_: &Remote| {
         calls.set(calls.get() + 1);
         if ok.get() {
             Ok(figlock_session::sync::Report {
@@ -2005,18 +2006,80 @@ fn failures_back_off_and_a_healthy_sync_returns_to_fifteen_seconds() {
         }
     };
     let secs = Duration::from_secs;
-    syncer.step(t0, &d.broker, Some(&mut run)); // fails: next in 5 s
-    syncer.step(t0 + secs(4), &d.broker, Some(&mut run));
+    syncer.step(t0, &d.broker, &[Remote::Drive], &mut run); // fails: next in 5 s
+    syncer.step(t0 + secs(4), &d.broker, &[Remote::Drive], &mut run);
     assert_eq!(calls.get(), 1);
-    syncer.step(t0 + secs(5), &d.broker, Some(&mut run)); // fails: next in 15 s
-    syncer.step(t0 + secs(19), &d.broker, Some(&mut run));
+    syncer.step(t0 + secs(5), &d.broker, &[Remote::Drive], &mut run); // fails: next in 15 s
+    syncer.step(t0 + secs(19), &d.broker, &[Remote::Drive], &mut run);
     assert_eq!(calls.get(), 2);
     ok.set(true);
-    syncer.step(t0 + secs(20), &d.broker, Some(&mut run)); // works: next in 15 s
-    syncer.step(t0 + secs(34), &d.broker, Some(&mut run));
+    syncer.step(t0 + secs(20), &d.broker, &[Remote::Drive], &mut run); // works: next in 15 s
+    syncer.step(t0 + secs(34), &d.broker, &[Remote::Drive], &mut run);
     assert_eq!(calls.get(), 3);
-    syncer.step(t0 + secs(35), &d.broker, Some(&mut run));
+    syncer.step(t0 + secs(35), &d.broker, &[Remote::Drive], &mut run);
     assert_eq!(calls.get(), 4);
+}
+
+#[test]
+fn each_remote_has_its_own_schedule_and_one_failing_never_holds_back_the_other() {
+    let d = duo();
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    let folder = Remote::Folder("/icloud/vault".into());
+    let remotes = [Remote::Drive, folder.clone()];
+    let drive_calls = std::cell::Cell::new(0);
+    let folder_calls = std::cell::Cell::new(0);
+    let mut run = |r: &Remote| {
+        if *r == Remote::Drive {
+            drive_calls.set(drive_calls.get() + 1);
+            Err(SyncError::Offline)
+        } else {
+            folder_calls.set(folder_calls.get() + 1);
+            Ok(figlock_session::sync::Report::default())
+        }
+    };
+    let secs = Duration::from_secs;
+    syncer.step(t0, &d.broker, &remotes, &mut run);
+    assert_eq!((drive_calls.get(), folder_calls.get()), (1, 1));
+    // Drive is in back-off (5 s) while the folder is healthy (15 s): neither follows the other's pace.
+    syncer.step(t0 + secs(4), &d.broker, &remotes, &mut run);
+    assert_eq!((drive_calls.get(), folder_calls.get()), (1, 1));
+    syncer.step(t0 + secs(5), &d.broker, &remotes, &mut run);
+    assert_eq!((drive_calls.get(), folder_calls.get()), (2, 1));
+    syncer.step(t0 + secs(15), &d.broker, &remotes, &mut run);
+    assert_eq!(folder_calls.get(), 2);
+}
+
+#[test]
+fn a_remote_that_needs_the_person_stops_alone() {
+    let d = duo();
+    let t0 = std::time::Instant::now();
+    let mut syncer = syncer::Syncer::new(t0);
+    let remotes = [Remote::Drive, Remote::Folder("/icloud/vault".into())];
+    let folder_calls = std::cell::Cell::new(0);
+    let mut run = |r: &Remote| {
+        if *r == Remote::Drive {
+            Err(SyncError::SignIn)
+        } else {
+            folder_calls.set(folder_calls.get() + 1);
+            Ok(figlock_session::sync::Report::default())
+        }
+    };
+    for n in 0..3 {
+        syncer.step(
+            t0 + Duration::from_secs(n * 20),
+            &d.broker,
+            &remotes,
+            &mut run,
+        );
+    }
+    assert_eq!(folder_calls.get(), 3, "the folder keeps syncing");
+    let failed = d
+        .events()
+        .iter()
+        .filter(|(e, _)| e == "sync.failed")
+        .count();
+    assert_eq!(failed, 1, "Drive was blocked once");
 }
 
 #[test]
@@ -2025,7 +2088,7 @@ fn an_expired_sign_in_is_recorded_once_by_code_and_sync_stops_trying() {
     let t0 = std::time::Instant::now();
     let mut syncer = syncer::Syncer::new(t0);
     let calls = std::cell::Cell::new(0);
-    let mut expired = || {
+    let mut expired = |_: &Remote| {
         calls.set(calls.get() + 1);
         Err(SyncError::SignIn)
     };
@@ -2033,7 +2096,8 @@ fn an_expired_sign_in_is_recorded_once_by_code_and_sync_stops_trying() {
         assert!(syncer.step(
             t0 + Duration::from_secs(n * 600),
             &d.broker,
-            Some(&mut expired)
+            &[Remote::Drive],
+            &mut expired
         ));
     }
     assert_eq!(calls.get(), 1);
@@ -2056,14 +2120,14 @@ fn a_sync_that_brings_a_revocation_stops_the_syncer() {
     d.b_revokes_the_broker_device();
     let t0 = std::time::Instant::now();
     let mut syncer = syncer::Syncer::new(t0);
-    let mut ok = || {
+    let mut ok = |_: &Remote| {
         Ok(figlock_session::sync::Report {
             pulled: 3,
             pushed: 0,
             warnings: Vec::new(),
         })
     };
-    assert!(!syncer.step(t0, &d.broker, Some(&mut ok)));
+    assert!(!syncer.step(t0, &d.broker, &[Remote::Drive], &mut ok));
     assert!(syncer.locked_by_change);
     assert!(d.broker.is_locked());
 }
@@ -2074,7 +2138,12 @@ fn without_a_remote_the_local_folder_is_still_looked_at() {
     let id = d.b_adds("Written by another command");
     let t0 = std::time::Instant::now();
     let mut syncer = syncer::Syncer::new(t0);
-    assert!(syncer.step(t0 + Duration::from_secs(16), &d.broker, None));
+    assert!(syncer.step(
+        t0 + Duration::from_secs(16),
+        &d.broker,
+        &[],
+        &mut |_: &Remote| Err(SyncError::NotEnabled)
+    ));
     assert_eq!(d.grant(item_scope(&id))["ok"], true);
 }
 

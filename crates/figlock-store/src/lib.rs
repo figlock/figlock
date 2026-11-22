@@ -16,7 +16,7 @@ mod path;
 pub use gauth::{Credentials, GoogleOAuth, RefreshingToken};
 #[cfg(feature = "gdrive")]
 pub use gdrive::{GoogleDrive, StaticToken, TokenSource};
-pub use local::LocalFolder;
+pub use local::{LocalFolder, Materialize};
 pub use path::validate_path;
 
 use std::fmt;
