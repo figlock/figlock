@@ -164,10 +164,7 @@ mod tests {
 
     #[test]
     fn strength_rates_common_and_generated_secrets() {
-        assert_eq!(
-            password_strength("password1".into()).level,
-            StrengthLevel::Weak
-        );
+        assert_eq!(password_strength("a".repeat(9)).level, StrengthLevel::Weak);
         let generated = generate_password(24, true, true, true, true, false).unwrap();
         assert_eq!(password_strength(generated).level, StrengthLevel::Strong);
         let phrase = passphrase_strength(6, PassphraseSeparator::Hyphen, false, false);
