@@ -66,6 +66,17 @@ pub struct CommittedFile {
     pub bytes: Vec<u8>,
 }
 
+/// What a revocation produced. The caller stores it in this order: `snapshot` (create-only, an existing file
+/// is fine), every file of `records` (replace), delete every path of `remove` (missing is fine), and
+/// `vault_json` last, so a device that sees the new epoch finds the snapshot and its record already there.
+#[derive(uniffi::Record)]
+pub struct RevocationFiles {
+    pub snapshot: CommittedFile,
+    pub records: Vec<CommittedFile>,
+    pub remove: Vec<String>,
+    pub vault_json: Vec<u8>,
+}
+
 struct State {
     vault: Option<Vault>,
     /// Search index over non-secret fields; dropped whenever items change and rebuilt on the next search.
@@ -151,6 +162,43 @@ impl VaultSession {
                     is_this_device: d.device_id == me,
                 })
                 .collect())
+        })
+    }
+
+    /// Revoke another device (`pairing-recovery.md` 4). Needs the master password and Secret Key, which are
+    /// checked against the vault; a wrong pair, an unknown or already revoked device, this device itself and
+    /// pending edits (commit first) all fail with `Failed` and change nothing. On success this session is at
+    /// the new epoch and the returned files are what the caller stores.
+    pub fn revoke_device(
+        &self,
+        device_id: String,
+        password: String,
+        secret_key: String,
+        now_ms: u64,
+    ) -> Result<RevocationFiles> {
+        let target = parse_id(&device_id)?;
+        let password = Zeroizing::new(password);
+        let secret_key = Zeroizing::new(secret_key);
+        let key =
+            figlock_core::SecretKey::parse(&secret_key).map_err(|_| FigLockError::InvalidInput)?;
+        self.mutate(|v| {
+            let r = v.revoke_device(&password, &key, &target, now_ms)?;
+            Ok(RevocationFiles {
+                snapshot: CommittedFile {
+                    path: r.snapshot.path,
+                    bytes: r.snapshot.bytes,
+                },
+                records: r
+                    .records
+                    .into_iter()
+                    .map(|c| CommittedFile {
+                        path: c.path,
+                        bytes: c.bytes,
+                    })
+                    .collect(),
+                remove: r.remove,
+                vault_json: r.vault_json,
+            })
         })
     }
 

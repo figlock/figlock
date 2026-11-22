@@ -142,3 +142,24 @@ pub fn secret_key_is_valid(text: String) -> bool {
     let text = Zeroizing::new(text);
     SecretKey::parse(&text).is_ok()
 }
+
+/// The Emergency Kit PDF for a Secret Key the app already holds (Settings, "Emergency Kit"), so the kit can be
+/// saved again later. `created` is the date of this copy, `YYYY-MM-DD`.
+#[uniffi::export]
+pub fn render_emergency_kit(
+    secret_key: String,
+    vault_name: String,
+    storage: String,
+    created: String,
+) -> Result<Vec<u8>> {
+    let secret_key = Zeroizing::new(secret_key);
+    let key = SecretKey::parse(&secret_key).map_err(|_| FigLockError::InvalidInput)?;
+    let info = KitInfo {
+        vault_name: &vault_name,
+        storage: &storage,
+        created: &created,
+    };
+    let pdf: Zeroizing<Vec<u8>> =
+        render_kit(&info, &key).map_err(|_| FigLockError::InvalidInput)?;
+    Ok(pdf.to_vec())
+}

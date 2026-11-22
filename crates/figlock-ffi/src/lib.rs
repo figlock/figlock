@@ -24,7 +24,7 @@ mod sync;
 
 pub use created::{
     CreatedVault, KdfSettings, create_vault, default_kdf_settings, minimum_kdf_settings,
-    secret_key_is_valid,
+    render_emergency_kit, secret_key_is_valid,
 };
 pub use device::DeviceKeysHandle;
 pub use error::FigLockError;
@@ -37,8 +37,8 @@ pub use quick::{
     unlock_vault_with_key,
 };
 pub use session::{
-    CommittedFile, DeviceEntry, FieldInput, ItemListing, ItemSummary, SearchHit, UnlockOutcome,
-    VaultSession, unlock_vault,
+    CommittedFile, DeviceEntry, FieldInput, ItemListing, ItemSummary, RevocationFiles, SearchHit,
+    UnlockOutcome, VaultSession, unlock_vault,
 };
 #[cfg(feature = "gdrive")]
 pub use sync::DriveStore;

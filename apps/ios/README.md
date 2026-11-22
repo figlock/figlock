@@ -55,6 +55,18 @@ keychain). The Google client id comes from the build (`FIGLOCK_GOOGLE_CLIENT_ID`
 and is empty until the iOS OAuth client exists (FIG-44), in which case the screens say sign-in is not set up. The
 SwiftUI screens are in `App/Onboarding` and `App/Onboarding/RecoveryScreen.swift`.
 
+## Settings
+
+`Shared/Sources/Shared/Settings` is the logic behind Settings, the screens are in `App/Settings` (the gear in the
+vault list). `DeviceSettings` keeps this phone's auto-lock time (5 minutes by default, no "never") and device
+nicknames in the device folder. `SettingsService` revokes a device (`VaultSession.revokeDevice` in the Rust core,
+ADR-0018: needs the master password and the Secret Key, which the vault checks; the new files are written snapshot,
+records, `vault.json` last, then pushed when this phone is signed in to Drive), renders the Emergency Kit again from
+the kept Secret Key (`SecretKeyReveal`: Face ID or passcode first, the key masks after 10 s), and deletes the Drive
+copy only after the typed phrase of ADR-0035. Signing out of Google and removing the vault from this phone never
+delete the Drive copy. A device rename is a nickname shown on this iPhone only: renaming it for every device means
+re-signing its record outside a key rotation, which `sync.md` does not allow and needs an ADR first.
+
 ## Build and run
 
 Needs Xcode with an iOS simulator runtime and the tools pinned in `mise.toml` (`just setup`; it also installs the

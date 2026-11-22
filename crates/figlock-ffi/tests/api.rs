@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use figlock_ffi::{
     CreatedVault, DeviceKeysHandle, FieldInput, FigLockError, VaultSession, create_vault,
-    default_kdf_settings, minimum_kdf_settings, secret_key_is_valid, unlock_vault,
+    default_kdf_settings, minimum_kdf_settings, render_emergency_kit, secret_key_is_valid,
+    unlock_vault,
 };
 
 const T0: u64 = 1_800_000_000_000;
@@ -431,4 +432,112 @@ fn errors_never_contain_text() {
         let text = e.to_string();
         assert!(text.len() < 32 && !text.contains(PASSWORD) && !text.contains(SECRET));
     }
+}
+
+/// A vault with two devices, seen from the first one: its session, the password and Secret Key, and the id
+/// of the second.
+fn two_devices() -> (Arc<VaultSession>, String, Arc<VaultSession>, String) {
+    let c = created();
+    let secret_key = c.secret_key_text().unwrap();
+    let a = c.take_session().unwrap();
+    let b = unlock_vault(
+        c.vault_json().unwrap(),
+        PASSWORD.into(),
+        secret_key.clone(),
+        Arc::new(DeviceKeysHandle::generate().unwrap()),
+        "tablet".into(),
+        vec![c.device_record().unwrap()],
+        T0 + 20,
+    )
+    .unwrap();
+    a.add_device_record(b.new_device_record.clone().unwrap())
+        .unwrap();
+    let b_id = b.session.device_id().unwrap();
+    (a, secret_key, b.session, b_id)
+}
+
+#[test]
+fn revoking_a_device_returns_the_files_and_moves_to_the_next_epoch() {
+    let (a, secret_key, _b, b_id) = two_devices();
+    assert_eq!(a.epoch().unwrap(), 1);
+    let r = a
+        .revoke_device(b_id.clone(), PASSWORD.into(), secret_key, T0 + 30)
+        .unwrap();
+    assert_eq!(a.epoch().unwrap(), 2);
+    assert!(r.snapshot.path.starts_with("snap/"));
+    assert!(!r.vault_json.is_empty());
+    assert!(
+        r.remove.contains(&format!("devices/{b_id}.json")),
+        "the revoked device's record goes"
+    );
+    let row = a
+        .devices()
+        .unwrap()
+        .into_iter()
+        .find(|d| d.id == b_id)
+        .unwrap();
+    assert!(row.revoked_ms.is_some());
+    assert_eq!(
+        row.name.as_deref(),
+        Some("tablet"),
+        "the name is kept (ADR-0036)"
+    );
+}
+
+#[test]
+fn revoking_refuses_wrong_credentials_this_device_and_a_stranger() {
+    let (a, secret_key, _b, b_id) = two_devices();
+    let me = a.device_id().unwrap();
+    let wrong = |pw: &str, sk: &str, id: &str| {
+        a.revoke_device(id.into(), pw.into(), sk.into(), T0 + 30)
+            .err()
+    };
+    assert_eq!(
+        wrong("not-the-password", &secret_key, &b_id),
+        Some(FigLockError::Failed)
+    );
+    assert_eq!(
+        wrong(PASSWORD, &secret_key, &me),
+        Some(FigLockError::Failed),
+        "a device cannot revoke itself"
+    );
+    assert_eq!(
+        wrong(PASSWORD, &secret_key, &"ab".repeat(16)),
+        Some(FigLockError::Failed)
+    );
+    assert_eq!(
+        wrong(PASSWORD, "not a key", &b_id),
+        Some(FigLockError::InvalidInput)
+    );
+    assert_eq!(a.epoch().unwrap(), 1, "nothing changed");
+    assert!(a.devices().unwrap().iter().all(|d| d.revoked_ms.is_none()));
+}
+
+#[test]
+fn a_locked_session_cannot_revoke() {
+    let (a, secret_key, _b, b_id) = two_devices();
+    a.lock();
+    assert_eq!(
+        a.revoke_device(b_id, PASSWORD.into(), secret_key, T0 + 30)
+            .err(),
+        Some(FigLockError::Locked)
+    );
+}
+
+#[test]
+fn the_kit_can_be_rendered_again_from_a_secret_key() {
+    let c = created();
+    let key = c.secret_key_text().unwrap();
+    let pdf = render_emergency_kit(
+        key,
+        "Personal".into(),
+        "On this iPhone".into(),
+        "2026-11-23".into(),
+    )
+    .unwrap();
+    assert!(pdf.starts_with(b"%PDF"));
+    assert_eq!(
+        render_emergency_kit("nope".into(), "v".into(), "s".into(), "2026-11-23".into()).err(),
+        Some(FigLockError::InvalidInput)
+    );
 }

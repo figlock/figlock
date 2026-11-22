@@ -74,6 +74,7 @@ struct VaultListView: View {
         .autocorrectionDisabled()
         .refreshable { await browser.reload() }
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) { SettingsLink() }
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
                     lock.lock()

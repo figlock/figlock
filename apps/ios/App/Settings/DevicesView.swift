@@ -1,0 +1,300 @@
+import Shared
+import SwiftUI
+
+/// What the Devices screens hold: the rows, and the one revocation that may be running.
+@MainActor
+@Observable
+final class DevicesModel {
+    let context: SettingsContext
+    private(set) var rows: [DeviceRow] = []
+    private(set) var busy = false
+    /// What the last revocation said, for the screen to show once.
+    var revokedNotice: String?
+
+    init(context: SettingsContext) {
+        self.context = context
+        reload()
+    }
+
+    func reload() {
+        guard let session = context.lock.session, let entries = try? session.devices() else {
+            rows = []
+            return
+        }
+        rows = DeviceList.rows(entries: entries, nicknames: context.settings.nicknames)
+    }
+
+    func row(id: String) -> DeviceRow? { rows.first { $0.id == id } }
+
+    /// Name a device on this iPhone; an empty name takes the nickname away.
+    func rename(_ id: String, to name: String) {
+        try? context.settings.setNickname(name, for: id)
+        reload()
+    }
+
+    /// Revoke `id`. Returns the words for a failure, or nil when it worked.
+    func revoke(_ id: String, password: String, secretKey: String?) async -> String? {
+        guard let session = context.lock.session else { return "FigLock is locked. Unlock it and try again." }
+        busy = true
+        defer { busy = false }
+        do {
+            let result = try await context.service.revoke(
+                deviceId: id, password: password, typedSecretKey: secretKey, session: session,
+                remote: context.remote())
+            reload()
+            let name = row(id: id)?.displayName ?? "The device"
+            revokedNotice =
+                result.pushed
+                ? "\(name) is revoked."
+                : "\(name) is revoked on this iPhone. It loses access everywhere once this iPhone syncs."
+            return nil
+        } catch let failure as SettingsService.Failure {
+            switch failure {
+            case .wrongCredentials: return "That master password or Secret Key is not right."
+            case .secretKeyNeeded: return "Type your Secret Key. It starts with FL1-."
+            case .notAllowed: return "This device cannot be revoked from here."
+            default: return "FigLock could not revoke the device. Nothing was changed."
+            }
+        } catch {
+            return "FigLock could not revoke the device. Nothing was changed."
+        }
+    }
+}
+
+struct DevicesView: View {
+    @State private var model: DevicesModel
+
+    init(context: SettingsContext) {
+        _model = State(initialValue: DevicesModel(context: context))
+    }
+
+    var body: some View {
+        List {
+            if let notice = model.revokedNotice {
+                Notice(text: notice, isError: false).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+            }
+            Section {
+                ForEach(model.rows.filter { !$0.isRevoked }) { row in
+                    NavigationLink {
+                        DeviceDetailView(model: model, id: row.id)
+                    } label: {
+                        DeviceRowView(row: row)
+                    }
+                }
+            } header: {
+                Text("These devices can open your vault. Revoke any you no longer use.").textCase(nil)
+            } footer: {
+                Text("To add a device, open FigLock on it and choose Join my vault by pairing.")
+            }
+            .listRowBackground(FLColor.surface)
+
+            let revoked = model.rows.filter(\.isRevoked)
+            if !revoked.isEmpty {
+                Section("Revoked") {
+                    ForEach(revoked) { row in DeviceRowView(row: row) }
+                }
+                .listRowBackground(FLColor.surface)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(FLColor.bg)
+        .navigationTitle("Devices")
+        .onAppear { model.reload() }
+    }
+}
+
+private struct DeviceRowView: View {
+    let row: DeviceRow
+
+    var body: some View {
+        HStack(spacing: FLSpace.s3) {
+            Image(systemName: "iphone")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(row.isRevoked ? FLColor.textTertiary : FLColor.primary)
+                .frame(width: 32, height: 32)
+                .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.displayName)
+                    .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
+                    .foregroundStyle(row.isRevoked ? FLColor.textSecondary : FLColor.text)
+                Text(subtitle)
+                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+                    .foregroundStyle(FLColor.textSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: FLSpace.s2)
+            if row.isThisDevice {
+                Text("This iPhone")
+                    .font(FLFont.ui(FLText.sm, weight: FLWeight.medium, relativeTo: .footnote))
+                    .foregroundStyle(FLColor.success)
+            }
+        }
+        .frame(minHeight: FLSize.controlHeightLg)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var subtitle: String {
+        if let revokedAt = row.revokedAt {
+            return "Revoked \(revokedAt.formatted(date: .abbreviated, time: .omitted))"
+        }
+        return row.fingerprint
+    }
+}
+
+struct DeviceDetailView: View {
+    let model: DevicesModel
+    let id: String
+
+    @State private var renaming = false
+    @State private var newName = ""
+    @State private var revoking = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Group {
+            if let row = model.row(id: id), !row.isRevoked {
+                List {
+                    Section {
+                        LabeledContent("Name", value: row.displayName)
+                        if let vaultName = row.vaultName, row.nickname != nil {
+                            LabeledContent("Name in the vault", value: vaultName)
+                        }
+                        LabeledContent("Fingerprint") {
+                            Text(row.fingerprint).font(FLFont.mono(FLText.sm)).textSelection(.enabled)
+                        }
+                    }
+                    .listRowBackground(FLColor.surface)
+
+                    if row.isThisDevice {
+                        Section {
+                            Label(
+                                "This is the iPhone you are holding. To take it off your vault, use Remove this vault from this iPhone in Settings.",
+                                systemImage: "info.circle"
+                            )
+                            .font(FLFont.ui(FLText.base, relativeTo: .callout))
+                            .foregroundStyle(FLColor.textSecondary)
+                        }
+                        .listRowBackground(FLColor.surface)
+                    }
+
+                    Section {
+                        Button {
+                            newName = row.displayName
+                            renaming = true
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                                .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                        }
+                        if !row.isThisDevice {
+                            Button(role: .destructive) {
+                                revoking = true
+                            } label: {
+                                Label("Revoke access", systemImage: "xmark.shield")
+                                    .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                            }
+                            .tint(FLColor.danger)
+                        }
+                    } footer: {
+                        Text("A new name shows on this iPhone only. Other devices keep the name they know.")
+                    }
+                    .listRowBackground(FLColor.surface)
+                }
+                .listStyle(.insetGrouped)
+                .scrollContentBackground(.hidden)
+                .alert("Rename device", isPresented: $renaming) {
+                    TextField("Device name", text: $newName)
+                    Button("Cancel", role: .cancel) {}
+                    Button("Save") { model.rename(id, to: newName) }
+                } message: {
+                    Text("A device needs a name so you can tell it apart. Leave it empty to use the original name.")
+                }
+                .sheet(isPresented: $revoking) {
+                    RevokeSheet(model: model, row: row)
+                }
+            } else {
+                // Revoked from here, or gone: nothing left to manage.
+                Text("This device is no longer in the list.")
+                    .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .background(FLColor.bg)
+        // A revoked device has nothing left to manage: go back to the list, which shows it as revoked.
+        .onChange(of: model.row(id: id)?.isRevoked ?? true) { _, gone in
+            if gone { dismiss() }
+        }
+        .navigationTitle(model.row(id: id)?.displayName ?? "Device")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// The confirmation for a revocation. It asks for the master password (and the Secret Key when this iPhone does not
+/// keep it), because a revocation rewrites the vault's keys and the vault checks them (ADR-0018).
+private struct RevokeSheet: View {
+    let model: DevicesModel
+    let row: DeviceRow
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var secretKey = ""
+    @State private var errorText: String?
+
+    private var needsSecretKey: Bool { model.context.service.keptSecretKey() == nil }
+    private var canRevoke: Bool {
+        !password.isEmpty && (!needsSecretKey || !secretKey.isEmpty) && !model.busy
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text(
+                        "\(row.displayName) will lose access to \(SettingsService.vaultName) the next time it syncs. Items already on it cannot be erased remotely. It may still know your master password and Secret Key."
+                    )
+                    .font(FLFont.ui(FLText.base, relativeTo: .callout))
+                }
+                Section("Confirm it is you") {
+                    SecureField("Master password", text: $password)
+                        .textContentType(.password)
+                    if needsSecretKey {
+                        TextField("Secret Key (FL1-...)", text: $secretKey)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                    }
+                }
+                if let errorText {
+                    Section { Notice(text: errorText, isError: true).listRowInsets(EdgeInsets()) }
+                        .listRowBackground(Color.clear)
+                }
+                Section {
+                    Button(role: .destructive) {
+                        Task {
+                            errorText = await model.revoke(
+                                row.id, password: password, secretKey: needsSecretKey ? secretKey : nil)
+                            if errorText == nil { dismiss() }
+                        }
+                    } label: {
+                        HStack {
+                            if model.busy { ProgressView() }
+                            Text("Revoke \(row.displayName)")
+                        }
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
+                    }
+                    .disabled(!canRevoke)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(FLColor.bg)
+            .navigationTitle("Revoke device")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }.disabled(model.busy)
+                }
+            }
+        }
+        .interactiveDismissDisabled(model.busy)
+    }
+}
