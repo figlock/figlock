@@ -49,38 +49,19 @@ fn credentials(_: &UnixStream) -> io::Result<(u32, Option<u32>)> {
     ))
 }
 
-/// The program the OS says `pid` is running, if it can be found. Best effort and display only.
+/// The program the OS says `pid` is running, as an absolute path, if it can be found (FIG-190).
 fn exe_of(pid: u32) -> Option<String> {
-    let linux = std::fs::read_link(format!("/proc/{pid}/exe")).ok();
-    let path = linux
-        .map(|p| p.to_string_lossy().into_owned())
-        .or_else(|| {
-            let out = std::process::Command::new("/bin/ps")
-                .args(["-p", &pid.to_string(), "-o", "comm="])
-                .output()
-                .ok()?;
-            out.status
-                .success()
-                .then(|| String::from_utf8_lossy(&out.stdout).trim().to_owned())
-        })?;
-    (!path.is_empty()).then_some(path)
+    figlock_procinfo::exe_path(pid)
 }
 
-/// The parent of `pid`, if the OS says. Display only.
+/// The parent of `pid`, if the OS says.
 fn parent_of(pid: u32) -> Option<u32> {
-    let out = std::process::Command::new("/bin/ps")
-        .args(["-p", &pid.to_string(), "-o", "ppid="])
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    let ppid: u32 = String::from_utf8_lossy(&out.stdout).trim().parse().ok()?;
-    (ppid > 1).then_some(ppid)
+    figlock_procinfo::parent_pid(pid)
 }
 
-/// At most this many ancestors are looked up for the prompt.
-const MAX_PARENTS: usize = 3;
+/// At most this many ancestors are looked up. Enough to see the program behind several shells (FIG-191); the
+/// prompt shows the nearest few.
+const MAX_PARENTS: usize = 8;
 
 fn parents_of(pid: u32) -> Vec<String> {
     let mut found = Vec::new();
@@ -170,6 +151,17 @@ mod tests {
         let peer = identify(&server_side).unwrap();
         assert_eq!(peer.uid, my_uid());
         assert_eq!(peer.pid, Some(std::process::id()));
+        // What the system says, never the name the process was started under (FIG-190).
+        assert!(
+            peer.exe.as_deref().is_some_and(|e| e.starts_with('/')),
+            "{:?}",
+            peer.exe
+        );
+        assert!(
+            !peer.parents.is_empty() && peer.parents.iter().all(|p| p.starts_with('/')),
+            "{:?}",
+            peer.parents
+        );
         drop(client);
     }
 

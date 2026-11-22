@@ -6,6 +6,8 @@ export type AgentCard = {
   id: number;
   program: string;
   programPath: string;
+  /** The path is absolute and came from the system; otherwise it must not be called checked. */
+  programVerified: boolean;
   startedBy: string[];
   /** What the program calls itself. Not checked. */
   says: string | null;

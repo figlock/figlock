@@ -63,6 +63,15 @@ same verified program (the identity of decision 3: user id, program path, non-em
 every item, so no title is a way around it and nothing is learned about which items exist. A peer without a
 parent chain keeps only the pid rule.
 
+## Amendment (FIG-190, FIG-191)
+
+Real use showed two weaknesses in the identity. The program path came from `ps` and could be a relative name,
+so a verified path was not always one; it is now asked of the system and is always absolute (`figlock-procinfo`).
+And the parent chain was compared exactly, so the same agent reaching `figlock` through one more shell counted as
+another program. Identity now compares the ancestors that are not shells or wrappers (`sh`, `bash`, `zsh`, `fish`,
+`dash`, `ksh`, `tcsh`, `csh`, `nu`, `xonsh`, `env`, `sudo`, `login`), looking up to eight ancestors. A chain with
+nothing left once those are dropped never matches, so the person is still asked.
+
 ## Alternatives considered
 
 - Keep the token in a file for the CLI to reuse: a token on disk is a secret value that outlives the process

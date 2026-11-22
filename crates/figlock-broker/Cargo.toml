@@ -12,6 +12,7 @@ figlock-core = { version = "0.5.0", path = "../figlock-core" }
 figlock-biometric = { version = "0.5.0", path = "../figlock-biometric" }
 figlock-session = { version = "0.5.0", path = "../figlock-session" }
 figlock-store = { version = "0.5.0", path = "../figlock-store" }
+figlock-procinfo = { version = "0.5.0", path = "../figlock-procinfo" }
 getrandom.workspace = true
 serde_json.workspace = true
 hex.workspace = true

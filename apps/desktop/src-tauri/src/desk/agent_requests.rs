@@ -23,6 +23,8 @@ pub struct Card {
     /// The program the system says is asking, and its full path.
     pub program: String,
     pub program_path: String,
+    /// The path is an absolute one the system gave. When it is not, the card must not say it was checked.
+    pub program_verified: bool,
     /// Programs that started it, nearest first (`zsh`, `claude`).
     pub started_by: Vec<String>,
     /// What the asking program calls itself. Not checked.
@@ -55,6 +57,7 @@ impl Card {
             id,
             program: base(exe),
             program_path: audit_clean_text(exe, 300),
+            program_verified: req.peer.exe.as_deref().is_some_and(|e| e.starts_with('/')),
             started_by: req.peer.parents.iter().map(|p| base(p)).collect(),
             says: req.label.as_deref().map(|l| audit_clean_text(l, 100)),
             reason: req.reason.as_deref().map(|r| audit_clean_text(r, 200)),

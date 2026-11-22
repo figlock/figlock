@@ -2734,3 +2734,97 @@ fn a_locked_broker_is_unavailable_to_the_caller_and_other_refusals_are_not() {
     let denied = json!({"ok": false, "error": {"code": "denied", "message": "no"}});
     assert_eq!(client::expect_ok(denied).unwrap_err().1, FailKind::Other);
 }
+
+// ---- FIG-191: the same agent is the same program whatever shells it went through ----
+
+fn through(shells: &[&str], rest: &[&str], pid: u32) -> PeerId {
+    PeerId {
+        parents: shells.iter().chain(rest).map(|p| (*p).to_owned()).collect(),
+        ..peer(pid)
+    }
+}
+
+#[test]
+fn the_same_agent_through_a_different_number_of_shells_is_the_same_program() {
+    use grants::same_program;
+    let agent = ["/opt/agent/claude", "/Applications/WezTerm.app/wezterm-gui"];
+    let one = through(&["/bin/zsh"], &agent, 1);
+    let three = through(&["/bin/zsh", "/bin/bash", "-zsh"], &agent, 2);
+    let none = through(&[], &agent, 3);
+    assert!(same_program(&one, &three));
+    assert!(same_program(&one, &none));
+    assert!(same_program(&three, &none));
+    // Another agent, another program path, or another user is not the same.
+    let other = through(&["/bin/zsh"], &["/opt/other/codex"], 4);
+    assert!(!same_program(&one, &other));
+    let other_exe = PeerId {
+        exe: Some("/usr/local/bin/other".into()),
+        ..one.clone()
+    };
+    assert!(!same_program(&one, &other_exe));
+    let other_user = PeerId {
+        uid: one.uid + 1,
+        ..one.clone()
+    };
+    assert!(!same_program(&one, &other_user));
+}
+
+#[test]
+fn a_chain_of_only_shells_is_never_the_same_program() {
+    use grants::same_program;
+    let a = through(&["/bin/zsh", "/bin/bash"], &[], 1);
+    let b = through(&["/bin/zsh", "/bin/bash"], &[], 2);
+    assert!(
+        !same_program(&a, &b),
+        "nothing says who is behind the shells"
+    );
+    assert!(!same_program(&peer(1), &peer(2)), "no parents at all");
+}
+
+#[test]
+fn a_grant_is_reused_by_the_same_agent_through_another_shell_depth() {
+    let fx = fixture();
+    let agent = ["/opt/agent/claude"];
+    let first = fx.approver_will_allow_then(
+        &through(&["/bin/zsh"], &agent, 100),
+        "github",
+        "http",
+        "15m",
+    );
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    let again = fx.request(
+        &through(&["/bin/zsh", "/bin/zsh", "/bin/sh"], &agent, 200),
+        json!({"name": "github"}),
+        "http",
+        "15m",
+    );
+    assert_eq!(again["grant"]["id"], first["grant"]["id"], "{again}");
+    assert_eq!(
+        fx.approver.calls.load(Ordering::SeqCst),
+        calls,
+        "nobody was asked"
+    );
+}
+
+#[test]
+fn the_cooldown_after_a_denial_follows_the_agent_through_another_shell_depth() {
+    let fx = fixture();
+    let agent = ["/opt/agent/claude"];
+    fx.approver.will(&[Decision::Deny]);
+    let first = fx.request(
+        &through(&["/bin/zsh"], &agent, 100),
+        json!({"name": "github"}),
+        "http",
+        "15m",
+    );
+    assert_eq!(Fx::code(&first), "denied");
+    let calls = fx.approver.calls.load(Ordering::SeqCst);
+    let retry = fx.request(
+        &through(&["/bin/zsh", "/bin/zsh"], &agent, 200),
+        json!({"name": "github"}),
+        "http",
+        "15m",
+    );
+    assert_eq!(Fx::code(&retry), "busy", "{retry}");
+    assert_eq!(fx.approver.calls.load(Ordering::SeqCst), calls);
+}

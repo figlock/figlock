@@ -29,6 +29,7 @@ const card: AgentCard = {
   id: 7,
   program: "figlock",
   programPath: "/usr/local/bin/figlock",
+  programVerified: true,
   startedBy: ["zsh", "claude"],
   says: "figlock http",
   reason: "list open issues",
@@ -105,4 +106,13 @@ test("a dangerous request carries its loud warning", async () => {
   ]);
   render(AgentRequests);
   expect(await screen.findByText(/GIVEN THE SECRET VALUE ITSELF/)).toBeTruthy();
+});
+
+test("a program path the system could not give is not called checked", async () => {
+  core.agentRequests.mockResolvedValue([
+    { ...card, programPath: "an unknown program", programVerified: false },
+  ]);
+  render(AgentRequests);
+  expect(await screen.findByText(/could not be checked/)).toBeTruthy();
+  expect(screen.queryByText(/checked by your Mac/)).toBeNull();
 });
