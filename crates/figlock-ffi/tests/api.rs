@@ -540,7 +540,8 @@ fn the_kit_can_be_rendered_again_from_a_secret_key() {
         render_emergency_kit("nope".into(), "v".into(), "s".into(), "2026-11-23".into()).err(),
         Some(FigLockError::InvalidInput)
     );
-=======
+}
+
 #[test]
 fn a_commit_whose_file_could_not_be_stored_can_be_taken_back_and_retried() {
     let c = created();
@@ -573,5 +574,4 @@ fn a_commit_whose_file_could_not_be_stored_can_be_taken_back_and_retried() {
     s.discard_pending().unwrap();
     assert!(!s.has_pending().unwrap());
     assert!(s.commit().unwrap().is_none());
->>>>>>> dd0fa9d (feat(ios): FIG-163 create, edit, delete and restore items, generator, document items)
 }
