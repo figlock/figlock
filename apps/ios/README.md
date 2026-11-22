@@ -31,7 +31,19 @@ shared keychain group, `.userPresence`, `ThisDeviceOnly`); the wrap of the Accou
 guesses. `SecretKeyKeeper` keeps the Secret Key and the device keys in the keychain (`ThisDeviceOnly`, never
 synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` ties them together for the app.
 The simulator has no Secure Enclave, so Face ID is off there. Debug builds accept `-figlock-seed-demo` to create a
-made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists.
+made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists, and
+`-figlock-unlock-demo` also unlocks it so the vault screens can be looked at in a simulator.
+
+## Vault screens
+
+`Shared/Sources/Shared/Vault` is the read path. `VaultLog` applies the op files under `log/` (the clock is read per
+file, because the vault hybrid clock counts ops at one instant); loading and index building run off the main
+thread. `VaultBrowser` holds the list, filters and fuzzy search (under 100 ms at 10,000 items, measured in a test).
+`Clipboard` copies with a 30 s auto-clear and a local-only, expiring pasteboard item; it clears only while the
+pasteboard still holds that copy. `SecretReveal` gates reveal behind Face ID or the passcode and masks again after
+10 s (`design/DESIGN.md` 8); leaving the detail view or the foreground cancels a pending reveal. Copying a secret
+needs no extra check (the vault is unlocked), revealing does. Face ID and the real pasteboard do not run on the
+simulator. The views are in `App/Vault`.
 
 ## Build and run
 
