@@ -41,6 +41,7 @@ struct RootView: View {
                     case .ready:
                         if environment.lock.isUnlocked {
                             VaultRootView(lock: environment.lock, vault: environment.vault)
+                                .environment(\.settingsContext, environment.settings)
                         } else {
                             LockScreen(lock: environment.lock)
                         }
