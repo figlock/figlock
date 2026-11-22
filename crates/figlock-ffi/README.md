@@ -22,8 +22,8 @@ and run the generator against it the same way. The `bindgen` feature stays off f
 - Keys and decrypted items stay behind opaque handles (`VaultSession`, `CreatedVault`, `DeviceKeysHandle`).
 - Listings return non-secret fields only; a secret value comes out through `reveal_field` alone.
 - `FigLockError` has three cases and no text from the input, so an error cannot leak a secret.
-- No I/O and no clock: the app reads and writes `vault.json`, `devices/` and `log/` itself, passes bytes in,
-  and supplies `now_ms`.
+- No I/O and no clock in the vault calls: the app reads and writes `vault.json`, `devices/` and `log/` itself,
+  passes bytes in, and supplies `now_ms`.
 - Strings and byte arrays are copied by the binding layer. The copy on the Swift or Kotlin side is the app's
   to keep short-lived and overwrite.
 
@@ -35,6 +35,28 @@ the same one), poll for `response_path()` and `record_path()`, then `handle.fini
 password gives the unlocked session and the Secret Key text for the Keychain. A wrong code, a bad or expired
 invite, a tampered answer and a wrong password all fail with the same `Failed`. The trusted side (creating an
 invite, approving) is not exported yet; it comes with the iOS approve flow.
+
+## Sync
+
+Sync is the one Rust engine of `figlock-sync` (ADR-0041 decision 3), with the parts that need platform APIs
+passed in as UniFFI foreign traits:
+
+- `BlobStoreFfi`: the five storage operations of `sync.md` 2. Swift implements it over a folder with
+  `NSFileCoordinator` (the local container and the iCloud Drive folder). `FolderStore` is a plain Rust folder
+  for stores that need no coordination, and `DriveStore` is the Google Drive adapter, which asks the app's
+  `AccessTokens` for a token (sign-in with PKCE and the refresh token stay in Swift).
+- `SyncClock` and `SyncStateStore`: the time, and the small record of whether this device has synced before.
+- `SyncEngine(local, remote, state, clock, ownDevice)` binds them. `run(confirmReupload)`, `fillLocal()`,
+  `openFromRemote()`, `exchange(first)`, `removeRemote(paths)` and `deleteRemote(typed)` are the same
+  operations the CLI and desktop use. A second call while one runs fails with `Busy`.
+- `SyncFailure` has no text, so a store error, path or token cannot end up in a log line. A foreign store
+  returns `StoreFailure` cases (`NotFound`, `Exists`, `NotYetAvailable`, `Unauthorized`, ...); anything else
+  it throws becomes `Other`.
+
+The engine copies a few files at once, so the app's store is called from several threads at the same time:
+make every method safe for concurrent calls on different paths. `tests/sync.rs` plays the app's parts in
+Rust and `tests/swift/main.swift` supplies them from Swift, covering a full round, a lost remote, another
+vault, a damaged and a tampered `vault.json`, a revocation, refused sign-in and the typed deletion.
 
 ## Zeroizing and threads
 
@@ -52,7 +74,7 @@ invite, approving) is not exported yet; it comes with the iOS approve flow.
 `tests/api.rs` calls the exported API directly, with the negative cases (wrong password or Secret Key,
 tampered files, locked use, bad ids). `tests/bindings.rs` runs the generator for both languages and, when
 `swiftc` is installed, compiles and runs `tests/swift/main.swift` against the generated Swift and the real
-library. `tests/join.rs` covers pairing from the new device with the trusted side played by `figlock-core`.
+library. `tests/sync.rs` covers sync through the foreign traits. `tests/join.rs` covers pairing from the new device with the trusted side played by `figlock-core`.
 
 The Swift program also runs the published vectors of `docs/spec/vectors/` for every rule the API can decide
 alone (Secret Key text, invite codes, fingerprints, KDF limits). Derivations that need fixed nonces run

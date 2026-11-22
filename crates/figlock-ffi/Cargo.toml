@@ -14,6 +14,9 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # The binding generator (`cargo run -p figlock-ffi --features bindgen --bin uniffi-bindgen`). Off for app
 # builds so the shipped library does not pull in the generator's dependencies.
 bindgen = ["uniffi/cli"]
+# The Google Drive adapter, fed its access token by the app (ADR-0041 decision 3).
+default = ["gdrive"]
+gdrive = ["figlock-store/gdrive"]
 
 [[bin]]
 name = "uniffi-bindgen"
@@ -26,11 +29,14 @@ required-features = ["bindgen"]
 
 [dependencies]
 figlock-core = { path = "../figlock-core" }
+figlock-store = { path = "../figlock-store" }
+figlock-sync = { path = "../figlock-sync" }
 uniffi.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true
