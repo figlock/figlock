@@ -82,6 +82,31 @@ import Testing
 }
 
 @MainActor
+@Test func aFieldMaskingItselfDoesNotCancelAPromptForAnotherField() async throws {
+    let seeded = try SeededVault.make([
+        ("login", [("title", "Fastmail"), ("password", "generated-pass-42"), ("totp", "generated-totp-7")])
+    ])
+    defer { seeded.cleanup() }
+    _ = await seeded.browser()
+    let authenticator = GatedAuthenticator()
+    let reveal = SecretReveal(
+        session: seeded.session, itemId: seeded.itemIds[0], authenticator: authenticator, sleep: { _ in })
+
+    let first = Task { await reveal.show("password", label: "Password") }
+    await waitFor { await authenticator.pending > 0 }
+    await authenticator.release()
+    #expect(await first.value)
+    reveal.hide("password")
+
+    let second = Task { await reveal.show("totp", label: "Code") }
+    await waitFor { await authenticator.pending > 0 }
+    reveal.hide("password")
+    await authenticator.release()
+    #expect(await second.value)
+    #expect(reveal.shown["totp"] == "generated-totp-7")
+}
+
+@MainActor
 private func revealSetup(allow: Bool, gate: SleepGate) async throws -> (SeededVault, SecretReveal) {
     let seeded = try SeededVault.make([
         ("login", [("title", "Fastmail"), ("username", "a@example.com"), ("password", "generated-pass-42")])

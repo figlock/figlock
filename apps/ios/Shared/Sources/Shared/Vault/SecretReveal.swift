@@ -73,7 +73,6 @@ public final class SecretReveal {
     }
 
     public func hide(_ field: String) {
-        generation += 1
         timers[field]?.cancel()
         timers[field] = nil
         shown[field] = nil
