@@ -59,6 +59,26 @@ private func login(_ title: String, user: String, url: String, password: String 
 }
 
 @MainActor
+@Test func theSameQueryGivesTheSameHitsAfterAFilterChange() async throws {
+    let seeded = try SeededVault.make([
+        login("Fastmail", user: "mira@example.com", url: "https://app.fastmail.com"),
+        ("token", [("title", "Fastmail token"), ("provider", "fastmail"), ("token", "fl_demo_fm_generated")]),
+    ])
+    defer { seeded.cleanup() }
+    let browser = await seeded.browser()
+
+    browser.query = "fastmail"
+    let all = browser.visible.map(\.id)
+    #expect(Set(all).count == 2)
+    browser.filter = .token
+    #expect(browser.visible.count == 1)
+    browser.filter = .all
+    #expect(browser.visible.map(\.id) == all)
+    await browser.reload()
+    #expect(browser.visible.map(\.id) == all)
+}
+
+@MainActor
 @Test func reloadingReadsOnlyNewOpFilesAndCountsDamagedOnes() async throws {
     let seeded = try SeededVault.make([login("Fastmail", user: "a@example.com", url: "https://fastmail.com")])
     defer { seeded.cleanup() }

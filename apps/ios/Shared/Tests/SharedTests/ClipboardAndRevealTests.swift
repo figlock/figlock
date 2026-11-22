@@ -53,6 +53,35 @@ import Testing
 }
 
 @MainActor
+@Test func lockingLeavesAClipboardSomeoneElseFilledAlone() async throws {
+    let board = FakePasteboard()
+    let copier = ClipboardCopier(pasteboard: board, sleep: { _ in try? await Task.sleep(for: .seconds(60)) })
+
+    copier.copy("generated-secret", key: "password")
+    board.foreignCopy("something the person copied later")
+    copier.clearNow()
+    #expect(board.text == "something the person copied later")
+    #expect(copier.copiedKey == nil)
+}
+
+@MainActor
+@Test func aFaceIDResultThatArrivesAfterHideAllShowsNothing() async throws {
+    let seeded = try SeededVault.make([("login", [("title", "Fastmail"), ("password", "generated-pass-42")])])
+    defer { seeded.cleanup() }
+    _ = await seeded.browser()
+    let authenticator = GatedAuthenticator()
+    let reveal = SecretReveal(
+        session: seeded.session, itemId: seeded.itemIds[0], authenticator: authenticator, sleep: { _ in })
+
+    let pending = Task { await reveal.show("password", label: "Password") }
+    await waitFor { await authenticator.pending > 0 }
+    reveal.hideAll()
+    await authenticator.release()
+    #expect(await pending.value == false)
+    #expect(reveal.shown.isEmpty)
+}
+
+@MainActor
 private func revealSetup(allow: Bool, gate: SleepGate) async throws -> (SeededVault, SecretReveal) {
     let seeded = try SeededVault.make([
         ("login", [("title", "Fastmail"), ("username", "a@example.com"), ("password", "generated-pass-42")])

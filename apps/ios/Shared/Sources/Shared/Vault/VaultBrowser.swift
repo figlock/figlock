@@ -49,6 +49,8 @@ public final class VaultBrowser {
     private var appliedSeq: [String: UInt64] = [:]
     private var byId: [String: VaultItem] = [:]
     private let now: @Sendable () -> Date
+    private var revision = 0
+    @ObservationIgnored private var cachedHits: (query: String, revision: Int, ids: [String])?
 
     public init(session: VaultSession, log: VaultLog?, now: @escaping @Sendable () -> Date = { Date() }) {
         self.session = session
@@ -76,6 +78,7 @@ public final class VaultBrowser {
             return Loaded(applied: applied, failures: failures, listing: listing)
         }.value
         appliedSeq = result.applied
+        revision += 1
         if let failures = result.failures { loadFailures = failures }
         guard let listing = result.listing else {
             items = []
@@ -103,10 +106,16 @@ public final class VaultBrowser {
         if trimmed.isEmpty {
             base = items
         } else {
-            let hits =
-                (try? session.search(
-                    query: trimmed, nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: Self.searchLimit)) ?? []
-            base = hits.compactMap { byId[$0.id] }
+            if let cached = cachedHits, cached.query == trimmed, cached.revision == revision {
+                base = cached.ids.compactMap { byId[$0] }
+            } else {
+                let hits =
+                    (try? session.search(
+                        query: trimmed, nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: Self.searchLimit))
+                    ?? []
+                cachedHits = (trimmed, revision, hits.map(\.id))
+                base = hits.compactMap { byId[$0.id] }
+            }
         }
         return filter == .all ? base : base.filter { filter.matches($0.kind) }
     }

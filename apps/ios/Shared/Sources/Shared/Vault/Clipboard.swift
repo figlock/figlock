@@ -35,6 +35,7 @@ public final class ClipboardCopier {
     private let sleep: @Sendable (TimeInterval) async -> Void
     private let now: @Sendable () -> Date
     private var clearTask: Task<Void, Never>?
+    private var mark = 0
     /// Which field is on the clipboard now, for the "Copied" caption. Cleared with the clipboard.
     public private(set) var copiedKey: String?
 
@@ -55,21 +56,20 @@ public final class ClipboardCopier {
         clearTask?.cancel()
         pasteboard.setLocalOnly(text, expiry: now().addingTimeInterval(Self.clearAfter))
         copiedKey = key
-        let mark = pasteboard.changeCount
+        mark = pasteboard.changeCount
         let wait = sleep
         clearTask = Task { [weak self] in
             await wait(Self.clearAfter)
             guard !Task.isCancelled, let self else { return }
-            // Someone else copied something since: leave their clipboard alone.
-            if self.pasteboard.changeCount == mark { self.pasteboard.clear() }
-            self.copiedKey = nil
+            self.clearNow()
         }
     }
 
     /// Clear now, for locking the app.
     public func clearNow() {
         clearTask?.cancel()
-        if copiedKey != nil { pasteboard.clear() }
+        // Someone else copied something since: leave their clipboard alone.
+        if copiedKey != nil, pasteboard.changeCount == mark { pasteboard.clear() }
         copiedKey = nil
     }
 }

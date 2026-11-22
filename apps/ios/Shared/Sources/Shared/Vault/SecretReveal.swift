@@ -34,6 +34,7 @@ public final class SecretReveal {
     private let authenticator: any Authenticating
     private let sleep: @Sendable (TimeInterval) async -> Void
     private var timers: [String: Task<Void, Never>] = [:]
+    private var generation = 0
 
     public init(
         session: VaultSession, itemId: String, authenticator: any Authenticating = DeviceAuthenticator(),
@@ -53,7 +54,9 @@ public final class SecretReveal {
     @discardableResult
     public func show(_ field: String, label: String) async -> Bool {
         failed.remove(field)
-        guard await authenticator.authenticate(reason: "Show the \(label) in FigLock") else { return false }
+        let started = generation
+        let allowed = await authenticator.authenticate(reason: "Show the \(label) in FigLock")
+        guard allowed, started == generation, !Task.isCancelled else { return false }
         guard let value = try? session.revealField(itemId: itemId, field: field) else {
             failed.insert(field)
             return false
@@ -70,12 +73,14 @@ public final class SecretReveal {
     }
 
     public func hide(_ field: String) {
+        generation += 1
         timers[field]?.cancel()
         timers[field] = nil
         shown[field] = nil
     }
 
     public func hideAll() {
+        generation += 1
         for field in Array(shown.keys) { hide(field) }
     }
 

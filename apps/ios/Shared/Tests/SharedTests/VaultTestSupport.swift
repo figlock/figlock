@@ -135,6 +135,23 @@ struct FakeAuthenticator: Authenticating {
     func authenticate(reason: String) async -> Bool { allow }
 }
 
+/// Suspends in `authenticate` until the test calls `release`, to model a Face ID prompt that is still up.
+actor GatedAuthenticator: Authenticating {
+    private var waiting: [CheckedContinuation<Void, Never>] = []
+    var pending: Int { waiting.count }
+
+    func authenticate(reason: String) async -> Bool {
+        await withCheckedContinuation { waiting.append($0) }
+        return true
+    }
+
+    func release() {
+        let pending = waiting
+        waiting = []
+        for continuation in pending { continuation.resume() }
+    }
+}
+
 /// Wait up to two seconds for `condition`, so a broken timer fails a test instead of hanging it.
 @MainActor
 func waitFor(_ condition: @MainActor () async -> Bool) async {
