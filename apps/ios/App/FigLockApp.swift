@@ -45,10 +45,10 @@ struct RootView: View {
                             LockScreen(lock: environment.lock)
                         }
                     case .noVault:
-                        Placeholder(
-                            title: "Welcome to FigLock", detail: "Setting up a vault on this iPhone comes next.")
+                        OnboardingRoot(environment: environment)
                     case .missing:
-                        Placeholder(title: "Vault folder missing", detail: "The vault on this iPhone cannot be found.")
+                        RecoveryScreen(
+                            service: environment.onboarding, drive: environment.drive, lock: environment.lock)
                     case .damaged, .unreadable:
                         Placeholder(
                             title: "Vault cannot be read",
@@ -56,6 +56,8 @@ struct RootView: View {
                     }
                 }
             }
+            // Onboarding and recovery change the vault under this view; a new version redraws it.
+            .id(environment.lock.vaultVersion)
         }
         .ignoresSafeArea()
     }

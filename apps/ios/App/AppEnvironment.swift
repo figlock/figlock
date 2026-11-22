@@ -12,6 +12,8 @@ final class AppEnvironment {
     let vault: LocalVault
     let lock: AppLock
     let keeper: SecretKeyKeeper
+    let onboarding: Onboarding
+    let drive: DriveConnection
     /// Set when the App Group container cannot be reached; the app then shows this instead of working elsewhere.
     let startupError: String?
 
@@ -29,10 +31,13 @@ final class AppEnvironment {
         startupError = failure
         vault = LocalVault(container: container, access: failure == nil ? .readWrite : .readOnly)
         keeper = SecretKeyKeeper(store: KeychainSecretStore(accessGroup: Self.keychainGroup), container: container)
+        let quick = QuickUnlock(container: container, chip: SecureEnclaveChip(accessGroup: Self.keychainGroup))
+        onboarding = Onboarding(vault: vault, keeper: keeper, quick: quick)
+        drive = DriveConnection(store: KeychainSecretStore(accessGroup: Self.keychainGroup))
         lock = AppLock(
             vault: vault,
             keeper: keeper,
-            quick: QuickUnlock(container: container, chip: SecureEnclaveChip(accessGroup: Self.keychainGroup)),
+            quick: quick,
             deviceName: UIDevice.current.name)
         #if DEBUG
             DebugSeed.seedIfRequested(self)

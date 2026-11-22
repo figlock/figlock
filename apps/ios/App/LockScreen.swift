@@ -202,7 +202,7 @@ struct LockScreen: View {
 
 // MARK: Pieces
 
-private struct Notice: View {
+struct Notice: View {
     let text: String
     let isError: Bool
 
@@ -222,7 +222,7 @@ private struct Notice: View {
     }
 }
 
-private struct PrimaryActionStyle: ButtonStyle {
+struct PrimaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
@@ -234,7 +234,7 @@ private struct PrimaryActionStyle: ButtonStyle {
     }
 }
 
-private struct SecondaryActionStyle: ButtonStyle {
+struct SecondaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
@@ -246,7 +246,7 @@ private struct SecondaryActionStyle: ButtonStyle {
     }
 }
 
-private struct PlainActionStyle: ButtonStyle {
+struct PlainActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
