@@ -2,6 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- New files are readable after the first unlock, so the extension can read while the phone is locked again (ADR-0041 decision 2). -->
+	<key>com.apple.developer.default-data-protection</key>
+	<string>NSFileProtectionCompleteUntilFirstUserAuthentication</string>
 	<!-- Placeholder ids: the real App Group and keychain group are created under the Apple Developer account (FIG-44, FIG-175). -->
 	<key>com.apple.security.application-groups</key>
 	<array><string>group.com.figlock.ios</string></array>

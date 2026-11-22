@@ -508,3 +508,18 @@ pub fn sync_interval_secs() -> u64 {
 pub fn sync_backoff_secs(failures: u32) -> u64 {
     figlock_sync::backoff(usize::try_from(failures).unwrap_or(usize::MAX)).as_secs()
 }
+
+/// Which vault a `vault.json` belongs to and how far it has got.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct VaultIdentity {
+    pub vault_id: String,
+    pub revision: u64,
+}
+
+/// The vault id and revision a `vault.json` names, for the app to tell a vault from a damaged file without
+/// unlocking. `Damaged` when the bytes are not JSON with both fields. Not a signature check: unlocking does that.
+#[uniffi::export]
+pub fn vault_identity(vault_json: Vec<u8>) -> Result<VaultIdentity, SyncFailure> {
+    let (vault_id, revision) = figlock_sync::vault_identity(&vault_json)?;
+    Ok(VaultIdentity { vault_id, revision })
+}

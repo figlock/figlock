@@ -39,8 +39,8 @@ pub use session::{
 pub use sync::DriveStore;
 pub use sync::{
     AccessTokens, BlobEntry, BlobStoreFfi, FolderStore, StoreFailure, SyncClock, SyncEngine,
-    SyncFailure, SyncReport, SyncStateStore, SyncWarning, delete_remote_confirmed,
-    delete_remote_phrase, sync_backoff_secs, sync_interval_secs,
+    SyncFailure, SyncReport, SyncStateStore, SyncWarning, VaultIdentity, delete_remote_confirmed,
+    delete_remote_phrase, sync_backoff_secs, sync_interval_secs, vault_identity,
 };
 
 uniffi::setup_scaffolding!();
