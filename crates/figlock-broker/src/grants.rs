@@ -304,14 +304,31 @@ impl Want<'_> {
     }
 }
 
-/// The same verified program: user, program path and the chain of parent programs. A peer without a path or
-/// without parents is never the same, so the person is asked (ADR-0039). Pids are not compared.
+/// Programs that only start other programs. They are left out when comparing who started a request, so the same
+/// agent is the same agent whether it ran the command through one shell or three (FIG-191).
+const WRAPPERS: [&str; 13] = [
+    "sh", "bash", "zsh", "fish", "dash", "ksh", "tcsh", "csh", "nu", "xonsh", "env", "sudo",
+    "login",
+];
+
+/// The ancestors that are not shells or wrappers, nearest first. A login shell's leading dash is ignored.
+fn significant(parents: &[String]) -> Vec<&str> {
+    parents
+        .iter()
+        .map(String::as_str)
+        .filter(|p| {
+            let name = p.rsplit('/').next().unwrap_or(p).trim_start_matches('-');
+            !WRAPPERS.contains(&name)
+        })
+        .collect()
+}
+
+/// The same verified program: user, program path and the programs that started it, not counting shells and
+/// wrappers. A peer without a path, or whose ancestors are all shells, is never the same, so the person is
+/// asked (ADR-0039). Pids are not compared.
 pub fn same_program(a: &PeerId, b: &PeerId) -> bool {
-    a.uid == b.uid
-        && a.exe.is_some()
-        && a.exe == b.exe
-        && !a.parents.is_empty()
-        && a.parents == b.parents
+    let (mine, theirs) = (significant(&a.parents), significant(&b.parents));
+    a.uid == b.uid && a.exe.is_some() && a.exe == b.exe && !mine.is_empty() && mine == theirs
 }
 
 fn valid_host(h: &str) -> bool {

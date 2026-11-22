@@ -48,6 +48,10 @@ MUST, SHOULD and MAY are used as in RFC 2119.
 
 ## 2. Socket and peer authentication
 
+The program a peer runs, and the programs that started it, are asked of the operating system (`proc_pidpath` on
+macOS, `/proc/<pid>/exe` on Linux) and are absolute paths. A path the system cannot give is left out, never
+replaced by the name the process was started under, and the approval card then says it could not be checked.
+
 Unix only in this version (macOS, Linux). On Windows the broker does not start and says so; a named-pipe
 transport with the same protocol is an open question (section 9).
 

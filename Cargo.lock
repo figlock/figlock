@@ -1467,6 +1467,7 @@ version = "0.5.0"
 dependencies = [
  "figlock-biometric",
  "figlock-core",
+ "figlock-procinfo",
  "figlock-session",
  "figlock-store",
  "getrandom 0.4.3",
@@ -1558,6 +1559,14 @@ dependencies = [
  "tempfile",
  "uniffi",
  "zeroize",
+]
+
+[[package]]
+name = "figlock-procinfo"
+version = "0.5.0"
+dependencies = [
+ "libc",
+ "tempfile",
 ]
 
 [[package]]

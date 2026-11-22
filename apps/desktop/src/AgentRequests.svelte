@@ -101,7 +101,11 @@
         <dt class="text-text-secondary">Program</dt>
         <dd class="break-all">
           {card.programPath}
-          <Badge tone="success">checked by your Mac</Badge>
+          {#if card.programVerified}
+            <Badge tone="success">checked by your Mac</Badge>
+          {:else}
+            <Badge tone="warning">could not be checked</Badge>
+          {/if}
         </dd>
         {#if card.startedBy.length > 0}
           <dt class="text-text-secondary">Started by</dt>

@@ -1,0 +1,23 @@
+[package]
+name = "figlock-procinfo"
+description = "Who a process is, asked of the operating system: its executable's absolute path and its parent"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[target.'cfg(target_vendor = "apple")'.dependencies]
+libc = "0.2"
+
+# The only workspace crate besides `figlock-biometric` that talks to the operating system through unsafe calls:
+# `proc_pidpath` and `proc_pidinfo` fill buffers the caller sizes. The rest of the workspace keeps
+# `unsafe_code = "forbid"`.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dev-dependencies]
+tempfile.workspace = true
