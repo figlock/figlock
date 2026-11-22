@@ -8,7 +8,7 @@ let package = Package(
     name: "Shared",
     platforms: [.iOS(.v18)],
     products: [
-        .library(name: "Shared", targets: ["Shared"]),
+        .library(name: "Shared", targets: ["Shared"])
     ],
     targets: [
         .binaryTarget(name: "figlock_ffiFFI", path: "Frameworks/FigLockFFI.xcframework"),

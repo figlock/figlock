@@ -5,6 +5,8 @@ pnpm = "12"
 just = "1"
 xcodegen = "2.48.0"
 "aqua:EmbarkStudios/cargo-deny" = "0.20.2"
+# Swift lint for apps/ios; swift-format ships with Xcode (xcrun swift-format). macOS only.
+"aqua:realm/SwiftLint" = { version = "0.65.1", os = ["macos"] }
 
 [settings]
 experimental = true

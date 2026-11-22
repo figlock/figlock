@@ -1,0 +1,14 @@
+# SwiftLint for apps/ios. Formatting is swift-format's job (.swift-format); SwiftLint covers correctness and
+# style rules. The generated UniFFI bindings are never linted.
+included:
+  - App
+  - AutofillExtension
+  - Shared/Sources/Shared
+  - Shared/Tests
+excluded:
+  - Shared/Sources/FigLockFFI
+  - Shared/.build
+  - build
+disabled_rules:
+  - line_length # swift-format wraps at 120
+  - trailing_comma # swift-format owns commas
