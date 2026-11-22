@@ -11,6 +11,17 @@ scripts/              build-xcframework.sh, run-simulator.sh
 project.yml           XcodeGen spec; the .xcodeproj is generated and never committed or hand edited
 ```
 
+## Local vault
+
+`Shared` owns the one local vault both targets use (ADR-0041 decision 2, ADR-0026). `VaultContainer` lays out the
+App Group container: `vault/` (ciphertext: `vault.json`, `devices/`, `log/`) and `device/` (this phone's own
+state). Both folders are excluded from backups and use the `completeUntilFirstUserAuthentication` protection
+class. `LocalVault` opens the folder through the Rust folder store (atomic, create-only writes; path rules shared
+with every platform): the app with `.readWrite`, the extension with `.readOnly`, which cannot write or create
+anything. `status()` tells onboarding (`noVault`), a damaged `vault.json`, an unreadable file and the recovery
+screen case (`missing`) apart; a folder that vanished is never recreated empty. The device-only check of the
+protection class belongs to the on-device tests (FIG-172); the simulator does not report it.
+
 ## Build and run
 
 Needs Xcode with an iOS simulator runtime and the tools pinned in `mise.toml` (`just setup`; it also installs the

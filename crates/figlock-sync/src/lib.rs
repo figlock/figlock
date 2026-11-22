@@ -139,7 +139,12 @@ fn read(store: &dyn BlobStore, path: &str) -> Result<Option<Vec<u8>>, SyncError>
     }
 }
 
-/// `(vault_id, revision)` from `vault.json`. Both are plain fields; the signature is checked on unlock.
+/// `(vault_id, revision)` from `vault.json`, or `Damaged` when it is not JSON with both. Both are plain fields;
+/// the signature is checked on unlock, so this only says whether the file is shaped like a vault's.
+pub fn vault_identity(bytes: &[u8]) -> Result<(String, u64), SyncError> {
+    identity(bytes)
+}
+
 fn identity(bytes: &[u8]) -> Result<(String, u64), SyncError> {
     let v: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| SyncError::Damaged)?;
     match (v["vault_id"].as_str(), v["revision"].as_u64()) {

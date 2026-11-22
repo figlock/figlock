@@ -9,7 +9,7 @@ use figlock_core::{KdfParams, Vault};
 use figlock_ffi::{
     AccessTokens, BlobEntry, BlobStoreFfi, DriveStore, FolderStore, StoreFailure, SyncClock,
     SyncEngine, SyncFailure, SyncStateStore, SyncWarning, delete_remote_confirmed,
-    delete_remote_phrase, sync_backoff_secs, sync_interval_secs, unlock_vault,
+    delete_remote_phrase, sync_backoff_secs, sync_interval_secs, unlock_vault, vault_identity,
 };
 
 const T0: u64 = 1_800_000_000_000;
@@ -533,4 +533,13 @@ fn the_timing_rules_match_the_desktop() {
         [0, 1, 2, 3, 4, 50].map(sync_backoff_secs),
         [5, 15, 60, 300, 300, 300]
     );
+}
+
+#[test]
+fn a_vault_json_names_its_vault_and_a_damaged_one_is_told_apart() {
+    let named = vault_identity(vault_json("v1", 7, "x")).unwrap();
+    assert_eq!((named.vault_id.as_str(), named.revision), ("v1", 7));
+    for bad in [&b""[..], b"{ nope", b"{}", b"{\"vault_id\":\"v\"}", b"[1]"] {
+        assert_eq!(vault_identity(bad.to_vec()), Err(SyncFailure::Damaged));
+    }
 }
