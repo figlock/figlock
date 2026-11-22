@@ -36,6 +36,7 @@ final class AppEnvironment {
             deviceName: UIDevice.current.name)
         #if DEBUG
             DebugSeed.seedIfRequested(self)
+            DebugSeed.unlockIfRequested(self)
         #endif
     }
 }

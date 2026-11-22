@@ -9,6 +9,45 @@
     enum DebugSeed {
         static let password = "demo-password-1"
 
+        private static let demoItems: [(type: String, fields: [(String, String)])] = [
+            (
+                "login",
+                [
+                    ("title", "Fastmail"), ("username", "mira@example.com"), ("url/a1", "https://app.fastmail.com"),
+                    ("password", "Quartz-Meadow-Harbor-31"),
+                ]
+            ),
+            (
+                "login",
+                [
+                    ("title", "Linear"), ("username", "mira@example.com"), ("url/a1", "https://linear.app"),
+                    ("password", "Birch-Signal-Copper-77"),
+                ]
+            ),
+            (
+                "token",
+                [
+                    ("title", "GitHub token"), ("provider", "github"), ("scopes", "repo (read), workflow"),
+                    ("allowed_hosts/a1", "api.github.com"), ("token", "fl_demo_gh_Qp7xV2mK9d4R"),
+                ]
+            ),
+            (
+                "token",
+                [
+                    ("title", "Stripe API key"), ("provider", "stripe"), ("scopes", "charges (read)"),
+                    ("token", "fl_demo_st_Rk9mF4vD1q7J"),
+                ]
+            ),
+            ("note", [("title", "Wifi at home"), ("body", "Network: demo-net")]),
+        ]
+
+        /// `-figlock-unlock-demo` also unlocks with the demo password, to look at the vault screens in a simulator.
+        @MainActor
+        static func unlockIfRequested(_ environment: AppEnvironment) {
+            guard ProcessInfo.processInfo.arguments.contains("-figlock-unlock-demo") else { return }
+            Task { _ = await environment.lock.unlock(password: password, secretKey: nil) }
+        }
+
         @MainActor
         static func seedIfRequested(_ environment: AppEnvironment) {
             guard ProcessInfo.processInfo.arguments.contains("-figlock-seed-demo") else { return }
@@ -21,6 +60,16 @@
                 try store.putNew(path: "vault.json", bytes: created.vaultJson())
                 let keys = created.deviceKeys()
                 try store.putNew(path: "devices/\(keys.deviceId()).json", bytes: created.deviceRecord())
+                // A few made-up items, committed as an op file like any edit.
+                let writer = try created.takeSession()
+                let now = UInt64(Date().timeIntervalSince1970 * 1000)
+                for (offset, item) in demoItems.enumerated() {
+                    _ = try writer.addItem(
+                        itemType: item.type, vault: "personal",
+                        fields: item.fields.map { FieldInput(name: $0.0, value: $0.1) }, nowMs: now + UInt64(offset))
+                }
+                if let file = try writer.commit() { try store.putNew(path: file.path, bytes: file.bytes) }
+                writer.lock()
                 try environment.vault.markVaultPresent()
                 if case .ready(let id, _) = environment.vault.status() {
                     try environment.keeper.saveDeviceKeys(keys, vaultId: id)

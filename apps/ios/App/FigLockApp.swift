@@ -40,7 +40,7 @@ struct RootView: View {
                     switch environment.vault.status() {
                     case .ready:
                         if environment.lock.isUnlocked {
-                            UnlockedPlaceholder(lock: environment.lock)
+                            VaultRootView(lock: environment.lock, vault: environment.vault)
                         } else {
                             LockScreen(lock: environment.lock)
                         }
@@ -75,20 +75,6 @@ private struct Placeholder: View {
         }
         .padding(FLSpace.s6)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(FLColor.bg)
-    }
-}
-
-private struct UnlockedPlaceholder: View {
-    let lock: AppLock
-
-    var body: some View {
-        VStack(spacing: FLSpace.s4) {
-            Placeholder(title: "Vault unlocked", detail: "Your items appear here.")
-            Button("Lock now") { lock.lock() }
-                .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
-                .flMinTouchTarget()
-        }
         .background(FLColor.bg)
     }
 }
