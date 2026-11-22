@@ -15,6 +15,8 @@ settings:
     SUPPORTS_MACCATALYST: NO
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
     SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+    # The iOS OAuth client id for Google Drive sign-in (ADR-0021); empty until FIG-44 creates the client.
+    FIGLOCK_GOOGLE_CLIENT_ID: ""
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     # Team and signing identities arrive with FIG-175; simulator builds do not need them.

@@ -33,6 +33,16 @@ synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` tie
 The simulator has no Secure Enclave, so Face ID is off there. Debug builds accept `-figlock-seed-demo` to create a
 made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists.
 
+## Onboarding
+
+`Shared/Sources/Shared/Onboarding` gets a vault onto the phone. `Onboarding` creates one (nothing is stored until the
+Emergency Kit check passes), joins one by pairing through the remote's `inbox/` (`Onboarding.Pairing`), opens one from
+Google Drive and restores a missing folder from it, and removes a vault from the phone. The remote is any
+`BlobStoreFfi`; Drive is the Rust `DriveStore` fed tokens by `GoogleAccessTokens` (PKCE sign-in, refresh token in the
+keychain). The Google client id comes from the build (`FIGLOCK_GOOGLE_CLIENT_ID`, Info.plist `FigLockGoogleClientID`)
+and is empty until the iOS OAuth client exists (FIG-44), in which case the screens say sign-in is not set up. The
+SwiftUI screens are in `App/Onboarding` and `App/Onboarding/RecoveryScreen.swift`.
+
 ## Build and run
 
 Needs Xcode with an iOS simulator runtime and the tools pinned in `mise.toml` (`just setup`; it also installs the

@@ -37,6 +37,8 @@ public final class AppLock {
     public static let defaultAutoLock: TimeInterval = 5 * 60
 
     public private(set) var state: State = .locked
+    /// Bumped when the vault on this phone appears or goes (onboarding, removal), so screens that read it redraw.
+    public private(set) var vaultVersion = 0
     /// Why the screen is locked or what it should say, from the last try.
     public private(set) var lastOutcome: Outcome?
     public var autoLockAfter: TimeInterval
@@ -81,6 +83,8 @@ public final class AppLock {
         guard case .ready(let vaultId, _) = vault.status() else { return false }
         return (try? keeper.needsTyping(vaultId: vaultId)) ?? true
     }
+
+    public func vaultDidChange() { vaultVersion += 1 }
 
     // MARK: Locking
 
