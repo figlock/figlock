@@ -34,6 +34,8 @@ vectors-check:
 design-check:
     python3 -I design/check-contrast.py
     cmp design/tokens.css site/tokens.css
+    python3 -I design/gen-swift-theme.py --check
+    python3 -I -m unittest discover -s design
 
 # Tests for the release scripts (needs minisign): a good release passes and each broken one fails.
 release-scripts-test:

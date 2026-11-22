@@ -7,6 +7,7 @@ included:
   - Shared/Tests
 excluded:
   - Shared/Sources/FigLockFFI
+  - Shared/Sources/Shared/Theme/Tokens.generated.swift
   - Shared/.build
   - build
 disabled_rules:
