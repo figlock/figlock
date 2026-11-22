@@ -119,6 +119,7 @@ public struct Onboarding: Sendable {
     /// this iPhone can do it; a failure there never fails the creation, the vault exists either way).
     @discardableResult
     public func commitCreation(_ pending: PendingVault, enableFaceID: Bool) async throws -> Bool {
+        guard case .noVault = vault.status() else { throw Failure.alreadyHasVault }
         let created = pending.created
         let secretKey: String
         let known = try? vaultIdentity(vaultJson: created.vaultJson()).vaultId

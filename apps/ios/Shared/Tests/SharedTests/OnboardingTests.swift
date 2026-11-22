@@ -132,6 +132,29 @@ private func lastTwoGroups(of secretKey: String) -> String {
     }
 }
 
+@Test func committingTheSamePendingVaultTwiceLeavesTheFirstOneUntouched() async throws {
+    let phone = try Blank.make()
+    defer { phone.cleanup() }
+    let pending = try await phone.onboarding.startCreation(password: Blank.password, deviceName: "Test iPhone")
+    try await phone.onboarding.commitCreation(pending, enableFaceID: false)
+    guard case .ready(let vaultId, _) = phone.vault.status() else {
+        Issue.record("the vault should be stored")
+        return
+    }
+    let secretKey = try phone.keeper.secretKey(vaultId: vaultId)
+    await #expect(throws: Onboarding.Failure.alreadyHasVault) {
+        try await phone.onboarding.commitCreation(pending, enableFaceID: false)
+    }
+    guard case .ready(let after, _) = phone.vault.status() else {
+        Issue.record("the first vault should still be stored")
+        return
+    }
+    #expect(after == vaultId)
+    #expect(try phone.keeper.secretKey(vaultId: vaultId) == secretKey)
+    #expect(try phone.keeper.deviceKeys(vaultId: vaultId) != nil)
+    #expect(phone.onboarding.rememberedVaultId == vaultId)
+}
+
 // MARK: Open from Drive
 
 @Test func aRemoteWithoutAVaultIsReportedAsSuch() async throws {
