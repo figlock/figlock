@@ -1,8 +1,9 @@
 import Foundation
 
 /// Which items this phone changed that have not reached the other devices yet. Each commit records its items with
-/// the time it was written; an item stays pending until a sync that started after that time has finished, so nothing has to tell
-/// this type when a sync ran: it reads the sync state the engine already keeps (`FileSyncState`).
+/// the time it was written; an item stays pending until a sync that started after that time has finished, so
+/// nothing has to tell this type when a sync ran: it reads the sync state the engine already keeps
+/// (`FileSyncState`).
 ///
 /// Holds item ids and times only (no titles, no secrets), in the device folder, never synced.
 public final class PendingSync: @unchecked Sendable {
