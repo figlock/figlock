@@ -365,7 +365,7 @@ Unit and end-to-end, all with generated values (`AGENTS.md`):
 ## 9. Open questions
 
 - Windows transport (named pipe with a security descriptor) and the process chain on Windows (threat model 8).
-- How far up the process chain the prompt should look. It shows up to three parents (`started by claude <
+- How far up the process chain the prompt should look. It shows up to eight parents (`started by claude <
   zsh`), because through the `figlock` command the verified peer is always `figlock` itself.
 - Disabling core dumps and locking pages for the broker process, and scrubbing memory on a signal.
 - Reloading the vault while the broker runs.
