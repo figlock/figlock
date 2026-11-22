@@ -14,6 +14,7 @@ mod import;
 mod pairing;
 mod prompt;
 mod quick;
+mod remotes;
 mod render;
 #[cfg(unix)]
 #[cfg(unix)]
@@ -30,6 +31,7 @@ use figlock_session::error;
 const TOP_HELP: &str = "\
 Getting started:
   figlock init --store ~/Documents/figlock-vault    Create a vault (a synced folder works), set up this device
+  figlock init --icloud                             ...and keep a copy in iCloud Drive (Macs; add --drive for Google Drive too)
   figlock add -t login --title GitHub --set username=ada --secret password
   figlock find github                               Search (fuzzy)
   figlock get github --reveal                       Show an item with its secrets
@@ -37,7 +39,7 @@ Getting started:
 
 Adding another device:
   figlock device add                                On a device that has the vault: show an invite code, approve
-  figlock join <code> --store <folder>              On the new device (--drive for a vault in Google Drive)
+  figlock join <code> --store <folder>              On the new device (--drive, --icloud or --sync-folder <path> for a synced vault)
   figlock open --store <folder>                     No device at hand: master password and Secret Key instead
 
 Giving an agent access without handing it the secret:
@@ -210,11 +212,13 @@ struct SyncArgs {
 
 #[derive(Subcommand)]
 enum SyncCmd {
-    /// Turn Drive sync on and upload what is already on this device (sign in first with `figlock drive login`).
-    On,
-    /// Stop syncing. The vault on this device and the copy in Drive are left alone.
-    Off,
-    /// Show whether sync is on, whether you are signed in and when it last ran.
+    /// Turn sync to a place on and upload what is already on this device: `--drive` (sign in first with
+    /// `figlock drive login`, and the default), `--icloud` or `--sync-folder <path>`. Several can be on.
+    On(#[command(flatten)] RemoteArgs),
+    /// Stop syncing to the places given, or to all of them. The vault on this device and the copies already
+    /// stored there are left alone.
+    Off(#[command(flatten)] RemoteArgs),
+    /// Show every place this vault syncs to: whether it can be reached, when it last synced and what went wrong.
     Status,
     /// Permanently delete this vault's copy from Google Drive. The vault on this device is kept, and sync is
     /// turned off here.
@@ -397,6 +401,20 @@ pub enum KdfProfile {
     Floor,
 }
 
+/// Places a vault is synced to besides this device's own folder. Any number can be on at once (ADR-0043).
+#[derive(Args, Default)]
+pub struct RemoteArgs {
+    /// Google Drive (run `figlock drive login` first).
+    #[arg(long)]
+    pub drive: bool,
+    /// iCloud Drive: the `FigLock` folder in it. Macs with iCloud Drive on only; there is no sign-in step.
+    #[arg(long)]
+    pub icloud: bool,
+    /// Any other synced folder (Dropbox, Syncthing), as a full path. Can be given more than once.
+    #[arg(long = "sync-folder", value_name = "PATH")]
+    pub sync_folder: Vec<PathBuf>,
+}
+
 /// Where an existing vault is, for `join` and `open`.
 #[derive(Args)]
 pub struct WhereArgs {
@@ -404,9 +422,13 @@ pub struct WhereArgs {
     /// config directory, which is where a Drive copy is downloaded.
     #[arg(long)]
     pub store: Option<PathBuf>,
-    /// The vault is in your Google Drive (run `figlock drive login` first).
-    #[arg(long)]
-    pub drive: bool,
+    /// Where the vault is, when not in a folder: `--drive`, `--icloud` or `--sync-folder`. This device keeps
+    /// its own copy in `--store` (or the default folder) and keeps it synced.
+    #[command(flatten)]
+    pub remotes: RemoteArgs,
+    /// Seconds to wait for a synced folder (iCloud) to finish delivering the vault before giving up.
+    #[arg(long, default_value_t = 120, value_name = "SECS")]
+    pub wait_for_sync: u64,
     /// Name shown for this device.
     #[arg(long, default_value = "cli")]
     pub device_name: String,
@@ -448,9 +470,9 @@ pub struct InitArgs {
     /// FigLock config directory.
     #[arg(long)]
     pub store: Option<PathBuf>,
-    /// Also keep a synced copy in your Google Drive (run `figlock drive login` first).
-    #[arg(long)]
-    pub drive: bool,
+    /// Also keep synced copies: `--drive`, `--icloud`, `--sync-folder <path>`; any number of them.
+    #[command(flatten)]
+    pub remotes: RemoteArgs,
     /// Name shown for this device.
     #[arg(long, default_value = "cli")]
     pub device_name: String,
@@ -787,8 +809,8 @@ fn main() -> ExitCode {
         )),
         Command::Sync(a) => ok(match a.action {
             None => sync_cmd::run(a.reupload, json),
-            Some(SyncCmd::On) => sync_cmd::on(json),
-            Some(SyncCmd::Off) => sync_cmd::off(json),
+            Some(SyncCmd::On(r)) => sync_cmd::on(&r, json),
+            Some(SyncCmd::Off(r)) => sync_cmd::off(&r, json),
             Some(SyncCmd::Status) => sync_cmd::status(json),
             Some(SyncCmd::DeleteRemote { confirm }) => sync_cmd::delete_remote(confirm, json),
         }),

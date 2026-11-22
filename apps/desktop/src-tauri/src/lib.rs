@@ -281,7 +281,17 @@ async fn locate_folder(folder: String) -> CmdRes<()> {
 /// The vault folder is gone: download the vault from Google Drive into a new local folder.
 #[tauri::command]
 async fn restore_from_drive(folder: Option<String>) -> CmdRes<()> {
-    tauri::async_runtime::spawn_blocking(move || desk::folder::restore(folder.as_deref()))
+    restore_from(folder, desk::folder::RestoreFrom::Drive).await
+}
+
+/// The vault folder is gone: copy the vault from the `FigLock` folder in iCloud Drive into a new local folder.
+#[tauri::command]
+async fn restore_from_icloud(folder: Option<String>) -> CmdRes<()> {
+    restore_from(folder, desk::folder::RestoreFrom::Icloud).await
+}
+
+async fn restore_from(folder: Option<String>, from: desk::folder::RestoreFrom) -> CmdRes<()> {
+    tauri::async_runtime::spawn_blocking(move || desk::folder::restore(folder.as_deref(), from))
         .await
         .map_err(|_| CmdError::new("failed", "Restoring stopped unexpectedly. Try again."))?
 }
@@ -345,18 +355,25 @@ async fn sync_sign_out(app: AppHandle) -> CmdRes<SignedOut> {
     Ok(out)
 }
 
+/// Whether iCloud Drive can be used on this Mac, for the setup screens. No vault is needed.
+#[tauri::command]
+async fn icloud_status() -> CmdRes<desk::sync::IcloudView> {
+    Ok(desk::sync::icloud_view())
+}
+
 /// Whether sync is on and how it is going, with no network call.
 #[tauri::command]
 async fn sync_status(desk: State<'_, Desk>) -> CmdRes<SyncView> {
     desk.sync_status()
 }
 
-/// Sync once now. `reupload` is the person's confirmation after the vault was lost from Drive.
+/// Sync once now: every place, or only `remote` (its id). `reupload` is the person's confirmation after the vault
+/// was lost from a place.
 #[tauri::command]
-async fn sync_now(app: AppHandle, reupload: bool) -> CmdRes<SyncView> {
+async fn sync_now(app: AppHandle, remote: Option<String>, reupload: bool) -> CmdRes<SyncView> {
     let view = tauri::async_runtime::spawn_blocking({
         let app = app.clone();
-        move || tauri::Manager::state::<Desk>(&app).sync_now(reupload)
+        move || tauri::Manager::state::<Desk>(&app).sync_now(remote.as_deref(), reupload)
     })
     .await
     .map_err(|_| CmdError::new("failed", "Sync stopped unexpectedly. Try again."))??;
@@ -390,9 +407,28 @@ async fn sync_enable(app: AppHandle) -> CmdRes<SyncView> {
     Ok(view)
 }
 
+/// Turn iCloud Drive sync on: no sign-in, the `FigLock` folder in iCloud Drive.
+#[tauri::command]
+async fn sync_enable_icloud(app: AppHandle) -> CmdRes<SyncView> {
+    let view = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || tauri::Manager::state::<Desk>(&app).sync_enable_icloud()
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Sync stopped unexpectedly. Try again."))??;
+    let _ = app.emit(SYNCED_EVENT, ());
+    Ok(view)
+}
+
 #[tauri::command]
 async fn sync_disable(desk: State<'_, Desk>) -> CmdRes<SyncView> {
     desk.sync_disable()
+}
+
+/// Stop syncing to one place (its id), leaving the others.
+#[tauri::command]
+async fn sync_disable_remote(desk: State<'_, Desk>, remote: String) -> CmdRes<SyncView> {
+    desk.sync_disable_remote(&remote)
 }
 
 /// The devices that can open this vault, then the revoked ones.
@@ -936,6 +972,7 @@ pub fn run() {
             join_start,
             locate_folder,
             restore_from_drive,
+            restore_from_icloud,
             forget_vault,
             forget_locked_vault,
             drive_status,
@@ -943,11 +980,14 @@ pub fn run() {
             drive_cancel_sign_in,
             drive_sign_out,
             sync_status,
+            icloud_status,
             sync_now,
             sync_enable,
+            sync_enable_icloud,
             sync_delete_remote,
             sync_sign_out,
             sync_disable,
+            sync_disable_remote,
             devices,
             revoke_device,
             add_device_start,

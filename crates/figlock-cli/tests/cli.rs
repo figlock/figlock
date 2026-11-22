@@ -1024,7 +1024,7 @@ fn device_list_marks_this_device_and_it_cannot_revoke_itself() {
 fn sync_is_off_for_a_folder_vault_and_says_how_to_turn_it_on() {
     let e = Env::init();
     let status = e.ok(&["sync", "status"]);
-    assert!(status.contains("Google Drive sync: off"), "{status}");
+    assert!(status.contains("Sync: off"), "{status}");
     let json: Value = serde_json::from_str(&e.ok(&["--json", "sync", "status"])).unwrap();
     assert_eq!(json["remote"], Value::Null);
     assert_eq!(
@@ -1101,7 +1101,7 @@ fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_rea
     fs::write(&path, cfg.to_string()).unwrap();
 
     let status = e.ok(&["sync", "status"]);
-    assert!(status.contains("Google Drive sync: on"), "{status}");
+    assert!(status.contains("Google Drive: on"), "{status}");
     assert!(status.contains("Signed in to Google: no"), "{status}");
 
     let out = e.run_stdin(
@@ -1118,15 +1118,13 @@ fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_rea
     );
     assert!(out.status.success(), "{}", text(&out.stderr));
     assert_eq!(
-        text(&out.stderr)
-            .matches("not synced with Google Drive")
-            .count(),
+        text(&out.stderr).matches("warning: not synced (").count(),
         1,
         "one warning for the command, not one for the pull and one for the push: {}",
         text(&out.stderr)
     );
     assert!(
-        text(&out.stderr).contains("not synced with Google Drive"),
+        text(&out.stderr).contains("warning: not synced ("),
         "{}",
         text(&out.stderr)
     );
@@ -1203,12 +1201,24 @@ fn a_folder_remote_syncs_even_when_drive_cannot() {
         );
     }
 
-    // Each remote keeps its own state: only the folder has synced.
+    // Each remote keeps its own state: only the folder has synced, and Drive only says why it has not.
     let state: Value =
         serde_json::from_slice(&fs::read(e.home.path().join("sync-state.json")).unwrap()).unwrap();
     let remotes = state["remotes"].as_object().unwrap();
-    assert_eq!(remotes.len(), 1, "{state}");
-    assert!(remotes.keys().next().unwrap().starts_with("folder:"));
+    assert_eq!(remotes.len(), 2, "{state}");
+    for (id, record) in remotes {
+        assert_eq!(
+            record["synced"] == true,
+            id.starts_with("folder:"),
+            "{state}"
+        );
+    }
+    assert!(
+        remotes["drive"]["last_error"]
+            .as_str()
+            .unwrap()
+            .contains("figlock drive login")
+    );
 }
 
 #[test]
@@ -1228,7 +1238,11 @@ fn a_second_device_folder_gets_what_the_first_wrote_and_status_lists_it() {
     assert_eq!(json["remote"], Value::Null, "Drive is not one of them");
     assert_eq!(json["remotes"].as_array().unwrap().len(), 1);
     let text = e.ok(&["sync", "status"]);
-    assert!(text.contains("Sync folder:"), "{text}");
+    assert!(
+        text.contains(&format!("Folder: {}", other.path().display())),
+        "{text}"
+    );
+    assert!(text.contains("Last sync:"), "{text}");
 }
 
 #[test]
@@ -1248,5 +1262,7 @@ fn a_folder_remote_that_is_the_vault_folder_is_refused_and_changes_nothing() {
         text(&out.stderr)
     );
     assert_eq!(e.ops(), before);
-    assert!(!e.home.path().join("sync-state.json").exists());
+    // Nothing synced, so no remote is recorded as synced; the refusal is kept for `sync status` to show.
+    let state = fs::read(e.home.path().join("sync-state.json")).unwrap_or_default();
+    assert!(!String::from_utf8_lossy(&state).contains("\"synced\""));
 }

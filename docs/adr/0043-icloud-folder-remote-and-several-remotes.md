@@ -4,7 +4,7 @@
 - Date: 2026-11-22
 - Decision: D43 in `docs/decisions.md`
 - Amends: ADR-0026 (Drive is the one optional remote), ADR-0041 section 4 (one remote active at a time)
-- Task: FIG-194 (decision), FIG-195 and FIG-196 (code)
+- Task: FIG-194 (decision), FIG-195 and FIG-196 (code), FIG-197 (CLI), FIG-198 (desktop)
 
 ## Context
 
@@ -44,8 +44,13 @@ when the owning app is uninstalled, the CLI cannot carry the entitlement, and pu
 
 - No crypto or file-format change, so no new test vectors. Convergence with two remotes and one flaky is covered
   by a property test.
-- Settings screens and the CLI that add a folder remote, and per-remote status in the desktop window, are
-  follow-up work. Until then a folder remote is set in `config.json`.
+- The CLI (`init`, `open`, `join --icloud` or `--sync-folder`, `sync on|off`, `sync status`) and the desktop
+  window (a row per remote in Settings, iCloud in first-run setup, "Restore from iCloud Drive folder") add and
+  show remotes (FIG-197, FIG-198). `FIGLOCK_ICLOUD_DIR` stands in for the iCloud Drive folder in tests.
+- A `FigLock` folder in iCloud Drive is never created on the way to opening or joining a vault, and
+  `init --icloud` refuses one that already holds files but no vault: either could otherwise be synced next to
+  another device's folder of the same name ("FigLock 2"). A missing iCloud folder is "not available", never
+  made again by a sync.
 - Two remotes mean two uploads of every change; a remote that is slow only delays itself.
 
 ## Alternatives considered

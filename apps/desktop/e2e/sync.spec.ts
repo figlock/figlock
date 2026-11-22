@@ -55,7 +55,7 @@ test.describe("sync", () => {
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByRole("button", { name: "Turn on sync" })).toBeEnabled();
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page.getByText("storage")).toHaveCount(0);
+    await expect(page.getByText(/storage:/i)).toHaveCount(0);
     expect(await calls(page)).toContain("drive_cancel_sign_in");
     expect(await calls(page)).not.toContain("sync_enable");
   });

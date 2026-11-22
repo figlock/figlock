@@ -38,6 +38,19 @@
     // What the update feed answers: `update` is `{ version, notes }` when there is a newer version.
     update: opts.update ?? null,
     updateState: opts.updateUnavailable ? "unavailable" : "idle",
+    // iCloud Drive (ADR-0043): whether this Mac has it and it is on, whether sync to it is on, and how it is going.
+    icloud: {
+      available: opts.icloud?.available ?? true,
+      ready: opts.icloud?.ready ?? true,
+      folderExists: opts.icloudOn ?? false,
+      help:
+        opts.icloud?.help ??
+        'iCloud Drive is turned off or not signed in on this Mac. Open System Settings, click your name, choose iCloud, then Drive, and turn on "Sync this Mac". Then try again.',
+    },
+    icloudOn: opts.icloudOn ?? false,
+    icloudState: opts.icloudState ?? "idle",
+    icloudLast: opts.icloudOn ? (opts.icloudLast ?? 120) : null,
+    icloudMessage: opts.icloudMessage ?? null,
     // The local vault folder is gone (FIG-118): `{ path, canRestore }`, or null when it is there.
     folderMissing: opts.folderMissing ?? null,
     // What the person picks in the folder dialog.
@@ -67,6 +80,58 @@
     deleteFails: opts.deleteFails ?? null,
   });
   let cancelSignIn = null;
+
+  // What the window sees of sync: one row per place, and one word for all of them.
+  const ICLOUD_PATH = "/Users/test/Library/Mobile Documents/com~apple~CloudDocs/FigLock";
+  const SEVERITY = [
+    "sign_in",
+    "lost",
+    "foreign",
+    "unavailable",
+    "failed",
+    "offline",
+    "waiting",
+    "syncing",
+    "idle",
+  ];
+  const syncView = () => {
+    const remotes = [];
+    if (core.sync.enabled)
+      remotes.push({
+        id: "drive",
+        kind: "drive",
+        name: "Google Drive",
+        path: null,
+        state: core.sync.state,
+        lastSyncSecsAgo: core.sync.lastSyncSecsAgo,
+        message: core.sync.message,
+      });
+    if (core.icloudOn)
+      remotes.push({
+        id: `folder:${ICLOUD_PATH}`,
+        kind: "icloud",
+        name: "iCloud Drive",
+        path: ICLOUD_PATH,
+        state: core.icloudState,
+        lastSyncSecsAgo: core.icloudLast,
+        message: core.icloudMessage,
+      });
+    const worst = remotes
+      .map((r) => r.state)
+      .sort((a, b) => SEVERITY.indexOf(a) - SEVERITY.indexOf(b))[0];
+    const attention = remotes.find((r) => r.state === worst);
+    return {
+      ...core.sync,
+      enabled: remotes.length > 0,
+      state: remotes.length ? worst : "off",
+      message: attention?.message ?? null,
+      lastSyncSecsAgo: remotes.length
+        ? Math.min(...remotes.map((r) => r.lastSyncSecsAgo ?? Infinity))
+        : null,
+      remotes,
+      icloud: { ...core.icloud, folderExists: core.icloud.folderExists || core.icloudOn },
+    };
+  };
 
   const now = Date.now();
   const seed = (kind, fields, secrets, ageDays = 1) => {
@@ -377,7 +442,12 @@
       }
       return { checked: core.items.size, rows, breachChecked: checkBreaches, breachFailed: false };
     },
-    sync_status: () => ({ ...core.sync }),
+    create_vault: ({ storage }) => {
+      core.lastCreate = storage;
+      return { secretKey: KEY };
+    },
+    sync_status: () => syncView(),
+    icloud_status: () => ({ ...core.icloud }),
     update_check: () => {
       if (core.updateState === "unavailable") return updateView("unavailable");
       if (core.failUpdateCheck) return fail("update_check_failed", core.failUpdateCheck);
@@ -401,9 +471,33 @@
       core.cli.state = "not_installed";
       return cliView();
     },
-    sync_now: () => {
-      core.sync = { ...core.sync, state: "idle", lastSyncSecsAgo: 0, message: null };
-      return { ...core.sync };
+    sync_now: ({ remote }) => {
+      // A place syncs when asked, or when no place was named; one that is not available stays so.
+      if (core.sync.enabled && (!remote || remote === "drive"))
+        core.sync = { ...core.sync, state: "idle", lastSyncSecsAgo: 0, message: null };
+      if (core.icloudOn && (!remote || remote.startsWith("folder:")) && core.icloud.ready) {
+        core.icloudState = "idle";
+        core.icloudLast = 0;
+        core.icloudMessage = null;
+      }
+      return syncView();
+    },
+    sync_enable_icloud: () => {
+      if (!core.icloud.ready) return fail("failed", core.icloud.help);
+      core.icloudOn = true;
+      core.icloudState = "idle";
+      core.icloudLast = 0;
+      core.icloudMessage = null;
+      return syncView();
+    },
+    sync_disable_remote: ({ remote }) => {
+      if (remote === "drive")
+        core.sync = { ...core.sync, enabled: false, state: "off", lastSyncSecsAgo: null };
+      else core.icloudOn = false;
+      return syncView();
+    },
+    restore_from_icloud: () => {
+      core.folderMissing = null;
     },
     sync_enable: () => {
       if (!core.sync.signedIn) return fail("drive_sign_in", "Sign in to Google first.");
@@ -413,11 +507,11 @@
         state: "idle",
         lastSyncSecsAgo: 0,
       };
-      return { ...core.sync };
+      return syncView();
     },
     sync_disable: () => {
       core.sync = { ...core.sync, enabled: false, state: "off", lastSyncSecsAgo: null };
-      return { ...core.sync };
+      return syncView();
     },
     sync_delete_remote: ({ confirmation }) => {
       if (confirmation.trim().toLowerCase() !== "delete from google drive")
@@ -430,7 +524,7 @@
         state: "off",
         lastSyncSecsAgo: null,
       };
-      return { ...core.sync };
+      return syncView();
     },
     save_emergency_kit_again: ({ password, secretKey }) => {
       if (core.keyNotKept || core.keyOptedOut) {

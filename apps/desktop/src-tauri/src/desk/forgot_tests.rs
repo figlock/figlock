@@ -356,6 +356,7 @@ fn initialised_inner() {
     let elsewhere = Storage {
         path: Some("/nonexistent/elsewhere".to_owned()),
         drive: false,
+        icloud: false,
     };
     let other = RecoveryKey::random().unwrap().format().to_string();
     assert_eq!(

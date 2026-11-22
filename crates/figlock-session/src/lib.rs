@@ -6,6 +6,7 @@ pub mod config;
 pub mod docfile;
 pub mod drive;
 pub mod error;
+pub mod icloud;
 pub mod join;
 #[cfg(target_os = "macos")]
 mod keychain;

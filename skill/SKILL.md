@@ -68,4 +68,7 @@ figlock run --item "Cloud account" --env AWS_SECRET_ACCESS_KEY=secret -- terrafo
 
 - `not allowed` for a host: the item's allow-list does not include it. Tell the user; do not work around it.
 - `item not found`: check the title with the user. Titles must match one live item.
+- Sync trouble is not yours to fix: `figlock sync status` lists each place the vault syncs to (Google Drive,
+  iCloud Drive or another folder) with when it last synced and what went wrong. iCloud Drive off or signed
+  out, or a folder still downloading, resolves on the user's side; tell them, and keep using what is local.
 - Never include a secret, even a partial one, in your replies or in a summary of what you ran.

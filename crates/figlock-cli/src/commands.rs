@@ -36,16 +36,19 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     if config::is_initialised()? {
         return Err(Fail::new("this device already has a vault set up"));
     }
+    // Checked before anything is made: iCloud Drive must be on, and a `FigLock` folder that is still filling
+    // with another device's vault must not get a second one.
+    let mut remotes = a.remotes.resolve(false)?;
+    crate::remotes::refuse_partial_icloud_folder(&remotes)?;
+    if a.remotes.icloud {
+        remotes = a.remotes.resolve(true)?;
+    }
     let mut place = Place {
         local: match &a.store {
             Some(path) => path.clone(),
             None => config::default_local_dir()?,
         },
-        remotes: if a.drive {
-            vec![Remote::Drive]
-        } else {
-            Vec::new()
-        },
+        remotes,
     };
     // Only a definite "not there" lets init continue: an unreachable or signed-out store must not look like
     // an empty one, or a second vault could be created next to the first. Nothing is created before this.
@@ -98,8 +101,16 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         }))?;
     } else {
         println!("Vault created in {}", cfg.place.local.display());
-        if cfg.place.syncs() {
-            println!("Synced to your Google Drive (hidden app folder)");
+        for r in &cfg.place.remotes {
+            match r {
+                Remote::Drive => println!("Synced to your Google Drive (hidden app folder)"),
+                Remote::Folder(p) if figlock_session::icloud::is_icloud_path(p) => println!(
+                    "Synced to iCloud Drive ({}). Leave that folder alone; with Optimize Mac Storage on, iCloud \
+                     may keep files only in the cloud and FigLock downloads them when needed.",
+                    p.display()
+                ),
+                Remote::Folder(p) => println!("Synced to the folder {}", p.display()),
+            }
         }
         println!("Secret Key: {}", secret_key.as_str());
     }
@@ -112,7 +123,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         && let Err(e) = figlock_session::sync::run(&cfg, false)
     {
         eprintln!(
-            "The vault is saved on this device, but the first sync to Google Drive failed: {e}."
+            "The vault is saved on this device, but the first sync failed: {e}. Run `figlock sync` to retry."
         );
     }
     let unlock_key = || {

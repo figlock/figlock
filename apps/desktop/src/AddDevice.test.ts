@@ -101,6 +101,8 @@ beforeEach(() => {
     fork: false,
     needsUnlock: false,
     localFolder: null,
+    remotes: [],
+    icloud: { available: false, ready: false, folderExists: false, help: null },
   } satisfies SyncView);
   core.listDevices.mockResolvedValue([mac]);
   core.vaultState.mockResolvedValue({

@@ -1,4 +1,5 @@
-//! `figlock sync`: keep this device's local vault matched to Google Drive (ADR-0026), and the quiet,
+//! `figlock sync`: keep this device's local vault matched to its remotes - Google Drive, iCloud Drive or another
+//! synced folder, any number at once (ADR-0026, ADR-0043) - and the quiet,
 //! time-boxed sync that ordinary commands do around themselves.
 //!
 //! The vault is always read and written in the local folder. Commands pull before they read (when the last
@@ -16,6 +17,9 @@ use figlock_session::drive;
 use figlock_session::error::{Fail, Res};
 use figlock_session::session::now_ms;
 use figlock_session::sync::{self, Report, SyncError, Warning};
+
+use crate::RemoteArgs;
+use crate::remotes::label;
 
 /// Commands pull when the last sync is older than this. The desktop app and the broker poll every 15 seconds
 /// (`sync.md` 10); a one-shot command that paid a network round trip each time would be slow for an agent
@@ -50,32 +54,32 @@ fn warning_code(w: Warning) -> &'static str {
     }
 }
 
-fn show(report: &Report, json: bool) -> Res<()> {
-    for w in &report.warnings {
-        eprintln!("warning: {}", warning_text(*w));
-    }
-    if json {
-        let warnings: Vec<_> = report.warnings.iter().map(|w| warning_code(*w)).collect();
-        print_json(&json!({
-            "status": "synced",
-            "pulled": report.pulled,
-            "pushed": report.pushed,
-            "warnings": warnings,
-        }))
+/// One remote's line in the text output.
+fn outcome_line(label: &str, report: &Report) -> String {
+    if report.pulled == 0 && report.pushed == 0 {
+        format!("{label}: already up to date.")
     } else {
-        if report.pulled == 0 && report.pushed == 0 {
-            println!("Already up to date.");
-        } else {
-            println!(
-                "Synced with Google Drive: {} downloaded, {} uploaded.",
-                report.pulled, report.pushed
-            );
-        }
-        Ok(())
+        format!(
+            "{label}: {} downloaded, {} uploaded.",
+            report.pulled, report.pushed
+        )
     }
 }
 
-/// `figlock sync`: one pull and push, now.
+/// Why one remote did not sync, in words that name it.
+fn failure_text(remote: &Remote, e: &SyncError) -> String {
+    match e {
+        SyncError::RemoteLost => format!(
+            "the vault is no longer in {} (its folder was deleted, or FigLock was disconnected there); run \
+             `figlock sync --reupload` to upload everything from this device again",
+            label(remote)
+        ),
+        e => e.to_string(),
+    }
+}
+
+/// `figlock sync`: one pull and push to every remote, now. Each remote has its own turn, so one that is down
+/// never stops the others.
 pub fn run(reupload: bool, json: bool) -> Res<()> {
     let cfg = config::load()?;
     if !cfg.place.syncs() {
@@ -83,57 +87,218 @@ pub fn run(reupload: bool, json: bool) -> Res<()> {
             "sync is not on for this device; run `figlock sync on`",
         ));
     }
-    let report = sync::run(&cfg, reupload).map_err(|e| match e {
-        SyncError::RemoteLost => Fail::new(
-            "the vault is no longer in Google Drive (its folder was deleted, or FigLock was disconnected there); \
-             run `figlock sync --reupload` to upload everything from this device again",
-        ),
-        e => e.into(),
-    })?;
-    show(&report, json)
-}
-
-/// `figlock sync on`: turn Drive sync on and upload what is already local. Only stays on if the first sync
-/// works, so a different vault in Drive or a dead sign-in leaves the device exactly as it was.
-pub fn on(json: bool) -> Res<()> {
-    let cfg = config::load()?;
-    if cfg.place.has_drive() {
-        return say(json, "already-on", "Sync to Google Drive is already on.");
-    }
-    if !drive::status()?.signed_in {
-        return Err(Fail::new(
-            "not signed in to Google Drive; run `figlock drive login` first",
-        ));
-    }
-    sync::forget_state_of(&Remote::Drive);
-    let cfg = config::add_remote(Remote::Drive)?;
-    // Only Drive's first sync decides whether it stays on; another remote's trouble is not its fault.
-    match sync::run_remote(&cfg, &Remote::Drive, false) {
-        Ok(report) => show(&report, json),
-        Err(e) => {
-            config::remove_remote(&Remote::Drive)?;
-            sync::forget_state_of(&Remote::Drive);
-            Err(Fail::new(format!(
-                "could not turn on sync, so nothing was changed: {e}"
-            )))
+    let outcomes = sync::run_all(&cfg, reupload);
+    let mut total = Report::default();
+    for r in outcomes.iter().filter_map(|o| o.result.as_ref().ok()) {
+        total.pulled += r.pulled;
+        total.pushed += r.pushed;
+        for w in &r.warnings {
+            if !total.warnings.contains(w) {
+                total.warnings.push(*w);
+            }
         }
     }
+    let failed = outcomes.iter().filter(|o| o.result.is_err()).count();
+    if json {
+        let warnings: Vec<_> = total.warnings.iter().map(|w| warning_code(*w)).collect();
+        for w in &total.warnings {
+            eprintln!("warning: {}", warning_text(*w));
+        }
+        let remotes: Vec<_> = outcomes
+            .iter()
+            .map(|o| match &o.result {
+                Ok(r) => json!({"remote": o.remote.id(), "status": "synced", "pulled": r.pulled, "pushed": r.pushed}),
+                Err(e) => json!({"remote": o.remote.id(), "status": "failed", "error": failure_text(&o.remote, e)}),
+            })
+            .collect();
+        print_json(&json!({
+            "status": if failed == 0 { "synced" } else if failed == outcomes.len() { "failed" } else { "partial" },
+            "pulled": total.pulled,
+            "pushed": total.pushed,
+            "warnings": warnings,
+            "remotes": remotes,
+        }))?;
+    } else {
+        for w in &total.warnings {
+            eprintln!("warning: {}", warning_text(*w));
+        }
+        let several = outcomes.len() > 1;
+        for o in &outcomes {
+            match &o.result {
+                Ok(r) if several => println!("{}", outcome_line(&label(&o.remote), r)),
+                Ok(r) if r.pulled == 0 && r.pushed == 0 => println!("Already up to date."),
+                Ok(r) => println!(
+                    "Synced with {}: {} downloaded, {} uploaded.",
+                    label(&o.remote),
+                    r.pulled,
+                    r.pushed
+                ),
+                Err(e) => eprintln!("{}: {}", label(&o.remote), failure_text(&o.remote, e)),
+            }
+        }
+    }
+    match failed {
+        0 => Ok(()),
+        n if n == outcomes.len() && n == 1 => {
+            let o = &outcomes[0];
+            let Err(e) = &o.result else { unreachable!() };
+            Err(Fail::new(failure_text(&o.remote, e)))
+        }
+        n => Err(Fail::new(format!(
+            "{n} of {} places did not sync (see above); the others did",
+            outcomes.len()
+        ))),
+    }
 }
 
-/// `figlock sync off`: stop syncing. The local vault, the copy in Drive and the sign-in are left alone.
-pub fn off(json: bool) -> Res<()> {
-    let cfg = config::load()?;
-    if !cfg.place.has_drive() {
-        return say(json, "already-off", "Sync to Google Drive is already off.");
+/// What `sync on` and `sync off` act on: what was asked for, or (for `on` only) Google Drive as always.
+fn turn_on_targets(r: &RemoteArgs) -> Res<Vec<Remote>> {
+    if r.is_empty() {
+        Ok(vec![Remote::Drive])
+    } else {
+        // Not next to another device's vault that is still arriving through iCloud: uploading this device's
+        // `vault.json` into it would fork the vault. Checked before anything is made.
+        crate::remotes::refuse_partial_icloud_folder(&r.resolve(false)?)?;
+        r.resolve(true)
     }
-    config::remove_remote(&Remote::Drive)?;
-    sync::forget_state_of(&Remote::Drive);
-    say(
-        json,
-        "off",
-        "Sync is off. The vault on this device is untouched, and so is the copy in Google Drive; use \
-         `figlock drive logout` to sign out of Google.",
-    )
+}
+
+/// `figlock sync on`: turn sync to each place asked for on, and upload what is already local. A place stays on
+/// only if its first sync works, so a different vault there or a dead sign-in leaves the device exactly as it
+/// was. Another place's trouble is never this one's fault, so each is decided alone.
+pub fn on(r: &RemoteArgs, json: bool) -> Res<()> {
+    let targets = turn_on_targets(r)?;
+    let mut results = Vec::new();
+    let mut failed = false;
+    for remote in targets {
+        let cfg = config::load()?;
+        let name = label(&remote);
+        if cfg.place.remotes.contains(&remote) {
+            results.push(json!({"remote": remote.id(), "status": "already-on"}));
+            if !json {
+                println!("Sync to {name} is already on.");
+            }
+            continue;
+        }
+        if remote == Remote::Drive && !drive::status()?.signed_in {
+            failed = true;
+            let why = "not signed in to Google Drive; run `figlock drive login` first";
+            results.push(json!({"remote": remote.id(), "status": "failed", "error": why}));
+            eprintln!("{name}: {why}");
+            continue;
+        }
+        sync::forget_state_of(&remote);
+        let cfg = match config::add_remote(remote.clone()) {
+            Ok(c) => c,
+            Err(e) => {
+                failed = true;
+                results.push(json!({"remote": remote.id(), "status": "failed", "error": e.0}));
+                eprintln!("{name}: {e}");
+                continue;
+            }
+        };
+        match sync::run_remote(&cfg, &remote, false) {
+            Ok(report) => {
+                results.push(json!({"remote": remote.id(), "status": "on", "pulled": report.pulled, "pushed": report.pushed}));
+                if !json {
+                    println!(
+                        "Sync to {name} is on. {}",
+                        outcome_line("First sync", &report)
+                    );
+                    if matches!(remote, Remote::Folder(ref p) if figlock_session::icloud::is_icloud_path(p))
+                    {
+                        println!(
+                            "iCloud Drive is Apple-only. With Optimize Mac Storage on, iCloud may keep files only in the cloud; FigLock downloads them when needed."
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                failed = true;
+                config::remove_remote(&remote)?;
+                sync::forget_state_of(&remote);
+                let why = format!(
+                    "could not turn on sync, so nothing was changed: {}",
+                    failure_text(&remote, &e)
+                );
+                results.push(json!({"remote": remote.id(), "status": "failed", "error": why}));
+                eprintln!("{name}: {why}");
+            }
+        }
+    }
+    if json {
+        print_json(&json!({ "status": if failed { "failed" } else { "on" }, "remotes": results }))?;
+    }
+    if failed {
+        return Err(Fail::new(
+            "sync was not turned on everywhere asked for (see above)",
+        ));
+    }
+    Ok(())
+}
+
+/// The configured remotes `r` names; all of them when it names none. `--icloud` means every folder that is in
+/// iCloud Drive, so it still works when iCloud Drive is off and its folder cannot be found.
+fn turn_off_targets(cfg: &Config, r: &RemoteArgs) -> Res<Vec<Remote>> {
+    if r.is_empty() {
+        return Ok(cfg.place.remotes.clone());
+    }
+    let mut out = Vec::new();
+    for remote in &cfg.place.remotes {
+        let named = match remote {
+            Remote::Drive => r.drive,
+            Remote::Folder(p) => {
+                (r.icloud && figlock_session::icloud::is_icloud_path(p))
+                    || r.sync_folder.iter().any(|f| {
+                        std::path::absolute(f).is_ok_and(|f| &f == p)
+                            || std::fs::canonicalize(f)
+                                .is_ok_and(|f| std::fs::canonicalize(p).is_ok_and(|p| f == p))
+                    })
+            }
+        };
+        if named {
+            out.push(remote.clone());
+        }
+    }
+    Ok(out)
+}
+
+/// `figlock sync off`: stop syncing to the places given, or to all. The local vault, the copies already stored
+/// there and the Google sign-in are left alone.
+pub fn off(r: &RemoteArgs, json: bool) -> Res<()> {
+    let cfg = config::load()?;
+    let targets = turn_off_targets(&cfg, r)?;
+    if targets.is_empty() {
+        return say(
+            json,
+            "already-off",
+            if r.is_empty() {
+                "Sync is already off."
+            } else {
+                "Sync to that place is already off."
+            },
+        );
+    }
+    let mut names = Vec::new();
+    for remote in &targets {
+        config::remove_remote(remote)?;
+        sync::forget_state_of(remote);
+        names.push(label(remote));
+    }
+    if json {
+        return print_json(&json!({
+            "status": "off",
+            "remotes": targets.iter().map(Remote::id).collect::<Vec<_>>(),
+        }));
+    }
+    println!(
+        "Sync to {} is off. The vault on this device is untouched, and so are the copies already stored there.",
+        names.join(" and ")
+    );
+    if targets.contains(&Remote::Drive) {
+        println!("Use `figlock drive logout` to sign out of Google.");
+    }
+    Ok(())
 }
 
 /// `figlock sync delete-remote`: permanently delete this vault's copy from Google Drive (FIG-122, ADR-0035).
@@ -193,24 +358,21 @@ fn say(json: bool, status: &str, text: &str) -> Res<()> {
     }
 }
 
-/// `figlock sync status`: what is configured, with no network call.
+/// `figlock sync status`: every remote, with no network call.
 pub fn status(json: bool) -> Res<()> {
     let cfg = config::load()?;
-    let on = cfg.place.has_drive();
-    let folders: Vec<String> = cfg
-        .place
-        .remotes
-        .iter()
-        .filter_map(|r| match r {
-            Remote::Folder(p) => Some(p.display().to_string()),
-            Remote::Drive => None,
-        })
-        .collect();
     let stored = drive::status()?.signed_in;
     // Google refused the last sync: the sign-in is still on disk but no longer works.
     let refused = stored && sync::sign_in_refused();
     let signed_in = stored && !refused;
     let last = sync::last_sync_ms().map(|t| now_ms().saturating_sub(t) / 1000);
+    let icloud = figlock_session::icloud::status();
+    let details: Vec<RemoteStatus> = cfg
+        .place
+        .remotes
+        .iter()
+        .map(|r| RemoteStatus::of(r, signed_in, refused, &icloud))
+        .collect();
     // Another device made a new Secret Key (ADR-0034): the one kept here opens nothing until the new one is typed.
     let key_changed = figlock_session::secret_key_store::system().is_ok_and(|keys| {
         figlock_session::session::peek_vault_id().is_ok_and(|vault| keys.has(&vault))
@@ -220,32 +382,32 @@ pub fn status(json: bool) -> Res<()> {
         return print_json(&json!({
             "secret_key_changed": key_changed,
             "local": cfg.place.local.to_string_lossy(),
-            "remote": if on { json!("drive") } else { json!(null) },
+            "remote": if cfg.place.has_drive() { json!("drive") } else { json!(null) },
             "remotes": cfg.place.remotes.iter().map(Remote::id).collect::<Vec<_>>(),
+            "details": details.iter().map(RemoteStatus::json).collect::<Vec<_>>(),
             "signed_in": signed_in,
             "sign_in_refused": refused,
             "last_sync_seconds_ago": last,
         }));
     }
     println!("Local vault: {}", cfg.place.local.display());
-    println!("Google Drive sync: {}", if on { "on" } else { "off" });
-    for f in &folders {
-        println!("Sync folder: {f}");
-    }
-    if on {
+    if details.is_empty() {
         println!(
-            "Signed in to Google: {}",
-            if signed_in {
-                "yes"
-            } else if refused {
-                "no (Google has stopped FigLock's access; run `figlock drive login`)"
-            } else {
-                "no (run `figlock drive login`)"
-            }
+            "Sync: off (this vault is only on this device). Turn it on with `figlock sync on --icloud` or `--drive`."
         );
-        match last {
-            Some(s) => println!("Last sync: {s} seconds ago"),
-            None => println!("Last sync: never"),
+    }
+    for d in &details {
+        println!("{}: on", d.name);
+        if let Some(path) = &d.path {
+            println!("  Folder: {path}");
+        }
+        println!("  {}", d.state);
+        match d.last_sync_secs {
+            Some(s) => println!("  Last sync: {s} seconds ago"),
+            None => println!("  Last sync: never"),
+        }
+        if let Some(e) = &d.error {
+            println!("  Last problem: {e}");
         }
     }
     if key_changed {
@@ -254,6 +416,96 @@ pub fn status(json: bool) -> Res<()> {
         );
     }
     Ok(())
+}
+
+/// What `sync status` says about one remote.
+struct RemoteStatus {
+    id: String,
+    kind: &'static str,
+    name: String,
+    path: Option<String>,
+    /// Whether it can be used right now, from what is on this device (no network call).
+    ready: bool,
+    /// The same, in words.
+    state: String,
+    last_sync_secs: Option<u64>,
+    error: Option<String>,
+}
+
+impl RemoteStatus {
+    fn of(
+        r: &Remote,
+        signed_in: bool,
+        refused: bool,
+        icloud: &figlock_session::icloud::Status,
+    ) -> Self {
+        let (kind, path, ready, state) = match r {
+            Remote::Drive => (
+                "drive",
+                None,
+                signed_in,
+                if signed_in {
+                    "Signed in to Google: yes".to_owned()
+                } else if refused {
+                    "Signed in to Google: no (Google has stopped FigLock's access; run `figlock drive login`)".to_owned()
+                } else {
+                    "Signed in to Google: no (run `figlock drive login`)".to_owned()
+                },
+            ),
+            Remote::Folder(p) if figlock_session::icloud::is_icloud_path(p) => {
+                let here = p.is_dir();
+                let ready = icloud.ready && here;
+                (
+                    "icloud",
+                    Some(p.display().to_string()),
+                    ready,
+                    if !icloud.apple {
+                        "iCloud Drive: not available on this computer".to_owned()
+                    } else if !icloud.ready {
+                        "iCloud Drive: off or signed out (System Settings > your name > iCloud > Drive)".to_owned()
+                    } else if !here {
+                        "iCloud Drive: the FigLock folder is not there yet (still syncing?)"
+                            .to_owned()
+                    } else {
+                        "iCloud Drive: on".to_owned()
+                    },
+                )
+            }
+            Remote::Folder(p) => (
+                "folder",
+                Some(p.display().to_string()),
+                p.is_dir(),
+                if p.is_dir() {
+                    "Folder: available".to_owned()
+                } else {
+                    "Folder: not available (is the drive connected?)".to_owned()
+                },
+            ),
+        };
+        RemoteStatus {
+            id: r.id(),
+            kind,
+            name: label(r),
+            path,
+            ready,
+            state,
+            last_sync_secs: sync::last_sync_ms_of(r).map(|t| now_ms().saturating_sub(t) / 1000),
+            error: sync::last_error_of(r),
+        }
+    }
+
+    fn json(&self) -> serde_json::Value {
+        json!({
+            "remote": self.id,
+            "kind": self.kind,
+            "name": self.name,
+            "path": self.path,
+            "ready": self.ready,
+            "state": self.state,
+            "last_sync_seconds_ago": self.last_sync_secs,
+            "last_error": self.error,
+        })
+    }
 }
 
 // ---- around ordinary commands ----
@@ -392,7 +644,7 @@ pub fn pull_first() {
     if !fresh
         && let Pushed::Failed(why) = quiet(PULL_TIMEOUT)
         && warn_once(&format!(
-            "not synced with Google Drive ({why}); this device keeps working. Run `figlock sync` when you can"
+            "not synced ({why}); this device keeps working. Run `figlock sync` when you can"
         ))
     {
         PULL_FAILED.store(true, Ordering::SeqCst);

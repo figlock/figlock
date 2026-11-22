@@ -17,6 +17,9 @@ pub enum FailKind {
     StorageUnreachable,
     /// The vault storage refused the saved sign-in.
     StorageSignedOut,
+    /// The synced folder has not finished delivering the vault (iCloud Drive is still downloading it). Not a
+    /// missing vault: waiting and trying again works.
+    StorageSyncing,
     /// No vault where this device looks for one.
     VaultMissing,
     /// The person stopped the Google sign-in before it finished.

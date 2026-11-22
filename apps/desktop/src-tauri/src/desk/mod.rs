@@ -84,6 +84,10 @@ impl From<Fail> for CmdError {
                 "storage_signed_out",
                 "Google has stopped FigLock's access. Unlock now and sign in again from Settings.",
             ),
+            FailKind::StorageSyncing => CmdError::new(
+                "storage_syncing",
+                "Waiting for iCloud to finish syncing the vault to this Mac. Try again in a moment.",
+            ),
             FailKind::VaultMissing => CmdError::new(
                 "vault_missing",
                 "FigLock could not find your vault where this Mac expects it. Check that the folder is available, then try again.",
@@ -957,15 +961,18 @@ fn capitalise(s: &str) -> String {
     })
 }
 
-/// Where the person put the vault: a folder on this Mac (the local copy), and whether it syncs to the hidden
-/// app folder in their Google Drive. Drive without a folder means the default local folder (ADR-0026).
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq)]
+/// Where the person put the vault: a folder on this Mac (the local copy), and what it syncs to: Google Drive
+/// (its hidden app folder), the `FigLock` folder in iCloud Drive, or both (ADR-0043). A remote without a folder
+/// means the default local folder (ADR-0026).
+#[derive(Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Storage {
     #[serde(default)]
     pub path: Option<String>,
     #[serde(default)]
     pub drive: bool,
+    #[serde(default)]
+    pub icloud: bool,
 }
 
 impl Storage {
@@ -973,6 +980,8 @@ impl Storage {
     fn there(&self) -> &'static str {
         if self.drive {
             "this Google Drive"
+        } else if self.icloud {
+            "iCloud Drive"
         } else {
             "that folder"
         }
@@ -980,10 +989,14 @@ impl Storage {
 }
 
 /// Where the local copy lives and what it syncs to.
+///
+/// iCloud Drive is handled with care: a new vault makes `iCloud Drive/FigLock` (and refuses one that is still
+/// receiving another device's vault), while opening or joining only looks for it and says "not arrived yet"
+/// instead of making a second folder that iCloud would sync next to the first.
 fn storage_place(storage: &Storage, create: bool) -> CmdRes<Place> {
     let local = match storage.path.as_deref().map(str::trim) {
         Some(path) if !path.is_empty() => folder_path(path, create)?,
-        _ if storage.drive => {
+        _ if storage.drive || storage.icloud => {
             let dir = config::default_local_dir()?;
             if create {
                 std::fs::create_dir_all(&dir)
@@ -996,14 +1009,21 @@ fn storage_place(storage: &Storage, create: bool) -> CmdRes<Place> {
     if storage.drive && config::load_drive_token()?.is_none() {
         return Err(CmdError::new("drive_sign_in", "Sign in to Google first."));
     }
-    Ok(Place {
-        local,
-        remotes: if storage.drive {
-            vec![Remote::Drive]
+    let mut remotes = Vec::new();
+    if storage.drive {
+        remotes.push(Remote::Drive);
+    }
+    if storage.icloud {
+        let folder = figlock_session::icloud::folder()?;
+        if create {
+            figlock_session::icloud::refuse_partial_folder(&folder)?;
+            figlock_session::icloud::prepare()?;
         } else {
-            Vec::new()
-        },
-    })
+            figlock_session::icloud::check_arrived(&folder)?;
+        }
+        remotes.push(Remote::Folder(folder));
+    }
+    Ok(Place { local, remotes })
 }
 
 /// A vault folder the person chose; a new vault's folder is made if it does not exist yet.

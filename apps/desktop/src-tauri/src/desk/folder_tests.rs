@@ -113,7 +113,10 @@ fn recovery_commands_refuse_when_the_folder_is_there_inner() {
     // A healthy vault cannot be forgotten, repointed or restored through the recovery path.
     assert_eq!(code_of(folder::forget(true).unwrap_err()), "failed");
     assert_eq!(code_of(folder::locate(&vault_dir()).unwrap_err()), "failed");
-    assert_eq!(code_of(folder::restore(None).unwrap_err()), "failed");
+    assert_eq!(
+        code_of(folder::restore(None, folder::RestoreFrom::Drive).unwrap_err()),
+        "failed"
+    );
     assert_eq!(d.state().unwrap().phase, "locked");
 }
 
@@ -128,7 +131,10 @@ fn restoring_without_sync_says_there_is_no_drive_copy_inner() {
     let d = desk();
     let (_pw, _key, elsewhere) = locked_vault(&d);
     std::fs::rename(vault_dir(), &elsewhere).unwrap();
-    assert_eq!(code_of(folder::restore(None).unwrap_err()), "failed");
+    assert_eq!(
+        code_of(folder::restore(None, folder::RestoreFrom::Drive).unwrap_err()),
+        "failed"
+    );
     assert!(d.state().unwrap().folder_missing.is_some());
 }
 
@@ -155,7 +161,7 @@ fn a_failed_restore_leaves_no_folder_and_the_missing_screen_inner() {
     // Reading the state (the window does it all the time) must not make the folder again.
     assert!(!std::path::Path::new(&vault_dir()).exists());
 
-    let err = folder::restore(None).unwrap_err();
+    let err = folder::restore(None, folder::RestoreFrom::Drive).unwrap_err();
     assert_ne!(
         err.message,
         "The vault folder is available, so there is nothing to recover."
@@ -207,4 +213,60 @@ fn a_refused_sign_in_while_restoring_asks_to_sign_in_again() {
         e.message,
         "Google has stopped FigLock's access. Sign in again to restore."
     );
+}
+
+#[test]
+fn a_vault_synced_to_icloud_is_restored_from_icloud_drive() {
+    scenario("a_vault_synced_to_icloud_is_restored_from_icloud_drive_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn a_vault_synced_to_icloud_is_restored_from_icloud_drive_inner() {
+    let d = desk();
+    let (_pw, _key, elsewhere) = locked_vault(&d);
+    // iCloud Drive is on, and this vault syncs to it (sync works on ciphertext, so locked is fine).
+    std::fs::create_dir_all(std::env::var("FIGLOCK_ICLOUD_DIR").unwrap()).unwrap();
+    d.sync_enable_icloud().unwrap();
+    std::fs::rename(vault_dir(), &elsewhere).unwrap();
+    let missing = d
+        .state()
+        .unwrap()
+        .folder_missing
+        .expect("the folder is missing");
+    assert!(missing.can_restore_icloud);
+    assert!(!missing.can_restore, "Google Drive was never on");
+    // Drive is not what was asked for.
+    assert_eq!(
+        code_of(folder::restore(None, folder::RestoreFrom::Drive).unwrap_err()),
+        "failed"
+    );
+
+    folder::restore(None, folder::RestoreFrom::Icloud).unwrap();
+    assert!(d.state().unwrap().folder_missing.is_none());
+    let restored = config::load().unwrap().place.local;
+    assert!(restored.join("vault.json").is_file());
+    assert_ne!(restored, std::fs::canonicalize(&elsewhere).unwrap());
+}
+
+#[test]
+fn restoring_from_icloud_while_it_is_off_says_what_to_switch_on_and_changes_nothing() {
+    scenario("restoring_from_icloud_while_it_is_off_inner");
+}
+
+#[test]
+#[ignore = "runs as a child of the test above"]
+fn restoring_from_icloud_while_it_is_off_inner() {
+    let d = desk();
+    let (_pw, _key, elsewhere) = locked_vault(&d);
+    let icloud = std::env::var("FIGLOCK_ICLOUD_DIR").unwrap();
+    std::fs::create_dir_all(&icloud).unwrap();
+    d.sync_enable_icloud().unwrap();
+    std::fs::rename(vault_dir(), &elsewhere).unwrap();
+    // iCloud Drive signed out: its folder is gone.
+    std::fs::remove_dir_all(&icloud).unwrap();
+    let err = folder::restore(None, folder::RestoreFrom::Icloud).unwrap_err();
+    assert!(err.message.contains("System Settings"), "{}", err.message);
+    assert!(d.state().unwrap().folder_missing.is_some());
+    assert!(!std::path::Path::new(&vault_dir()).exists());
 }

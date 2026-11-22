@@ -142,7 +142,7 @@
       {#if error}<Alert>{error}</Alert>{/if}
       <StoragePicker
         {storage}
-        folderHelp="Only encrypted files are kept here. A folder synced by iCloud Drive works well."
+        folderHelp="Only encrypted files are kept here, in a folder on this Mac. Use the options below to sync it to iCloud Drive or Google Drive."
       />
       <TextField
         label="Master password"

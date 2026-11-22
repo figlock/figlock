@@ -111,7 +111,7 @@
         <ol class="steps">
           <li>
             <h3>Create a vault</h3>
-            <p>Pick a folder you already sync, or use Google Drive. FigLock shows your Secret Key and helps you save an Emergency Kit. Keep it safe: without the kit and your master password, nobody can open your vault, including us. On a Mac it then asks whether to unlock this device with Touch ID; press Enter for yes.</p>
+            <p>Pick a folder on this Mac and, if you like, sync it to iCloud Drive or Google Drive. FigLock shows your Secret Key and helps you save an Emergency Kit. Keep it safe: without the kit and your master password, nobody can open your vault, including us. On a Mac it then asks whether to unlock this device with Touch ID; press Enter for yes.</p>
             <pre class="code code--cmd"><code>figlock init --store ~/Documents/figlock-vault</code></pre>
           </li>
           <li>
@@ -147,14 +147,22 @@
         <p>Every command explains itself: run <code>figlock --help</code>, or <code>figlock add --help</code> to see the fields each kind of item takes.</p>
 
         <h2 id="drive">Keep your vault in Google Drive</h2>
-        <p>A folder you sync yourself, such as one in iCloud Drive or Dropbox, works. Google Drive sync is optional and can be turned on or off at any time, in the app (<strong>Settings &gt; Google Drive sync</strong>) or with the command below. Your vault stays in a local folder on your Mac and FigLock keeps an encrypted copy in Drive. It only gets a hidden app folder, never your files, and everything in it is encrypted before it leaves your Mac.</p>
+        <p>Google Drive sync is optional and can be turned on or off at any time, in the app (<strong>Settings &gt; Google Drive sync</strong>) or with the commands below. Your vault stays in a local folder on your Mac and FigLock keeps an encrypted copy in Drive. It only gets a hidden app folder, never your files, and everything in it is encrypted before it leaves your Mac.</p>
         <pre class="code code--cmd"><code>figlock drive login</code></pre>
         <pre class="code code--cmd"><code>figlock init --drive</code></pre>
+
+        <h2 id="icloud">Keep your vault in iCloud Drive</h2>
+        <p>On a Mac, FigLock can keep an encrypted copy in a folder called <code>FigLock</code> in your iCloud Drive. There is nothing to sign in to: iCloud Drive just has to be on (<strong>System Settings &gt; your name &gt; iCloud &gt; Drive</strong>). Turn it on in the app (<strong>Settings &gt; iCloud Drive sync</strong>) or with the commands below. It works on its own or together with Google Drive, and each can be turned off without touching the other.</p>
+        <pre class="code code--cmd"><code>figlock init --icloud</code></pre>
+        <pre class="code code--cmd"><code>figlock sync on --icloud</code></pre>
+        <pre class="code code--cmd"><code>figlock sync off --icloud</code></pre>
+        <pre class="code code--cmd"><code>figlock sync status</code></pre>
+        <p>iCloud Drive is Apple-only, so it does not work on a headless Linux server: use Google Drive there, or <code>--sync-folder &lt;path&gt;</code> for any other synced folder such as Dropbox or Syncthing. With Optimize Mac Storage on, iCloud may keep the vault only in the cloud until it is needed, and FigLock downloads it when it needs it. When a second Mac joins a vault that is still arriving through iCloud, FigLock says it is waiting for iCloud to finish and tries again; it never reports a missing vault for a folder that is only partly downloaded. Leave the files in the <code>FigLock</code> folder alone.</p>
 
         <h2 id="second-device">Add a second device</h2>
         <p>Install FigLock on the new device, then pair it with one that already has your vault. Start on the device that has the vault:</p>
         <pre class="code code--cmd"><code>figlock device add</code></pre>
-        <p>It shows an invite code and waits. On the new device, run <code>join</code> with that code and point it at the same vault: the synced folder, or <code>--drive</code> for a vault in Google Drive.</p>
+        <p>It shows an invite code and waits. On the new device, run <code>join</code> with that code and point it at the same vault: the synced folder, <code>--icloud</code> for a vault in iCloud Drive, or <code>--drive</code> for a vault in Google Drive.</p>
         <pre class="code code--cmd"><code>figlock join CODE --store ~/Documents/figlock-vault</code></pre>
         <p>The new device shows a fingerprint. Check that the same fingerprint appears on the first device, then approve it there. The new device then asks for your master password. You don't need to type your Secret Key, because the approval carries it. The code works once and expires after 10 minutes. If it is never approved, nothing is added.</p>
         <p>If no device that has the vault is at hand, use your Emergency Kit instead. This asks for your master password and Secret Key:</p>

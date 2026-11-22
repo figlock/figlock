@@ -29,6 +29,7 @@ impl From<SyncError> for Fail {
         let kind = match e {
             SyncError::SignIn => FailKind::StorageSignedOut,
             SyncError::Offline => FailKind::StorageUnreachable,
+            SyncError::NotDownloaded => FailKind::StorageSyncing,
             _ => FailKind::Other,
         };
         Fail::of(kind, e.to_string())
@@ -103,6 +104,20 @@ impl FileState {
     }
 }
 
+impl FileState {
+    /// Keep why the last sync failed, so a status screen can say so with no network call. A sync that works
+    /// already replaced the whole record (`mark_synced`), which drops an old error. Another sync running here
+    /// is not a failure of the remote.
+    fn note_result(&self, result: &Result<Report, SyncError>) {
+        if let Err(e) = result
+            && !matches!(e, SyncError::Busy)
+        {
+            let text = e.to_string();
+            self.update(|v| v["last_error"] = text.into());
+        }
+    }
+}
+
 impl SyncStateStore for FileState {
     fn synced_before(&self) -> bool {
         self.record().is_some_and(|v| v["synced"] == true)
@@ -165,6 +180,13 @@ pub fn last_sync_ms() -> Option<u64> {
         .max()
 }
 
+/// Why the last sync to `remote` failed, or `None` when it worked (or has not run).
+pub fn last_error_of(remote: &Remote) -> Option<String> {
+    FileState::of(remote)
+        .record()
+        .and_then(|v| v["last_error"].as_str().map(str::to_owned))
+}
+
 /// When this device last finished a sync to `remote`.
 pub fn last_sync_ms_of(remote: &Remote) -> Option<u64> {
     FileState::of(remote).last_sync_ms()
@@ -216,13 +238,25 @@ pub fn run_remote(
     confirm_reupload: bool,
 ) -> Result<Report, SyncError> {
     let _lock = SyncLock::acquire_in(&config::home()?)?;
+    let state = FileState::of(remote);
+    let result = mirror_remote(cfg, remote, &state, confirm_reupload);
+    state.note_result(&result);
+    result
+}
+
+fn mirror_remote(
+    cfg: &Config,
+    remote: &Remote,
+    state: &FileState,
+    confirm_reupload: bool,
+) -> Result<Report, SyncError> {
     let local = crate::store::open(&cfg.place)?;
     let store = crate::store::open_remote(remote, &cfg.place.local)?;
     let own = config::device_id().map(hex::encode);
     figlock_sync::run(
         local.as_ref(),
         store.as_ref(),
-        &FileState::of(remote),
+        state,
         &SystemClock,
         own.as_deref(),
         confirm_reupload,

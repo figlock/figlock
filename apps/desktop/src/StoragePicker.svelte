@@ -18,14 +18,21 @@
     {
       kind: "folder",
       title: "A folder",
-      text: "On this Mac, or synced by iCloud Drive or Dropbox.",
+      text: "On this Mac, or synced by Dropbox or another service.",
     },
     {
       kind: "drive",
       title: "Google Drive",
       text: "Downloads a copy to this Mac and keeps it synced. Nothing else in your Drive is touched.",
     },
+    {
+      kind: "icloud",
+      title: "iCloud Drive",
+      text: "Downloads a copy from the FigLock folder in your iCloud Drive and keeps it synced.",
+    },
   ];
+  /** iCloud Drive is only offered on an Apple computer. */
+  const kinds = $derived(KINDS.filter((k) => k.kind !== "icloud" || storage.icloud?.available));
 
   onMount(() => void storage.refresh());
 </script>
@@ -73,6 +80,30 @@
   </div>
 {/snippet}
 
+{#snippet icloudPanel()}
+  <div class="flex flex-col gap-2" data-testid="icloud-panel">
+    {#if storage.icloud === null}
+      <p class="text-text-secondary">Checking iCloud Drive...</p>
+    {:else if storage.icloud.ready}
+      <div
+        class="flex items-center gap-3 rounded-(--radius-md) border border-border bg-surface-sunken p-3"
+      >
+        <Icon name="shield-check" class="text-success" />
+        <span class="flex-1">iCloud Drive is on. There is nothing to sign in to.</span>
+      </div>
+    {:else}
+      <Alert tone="warning">{storage.icloud.help}</Alert>
+      <div>
+        <Button onclick={() => storage.refresh()}>Check again</Button>
+      </div>
+    {/if}
+    <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
+      FigLock keeps its encrypted files in a folder called FigLock in your iCloud Drive. Everything
+      in it is encrypted.
+    </p>
+  </div>
+{/snippet}
+
 <div class="flex flex-col gap-3">
   {#if storage.mode === "create"}
     <FolderField
@@ -96,9 +127,31 @@
       </span>
     </label>
     {#if storage.syncDrive}{@render drivePanel()}{/if}
+    {#if storage.icloud?.available}
+      <label
+        class="flex cursor-pointer items-start gap-3 rounded-(--radius-md) border p-3 {storage.syncIcloud
+          ? 'border-primary bg-surface-sunken'
+          : 'border-border-strong hover:bg-surface-sunken'}"
+      >
+        <input type="checkbox" bind:checked={storage.syncIcloud} class="mt-1" />
+        <span class="flex flex-col gap-1">
+          <span class="font-medium">Sync with iCloud Drive</span>
+          <span class="text-(length:--text-xs) leading-4 text-text-secondary">
+            Keep an encrypted copy in the FigLock folder of your iCloud Drive, to open the vault on
+            your other Apple devices. It can be on together with Google Drive. You can change this
+            later in Settings.
+          </span>
+        </span>
+      </label>
+      {#if storage.syncIcloud}{@render icloudPanel()}{/if}
+    {/if}
   {:else}
-    <div role="radiogroup" aria-label="Where the vault is kept" class="grid grid-cols-2 gap-2">
-      {#each KINDS as k (k.kind)}
+    <div
+      role="radiogroup"
+      aria-label="Where the vault is kept"
+      class="grid gap-2 {kinds.length > 2 ? 'grid-cols-3' : 'grid-cols-2'}"
+    >
+      {#each kinds as k (k.kind)}
         <button
           type="button"
           role="radio"
@@ -122,6 +175,8 @@
         error={folderError}
         label={folderLabel}
       />
+    {:else if storage.kind === "icloud"}
+      {@render icloudPanel()}
     {:else}
       {@render drivePanel()}
     {/if}
