@@ -1558,6 +1558,7 @@ dependencies = [
  "figlock-core",
  "figlock-store",
  "figlock-sync",
+ "p256",
  "serde_json",
  "tempfile",
  "uniffi",

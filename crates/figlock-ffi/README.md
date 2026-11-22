@@ -36,6 +36,14 @@ password gives the unlocked session and the Secret Key text for the Keychain. A 
 invite, a tampered answer and a wrong password all fail with the same `Failed`. The trusted side (creating an
 invite, approving) is not exported yet; it comes with the iOS approve flow.
 
+## Quick unlock
+
+`derive_unlock_key` gives an opaque `UnlockKey` (the Account Unlock Key). `UnlockKey.seal_for_quick_unlock(qk_public,
+vault_id, device_id)` wraps it to the Secure Enclave public point (ADR-0025); `quick_unlock_ephemeral_public(blob)`
+tells the chip which point to agree with, and `open_quick_unlock(blob, qk_public, shared, vault_id, device_id)` gives
+the key back from the 32 byte ECDH result. `unlock_vault_with_key` opens the vault with it. The key never crosses
+the boundary as bytes; the ECDH result is wiped after use.
+
 ## Sync
 
 Sync is the one Rust engine of `figlock-sync` (ADR-0041 decision 3), with the parts that need platform APIs

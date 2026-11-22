@@ -35,6 +35,7 @@ uniffi.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
+p256.workspace = true
 tempfile.workspace = true
 serde_json.workspace = true
 

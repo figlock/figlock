@@ -18,6 +18,7 @@ mod created;
 mod device;
 mod error;
 mod join;
+mod quick;
 mod session;
 mod sync;
 
@@ -30,6 +31,10 @@ pub use error::FigLockError;
 pub use join::{
     JoinHandle, JoinOutcome, JoinStart, RequestFile, fingerprint_of, invite_code_canonical,
     invite_code_is_valid, invite_path, start_join,
+};
+pub use quick::{
+    UnlockKey, derive_unlock_key, open_quick_unlock, quick_unlock_ephemeral_public,
+    unlock_vault_with_key,
 };
 pub use session::{
     CommittedFile, DeviceEntry, FieldInput, ItemListing, ItemSummary, SearchHit, UnlockOutcome,
