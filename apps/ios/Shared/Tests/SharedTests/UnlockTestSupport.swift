@@ -45,11 +45,17 @@ final class FakeChip: QuickUnlockChip, @unchecked Sendable {
         }
     }
 
+    /// The state one prompt needs, read under the lock in a plain synchronous function (a closure that returns a
+    /// tuple inside an async function crashes the Swift 6.3 optimizer's closure lifetime pass).
+    private func startPrompt() -> (key: P256.KeyAgreement.PrivateKey?, behaviour: Behaviour) {
+        lock.lock()
+        defer { lock.unlock() }
+        prompts += 1
+        return (key, behaviourValue)
+    }
+
     func agree(ephemeralPublic: Data, reason: String) async throws -> Data {
-        let (key, behaviour): (P256.KeyAgreement.PrivateKey?, Behaviour) = lock.withLock {
-            prompts += 1
-            return (key, behaviourValue)
-        }
+        let (key, behaviour) = startPrompt()
         switch behaviour {
         case .cancelled: throw ChipError.cancelled
         case .notRecognised: throw ChipError.authFailed
