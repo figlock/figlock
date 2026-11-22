@@ -1,0 +1,62 @@
+# The Xcode project is generated from this file (`just ios-project`) and is not committed or hand edited.
+name: FigLock
+options:
+  bundleIdPrefix: com.figlock
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+# iPhone only in v1 (ADR-0041): TARGETED_DEVICE_FAMILY is "1" on each target below.
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # The Rust library is built for Apple silicon simulators only (arm64); no Intel simulator slice.
+    EXCLUDED_ARCHS[sdk=iphonesimulator*]: x86_64
+    SUPPORTS_MACCATALYST: NO
+    SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+    SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Team and signing identities arrive with FIG-175; simulator builds do not need them.
+    CODE_SIGN_STYLE: Automatic
+packages:
+  Shared:
+    path: Shared
+targets:
+  FigLock:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies:
+      - package: Shared
+      - target: AutofillExtension
+        embed: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.figlock.ios
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/FigLock.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  AutofillExtension:
+    type: app-extension
+    platform: iOS
+    sources: [AutofillExtension]
+    dependencies:
+      - package: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.figlock.ios.autofill
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_FILE: AutofillExtension/Info.plist
+        CODE_SIGN_ENTITLEMENTS: AutofillExtension/AutofillExtension.entitlements
+        # The extension is a separate process with a small memory limit (ADR-0041): keep it lean.
+schemes:
+  FigLock:
+    build:
+      targets:
+        FigLock: all
+    test:
+      targets: []
+    run:
+      config: Debug

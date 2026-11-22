@@ -45,3 +45,23 @@ check: lint test design-check vectors-check release-scripts-test
 # Supply-chain checks: advisories, licenses, bans, sources.
 deny:
     if [ -f Cargo.toml ]; then cargo deny check; fi
+
+# iOS: cross-compile figlock-ffi, generate the Swift bindings, build Shared/Frameworks/FigLockFFI.xcframework.
+ios-xcframework:
+    apps/ios/scripts/build-xcframework.sh
+
+# iOS: generate apps/ios/FigLock.xcodeproj from project.yml (the project is never hand edited).
+ios-project:
+    cd apps/ios && xcodegen generate --quiet
+
+# iOS: run the Shared package tests on a simulator (needs the xcframework, which has no macOS slice).
+ios-test: ios-xcframework
+    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build
+
+# iOS: build the app for the simulator.
+ios-build: ios-xcframework ios-project
+    cd apps/ios && xcodebuild -project FigLock.xcodeproj -scheme FigLock -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+
+# iOS: build, install and launch the app on a booted simulator (boots "iPhone 17" when none is running).
+ios-run: ios-build
+    apps/ios/scripts/run-simulator.sh
