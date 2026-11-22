@@ -22,6 +22,17 @@ anything. `status()` tells onboarding (`noVault`), a damaged `vault.json`, an un
 screen case (`missing`) apart; a folder that vanished is never recreated empty. The device-only check of the
 protection class belongs to the on-device tests (FIG-172); the simulator does not report it.
 
+## Unlock
+
+`Shared/Sources/Shared/Unlock` holds the whole unlock layer, with the hardware parts behind protocols so tests run
+on the simulator with a software key. `QuickUnlockChip` is the Secure Enclave key (`SecureEnclaveChip`: permanent,
+shared keychain group, `.userPresence`, `ThisDeviceOnly`); the wrap of the Account Unlock Key is the Rust code of
+`figlock-core`. `QuickUnlockPolicy` enforces the limits of `crypto.md` 8 and `PasswordThrottle` slows password
+guesses. `SecretKeyKeeper` keeps the Secret Key and the device keys in the keychain (`ThisDeviceOnly`, never
+synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` ties them together for the app.
+The simulator has no Secure Enclave, so Face ID is off there. Debug builds accept `-figlock-seed-demo` to create a
+made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists.
+
 ## Build and run
 
 Needs Xcode with an iOS simulator runtime and the tools pinned in `mise.toml` (`just setup`; it also installs the

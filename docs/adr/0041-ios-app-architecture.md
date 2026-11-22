@@ -117,6 +117,21 @@ from `project.yml` with XcodeGen and is not hand edited. `figlock-ffi` is cross-
 `apps/ios/**`, `crates/figlock-core/**`, `crates/figlock-ffi/**`, and the sync crate. Releases go to TestFlight
 from a tag (FIG-175).
 
+## Amendment (FIG-160): quick unlock on the phone
+
+- **Unlock layer.** `figlock-ffi` exports the unlock key as an opaque handle (`UnlockKey`): derive it from the master
+  password and Secret Key, seal it to the Secure Enclave public point, open it from a blob and the ECDH result, and
+  unlock a vault with it. The Swift side only moves bytes between the chip, the container and those calls.
+- **Biometric set changes.** Besides the limits of `crypto.md` 8, quick unlock ends when the system reports a different
+  enrolled biometric set than when it was turned on, or when the key is gone. This is stricter than ADR-0025's
+  user-presence-only rule on purpose on a phone, where someone who knows the passcode can add a face. The person
+  keeps the master password path, and the next full unlock turns Face ID on again without a prompt.
+- **Master password throttle.** Three wrong passwords pause password entry for a minute, doubling with each further
+  wrong one up to an hour. The count survives an app restart. Face ID is unaffected.
+- **Auto-lock.** The vault locks when the app has been in the background longer than the auto-lock time (default 5
+  minutes, the prototype's default; the setting arrives with FIG-168). Screens are covered while the app is inactive
+  and while the screen is recorded or mirrored, and content is hosted so screenshots leave it out.
+
 ## Consequences
 
 - One implementation of sync and merge on desktop and iOS, tested by the same suites. The cost is the extraction in
