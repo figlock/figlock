@@ -39,6 +39,20 @@ pub struct FieldInput {
     pub value: String,
 }
 
+/// One row of the device list.
+#[derive(uniffi::Record)]
+pub struct DeviceEntry {
+    /// 32 hex characters.
+    pub id: String,
+    /// `None` for a revoked device: its record is not re-signed.
+    pub name: Option<String>,
+    pub fingerprint: String,
+    /// Milliseconds since the Unix epoch; set when the device is revoked.
+    pub revoked_ms: Option<u64>,
+    /// True for the device this session runs on.
+    pub is_this_device: bool,
+}
+
 #[derive(uniffi::Record)]
 pub struct SearchHit {
     pub id: String,
@@ -121,6 +135,23 @@ impl VaultSession {
 
     pub fn epoch(&self) -> Result<u32> {
         self.with_vault(|v| Ok(v.epoch()))
+    }
+
+    /// Every device the vault knows: live ones first, then revoked ones.
+    pub fn devices(&self) -> Result<Vec<DeviceEntry>> {
+        self.with_vault(|v| {
+            let me = *v.device_id();
+            Ok(v.devices()
+                .into_iter()
+                .map(|d| DeviceEntry {
+                    id: id_hex(&d.device_id),
+                    name: d.name,
+                    fingerprint: d.fingerprint,
+                    revoked_ms: d.revoked_at.map(|s| s.wall),
+                    is_this_device: d.device_id == me,
+                })
+                .collect())
+        })
     }
 
     /// Number of op files applied or committed so far; changes whenever the vault content changes.

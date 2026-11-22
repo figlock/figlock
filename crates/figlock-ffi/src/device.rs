@@ -71,6 +71,11 @@ impl DeviceKeysHandle {
         out
     }
 
+    /// The fingerprint both screens show while pairing (`XXXX-XXXX-XXXX-XXXX`).
+    pub fn fingerprint(&self) -> String {
+        figlock_core::device_fingerprint(&self.to_core().sign_public())
+    }
+
     /// The public device id, 32 hex characters.
     pub fn device_id(&self) -> String {
         id_hex(&self.id)
