@@ -28,6 +28,14 @@ The xcframework and the Swift bindings (`Shared/Frameworks`, `Shared/Sources/Fig
 Rust sources every time and are gitignored, so they cannot drift from the core. There is no Intel simulator
 slice.
 
+## Theme
+
+`Shared/Sources/Shared/Theme/Tokens.generated.swift` is generated from `design/tokens.css` by
+`python3 design/gen-swift-theme.py` and is committed; `just design-check` (CI) fails when the two differ. Use
+`FLColor`, `FLSpace`, `FLRadius`, `FLText`, `FLSize`, `FLShadow` and `FLDuration` rather than literals, `FLFont.ui`
+and `FLFont.mono` for text (SF Pro and SF Mono, scaled with Dynamic Type), `.flMinTouchTarget()` for 44 pt hit areas
+and `.flAnimation(value:)` or `FLMotion.animation` so Reduce Motion drops the movement.
+
 ## Signing
 
 Simulator builds need no signing. The bundle ids (`com.figlock.ios`, `com.figlock.ios.autofill`), App Group and

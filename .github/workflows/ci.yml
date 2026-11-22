@@ -53,6 +53,8 @@ jobs:
               - '.github/workflows/ci.yml'
             ios:
               - 'apps/ios/**'
+              - 'design/tokens.css'
+              - 'design/gen-swift-theme.py'
               - 'crates/figlock-core/**'
               - 'crates/figlock-ffi/**'
               - 'crates/figlock-sync/**'
@@ -111,7 +113,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5
-      - name: Design tokens meet WCAG AA
+      - name: Design tokens meet WCAG AA and the Swift theme matches them
         run: just design-check
       - name: Install, lint and test
         run: |
