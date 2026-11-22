@@ -61,10 +61,9 @@ struct VaultListView: View {
         .background(FLColor.bg)
         .navigationTitle("Vault")
         .navigationDestination(for: String.self) { id in
-            if let item = browser.item(id: id) {
-                ItemDetailView(item: item, session: browser.session, copier: copier)
-            }
+            ItemDetailHost(id: id, browser: browser, copier: copier)
         }
+        .modifier(ItemManagementToolbar(browser: browser, copier: copier))
         // Search sits above the list and shows when it is pulled down, as in the prototype.
         .searchable(
             text: $browser.query, placement: .navigationBarDrawer(displayMode: .automatic),
@@ -114,6 +113,8 @@ private struct FilterRail: View {
 
 struct ItemRow: View {
     let item: VaultItem
+    @Environment(VaultEditor.self) private var editor: VaultEditor?
+    private var unsynced: Bool { editor?.isUnsynced(item.id) == true }
 
     var body: some View {
         HStack(spacing: FLSpace.s3) {
@@ -128,10 +129,15 @@ struct ItemRow: View {
                     .foregroundStyle(FLColor.textSecondary)
                     .lineLimit(1)
             }
+            if unsynced {
+                Spacer(minLength: 0)
+                NotSyncedMark()
+            }
         }
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(item.title), \(item.kind.displayName), \(item.subtitle)")
+        .accessibilityLabel(
+            "\(item.title), \(item.kind.displayName), \(item.subtitle)" + (unsynced ? ", not synced yet" : ""))
     }
 }
 

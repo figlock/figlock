@@ -45,6 +45,17 @@ pasteboard still holds that copy. `SecretReveal` gates reveal behind Face ID or 
 needs no extra check (the vault is unlocked), revealing does. Face ID and the real pasteboard do not run on the
 simulator. The views are in `App/Vault`.
 
+## Editing items
+
+`ItemDraft` is what the editor works on (all six kinds, document files included); `changes()` turns it into the
+field writes of the session, and a stored secret is never put into a field: it shows as "unchanged" until
+something is typed. `VaultEditor` runs create, update, delete and restore through `VaultSession`, commits one op
+file per save and writes it to the local vault folder; if the write fails the commit is rolled back and nothing
+changes. `PendingSync` remembers which items were changed here, and an item shows as "not synced" until
+`FileSyncState.lastSyncMs` is later than its edit. Document files (ADR-0024: 8 files, 768 KB each) come from the
+Files picker through `DocumentFiles` and go back out through `FileExtraction` (Face ID first). The generator is the
+Rust one (`GeneratorSettings`). Views: `App/Vault/ItemFormView.swift`, `GeneratorView.swift`, `ItemManagement.swift`.
+
 ## Onboarding
 
 `Shared/Sources/Shared/Onboarding` gets a vault onto the phone. `Onboarding` creates one (nothing is stored until the

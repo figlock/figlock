@@ -5,6 +5,7 @@ import SwiftUI
 /// One item: its fields, with secrets masked until the person shows them with Face ID.
 struct ItemDetailView: View {
     let item: VaultItem
+    let session: VaultSession
     let copier: ClipboardCopier
 
     @State private var reveal: SecretReveal
@@ -12,6 +13,7 @@ struct ItemDetailView: View {
 
     init(item: VaultItem, session: VaultSession, copier: ClipboardCopier) {
         self.item = item
+        self.session = session
         self.copier = copier
         _reveal = State(initialValue: SecretReveal(session: session, itemId: item.id))
     }
@@ -20,19 +22,22 @@ struct ItemDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: FLSpace.s5) {
                 header
-                if !item.detailRows.isEmpty || !item.secretFields.isEmpty {
+                if item.isDeleted { RestoreBar(item: item) }
+                UnsyncedNote(itemId: item.id)
+                if !item.detailRows.isEmpty || !item.textSecretFields.isEmpty {
                     VStack(spacing: 0) {
                         ForEach(Array(item.detailRows.enumerated()), id: \.offset) { index, row in
                             PlainRow(label: row.label, value: row.value, copier: copier, key: item.id + "row\(index)")
                             Divider().padding(.leading, FLSpace.s4)
                         }
-                        ForEach(item.secretFields, id: \.self) { field in
+                        ForEach(item.textSecretFields, id: \.self) { field in
                             SecretRow(item: item, field: field, reveal: reveal, copier: copier)
-                            if field != item.secretFields.last { Divider().padding(.leading, FLSpace.s4) }
+                            if field != item.textSecretFields.last { Divider().padding(.leading, FLSpace.s4) }
                         }
                     }
                     .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.md))
                 }
+                FilesSection(item: item, session: session)
                 if !item.tags.isEmpty {
                     Text("Tags: " + item.tags.joined(separator: ", "))
                         .font(FLFont.ui(FLText.base, relativeTo: .callout)).foregroundStyle(FLColor.textSecondary)
@@ -45,6 +50,7 @@ struct ItemDetailView: View {
         .background(FLColor.bg)
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
+        .modifier(ItemActions(item: item, copier: copier))
         // A shown secret hides when the person leaves the screen or the app, not only after 10 seconds.
         .onDisappear { reveal.hideAll() }
         .onChange(of: scenePhase) { _, phase in
@@ -99,7 +105,7 @@ private struct SecretRow: View {
     let reveal: SecretReveal
     let copier: ClipboardCopier
 
-    private var label: String { VaultItem.label(forSecret: field) }
+    private var label: String { item.label(forSecret: field) }
     private var shown: String? { reveal.shown[field] }
     private var copyKey: String { item.id + field }
 
