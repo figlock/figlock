@@ -420,3 +420,23 @@ fn copy_dir(from: &Path, to: &Path) {
         }
     }
 }
+
+#[test]
+fn sync_on_refuses_an_icloud_folder_that_is_still_receiving_another_vault() {
+    let root = icloud_root();
+    let mut m = Machine::new(root.path(), &password());
+    m.ok_init(&[]);
+    let folder = root.path().join("FigLock");
+    std::fs::create_dir_all(folder.join("log")).unwrap();
+    let out = m.run(&["sync", "on", "--icloud"]);
+    assert!(!out.status.success());
+    assert!(
+        text(&out.stderr).contains("still be arriving"),
+        "{}",
+        text(&out.stderr)
+    );
+    // Nothing was uploaded into it and nothing was turned on.
+    assert!(!folder.join("vault.json").exists());
+    assert!(!folder.join("README.txt").exists());
+    assert!(m.status()["remotes"].as_array().unwrap().is_empty());
+}

@@ -156,6 +156,9 @@ fn turn_on_targets(r: &RemoteArgs) -> Res<Vec<Remote>> {
     if r.is_empty() {
         Ok(vec![Remote::Drive])
     } else {
+        // Not next to another device's vault that is still arriving through iCloud: uploading this device's
+        // `vault.json` into it would fork the vault. Checked before anything is made.
+        crate::remotes::refuse_partial_icloud_folder(&r.resolve(false)?)?;
         r.resolve(true)
     }
 }

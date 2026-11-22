@@ -37,6 +37,9 @@ pub(super) enum Kind {
 pub(super) struct RemoteState {
     pub(super) kind: Kind,
     message: Option<String>,
+    /// This remote's last sync found two devices changing the vault's settings at once. Kept per remote, so a
+    /// clean sync of another one does not hide it.
+    fork: bool,
     failures: usize,
     next_at: Instant,
 }
@@ -46,6 +49,7 @@ impl RemoteState {
         RemoteState {
             kind: Kind::Idle,
             message: None,
+            fork: false,
             failures: 0,
             next_at: Instant::now(),
         }
@@ -61,7 +65,6 @@ pub(super) struct SyncState {
     running: bool,
     /// By remote id.
     remotes: BTreeMap<String, RemoteState>,
-    fork: bool,
     needs_unlock: bool,
     /// When the open vault last looked for changes another process made in the local folder.
     local_at: Instant,
@@ -72,7 +75,6 @@ impl SyncState {
         SyncState {
             running: false,
             remotes: BTreeMap::new(),
-            fork: false,
             needs_unlock: false,
             local_at: Instant::now(),
         }
@@ -341,7 +343,7 @@ impl Desk {
             can_sign_in: drive.can_sign_in,
             last_sync_secs_ago: sync::last_sync_ms().map(|t| now.saturating_sub(t) / 1000),
             message: if enabled { message } else { None },
-            fork: enabled && s.fork,
+            fork: enabled && s.remotes.values().any(|r| r.fork),
             needs_unlock: enabled && s.needs_unlock,
             local_folder: cfg.map(|c| c.place.local.display().to_string()),
             remotes: views,
@@ -422,8 +424,8 @@ impl Desk {
                     rs.kind = Kind::Idle;
                     rs.message = None;
                     rs.failures = 0;
+                    rs.fork = report.warnings.contains(&Warning::VaultJsonFork);
                     rs.next_at = Instant::now() + INTERVAL;
-                    s.fork = report.warnings.contains(&Warning::VaultJsonFork);
                     if let Some(needs_unlock) = absorbed {
                         s.needs_unlock |= needs_unlock;
                     }
