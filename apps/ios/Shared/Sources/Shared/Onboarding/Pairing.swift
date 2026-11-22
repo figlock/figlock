@@ -38,7 +38,7 @@ extension Onboarding {
         }
 
         /// Open the answer with the master password and store the vault on this phone. The Secret Key that came in
-        /// the answer is kept in the keychain unless the person opted out.
+        /// the answer is kept through `SecretKeyKeeper.keep`, which honors the ADR-0038 opt-out.
         public func finish(password: String) async throws {
             let handle = handle
             let remote = remote
@@ -105,17 +105,19 @@ extension Onboarding {
         return Pairing(handle: start.handle, keys: keys, remote: remote, onboarding: self)
     }
 
-    /// Store what a finished join produced: the vault files, this phone's keys and the Secret Key.
+    /// Store what a finished join produced: the vault files, this phone's keys and the Secret Key. All or nothing.
     func adopt(remote: any BlobStoreFfi, keys: DeviceKeysHandle, secretKey: String) async throws {
-        try await pull(from: remote)
-        guard case .ready(let vaultId, _) = vault.status() else { throw Failure.failed }
+        let vaultId = try? vaultIdentity(vaultJson: try remote.get(path: "vault.json")).vaultId
         do {
-            try keeper.saveDeviceKeys(keys, vaultId: vaultId)
-            try keeper.keep(secretKey, vaultId: vaultId)
+            try await pull(from: remote)
+            guard case .ready(let readyId, _) = vault.status(), readyId == vaultId else { throw Failure.failed }
+            try keeper.saveDeviceKeys(keys, vaultId: readyId)
+            try keeper.keep(secretKey, vaultId: readyId)
             try vault.markVaultPresent()
-            try remember(vaultId: vaultId)
+            try remember(vaultId: readyId)
         } catch {
-            throw Failure.failed
+            rollBack(vaultId: vaultId, keepKeys: false, wasMissing: false)
+            throw (error as? Failure) ?? Failure.failed
         }
     }
 }

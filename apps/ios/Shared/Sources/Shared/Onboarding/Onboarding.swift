@@ -120,25 +120,40 @@ public struct Onboarding: Sendable {
     @discardableResult
     public func commitCreation(_ pending: PendingVault, enableFaceID: Bool) async throws -> Bool {
         let created = pending.created
+        let secretKey: String
+        let known = try? vaultIdentity(vaultJson: created.vaultJson()).vaultId
         do {
             let vaultJson = try created.vaultJson()
-            let identity = try vaultIdentity(vaultJson: vaultJson)
+            let vaultId = try vaultIdentity(vaultJson: vaultJson).vaultId
             let keys = created.deviceKeys()
-            let secretKey = try created.secretKeyText()
+            secretKey = try created.secretKeyText()
             // Keys first: a vault file without keys is a phone that cannot unlock it, the other way round is
-            // just keys nobody uses.
-            try keeper.saveDeviceKeys(keys, vaultId: identity.vaultId)
-            try keeper.keep(secretKey, vaultId: identity.vaultId)
+            // just keys nobody uses. Any failure from here on undoes all of it.
+            try keeper.saveDeviceKeys(keys, vaultId: vaultId)
+            try keeper.keep(secretKey, vaultId: vaultId)
             let store = try vault.openStore()
             try store.putNew(path: "vault.json", bytes: vaultJson)
             try store.putNew(path: "devices/\(keys.deviceId()).json", bytes: try created.deviceRecord())
             try vault.markVaultPresent()
-            try remember(vaultId: identity.vaultId)
-            guard enableFaceID else { return false }
-            return await turnOnFaceID(password: pending.password, secretKey: secretKey)
+            try remember(vaultId: vaultId)
         } catch {
+            rollBack(vaultId: known, keepKeys: false, wasMissing: false)
             throw Failure.failed
         }
+        guard enableFaceID else { return false }
+        return await turnOnFaceID(password: pending.password, secretKey: secretKey)
+    }
+
+    /// Undo a half finished onboarding: the local vault folder, the keys this attempt saved, the presence marker and
+    /// the remembered id. A restore after a missing folder keeps the phone's own keys and its marker, so the phone
+    /// goes back to `missing` and not to a phone that never had a vault.
+    func rollBack(vaultId: String?, keepKeys: Bool, wasMissing: Bool) {
+        try? FileManager.default.removeItem(at: vault.container.vaultFolder)
+        if let vaultId, !keepKeys { try? keeper.removeAll(vaultId: vaultId) }
+        try? FileManager.default.removeItem(at: vault.container.deviceFolder.appendingPathComponent("sync-state.json"))
+        guard !wasMissing else { return }
+        try? vault.forgetVault()
+        try? FileManager.default.removeItem(at: vaultIdFile)
     }
 
     // MARK: Face ID
@@ -225,24 +240,27 @@ public struct Onboarding: Sendable {
     /// device's record when the vault has none.
     public func openFromRemote(_ remote: any BlobStoreFfi) async throws {
         guard let found = try inspect(remote: remote) else { throw Failure.noVaultInStorage }
+        let wasMissing: Bool
         switch vault.status() {
-        case .noVault: break
+        case .noVault: wasMissing = false
         case .missing:
-            // The keys on this phone belong to the vault it had; a different vault in the remote is not it.
-            if let known = rememberedVaultId, known != found.vaultId { throw Failure.foreignVault }
+            // The keys on this phone belong to the vault it had; a different vault, or one that cannot be
+            // compared because the remembered id is lost, is not a restore.
+            guard rememberedVaultId == found.vaultId else { throw Failure.foreignVault }
+            wasMissing = true
             try vault.container.createVaultFolder()
         default: throw Failure.alreadyHasVault
         }
-        try await pull(from: remote)
-        guard case .ready(let vaultId, _) = vault.status(), vaultId == found.vaultId else { throw Failure.failed }
+        let hadKeys = ((try? keeper.deviceKeys(vaultId: found.vaultId)) ?? nil) != nil
         do {
-            if try keeper.deviceKeys(vaultId: vaultId) == nil {
-                try keeper.saveDeviceKeys(try DeviceKeysHandle.generate(), vaultId: vaultId)
-            }
+            try await pull(from: remote)
+            guard case .ready(let vaultId, _) = vault.status(), vaultId == found.vaultId else { throw Failure.failed }
+            if !hadKeys { try keeper.saveDeviceKeys(try DeviceKeysHandle.generate(), vaultId: vaultId) }
             try vault.markVaultPresent()
             try remember(vaultId: vaultId)
         } catch {
-            throw Failure.failed
+            rollBack(vaultId: found.vaultId, keepKeys: hadKeys, wasMissing: wasMissing)
+            throw (error as? Failure) ?? Failure.failed
         }
     }
 

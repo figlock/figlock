@@ -280,3 +280,79 @@ private func lastTwoGroups(of secretKey: String) -> String {
     #expect(phone.vault.status() == .noVault)
     #expect(phone.secrets.accounts.isEmpty)
 }
+
+// MARK: All or nothing
+
+/// Secrets that refuse to write one kind of item, to break an onboarding half way.
+private struct RefusingSecrets: SecretStore {
+    let base: MemorySecrets
+    let refusing: String
+
+    func read(_ account: String) throws -> Data? { try base.read(account) }
+    func delete(_ account: String) throws { try base.delete(account) }
+
+    func write(_ account: String, _ data: Data) throws {
+        if account.hasPrefix(refusing) { throw SecretStoreError(status: -25308) }
+        try base.write(account, data)
+    }
+}
+
+private func onboarding(_ phone: Blank, refusing prefix: String) -> Onboarding {
+    let keeper = SecretKeyKeeper(
+        store: RefusingSecrets(base: phone.secrets, refusing: prefix), container: phone.container)
+    return Onboarding(vault: phone.vault, keeper: keeper, quick: phone.quick)
+}
+
+@Test func aFailedOpenFromDriveLeavesNoHalfInstalledVault() async throws {
+    let phone = try Blank.make()
+    defer { phone.cleanup() }
+    try phone.seedRemote()
+
+    // The vault downloads, then storing the device keys fails.
+    await #expect(throws: Onboarding.Failure.failed) {
+        try await onboarding(phone, refusing: "device-keys.").openFromRemote(phone.remote)
+    }
+    #expect(phone.vault.status() == .noVault)
+    #expect(phone.secrets.accounts.isEmpty)
+    #expect(phone.onboarding.rememberedVaultId == nil)
+
+    // And the phone can simply try again.
+    try await phone.onboarding.openFromRemote(phone.remote)
+    if case .ready = phone.vault.status() {} else { Issue.record("the second try should work") }
+}
+
+@Test func aFailedCreationLeavesNothingBehind() async throws {
+    let phone = try Blank.make()
+    defer { phone.cleanup() }
+    let failing = onboarding(phone, refusing: "secret-key.")
+    let pending = try await failing.startCreation(password: Blank.password, deviceName: "Test iPhone")
+
+    await #expect(throws: Onboarding.Failure.failed) {
+        try await failing.commitCreation(pending, enableFaceID: false)
+    }
+    #expect(phone.vault.status() == .noVault)
+    #expect(phone.secrets.accounts.isEmpty)
+    #expect(failing.rememberedVaultId == nil)
+
+    // The same pending vault can be stored once the keychain works again.
+    try await phone.onboarding.commitCreation(pending, enableFaceID: false)
+    if case .ready = phone.vault.status() {} else { Issue.record("the vault should be stored on the retry") }
+}
+
+@Test func aMissingVaultWithALostRememberedIdIsNotRestored() async throws {
+    let phone = try Blank.make()
+    defer { phone.cleanup() }
+    let pending = try await phone.onboarding.startCreation(password: Blank.password, deviceName: "Test iPhone")
+    try await phone.onboarding.commitCreation(pending, enableFaceID: false)
+    let local = try phone.vault.openStore()
+    for entry in try local.list(prefix: "") {
+        try phone.remote.putNew(path: entry.path, bytes: try local.get(path: entry.path))
+    }
+    try FileManager.default.removeItem(at: phone.container.vaultFolder)
+    try FileManager.default.removeItem(at: phone.container.deviceFolder.appendingPathComponent("vault-id"))
+
+    await #expect(throws: Onboarding.Failure.foreignVault) {
+        try await phone.onboarding.openFromRemote(phone.remote)
+    }
+    #expect(phone.vault.status() == .missing)
+}
