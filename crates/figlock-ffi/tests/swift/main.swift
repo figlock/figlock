@@ -120,6 +120,7 @@ do {
     check(!inviteCodeIsValid(code: "QCC4-AS5K"), "short invite code is invalid")
     check(try inviteCodeCanonical(code: "qcc4 as5k bx31 a7xh m6ak") == "QCC4-AS5K-BX31-A7XH-M6AK", "canonical code")
 
+    try runSyncChecks()
     try runVectors(directory: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "")
     print("OK")
 } catch {
@@ -191,4 +192,157 @@ func runVectors(directory: String) throws {
         }
     }
     check(ran >= 12, "ran the published vectors (ran \(ran))")
+}
+
+
+// ---- sync through Swift-provided parts (ADR-0041 decision 3) ----
+// The store, the clock and the sync state below are plain Swift: what the app supplies from NSFileCoordinator,
+// its keychain and its container. The Rust engine does the syncing.
+
+final class SwiftStore: BlobStoreFfi, @unchecked Sendable {
+    private let lock = NSLock()
+    private var files: [String: Data] = [:]
+    var failing: StoreFailure?
+
+    func put(_ path: String, _ bytes: Data) { lock.lock(); files[path] = bytes; lock.unlock() }
+    func raw(_ path: String) -> Data? { lock.lock(); defer { lock.unlock() }; return files[path] }
+    func names() -> [String] { lock.lock(); defer { lock.unlock() }; return files.keys.sorted() }
+    func clear() { lock.lock(); files = [:]; lock.unlock() }
+
+    func get(path: String) throws -> Data {
+        if let f = failing { throw f }
+        guard let d = raw(path) else { throw StoreFailure.NotFound }
+        return d
+    }
+    func putNew(path: String, bytes: Data) throws {
+        if let f = failing { throw f }
+        lock.lock(); defer { lock.unlock() }
+        if files[path] != nil { throw StoreFailure.Exists }
+        files[path] = bytes
+    }
+    func putReplace(path: String, bytes: Data) throws {
+        if let f = failing { throw f }
+        put(path, bytes)
+    }
+    func list(prefix: String) throws -> [BlobEntry] {
+        if let f = failing { throw f }
+        lock.lock(); defer { lock.unlock() }
+        return files.filter { $0.key.hasPrefix(prefix) }.sorted { $0.key < $1.key }.map {
+            BlobEntry(path: $0.key, size: UInt64($0.value.count), mtimeMs: nil, available: true)
+        }
+    }
+    func delete(path: String) throws {
+        if let f = failing { throw f }
+        lock.lock(); files[path] = nil; lock.unlock()
+    }
+}
+
+final class SwiftClock: SyncClock, @unchecked Sendable {
+    func nowMs() -> UInt64 { 1_800_000_000_123 }
+}
+
+final class SwiftState: SyncStateStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var synced = false
+    private var last: UInt64?
+    private var refused = false
+    func syncedBefore() -> Bool { lock.lock(); defer { lock.unlock() }; return synced }
+    func lastSyncMs() -> UInt64? { lock.lock(); defer { lock.unlock() }; return last }
+    func signInRefused() -> Bool { lock.lock(); defer { lock.unlock() }; return refused }
+    func markSynced(nowMs: UInt64) { lock.lock(); synced = true; last = nowMs; lock.unlock() }
+    func markSignInRefused() { lock.lock(); refused = true; lock.unlock() }
+    func clearSignInRefused() { lock.lock(); refused = false; lock.unlock() }
+    func forget() { lock.lock(); synced = false; last = nil; lock.unlock() }
+}
+
+func expectSync(_ want: SyncFailure, _ what: String, _ body: () throws -> Void) {
+    do {
+        try body()
+        check(false, "\(what): expected \(want), got success")
+    } catch let e as SyncFailure {
+        check(e == want, "\(what): expected \(want), got \(e)")
+    } catch {
+        check(false, "\(what): unexpected error type")
+    }
+}
+
+func vaultJson(_ id: String, _ revision: Int, _ tag: String) -> Data {
+    Data("{\"vault_id\":\"\(id)\",\"revision\":\(revision),\"tag\":\"\(tag)\"}".utf8)
+}
+
+func runSyncChecks() throws {
+    let remote = SwiftStore()
+    let aLocal = SwiftStore(), bLocal = SwiftStore()
+    let aState = SwiftState(), bState = SwiftState()
+    let a = SyncEngine(local: aLocal, remote: remote, state: aState, clock: SwiftClock(), ownDevice: "aa")
+    let b = SyncEngine(local: bLocal, remote: remote, state: bState, clock: SwiftClock(), ownDevice: "bb")
+
+    aLocal.put("vault.json", vaultJson("v1", 1, "x"))
+    aLocal.put("devices/aa.json", Data("record-a".utf8))
+    aLocal.put("log/aa/00000001.op", Data("op-a".utf8))
+
+    // A round against the Swift store: up from A, down to B, then nothing left to do.
+    let up = try a.run(confirmReupload: false)
+    check(up.pushed == 3 && up.pulled == 0, "first sync pushes everything")
+    check(aState.lastSyncMs() == 1_800_000_000_123, "the Swift clock and state were used")
+    check(remote.names() == aLocal.names(), "the Swift remote holds A's files")
+    let down = try b.run(confirmReupload: false)
+    check(down.pulled == 3 && down.pushed == 0, "B pulls everything")
+    check(bLocal.raw("log/aa/00000001.op") == Data("op-a".utf8), "bytes arrive unchanged")
+    let quiet = try b.run(confirmReupload: false)
+    check(quiet.pulled == 0 && quiet.pushed == 0, "a second sync changes nothing")
+
+    // Remote lost: asks first, uploads only after the yes.
+    remote.clear()
+    expectSync(.RemoteLost, "remote lost") { _ = try a.run(confirmReupload: false) }
+    check(remote.names().isEmpty, "nothing uploaded unasked")
+    check(try a.run(confirmReupload: true).pushed == 3, "uploaded after the yes")
+
+    // Another vault: never merged, never deleted.
+    let other = SwiftStore()
+    other.put("vault.json", vaultJson("someone-else", 9, "r"))
+    let c = SyncEngine(local: aLocal, remote: other, state: SwiftState(), clock: SwiftClock(), ownDevice: "aa")
+    expectSync(.ForeignVault, "other vault") { _ = try c.run(confirmReupload: true) }
+    expectSync(.ForeignVault, "other vault is not deleted") { _ = try c.deleteRemote(typed: deleteRemotePhrase()) }
+    check(other.names() == ["vault.json"], "the other vault is untouched")
+
+    // A damaged vault.json stops the sync.
+    let broken = SwiftStore()
+    broken.put("vault.json", Data("{ not json".utf8))
+    let d = SyncEngine(local: aLocal, remote: broken, state: SwiftState(), clock: SwiftClock(), ownDevice: "aa")
+    expectSync(.Damaged, "damaged vault.json") { _ = try d.run(confirmReupload: true) }
+
+    // A revocation: the authority's new vault.json arrives and the revoked device's record is removed.
+    aLocal.put("devices/bb.json", Data("record-b".utf8))
+    _ = try a.run(confirmReupload: false)
+    _ = try b.run(confirmReupload: false)
+    check(bLocal.raw("devices/bb.json") != nil, "B has its record")
+    aLocal.put("vault.json", vaultJson("v1", 2, "revoked-b"))
+    try aLocal.delete(path: "devices/bb.json")
+    _ = try a.run(confirmReupload: false)
+    _ = try b.run(confirmReupload: false)
+    check(bLocal.raw("devices/bb.json") == nil, "the revoked device's record is gone")
+    check(bLocal.raw("vault.json") == aLocal.raw("vault.json"), "the new vault.json arrived")
+
+    // A refused sign-in and an unreachable remote come through as their own cases, with no text.
+    remote.failing = .Unauthorized
+    expectSync(.SignIn, "refused sign-in") { _ = try a.run(confirmReupload: false) }
+    check(aState.signInRefused(), "the Swift state remembers the refusal")
+    remote.failing = .Unavailable
+    expectSync(.Offline, "offline") { _ = try a.run(confirmReupload: false) }
+    remote.failing = nil
+
+    // Only the typed phrase deletes the remote copy, and the device forgets it synced.
+    expectSync(.NotConfirmed, "no phrase") { _ = try a.deleteRemote(typed: "yes") }
+    check(try a.deleteRemote(typed: deleteRemotePhrase()) > 0, "deleted with the phrase")
+    check(remote.names().isEmpty && !aState.syncedBefore(), "remote empty, state forgotten")
+
+    // The engine is called from several threads: the Swift store must hold up under the parallel copies.
+    let bulk = SwiftStore(), bulkRemote = SwiftStore()
+    bulk.put("vault.json", vaultJson("v2", 1, "x"))
+    for i in 0..<40 { bulk.put("log/aa/\(String(format: "%08d", i)).op", Data("op \(i)".utf8)) }
+    let bulkEngine = SyncEngine(local: bulk, remote: bulkRemote, state: SwiftState(), clock: SwiftClock(), ownDevice: "aa")
+    check(try bulkEngine.run(confirmReupload: false).pushed == 41, "all files copied in parallel")
+    check(bulkRemote.names() == bulk.names(), "the same files on both sides")
+    check(syncIntervalSecs() == 15 && syncBackoffSecs(failures: 9) == 300, "timing rules")
 }

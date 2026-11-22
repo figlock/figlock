@@ -1556,6 +1556,9 @@ name = "figlock-ffi"
 version = "0.5.0"
 dependencies = [
  "figlock-core",
+ "figlock-store",
+ "figlock-sync",
+ "serde_json",
  "tempfile",
  "uniffi",
  "zeroize",
@@ -1576,6 +1579,7 @@ dependencies = [
  "figlock-biometric",
  "figlock-core",
  "figlock-store",
+ "figlock-sync",
  "getrandom 0.4.3",
  "hex",
  "p256",
@@ -1600,6 +1604,17 @@ dependencies = [
  "tiny_http",
  "ureq",
  "url",
+]
+
+[[package]]
+name = "figlock-sync"
+version = "0.5.0"
+dependencies = [
+ "figlock-store",
+ "proptest",
+ "serde_json",
+ "sha2 0.11.1",
+ "tempfile",
 ]
 
 [[package]]

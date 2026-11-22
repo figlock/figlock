@@ -1,4 +1,4 @@
-//! Property tests for `sync::mirror` (ADR-0026, `sync.md` 2 and 10): devices that sync through one remote
+//! Property tests for `mirror` (ADR-0026, `sync.md` 2 and 10): devices that sync through one remote
 //! converge, whatever the order of writes and syncs and however flaky the remote is.
 //!
 //! The model is several devices, each with its own local folder, and one remote. A device writes the way the
@@ -8,8 +8,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use figlock_session::sync::{Opts, Report, SyncError, Warning, mirror};
 use figlock_store::{BlobStore, Entry, LocalFolder, StoreError};
+use figlock_sync::{Opts, Report, SyncError, Warning, mirror};
 use proptest::prelude::*;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;

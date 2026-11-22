@@ -161,6 +161,7 @@ the end.
 crates/figlock-core/     crypto, items, op log, merge, search (pure, no I/O)
 crates/figlock-store/    BlobStore adapters: local folder, Google Drive, later Git and S3
 crates/figlock-session/  device config and keys, quick unlock, the unlocked vault session (CLI and desktop)
+crates/figlock-sync/     the sync engine: mirror between two BlobStores, clock and sync state passed in (no I/O of its own)
 crates/figlock-broker/   broker rules: grants, approvals, audit log, socket server, `figlock http` and `run` clients
 crates/figlock-cli/      the figlock binary, including the broker daemon
 crates/figlock-ffi/      UniFFI (Swift, Kotlin) and wasm-bindgen exports
