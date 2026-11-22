@@ -50,7 +50,13 @@ public final class VaultBrowser {
     private var byId: [String: VaultItem] = [:]
     private let now: @Sendable () -> Date
     private var revision = 0
-    @ObservationIgnored private var cachedHits: (query: String, revision: Int, ids: [String])?
+    private struct CachedHits {
+        let query: String
+        let revision: Int
+        let ids: [String]
+    }
+
+    @ObservationIgnored private var cachedHits: CachedHits?
 
     public init(session: VaultSession, log: VaultLog?, now: @escaping @Sendable () -> Date = { Date() }) {
         self.session = session
@@ -113,7 +119,7 @@ public final class VaultBrowser {
                     (try? session.search(
                         query: trimmed, nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: Self.searchLimit))
                     ?? []
-                cachedHits = (trimmed, revision, hits.map(\.id))
+                cachedHits = CachedHits(query: trimmed, revision: revision, ids: hits.map(\.id))
                 base = hits.compactMap { byId[$0.id] }
             }
         }
