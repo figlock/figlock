@@ -51,7 +51,7 @@ this is a separate, explicit operation.
   yes, the vault is back in Drive. That is the intended recovery.
 - Tests: the deletion removes every remote file and nothing local, refuses another vault, a missing local vault
   and an unprovable remote, sweeps a late upload, is repeatable, and a second device sees the vault missing
-  and uploads nothing by itself (`crates/figlock-session/src/sync.rs`); no phrase, no sign-in and a script without
+  and uploads nothing by itself (`crates/figlock-sync/src/lib.rs`); no phrase, no sign-in and a script without
   `--confirm` change nothing (`crates/figlock-cli/tests/drive.rs`); the app core refuses without the phrase
   (`apps/desktop/src-tauri/src/desk/removed_tests.rs`); the dialog and its states (`apps/desktop/e2e`).
 
