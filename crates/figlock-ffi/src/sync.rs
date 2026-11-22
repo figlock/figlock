@@ -479,7 +479,8 @@ impl SyncEngine {
     /// refuses (`ForeignVault`) when the remote holds another vault. Forgets the sync state afterwards.
     pub fn delete_remote(&self, typed: String) -> Result<u32, SyncFailure> {
         let _running = self.guard()?;
-        let done = figlock_sync::delete_remote(&self.local, &self.remote, &self.state, &typed)?;
+        let done = figlock_sync::delete_remote(&self.local, &self.remote, &typed)?;
+        self.state.forget();
         Ok(u32::try_from(done.files).unwrap_or(u32::MAX))
     }
 }

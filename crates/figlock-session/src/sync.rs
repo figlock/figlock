@@ -225,10 +225,11 @@ pub fn delete_remote(cfg: &Config, typed: &str) -> Result<Deleted, SyncError> {
     let _lock = SyncLock::acquire_in(&config::home()?)?;
     let local = crate::store::open(&cfg.place)?;
     let remote = crate::store::open_drive().map_err(|_| SyncError::SignIn)?;
-    let deleted = figlock_sync::delete_remote(local.as_ref(), remote.as_ref(), &FileState, typed)?;
+    let deleted = figlock_sync::delete_remote(local.as_ref(), remote.as_ref(), typed)?;
     if cfg.place.remote.is_some() {
         config::set_remote(None)?;
     }
+    forget_state();
     Ok(deleted)
 }
 

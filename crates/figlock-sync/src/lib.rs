@@ -525,20 +525,17 @@ pub fn remove_remote(remote: &dyn BlobStore, paths: &[String]) {
 }
 
 /// Delete this vault's copy in the remote: every file it holds for it, and nothing of this device (ADR-0035).
-/// Needs the typed confirmation, and forgets the sync state afterwards: a device left syncing would at once
-/// offer to upload the vault again. The caller turns the remote off in its own config.
+/// Needs the typed confirmation. The caller turns the remote off in its own config and then forgets the sync
+/// state: a device left syncing would at once offer to upload the vault again.
 pub fn delete_remote(
     local: &dyn BlobStore,
     remote: &dyn BlobStore,
-    state: &dyn SyncState,
     typed: &str,
 ) -> Result<Deleted, SyncError> {
     if !delete_confirmed(typed) {
         return Err(SyncError::NotConfirmed);
     }
-    let deleted = delete_all(local, remote)?;
-    state.forget();
-    Ok(deleted)
+    delete_all(local, remote)
 }
 
 /// What a person types to delete the vault's copy in Google Drive (FIG-122, ADR-0035). A phrase, not the vault
@@ -1327,24 +1324,20 @@ mod tests {
     }
 
     #[test]
-    fn deleting_the_remote_forgets_the_state_only_when_it_was_confirmed_and_done() {
+    fn deleting_the_remote_needs_the_confirmation() {
         let (_a, local) = device_a();
         let (_r, remote) = remote_with_vault("v1");
-        let state = Memory::default();
-        state.mark_synced(1);
         for typed in ["", "yes"] {
             assert_eq!(
-                delete_remote(&local, &remote, &state, typed),
+                delete_remote(&local, &remote, typed),
                 Err(SyncError::NotConfirmed)
             );
         }
-        assert_eq!(state.forgot.load(Ordering::SeqCst), 0);
         assert!(!names(&remote).is_empty());
 
-        let done = delete_remote(&local, &remote, &state, DELETE_REMOTE_PHRASE).unwrap();
+        let done = delete_remote(&local, &remote, DELETE_REMOTE_PHRASE).unwrap();
         assert_eq!(done.files, 4);
-        assert_eq!(state.forgot.load(Ordering::SeqCst), 1);
-        assert!(!state.synced_before());
+        assert!(names(&remote).is_empty());
     }
 
     #[test]
