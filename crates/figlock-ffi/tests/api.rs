@@ -432,3 +432,37 @@ fn errors_never_contain_text() {
         assert!(text.len() < 32 && !text.contains(PASSWORD) && !text.contains(SECRET));
     }
 }
+
+#[test]
+fn a_commit_whose_file_could_not_be_stored_can_be_taken_back_and_retried() {
+    let c = created();
+    let s = c.take_session().unwrap();
+    s.add_item(
+        "doc".into(),
+        "personal".into(),
+        vec![field("title", "Signing"), field("file/ab12/name", "key.p8")],
+        1_800_000_000_000,
+    )
+    .unwrap();
+    let first = s.commit().unwrap().unwrap();
+    assert!(!s.has_pending().unwrap());
+    s.rollback_commit().unwrap();
+    assert!(s.has_pending().unwrap());
+    let again = s.commit().unwrap().unwrap();
+    assert_eq!(first.path, again.path);
+    s.confirm_commit().unwrap();
+    s.rollback_commit().unwrap();
+    assert!(!s.has_pending().unwrap());
+
+    // A save that failed half way can be thrown away.
+    s.add_item(
+        "note".into(),
+        "personal".into(),
+        vec![field("title", "Half")],
+        1_800_000_000_001,
+    )
+    .unwrap();
+    s.discard_pending().unwrap();
+    assert!(!s.has_pending().unwrap());
+    assert!(s.commit().unwrap().is_none());
+}
