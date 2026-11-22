@@ -24,6 +24,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       vectors: ${{ steps.filter.outputs.vectors }}
       release: ${{ steps.filter.outputs.release }}
+      ios: ${{ steps.filter.outputs.ios }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -48,6 +49,16 @@ jobs:
               - '.github/workflows/release*.yml'
               - 'apps/desktop/src-tauri/tauri.bundle.conf.json'
               - 'packaging/**'
+              - 'justfile'
+              - '.github/workflows/ci.yml'
+            ios:
+              - 'apps/ios/**'
+              - 'crates/figlock-core/**'
+              - 'crates/figlock-ffi/**'
+              - 'crates/figlock-sync/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'mise.toml'
               - 'justfile'
               - '.github/workflows/ci.yml'
             web:
@@ -145,10 +156,34 @@ jobs:
       - name: Release verification scripts (a good release passes, each broken one fails)
         run: scripts/test-release-scripts.sh
 
+  # iPhone app (ADR-0041): only when the app or the Rust crates it links change (ADR-0015).
+  ios:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
+      - name: SwiftLint and swift-format
+        run: just ios-lint
+      - name: Shared package tests on a simulator (cross-compiles figlock-ffi, generates the Swift bindings)
+        run: just ios-test
+      - name: Build the app for the simulator
+        run: just ios-build
+      - name: Keep the test results of a failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-build-logs
+          path: apps/ios/build/Logs/
+          if-no-files-found: ignore
+
   # Single stable check for the main ruleset: skipped path-filtered jobs count as passing.
   ci:
     if: always()
-    needs: [changes, rust, web, vectors, release-scripts]
+    needs: [changes, rust, web, vectors, release-scripts, ios]
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any job failed or was cancelled

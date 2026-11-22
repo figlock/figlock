@@ -58,6 +58,15 @@ ios-project:
 ios-test: ios-xcframework
     cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build
 
+# iOS: SwiftLint and swift-format (strict). Generated bindings are excluded. Run `just ios-fmt` to fix formatting.
+ios-lint:
+    cd apps/ios && swiftlint lint --strict --quiet
+    cd apps/ios && xcrun swift-format lint --strict --recursive App AutofillExtension Shared/Sources/Shared Shared/Tests Shared/Package.swift
+
+# iOS: format the Swift sources in place.
+ios-fmt:
+    cd apps/ios && xcrun swift-format format --in-place --recursive App AutofillExtension Shared/Sources/Shared Shared/Tests Shared/Package.swift
+
 # iOS: build the app for the simulator.
 ios-build: ios-xcframework ios-project
     cd apps/ios && xcodebuild -project FigLock.xcodeproj -scheme FigLock -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
