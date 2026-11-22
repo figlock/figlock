@@ -144,7 +144,7 @@ fn a_failed_restore_leaves_no_folder_and_the_missing_screen_inner() {
     let (_pw, _key, elsewhere) = locked_vault(&d);
     // Sync on with a saved sign-in. The build has no Google client, so the download cannot start: a failed restore.
     config::save_drive_token("revoked-refresh-token").unwrap();
-    config::set_remote(Some(config::Remote::Drive)).unwrap();
+    config::add_remote(config::Remote::Drive).unwrap();
     std::fs::rename(vault_dir(), &elsewhere).unwrap();
     assert!(
         d.state()

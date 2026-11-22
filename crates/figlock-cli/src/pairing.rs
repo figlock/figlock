@@ -36,9 +36,13 @@ fn place_for(a: &WhereArgs) -> Res<Place> {
         Some(path) => path.clone(),
         None => config::default_local_dir()?,
     };
-    let remote = a.drive.then_some(Remote::Drive);
+    let remotes = if a.drive {
+        vec![Remote::Drive]
+    } else {
+        Vec::new()
+    };
     // A Drive copy is downloaded into this folder, so it may not exist yet.
-    if remote.is_some() {
+    if !remotes.is_empty() {
         std::fs::create_dir_all(&local)?;
     }
     let local = std::fs::canonicalize(&local).map_err(|_| {
@@ -47,7 +51,7 @@ fn place_for(a: &WhereArgs) -> Res<Place> {
             local.display()
         ))
     })?;
-    Ok(Place { local, remote })
+    Ok(Place { local, remotes })
 }
 
 fn choice(a: &WhereArgs) -> quick::InitChoice {
@@ -82,7 +86,7 @@ fn settle(
     } else {
         println!("This device is set up. Try `figlock find`.");
     }
-    if cfg.place.remote.is_some()
+    if cfg.place.syncs()
         && let Err(e) = sync::run(cfg, false)
     {
         eprintln!(
@@ -208,7 +212,7 @@ pub fn device_add(a: &DeviceAddArgs, json: bool) -> Res<()> {
     let (mut invite, offer) = Invite::create(session.vault.vault_id(), now_ms())?;
     session.publish_invite(&offer)?;
     // With Drive the new device finds the invite there, so it has to arrive before the code is shown.
-    if cfg.place.remote.is_some()
+    if cfg.place.syncs()
         && let Err(e) = sync::run(&cfg, false)
     {
         session.close_invite(&invite);
@@ -238,7 +242,7 @@ pub fn device_add(a: &DeviceAddArgs, json: bool) -> Res<()> {
             ));
         }
         // A pull that fails now is tried again on the next turn.
-        if cfg.place.remote.is_some() {
+        if cfg.place.syncs() {
             let _ = sync::run(&cfg, false);
         }
         if let Some(req) = session.take_request(&mut invite, now)? {

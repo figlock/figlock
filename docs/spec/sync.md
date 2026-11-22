@@ -35,8 +35,13 @@ renaming it. `mtime` is informational only and never used for ordering.
 Provider notes:
 
 - **iCloud Drive and other synced folders.** A file listed but not yet downloaded is "not available yet",
-  not "missing". The adapter asks the OS to download it and the sync engine retries; it is never treated as
-  a gap (section 8).
+  not "missing". Before macOS 14 it is a hidden `.name.icloud` stub; from macOS 14 it keeps its name and has the
+  `SF_DATALESS` flag. The adapter asks the OS to download it and the sync engine waits a bounded time for
+  `vault.json` and retries on the next run; it is never treated as a gap or as a missing vault (section 8,
+  ADR-0043).
+- **Several remotes.** A device may mirror its local folder to a list of remotes (`drive`, folders). Each is
+  synced on its own with its own back-off, same-vault check, lost-remote confirmation and state; one failing never
+  fails another (ADR-0043).
 - **Google Drive.** Names are not unique in Drive, so create-only is built on top of it. The namespace is
   flat: the full path is the Drive file name in the appDataFolder. `put_new` (for a blob over 5 MiB, after looking the name up) creates the
   file with a random nonce in its `appProperties`, then lists every file with that name. The oldest by

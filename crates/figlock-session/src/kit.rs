@@ -14,9 +14,10 @@ use crate::session::civil_date;
 
 /// What the kit says about the vault, not about this device's disk: a long path would not fit.
 pub fn storage_label(place: &Place) -> String {
-    match place.remote {
+    match place.remotes.first() {
         Some(Remote::Drive) => "Google Drive".to_owned(),
-        None => {
+        // The kit says where the vault is kept, and a sync folder is a copy of the local one.
+        Some(Remote::Folder(_)) | None => {
             let name = place
                 .local
                 .file_name()
@@ -102,7 +103,7 @@ mod tests {
     fn place() -> Place {
         Place {
             local: PathBuf::from("/somewhere/vault"),
-            remote: None,
+            remotes: Vec::new(),
         }
     }
 

@@ -324,8 +324,8 @@ fn drive_inner() {
     config::save_drive_token(&password()).unwrap();
     assert!(drive::status().unwrap().signed_in);
     assert_eq!(
-        storage_place(&drive_only(), true).unwrap().remote,
-        Some(Remote::Drive)
+        storage_place(&drive_only(), true).unwrap().remotes,
+        [Remote::Drive]
     );
 
     // A damaged token file is removed on sign-out, with nothing to revoke at Google.
@@ -426,13 +426,13 @@ fn sync_off_inner() {
 
     // Not signed in: nothing is changed.
     assert_eq!(code_of(d.sync_enable().unwrap_err()), "drive_sign_in");
-    assert!(config::load().unwrap().place.remote.is_none());
+    assert!(!config::load().unwrap().place.syncs());
 
     // Signed in with a made-up token but a build with no Google client (like a source build): the first sync
     // fails, so sync is not left on.
     config::save_drive_token(&password()).unwrap();
     assert_eq!(code_of(d.sync_enable().unwrap_err()), "sync_failed");
-    assert_eq!(config::load().unwrap().place.remote, None);
+    assert!(!config::load().unwrap().place.syncs());
     assert_eq!(d.sync_status().unwrap().state, "off");
 
     // Turning it off when it is off is harmless.
@@ -462,7 +462,7 @@ fn sign_out_inner() {
 
     // Signed in: the window can say when, and sync is on.
     config::save_drive_token(&password()).unwrap();
-    config::set_remote(Some(Remote::Drive)).unwrap();
+    config::add_remote(Remote::Drive).unwrap();
     let v = d.sync_status().unwrap();
     assert!(v.signed_in && v.enabled);
     assert!(v.signed_in_secs_ago.is_some_and(|s| s < 60));
@@ -475,7 +475,7 @@ fn sign_out_inner() {
     assert!(!token.exists(), "the local sign-in is gone");
     let v = d.sync_status().unwrap();
     assert!(!v.signed_in && !v.enabled && v.state == "off");
-    assert_eq!(config::load().unwrap().place.remote, None);
+    assert!(!config::load().unwrap().place.syncs());
     // The vault on this Mac is untouched and still open.
     assert_eq!(d.state().unwrap().phase, "unlocked");
     assert!(
@@ -509,7 +509,7 @@ fn sync_failing_inner() {
     d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
     // A device with sync on and no working sign-in, as after the sign-in was revoked.
-    config::set_remote(Some(Remote::Drive)).unwrap();
+    config::add_remote(Remote::Drive).unwrap();
 
     let v = d.sync_status().unwrap();
     assert!(v.enabled);
@@ -622,7 +622,7 @@ fn sync_needs_unlock_inner() {
         .unwrap();
     d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
-    config::set_remote(Some(Remote::Drive)).unwrap();
+    config::add_remote(Remote::Drive).unwrap();
 
     d.flag_needs_unlock_for_test();
     assert!(d.sync_status().unwrap().needs_unlock);
@@ -688,7 +688,7 @@ fn revoked_sign_in_inner() {
     d.recovery_skip(true).unwrap();
     d.finish_create(false).unwrap();
     config::save_drive_token(&password()).unwrap();
-    config::set_remote(Some(Remote::Drive)).unwrap();
+    config::add_remote(Remote::Drive).unwrap();
     let v = d.sync_status().unwrap();
     assert!(v.signed_in && v.signed_in_secs_ago.is_some());
 

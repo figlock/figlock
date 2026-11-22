@@ -65,6 +65,9 @@ pub enum SyncError {
     /// The remote has no vault but this device synced to it before: its folder was deleted or the app was
     /// disconnected. Uploading everything again needs the person's confirmation.
     RemoteLost,
+    /// A file the sync needs (`vault.json`) is listed but its bytes are not on this device yet, and the wait
+    /// for the OS to download it ran out (iCloud Drive evicts files). Not a missing file: try again later.
+    NotDownloaded,
     /// A `vault.json` that is not valid JSON with a `vault_id` and `revision`.
     Damaged,
     /// Another sync on this device is running; it does the work.
@@ -83,6 +86,9 @@ impl std::fmt::Display for SyncError {
             SyncError::ForeignVault => "the remote holds a different vault than this device's",
             SyncError::RemoteLost => {
                 "the remote vault is gone; confirm to upload everything from this device again"
+            }
+            SyncError::NotDownloaded => {
+                "waiting for the storage provider to download the vault; try again shortly"
             }
             SyncError::Damaged => "a vault.json is damaged, so nothing was synced",
             SyncError::Busy => "another sync is already running on this device",
@@ -137,6 +143,44 @@ fn read(store: &dyn BlobStore, path: &str) -> Result<Option<Vec<u8>>, SyncError>
         Err(StoreError::NotFound | StoreError::NotYetAvailable) => Ok(None),
         Err(e) => Err(e.into()),
     }
+}
+
+/// How long a sync waits for the OS to download a file the storage lists but has not fetched (FIG-195).
+#[derive(Clone, Copy)]
+pub struct Wait {
+    pub tries: u32,
+    pub every: std::time::Duration,
+}
+
+impl Wait {
+    /// About 15 seconds in total: long enough for a small file from iCloud, short enough to fail the sync
+    /// and let the next one (with its back-off) try again.
+    pub const DEFAULT: Wait = Wait {
+        tries: 30,
+        every: std::time::Duration::from_millis(500),
+    };
+}
+
+/// Like [`read`] for a file that must be judged by its bytes. A listed file that is not downloaded yet is
+/// waited for, then reported as [`SyncError::NotDownloaded`]; it is never treated as missing, which would make
+/// a vault look lost or empty.
+fn read_waiting(
+    store: &dyn BlobStore,
+    path: &str,
+    wait: Wait,
+) -> Result<Option<Vec<u8>>, SyncError> {
+    for attempt in 0..=wait.tries {
+        match store.get(path) {
+            Ok(b) => return Ok(Some(b)),
+            Err(StoreError::NotFound) => return Ok(None),
+            Err(StoreError::NotYetAvailable) if attempt < wait.tries => {
+                std::thread::sleep(wait.every);
+            }
+            Err(StoreError::NotYetAvailable) => return Err(SyncError::NotDownloaded),
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Err(SyncError::NotDownloaded)
 }
 
 /// `(vault_id, revision)` from `vault.json`, or `Damaged` when it is not JSON with both. Both are plain fields;
@@ -375,10 +419,22 @@ pub fn mirror(
     remote: &dyn BlobStore,
     opts: &Opts,
 ) -> Result<Report, SyncError> {
+    mirror_waiting(local, remote, opts, Wait::DEFAULT)
+}
+
+fn mirror_waiting(
+    local: &dyn BlobStore,
+    remote: &dyn BlobStore,
+    opts: &Opts,
+    wait: Wait,
+) -> Result<Report, SyncError> {
     let mut warnings = Vec::new();
     // List first: a Drive listing also fills the id cache that makes the reads below one request each.
     let (local_all, remote_all) = (listing(local)?, listing(remote)?);
-    let (lv, rv) = (read(local, "vault.json")?, read(remote, "vault.json")?);
+    let (lv, rv) = (
+        read_waiting(local, "vault.json", wait)?,
+        read_waiting(remote, "vault.json", wait)?,
+    );
     let opts = &Opts {
         own_device: opts.own_device,
         push_all: opts.push_all && rv.is_none(),
@@ -458,14 +514,18 @@ pub fn run(
             state.mark_sign_in_refused();
         }
     })?;
-    state.mark_synced(clock.now_ms());
+    // Neither side held a vault, so nothing was synced. Marking it would make an empty remote look "lost"
+    // once the vault arrives (another remote of this device delivers it first, FIG-196).
+    if local.get("vault.json").is_ok() {
+        state.mark_synced(clock.now_ms());
+    }
     Ok(report)
 }
 
 /// Whether the local folder already holds a vault, so an app can skip opening the remote (a vault that exists
-/// opens offline). A listed file that is not downloaded yet counts as missing, as everywhere in the sync.
+/// opens offline). A vault.json that is listed but not downloaded yet is waited for (then `NotDownloaded`), never taken as missing.
 pub fn has_vault(local: &dyn BlobStore) -> Result<bool, SyncError> {
-    Ok(read(local, "vault.json")?.is_some())
+    Ok(read_waiting(local, "vault.json", Wait::DEFAULT)?.is_some())
 }
 
 /// Makes sure the local folder holds a vault. Pulls only, and touches the remote only when the local folder has
@@ -480,10 +540,10 @@ pub fn fill_local(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<(), S
 /// Opening an existing vault from the remote during setup (open or join): always looks at the remote, and
 /// refuses when the local folder already holds a different vault, so a stale copy is never unlocked by mistake.
 pub fn open_from_remote(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<(), SyncError> {
-    let Some(have) = read(local, "vault.json")? else {
+    let Some(have) = read_waiting(local, "vault.json", Wait::DEFAULT)? else {
         return pull_into(local, remote);
     };
-    if let Some(theirs) = read(remote, "vault.json")?
+    if let Some(theirs) = read_waiting(remote, "vault.json", Wait::DEFAULT)?
         && identity(&have)?.0 != identity(&theirs)?.0
     {
         return Err(SyncError::ForeignVault);
@@ -564,7 +624,7 @@ pub struct Deleted {
 /// meanwhile is swept up on the next pass, a few at most.
 fn delete_all(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<Deleted, SyncError> {
     const PASSES: usize = 3;
-    let ours = read(local, "vault.json")?.ok_or_else(|| {
+    let ours = read_waiting(local, "vault.json", Wait::DEFAULT)?.ok_or_else(|| {
         SyncError::Other("this device has no vault to match the Drive copy against".into())
     })?;
     let id = identity(&ours)?.0;
@@ -575,7 +635,7 @@ fn delete_all(local: &dyn BlobStore, remote: &dyn BlobStore) -> Result<Deleted, 
         if all.is_empty() {
             break;
         }
-        match read(remote, "vault.json")? {
+        match read_waiting(remote, "vault.json", Wait::DEFAULT)? {
             Some(theirs) if identity(&theirs)?.0 == id => checked = true,
             Some(_) => return Err(SyncError::ForeignVault),
             // After the first pass `vault.json` is already gone and what is left was checked then.
@@ -657,6 +717,71 @@ mod tests {
         put(&s, "devices/aa.json", b"rec-a");
         put(&s, "log/aa/00000001.op", b"op-a1");
         (d, s)
+    }
+
+    /// A store whose `vault.json` is evicted for its first `evicted_gets` reads, as iCloud Drive does.
+    struct Evicting {
+        inner: LocalFolder,
+        evicted_gets: AtomicUsize,
+    }
+
+    impl BlobStore for Evicting {
+        fn get(&self, path: &str) -> figlock_store::Result<Vec<u8>> {
+            if path == "vault.json" && self.evicted_gets.load(Ordering::SeqCst) > 0 {
+                self.evicted_gets.fetch_sub(1, Ordering::SeqCst);
+                return Err(StoreError::NotYetAvailable);
+            }
+            self.inner.get(path)
+        }
+        fn put_new(&self, path: &str, bytes: &[u8]) -> figlock_store::Result<()> {
+            self.inner.put_new(path, bytes)
+        }
+        fn put_replace(&self, path: &str, bytes: &[u8]) -> figlock_store::Result<()> {
+            self.inner.put_replace(path, bytes)
+        }
+        fn list(&self, prefix: &str) -> figlock_store::Result<Vec<Entry>> {
+            self.inner.list(prefix)
+        }
+        fn delete(&self, path: &str) -> figlock_store::Result<()> {
+            self.inner.delete(path)
+        }
+    }
+
+    const QUICK: Wait = Wait {
+        tries: 3,
+        every: std::time::Duration::from_millis(1),
+    };
+
+    #[test]
+    fn an_evicted_vault_json_is_waited_for_and_then_syncs() {
+        let (_a, la) = device_a();
+        let (_r, inner) = store();
+        put(&inner, "vault.json", &vault_json("v1", 1, "x"));
+        let remote = Evicting {
+            inner,
+            evicted_gets: AtomicUsize::new(2),
+        };
+        mirror_waiting(&la, &remote, &opts(Some(A), false), QUICK).unwrap();
+        assert!(remote.inner.get("log/aa/00000001.op").is_ok());
+    }
+
+    #[test]
+    fn an_evicted_vault_json_is_never_taken_as_missing() {
+        // Taken as missing it would look like a lost remote (`RemoteLost`) or let a first sync push everything.
+        let (_a, la) = device_a();
+        let (_r, inner) = store();
+        put(&inner, "vault.json", &vault_json("v1", 1, "x"));
+        let remote = Evicting {
+            inner,
+            evicted_gets: AtomicUsize::new(100),
+        };
+        for push_all in [false, true] {
+            assert_eq!(
+                mirror_waiting(&la, &remote, &opts(Some(A), push_all), QUICK),
+                Err(SyncError::NotDownloaded)
+            );
+        }
+        assert!(remote.inner.get("log/aa/00000001.op").is_err());
     }
 
     #[test]
@@ -1313,6 +1438,23 @@ mod tests {
         );
         assert!(run(&local, &remote, &state, &Fixed(3), Some(A), true).is_ok());
         assert_eq!(state.last_sync_ms(), Some(3));
+    }
+
+    #[test]
+    fn a_run_with_no_vault_on_either_side_is_not_a_sync() {
+        // A device that gets its vault from another remote must not find this empty one "lost" afterwards.
+        let (_l, local) = store();
+        let (_r, remote) = store();
+        let state = Memory::default();
+        run(&local, &remote, &state, &Fixed(1), Some(A), false).unwrap();
+        assert!(!state.synced_before());
+        assert_eq!(state.last_sync_ms(), None);
+        put(&local, "vault.json", &vault_json("v1", 1, "x"));
+        assert!(run(&local, &remote, &state, &Fixed(2), Some(A), false).is_ok());
+        assert!(
+            remote.get("vault.json").is_ok(),
+            "the first upload, not a lost remote"
+        );
     }
 
     #[test]

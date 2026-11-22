@@ -1157,3 +1157,96 @@ fn commands_keep_working_and_keep_the_data_locally_when_the_remote_cannot_be_rea
         text(&sync.stderr)
     );
 }
+
+// ---- several remotes at once (FIG-196); nothing here talks to Google ----
+
+fn set_remotes(e: &Env, remotes: Value) {
+    let path = e.home.path().join("config.json");
+    let mut cfg: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+    cfg.as_object_mut().unwrap().remove("remote");
+    cfg["remotes"] = remotes;
+    fs::write(&path, cfg.to_string()).unwrap();
+}
+
+#[test]
+fn a_folder_remote_syncs_even_when_drive_cannot() {
+    let e = Env::init();
+    e.add_login("First", &[]);
+    let other = TempDir::new().unwrap();
+    // Drive is on but not signed in, so it fails; the folder is listed after it and must not suffer.
+    set_remotes(
+        &e,
+        serde_json::json!(["drive", { "folder": other.path().to_str().unwrap() }]),
+    );
+
+    let out = e.run(&["sync"]);
+    assert!(
+        !out.status.success(),
+        "Drive is not signed in, so the sync reports it"
+    );
+    assert!(
+        text(&out.stderr).contains("figlock drive login"),
+        "{}",
+        text(&out.stderr)
+    );
+    assert!(
+        other.path().join("vault.json").exists(),
+        "the folder got the vault"
+    );
+    let ops: Vec<_> = e.ops();
+    assert!(!ops.is_empty());
+    for op in ops {
+        let rel = op.strip_prefix(e.store.path()).unwrap();
+        assert_eq!(
+            fs::read(other.path().join(rel)).unwrap(),
+            fs::read(&op).unwrap()
+        );
+    }
+
+    // Each remote keeps its own state: only the folder has synced.
+    let state: Value =
+        serde_json::from_slice(&fs::read(e.home.path().join("sync-state.json")).unwrap()).unwrap();
+    let remotes = state["remotes"].as_object().unwrap();
+    assert_eq!(remotes.len(), 1, "{state}");
+    assert!(remotes.keys().next().unwrap().starts_with("folder:"));
+}
+
+#[test]
+fn a_second_device_folder_gets_what_the_first_wrote_and_status_lists_it() {
+    let e = Env::init();
+    let other = TempDir::new().unwrap();
+    set_remotes(
+        &e,
+        serde_json::json!([{ "folder": other.path().to_str().unwrap() }]),
+    );
+    e.ok(&["sync"]);
+    e.add_login("Later", &[]);
+    // The write itself pushes to the folder remote, as it does to Drive.
+    let ops_in_folder = fs::read_dir(other.path().join("log")).unwrap().count();
+    assert!(ops_in_folder > 0);
+    let json: Value = serde_json::from_str(&e.ok(&["--json", "sync", "status"])).unwrap();
+    assert_eq!(json["remote"], Value::Null, "Drive is not one of them");
+    assert_eq!(json["remotes"].as_array().unwrap().len(), 1);
+    let text = e.ok(&["sync", "status"]);
+    assert!(text.contains("Sync folder:"), "{text}");
+}
+
+#[test]
+fn a_folder_remote_that_is_the_vault_folder_is_refused_and_changes_nothing() {
+    let e = Env::init();
+    e.add_login("First", &[]);
+    let before = e.ops();
+    set_remotes(
+        &e,
+        serde_json::json!([{ "folder": e.store.path().canonicalize().unwrap().to_str().unwrap() }]),
+    );
+    let out = e.run(&["sync"]);
+    assert!(!out.status.success());
+    assert!(
+        text(&out.stderr).contains("vault folder"),
+        "{}",
+        text(&out.stderr)
+    );
+    assert_eq!(e.ops(), before);
+    assert!(!e.home.path().join("sync-state.json").exists());
+}

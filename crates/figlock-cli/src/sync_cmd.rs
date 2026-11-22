@@ -78,7 +78,7 @@ fn show(report: &Report, json: bool) -> Res<()> {
 /// `figlock sync`: one pull and push, now.
 pub fn run(reupload: bool, json: bool) -> Res<()> {
     let cfg = config::load()?;
-    if cfg.place.remote.is_none() {
+    if !cfg.place.syncs() {
         return Err(Fail::new(
             "sync is not on for this device; run `figlock sync on`",
         ));
@@ -97,7 +97,7 @@ pub fn run(reupload: bool, json: bool) -> Res<()> {
 /// works, so a different vault in Drive or a dead sign-in leaves the device exactly as it was.
 pub fn on(json: bool) -> Res<()> {
     let cfg = config::load()?;
-    if cfg.place.remote.is_some() {
+    if cfg.place.has_drive() {
         return say(json, "already-on", "Sync to Google Drive is already on.");
     }
     if !drive::status()?.signed_in {
@@ -105,13 +105,14 @@ pub fn on(json: bool) -> Res<()> {
             "not signed in to Google Drive; run `figlock drive login` first",
         ));
     }
-    sync::forget_state();
-    let cfg = config::set_remote(Some(Remote::Drive))?;
-    match sync::run(&cfg, false) {
+    sync::forget_state_of(&Remote::Drive);
+    let cfg = config::add_remote(Remote::Drive)?;
+    // Only Drive's first sync decides whether it stays on; another remote's trouble is not its fault.
+    match sync::run_remote(&cfg, &Remote::Drive, false) {
         Ok(report) => show(&report, json),
         Err(e) => {
-            config::set_remote(None)?;
-            sync::forget_state();
+            config::remove_remote(&Remote::Drive)?;
+            sync::forget_state_of(&Remote::Drive);
             Err(Fail::new(format!(
                 "could not turn on sync, so nothing was changed: {e}"
             )))
@@ -122,11 +123,11 @@ pub fn on(json: bool) -> Res<()> {
 /// `figlock sync off`: stop syncing. The local vault, the copy in Drive and the sign-in are left alone.
 pub fn off(json: bool) -> Res<()> {
     let cfg = config::load()?;
-    if cfg.place.remote.is_none() {
+    if !cfg.place.has_drive() {
         return say(json, "already-off", "Sync to Google Drive is already off.");
     }
-    config::set_remote(None)?;
-    sync::forget_state();
+    config::remove_remote(&Remote::Drive)?;
+    sync::forget_state_of(&Remote::Drive);
     say(
         json,
         "off",
@@ -195,7 +196,16 @@ fn say(json: bool, status: &str, text: &str) -> Res<()> {
 /// `figlock sync status`: what is configured, with no network call.
 pub fn status(json: bool) -> Res<()> {
     let cfg = config::load()?;
-    let on = cfg.place.remote.is_some();
+    let on = cfg.place.has_drive();
+    let folders: Vec<String> = cfg
+        .place
+        .remotes
+        .iter()
+        .filter_map(|r| match r {
+            Remote::Folder(p) => Some(p.display().to_string()),
+            Remote::Drive => None,
+        })
+        .collect();
     let stored = drive::status()?.signed_in;
     // Google refused the last sync: the sign-in is still on disk but no longer works.
     let refused = stored && sync::sign_in_refused();
@@ -211,6 +221,7 @@ pub fn status(json: bool) -> Res<()> {
             "secret_key_changed": key_changed,
             "local": cfg.place.local.to_string_lossy(),
             "remote": if on { json!("drive") } else { json!(null) },
+            "remotes": cfg.place.remotes.iter().map(Remote::id).collect::<Vec<_>>(),
             "signed_in": signed_in,
             "sign_in_refused": refused,
             "last_sync_seconds_ago": last,
@@ -218,6 +229,9 @@ pub fn status(json: bool) -> Res<()> {
     }
     println!("Local vault: {}", cfg.place.local.display());
     println!("Google Drive sync: {}", if on { "on" } else { "off" });
+    for f in &folders {
+        println!("Sync folder: {f}");
+    }
     if on {
         println!(
             "Signed in to Google: {}",
@@ -351,7 +365,7 @@ fn quiet(limit: Duration) -> Pushed {
     let Ok(cfg) = config::load() else {
         return Pushed::Off;
     };
-    if cfg.place.remote.is_none() {
+    if !cfg.place.syncs() {
         return Pushed::Off;
     }
     match timeboxed(cfg, limit) {
