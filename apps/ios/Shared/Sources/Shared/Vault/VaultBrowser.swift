@@ -38,6 +38,8 @@ public final class VaultBrowser {
     public static let searchLimit: UInt32 = 200
 
     public private(set) var items: [VaultItem] = []
+    /// Deleted items, most recently changed first, for the "Recently deleted" screen.
+    public private(set) var deletedItems: [VaultItem] = []
     /// Ids of items that failed to decrypt: shown as damaged, never dropped.
     public private(set) var damagedCount = 0
     public private(set) var loadFailures: [String] = []
@@ -78,22 +80,52 @@ public final class VaultBrowser {
             if let log, let report = try? log.apply(to: session, applied: &applied, now: now) {
                 failures = report.failed
             }
-            let listing = try? session.items(includeDeleted: false)
+            let listing = try? session.items(includeDeleted: true)
             // Building the index is the slow part of the first search; do it now.
             _ = try? session.search(query: "", nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: 1)
             return Loaded(applied: applied, failures: failures, listing: listing)
         }.value
         appliedSeq = result.applied
-        revision += 1
         if let failures = result.failures { loadFailures = failures }
-        guard let listing = result.listing else {
+        show(result.listing)
+    }
+
+    /// Read the item list again from the session without touching the op files: for after this device's own
+    /// edit, whose file is already in the session.
+    public func refresh() async {
+        let session = self.session
+        let now = self.now
+        let listing = await Task.detached(priority: .userInitiated) { () -> Listed in
+            let listing = try? session.items(includeDeleted: true)
+            _ = try? session.search(query: "", nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: 1)
+            return Listed(listing: listing)
+        }.value
+        show(listing.listing)
+    }
+
+    private struct Listed: @unchecked Sendable {
+        let listing: ItemListing?
+    }
+
+    /// This device wrote `path` (`log/<device>/<seq>.op`) and has it in the session already, so a later `reload`
+    /// must not apply it a second time.
+    public func didWrite(path: String) {
+        guard let (device, seq) = VaultLog.parse(path) else { return }
+        appliedSeq[device] = max(appliedSeq[device] ?? 0, seq)
+    }
+
+    private func show(_ listing: ItemListing?) {
+        revision += 1
+        guard let listing else {
             items = []
+            deletedItems = []
             byId = [:]
             return
         }
         let loaded = listing.items.map(VaultItem.init)
         byId = Dictionary(uniqueKeysWithValues: loaded.map { ($0.id, $0) })
-        items = loaded.sorted { $0.updated > $1.updated }
+        items = loaded.filter { !$0.isDeleted }.sorted { $0.updated > $1.updated }
+        deletedItems = loaded.filter(\.isDeleted).sorted { $0.updated > $1.updated }
         damagedCount = listing.corruptIds.count
     }
 

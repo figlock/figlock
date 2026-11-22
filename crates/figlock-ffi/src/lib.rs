@@ -17,6 +17,7 @@
 mod created;
 mod device;
 mod error;
+mod generator;
 mod join;
 mod quick;
 mod session;
@@ -28,6 +29,10 @@ pub use created::{
 };
 pub use device::DeviceKeysHandle;
 pub use error::FigLockError;
+pub use generator::{
+    GeneratedSecretStrength, PassphraseSeparator, StrengthLevel, generate_passphrase,
+    generate_password, passphrase_strength, password_strength,
+};
 pub use join::{
     JoinHandle, JoinOutcome, JoinStart, RequestFile, fingerprint_of, invite_code_canonical,
     invite_code_is_valid, invite_path, start_join,

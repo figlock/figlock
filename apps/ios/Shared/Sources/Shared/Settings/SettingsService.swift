@@ -91,7 +91,7 @@ public struct SettingsService: Sendable {
             try Self.write(files, to: store)
             guard let remote else { return Revoked(pushed: false) }
             let engine = SyncEngine(
-                local: store, remote: remote, state: state, clock: SystemClock(), ownDevice: try? session.deviceId())
+                local: store, remote: remote, state: state, clock: SyncRunClock(), ownDevice: try? session.deviceId())
             return Revoked(pushed: (try? engine.run(confirmReupload: false)) != nil)
         }.value
     }
@@ -141,7 +141,7 @@ public struct SettingsService: Sendable {
         do {
             let files = try await Task.detached(priority: .userInitiated) {
                 let engine = SyncEngine(
-                    local: store, remote: remote, state: state, clock: SystemClock(), ownDevice: nil)
+                    local: store, remote: remote, state: state, clock: SyncRunClock(), ownDevice: nil)
                 return try engine.deleteRemote(typed: typed)
             }.value
             return Int(files)

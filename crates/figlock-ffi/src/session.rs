@@ -13,7 +13,7 @@ use crate::error::{FigLockError, Result, id_hex, parse_id};
 pub struct ItemSummary {
     /// 32 hex characters.
     pub id: String,
-    /// `login`, `token`, `note`, `env` or `ssh`.
+    /// `login`, `token`, `note`, `env`, `ssh` or `doc`.
     pub item_type: String,
     pub vault: String,
     pub deleted: bool,
@@ -308,6 +308,31 @@ impl VaultSession {
                 path: c.path,
                 bytes: c.bytes,
             }))
+        })
+    }
+
+    /// Record that the file `commit` returned is stored, so it can no longer be taken back.
+    pub fn confirm_commit(&self) -> Result<()> {
+        self.with_vault(|v| {
+            v.confirm_commit();
+            Ok(())
+        })
+    }
+
+    /// Take back the last `commit` because its file could not be stored: the edits are pending again and
+    /// `commit` can be retried. Does nothing when there is no commit to take back.
+    pub fn rollback_commit(&self) -> Result<()> {
+        self.mutate(|v| {
+            v.rollback_commit();
+            Ok(())
+        })
+    }
+
+    /// Throw away edits made since the last commit, for a save that failed half way.
+    pub fn discard_pending(&self) -> Result<()> {
+        self.mutate(|v| {
+            v.discard_pending();
+            Ok(())
         })
     }
 
