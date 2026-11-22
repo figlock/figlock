@@ -15,6 +15,7 @@
 mod created;
 mod device;
 mod error;
+mod join;
 mod session;
 
 pub use created::{
@@ -23,9 +24,13 @@ pub use created::{
 };
 pub use device::DeviceKeysHandle;
 pub use error::FigLockError;
+pub use join::{
+    JoinHandle, JoinOutcome, JoinStart, RequestFile, fingerprint_of, invite_code_canonical,
+    invite_code_is_valid, invite_path, start_join,
+};
 pub use session::{
-    CommittedFile, FieldInput, ItemListing, ItemSummary, SearchHit, UnlockOutcome, VaultSession,
-    unlock_vault,
+    CommittedFile, DeviceEntry, FieldInput, ItemListing, ItemSummary, SearchHit, UnlockOutcome,
+    VaultSession, unlock_vault,
 };
 
 uniffi::setup_scaffolding!();

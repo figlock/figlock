@@ -125,7 +125,9 @@ fn swift_program_runs_the_flow_through_the_generated_bindings() {
         String::from_utf8_lossy(&compile.stderr)
     );
 
+    let vectors = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/vectors");
     let run = Command::new(&exe)
+        .arg(&vectors)
         .env("DYLD_LIBRARY_PATH", lib_dir)
         .env("LD_LIBRARY_PATH", lib_dir)
         .output()
