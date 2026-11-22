@@ -164,15 +164,25 @@ public final class AppLock {
 
             let now = self.now
             let name = deviceName
-            let keyAndOutcome = try await Task.detached(priority: .userInitiated) {
-                // Argon2id is memory hard and takes a moment: not on the main thread.
-                let key = try deriveUnlockKey(
-                    vaultJson: stored.vaultJson, password: password, secretKey: secretKey)
-                let outcome = try unlockVaultWithKey(
-                    vaultJson: stored.vaultJson, key: key, device: stored.deviceKeys, deviceName: name,
-                    deviceRecords: stored.deviceRecords, nowMs: UInt64(now().timeIntervalSince1970 * 1000))
-                return (key, outcome)
-            }.value
+            let keyAndOutcome: (UnlockKey, UnlockOutcome)
+            do {
+                keyAndOutcome = try await Task.detached(priority: .userInitiated) {
+                    // Argon2id is memory hard and takes a moment: not on the main thread.
+                    let key = try deriveUnlockKey(
+                        vaultJson: stored.vaultJson, password: password, secretKey: secretKey)
+                    let outcome = try unlockVaultWithKey(
+                        vaultJson: stored.vaultJson, key: key, device: stored.deviceKeys, deviceName: name,
+                        deviceRecords: stored.deviceRecords, nowMs: UInt64(now().timeIntervalSince1970 * 1000))
+                    return (key, outcome)
+                }.value
+            } catch is FigLockError {
+                throttle.recordFailure(at: attemptTime)
+                saveThrottle(throttle)
+                if let until = throttle.pausedUntil, throttle.isPaused(now: attemptTime) {
+                    return record(.paused(until: until))
+                }
+                return record(.wrongCredentials(triesLeft: throttle.triesLeft(now: attemptTime)))
+            }
             let (key, outcome) = keyAndOutcome
 
             if let record = outcome.newDeviceRecord {
@@ -186,13 +196,6 @@ public final class AppLock {
             quick.renewAfterFullUnlock(key: key, vaultId: stored.vaultId, deviceId: stored.deviceKeys.deviceId())
             state = .unlocked(outcome.session)
             return record(.unlocked)
-        } catch is FigLockError {
-            throttle.recordFailure(at: attemptTime)
-            saveThrottle(throttle)
-            if let until = throttle.pausedUntil, throttle.isPaused(now: attemptTime) {
-                return record(.paused(until: until))
-            }
-            return record(.wrongCredentials(triesLeft: throttle.triesLeft(now: attemptTime)))
         } catch {
             return record(.failed)
         }
@@ -206,9 +209,16 @@ public final class AppLock {
             let deviceId = stored.deviceKeys.deviceId()
             let key = try await quick.unlock(
                 vaultId: stored.vaultId, deviceId: deviceId, reason: "Unlock FigLock")
-            let outcome = try unlockVaultWithKey(
-                vaultJson: stored.vaultJson, key: key, device: stored.deviceKeys, deviceName: deviceName,
-                deviceRecords: stored.deviceRecords, nowMs: UInt64(now().timeIntervalSince1970 * 1000))
+            let outcome: UnlockOutcome
+            do {
+                outcome = try unlockVaultWithKey(
+                    vaultJson: stored.vaultJson, key: key, device: stored.deviceKeys, deviceName: deviceName,
+                    deviceRecords: stored.deviceRecords, nowMs: UInt64(now().timeIntervalSince1970 * 1000))
+            } catch is FigLockError {
+                // The vault no longer opens with this key: a password change or a rotation on another device.
+                quick.end(.passwordChanged)
+                return record(.passwordNeeded(.passwordChanged))
+            }
             state = .unlocked(outcome.session)
             return record(.unlocked)
         } catch let failure as QuickUnlock.Failure {
@@ -218,10 +228,6 @@ public final class AppLock {
             case .notRecognised(let left): return record(.faceIDNotRecognised(triesLeft: left))
             case .needsPassword(let reason): return record(.passwordNeeded(reason))
             }
-        } catch is FigLockError {
-            // The vault no longer opens with this key: a password change or a rotation on another device.
-            quick.end(.passwordChanged)
-            return record(.passwordNeeded(.passwordChanged))
         } catch {
             return record(.failed)
         }

@@ -186,10 +186,13 @@ public struct QuickUnlock: Sendable {
             // The system removed the key (passcode or biometrics reset), or the blob belongs to another chip.
             end(.biometricsChanged)
             throw Failure.needsPassword(.biometricsChanged)
-        } catch {
+        } catch is FigLockError {
             // A blob that does not open (damaged, another vault, another device) is as good as gone.
             end(.biometricsChanged)
             throw Failure.needsPassword(.biometricsChanged)
+        } catch {
+            // Lockout, a busy keychain and the like are not the end of quick unlock: keep the key and try later.
+            throw Failure.failed
         }
     }
 }

@@ -243,3 +243,35 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     lock.lock()
     #expect(throws: FigLockError.self) { try session.items(includeDeleted: false) }
 }
+
+@MainActor
+@Test func aChipErrorThatIsNotAChangeKeepsTheKeyAndReportsAFailure() async throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let lock = try await lockWithFaceIDOn(phone)
+
+    phone.chip.behaviour = .failing
+    #expect(await lock.unlockWithFaceID() == .failed)
+    #expect(phone.chip.hasKey)
+    #expect(phone.quick.status() == .ready)
+
+    phone.chip.behaviour = .works
+    #expect(await lock.unlockWithFaceID() == .unlocked)
+}
+
+@MainActor
+@Test func aStorageErrorIsAFailureAndDoesNotCountAgainstThePassword() async throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let lock = phone.makeLock()
+    let devices = phone.container.vaultFolder.appendingPathComponent("devices")
+    try FileManager.default.removeItem(at: devices)
+    try Data().write(to: devices)
+
+    for _ in 0..<5 { #expect(await lock.unlock(password: Phone.password, secretKey: nil) == .failed) }
+    #expect(lock.passwordPausedUntil == nil)
+
+    try FileManager.default.removeItem(at: devices)
+    try FileManager.default.createDirectory(at: devices, withIntermediateDirectories: false)
+    #expect(await lock.unlock(password: "wrong-1", secretKey: nil) == .wrongCredentials(triesLeft: 2))
+}

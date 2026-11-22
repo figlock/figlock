@@ -7,7 +7,7 @@ import Foundation
 /// A software P-256 key in place of the Secure Enclave, which the simulator does not have. It does the same ECDH
 /// step; the wrap around it is the Rust code under test. `behaviour` lets a test play a cancelled or failed prompt.
 final class FakeChip: QuickUnlockChip, @unchecked Sendable {
-    enum Behaviour { case works, cancelled, notRecognised, keyGone }
+    enum Behaviour { case works, cancelled, notRecognised, keyGone, failing }
 
     private let lock = NSLock()
     private var key: P256.KeyAgreement.PrivateKey?
@@ -54,6 +54,7 @@ final class FakeChip: QuickUnlockChip, @unchecked Sendable {
         case .cancelled: throw ChipError.cancelled
         case .notRecognised: throw ChipError.authFailed
         case .keyGone: throw ChipError.keyMissing
+        case .failing: throw ChipError.failed
         case .works: break
         }
         guard let key else { throw ChipError.keyMissing }
