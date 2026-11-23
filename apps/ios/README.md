@@ -5,7 +5,7 @@ or later.
 
 ```
 App/                  the app target
-AutofillExtension/    the credential provider extension (placeholder until FIG-166)
+AutofillExtension/    the credential provider extension (read-only, Face ID only, ADR-0041)
 Shared/               Swift package wrapping the generated bindings; used by both targets
 scripts/              build-xcframework.sh, run-simulator.sh
 project.yml           XcodeGen spec; the .xcodeproj is generated and never committed or hand edited

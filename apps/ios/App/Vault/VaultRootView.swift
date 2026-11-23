@@ -8,6 +8,7 @@ struct VaultRootView: View {
     let lock: AppLock
     let vault: LocalVault
     let sync: SyncModel
+    let identitySync: CredentialIdentitySync
 
     @State private var browser: VaultBrowser?
     @State private var copier = ClipboardCopier()
@@ -29,6 +30,7 @@ struct VaultRootView: View {
             let store = try? vault.openStore()
             let log = store.map { VaultLog(store: $0) }
             let loading = VaultBrowser(session: session, log: log)
+            loading.identitySync = identitySync
             await loading.reload()
             if let store {
                 let state = FileSyncState(container: vault.container)
