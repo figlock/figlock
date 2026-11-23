@@ -7,9 +7,11 @@ struct VaultListView: View {
     @Bindable var browser: VaultBrowser
     let copier: ClipboardCopier
     let lock: AppLock
+    let sync: SyncModel
 
     var body: some View {
         List {
+            SyncChipRow(sync: sync)
             if browser.damagedCount > 0 {
                 Label(
                     "\(browser.damagedCount) \(browser.damagedCount == 1 ? "item" : "items") could not be read",
@@ -71,7 +73,10 @@ struct VaultListView: View {
         )
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
-        .refreshable { await browser.reload() }
+        .refreshable {
+            await sync.syncNow(force: true)
+            await browser.reload()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SettingsLink() }
             ToolbarItem(placement: .topBarTrailing) {
@@ -180,5 +185,40 @@ private struct EmptyState: View {
         isSearching
             ? "Check the spelling, or search by website or username."
             : hasItems ? "Choose All to see everything." : "Items you add or sync from your other devices appear here."
+    }
+}
+
+/// The sync chip of the prototype: how syncing stands, worst problem first, and a way to the Sync screen. Nothing
+/// shows while the vault is on this iPhone only.
+private struct SyncChipRow: View {
+    let sync: SyncModel
+    @Environment(\.settingsContext) private var context
+
+    var body: some View {
+        if let chip = sync.chip, let context {
+            NavigationLink {
+                SyncSettingsView(context: context)
+            } label: {
+                HStack(spacing: FLSpace.s2) {
+                    HStack(spacing: FLSpace.s2) {
+                        Image(systemName: chip.state.symbol).accessibilityHidden(true)
+                        Text(chip.title)
+                    }
+                    .font(FLFont.ui(FLText.base, weight: FLWeight.semibold, relativeTo: .callout))
+                    .foregroundStyle(chip.state.tone.color)
+                    .padding(.horizontal, FLSpace.s3)
+                    .frame(minHeight: FLSize.controlHeightLg)
+                    .background(chip.state.tone.background, in: RoundedRectangle(cornerRadius: FLRadius.sm))
+                    Text(chip.detail).font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+                        .foregroundStyle(FLColor.textSecondary).lineLimit(2)
+                    Spacer(minLength: 0)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityHint("Opens sync settings")
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets())
+            .listRowSeparator(.hidden)
+        }
     }
 }

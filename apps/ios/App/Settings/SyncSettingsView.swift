@@ -1,154 +1,335 @@
 import Shared
 import SwiftUI
+import UniformTypeIdentifiers
 
-/// Sync settings: Google Drive sign-out and the separate, typed step that deletes the Drive copy (ADR-0035). Signing
-/// out never deletes anything; the copy in Drive stays until the person types the phrase.
+/// Sync settings (ADR-0043): one row per remote, each with its own status, plus adding an iCloud Drive folder or
+/// Google Drive. A failing remote never changes another's row. Signing out and removing a folder never delete
+/// anything in the remote; the copy in Google Drive goes only after the typed phrase of ADR-0035.
 struct SyncSettingsView: View {
     let context: SettingsContext
 
-    @State private var confirmingSignOut = false
-    @State private var deleting = false
+    @State private var picking = false
     @State private var notice: String?
+    @State private var errorText: String?
+    @State private var busy = false
+
+    private var sync: SyncModel { context.sync }
 
     var body: some View {
         List {
             if let notice {
                 Notice(text: notice, isError: false).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             }
+            if let errorText {
+                Notice(text: errorText, isError: true).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+            }
             Section {
-                SettingsRow(
-                    symbol: "globe", title: "Google Drive",
-                    value: context.drive.isSignedIn ? "Signed in" : "Not signed in")
-                if context.drive.isSignedIn {
-                    Button(role: .destructive) {
-                        confirmingSignOut = true
-                    } label: {
-                        Label("Sign out of Google Drive", systemImage: "rectangle.portrait.and.arrow.right")
-                            .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
-                    }
-                    .tint(FLColor.danger)
-                } else if !context.drive.isConfigured {
-                    Text("Google sign-in is not set up in this build.")
+                if sync.rows.isEmpty {
+                    Text("This vault is only on this iPhone. Add a place to keep an encrypted copy.")
                         .font(FLFont.ui(FLText.base, relativeTo: .callout)).foregroundStyle(FLColor.textSecondary)
                 }
+                ForEach(sync.rows) { row in
+                    NavigationLink {
+                        RemoteDetailView(context: context, id: row.id)
+                    } label: {
+                        RemoteRow(row: row)
+                    }
+                }
+            } header: {
+                Text("Where your vault is kept")
             } footer: {
-                Text("FigLock uploads only the encrypted vault, to its own hidden folder in your Drive.")
+                Text("Each place syncs on its own. If one fails, the others keep working.")
             }
             .listRowBackground(FLColor.surface)
 
-            if context.drive.isSignedIn {
-                Section {
-                    Button(role: .destructive) {
-                        deleting = true
+            Section {
+                Button {
+                    picking = true
+                } label: {
+                    Label("Add an iCloud Drive folder", systemImage: "icloud")
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                }
+                .disabled(busy)
+                if !context.drive.isSignedIn {
+                    Button {
+                        Task { await signInToDrive() }
                     } label: {
-                        Label("Delete from Google Drive", systemImage: "trash")
+                        Label("Sign in to Google Drive", systemImage: "globe")
                             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                     }
-                    .tint(FLColor.danger)
-                } footer: {
-                    Text(
-                        "Deletes this vault's encrypted copy from Google Drive. The vault on this iPhone and on your other devices is not touched."
-                    )
+                    .disabled(busy || !context.drive.isConfigured)
                 }
-                .listRowBackground(FLColor.surface)
+            } footer: {
+                VStack(alignment: .leading, spacing: FLSpace.s2) {
+                    Text(
+                        "Pick an empty folder in iCloud Drive, or make one with New Folder in the picker. FigLock only reads and writes inside the folder you pick."
+                    )
+                    if !FolderRemote.iCloudIsOn {
+                        Text(
+                            "iCloud Drive looks off on this iPhone. Turn it on in Settings, under your name, then iCloud."
+                        )
+                    }
+                    if !context.drive.isSignedIn && !context.drive.isConfigured {
+                        Text("Google sign-in is not set up in this build.")
+                    }
+                }
             }
+            .listRowBackground(FLColor.surface)
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
         .background(FLColor.bg)
         .navigationTitle("Sync")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await sync.syncNow(force: true) }
+        .task { await sync.reload() }
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            Task { await added(result) }
+        }
+    }
+
+    private func added(_ result: Result<URL, Error>) async {
+        errorText = nil
+        notice = nil
+        guard case .success(let url) = result else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            try await sync.addFolder(url)
+            notice = "Syncing with \(url.lastPathComponent)."
+        } catch let problem as FolderProblem {
+            errorText = Self.text(problem)
+        } catch {
+            errorText = "FigLock could not use that folder."
+        }
+    }
+
+    private func signInToDrive() async {
+        errorText = nil
+        busy = true
+        defer { busy = false }
+        do {
+            try await context.drive.signIn()
+            await sync.driveSignedIn()
+        } catch let failure as SignInError {
+            errorText = OnboardingModel.text(failure)
+        } catch {
+            errorText = "Something went wrong. Try again."
+        }
+    }
+
+    static func text(_ problem: FolderProblem) -> String {
+        switch problem {
+        case .notEmpty:
+            "That folder already has other files in it. Pick an empty folder, or make a new one, so your vault stays apart from them."
+        case .differentVault: "That folder holds a different vault than this iPhone."
+        case .insideVault: "That folder overlaps the vault on this iPhone. Pick another one."
+        case .iCloudOff: "iCloud Drive is off on this iPhone. Turn it on in Settings, under your name, then iCloud."
+        case .missing: "That folder is not there any more."
+        case .pickAgain: "FigLock could not open that folder. Pick it again."
+        case .noVault: "This iPhone has no vault yet."
+        case .denied: "The Files app did not let FigLock read that folder."
+        }
+    }
+}
+
+/// One remote in the list: name, state, and a colored badge so the problem rows stand out.
+private struct RemoteRow: View {
+    let row: SyncModel.Row
+
+    var body: some View {
+        HStack(spacing: FLSpace.s3) {
+            Image(systemName: row.entry.symbol)
+                .font(.system(size: 18, weight: .medium)).foregroundStyle(FLColor.primary)
+                .frame(width: 32, height: 32)
+                .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.entry.name).font(FLFont.ui(FLText.md, weight: FLWeight.medium)).foregroundStyle(FLColor.text)
+                HStack(spacing: FLSpace.s1) {
+                    Image(systemName: row.state.symbol).font(.system(size: 12))
+                    Text(row.state.title)
+                }
+                .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(row.state.tone.color)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: FLSize.controlHeightLg)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One remote: its state in words, sync now, and what can be done about it.
+private struct RemoteDetailView: View {
+    let context: SettingsContext
+    let id: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmingSignOut = false
+    @State private var confirmingRemoval = false
+    @State private var confirmingUpload = false
+    @State private var deleting = false
+    @State private var picking = false
+    @State private var notice: String?
+    @State private var errorText: String?
+
+    private var sync: SyncModel { context.sync }
+
+    var body: some View {
+        List {
+            if let row = sync.row(id: id) {
+                content(for: row)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(FLColor.bg)
+        .navigationTitle(sync.row(id: id)?.entry.name ?? "Sync")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await sync.reload() }
+        .onChange(of: sync.row(id: id) == nil) { _, gone in if gone { dismiss() } }
         .alert("Sign out of Google Drive?", isPresented: $confirmingSignOut) {
             Button("Cancel", role: .cancel) {}
-            Button("Sign out", role: .destructive) {
-                context.drive.signOut()
-                notice = "Signed out of Google Drive."
-            }
+            Button("Sign out", role: .destructive) { Task { await sync.driveSignedOut() } }
         } message: {
             Text(
-                "This iPhone stops syncing with Google Drive until you sign in again. Your vault stays on this iPhone, and the copy in Google Drive is not deleted."
+                "This iPhone stops syncing with Google Drive until you sign in again. Your vault stays on this iPhone, other places keep syncing, and the copy in Google Drive is not deleted."
+            )
+        }
+        .alert("Stop syncing with this folder?", isPresented: $confirmingRemoval) {
+            Button("Cancel", role: .cancel) {}
+            Button("Stop syncing", role: .destructive) { Task { await sync.remove(id) } }
+        } message: {
+            Text(
+                "FigLock stops using this folder. The vault stays on this iPhone, and the files in the folder are not deleted."
+            )
+        }
+        .alert("Upload this iPhone's copy again?", isPresented: $confirmingUpload) {
+            Button("Cancel", role: .cancel) {}
+            Button("Upload") { Task { await sync.sync(id, confirmReupload: true) } }
+        } message: {
+            Text(
+                "The copy that was there is gone. This uploads the vault on this iPhone to it again. Your other devices are not changed."
             )
         }
         .sheet(isPresented: $deleting) {
             DeleteFromDriveSheet(context: context) { notice = $0 }
         }
-    }
-}
-
-/// The typed confirmation of ADR-0035. The button stays off until the phrase is typed.
-private struct DeleteFromDriveSheet: View {
-    let context: SettingsContext
-    let finished: (String) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var typed = ""
-    @State private var busy = false
-    @State private var errorText: String?
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text(
-                        "This deletes the encrypted copy of \(SettingsService.vaultName) from Google Drive. Your other devices keep their copies and will ask before they upload it again. The vault on this iPhone, your keys and your Google sign-in stay."
-                    )
-                    .font(FLFont.ui(FLText.base, relativeTo: .callout))
-                }
-                Section {
-                    TextField(SettingsService.deleteFromDrivePhrase, text: $typed)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Type \u{201C}\(SettingsService.deleteFromDrivePhrase)\u{201D} to continue").textCase(nil)
-                }
-                if let errorText {
-                    Section { Notice(text: errorText, isError: true).listRowInsets(EdgeInsets()) }
-                        .listRowBackground(Color.clear)
-                }
-                Section {
-                    Button(role: .destructive) {
-                        Task { await delete() }
-                    } label: {
-                        HStack {
-                            if busy { ProgressView() }
-                            Text("Delete from Google Drive")
-                        }
-                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
-                    }
-                    .disabled(!SettingsService.isDeleteFromDrivePhrase(typed) || busy)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(FLColor.bg)
-            .navigationTitle("Delete from Google Drive")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(busy) }
-            }
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            Task { await picked(result) }
         }
-        .interactiveDismissDisabled(busy)
     }
 
-    private func delete() async {
-        guard let remote = context.remote() else {
-            errorText = "Sign in to Google Drive first."
-            return
+    @ViewBuilder
+    private func content(for row: SyncModel.Row) -> some View {
+        statusSection(row)
+        actionSection(row)
+        stopSection(row)
+    }
+
+    @ViewBuilder
+    private func statusSection(_ row: SyncModel.Row) -> some View {
+        let state = row.state
+        Section {
+            if let notice {
+                Notice(text: notice, isError: false).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
+            if let errorText {
+                Notice(text: errorText, isError: true).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
+            HStack(alignment: .top, spacing: FLSpace.s3) {
+                Image(systemName: state.symbol).foregroundStyle(state.tone.color).accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(state.title).font(FLFont.ui(FLText.md, weight: FLWeight.semibold)).foregroundStyle(
+                        FLColor.text)
+                    Text(state.detail(for: row.entry)).font(FLFont.ui(FLText.base, relativeTo: .callout))
+                        .foregroundStyle(FLColor.textSecondary)
+                }
+            }
+            .padding(FLSpace.s1)
+            .listRowBackground(state.tone.background)
+            .accessibilityElement(children: .combine)
         }
-        busy = true
-        defer { busy = false }
+    }
+
+    @ViewBuilder
+    private func actionSection(_ row: SyncModel.Row) -> some View {
+        let state = row.state
+        Section {
+            Button {
+                Task { await sync.sync(id) }
+            } label: {
+                Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
+                    .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+            }
+            .disabled(state.phase == .syncing)
+            if state.phase == .remoteLost {
+                Button {
+                    confirmingUpload = true
+                } label: {
+                    Label("Upload this iPhone's copy again", systemImage: "icloud.and.arrow.up")
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                }
+            }
+            if row.entry.kind == .folder, case .unavailable = state.phase {
+                Button {
+                    picking = true
+                } label: {
+                    Label("Pick the folder again", systemImage: "folder")
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                }
+            }
+        }
+        .listRowBackground(FLColor.surface)
+    }
+
+    @ViewBuilder
+    private func stopSection(_ row: SyncModel.Row) -> some View {
+        Section {
+            if row.entry.kind == .drive {
+                Button(role: .destructive) {
+                    confirmingSignOut = true
+                } label: {
+                    Label("Sign out of Google Drive", systemImage: "rectangle.portrait.and.arrow.right")
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                }
+                .tint(FLColor.danger)
+                Button(role: .destructive) {
+                    deleting = true
+                } label: {
+                    Label("Delete from Google Drive", systemImage: "trash")
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                }
+                .tint(FLColor.danger)
+            } else {
+                Button(role: .destructive) {
+                    confirmingRemoval = true
+                } label: {
+                    Label("Stop syncing with this folder", systemImage: "minus.circle")
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                }
+                .tint(FLColor.danger)
+            }
+        } footer: {
+            Text(
+                row.entry.kind == .drive
+                    ? "FigLock uploads only the encrypted vault, to its own hidden folder in your Drive. Signing out never deletes it."
+                    : "Only the encrypted vault is written to this folder. Stopping never deletes its files."
+            )
+        }
+        .listRowBackground(FLColor.surface)
+    }
+
+    private func picked(_ result: Result<URL, Error>) async {
+        errorText = nil
+        guard case .success(let url) = result else { return }
         do {
-            _ = try await context.service.deleteDriveCopy(typed: typed, remote: remote)
-            finished("Deleted from Google Drive.")
-            dismiss()
-        } catch let failure as SettingsService.Failure {
-            switch failure {
-            case .signIn: errorText = "Google needs you to sign in again."
-            case .offline: errorText = "FigLock could not reach Google Drive. Check your connection and try again."
-            case .foreignVault: errorText = "Google Drive holds a different vault. Nothing was deleted."
-            default: errorText = "FigLock could not delete the copy. Try again."
-            }
+            try await sync.replaceFolder(id, with: url)
+            notice = "Syncing with \(url.lastPathComponent)."
+        } catch let problem as FolderProblem {
+            errorText = SyncSettingsView.text(problem)
         } catch {
-            errorText = "FigLock could not delete the copy. Try again."
+            errorText = "FigLock could not use that folder."
         }
     }
 }

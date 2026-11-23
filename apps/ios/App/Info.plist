@@ -14,6 +14,10 @@
 	<key>NSFaceIDUsageDescription</key><string>FigLock uses Face ID to unlock your vault without typing your master password.</string>
 	<!-- Set by FIGLOCK_GOOGLE_CLIENT_ID (project.yml) once the iOS OAuth client exists (FIG-44). Empty means no Google sign-in. -->
 	<key>FigLockGoogleClientID</key><string>$(FIGLOCK_GOOGLE_CLIENT_ID)</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array><string>com.figlock.ios.sync</string></array>
+	<key>UIBackgroundModes</key>
+	<array><string>fetch</string></array>
 	<key>ITSAppUsesNonExemptEncryption</key><false/>
 	<key>LSRequiresIPhoneOS</key><true/>
 	<key>UILaunchScreen</key><dict/>

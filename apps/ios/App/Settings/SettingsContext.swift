@@ -11,23 +11,25 @@ final class SettingsContext {
     let settings: DeviceSettings
     let onboarding: Onboarding
     let drive: DriveConnection
+    let sync: SyncModel
 
     init(
         lock: AppLock, service: SettingsService, settings: DeviceSettings, onboarding: Onboarding,
-        drive: DriveConnection
+        drive: DriveConnection, sync: SyncModel
     ) {
         self.lock = lock
         self.service = service
         self.settings = settings
         self.onboarding = onboarding
         self.drive = drive
+        self.sync = sync
     }
 
     /// The Drive store while this iPhone is signed in to Google, otherwise nil.
     func remote() -> (any BlobStoreFfi)? { drive.isSignedIn ? try? drive.remote() : nil }
 
     /// Where the kit says the vault is kept.
-    var storageLabel: String { drive.isSignedIn ? "Google Drive" : "On this iPhone" }
+    var storageLabel: String { sync.rows.isEmpty ? "On this iPhone" : sync.summary }
 }
 
 private struct SettingsContextKey: EnvironmentKey {

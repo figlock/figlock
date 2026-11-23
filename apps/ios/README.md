@@ -79,6 +79,23 @@ copy only after the typed phrase of ADR-0035. Signing out of Google and removing
 delete the Drive copy. A device rename is a nickname shown on this iPhone only: renaming it for every device means
 re-signing its record outside a key rotation, which `sync.md` does not allow and needs an ADR first.
 
+## Sync
+
+`Shared/Sources/Shared/Sync` mirrors the local vault to a list of remotes (ADR-0043): Google Drive and any number of
+folders picked in the Files picker (iCloud Drive). `RemoteList` keeps them in `device/remotes.json` (a folder is a
+security-scoped bookmark); each remote has its own sync record (`sync-state.json` is Drive's, `sync-state-<id>.json` a
+folder's). `RemoteSyncCoordinator` runs every remote on its own with its own back-off, same-vault check and
+remote-lost confirmation, so one failing never blocks another. `CoordinatedFolderStore` is the folder as a
+`BlobStoreFfi` through `NSFileCoordinator`: an evicted file is `NotYetAvailable` after a download request, never
+missing; the root folder is never created. `FolderRemote` holds the real-path check (a folder may not be, contain or
+sit inside the local vault, checked on every open), the iCloud-off check and the rule that an existing vault goes only
+to an empty folder or one holding it. The app side is `App/Sync`: `SyncModel` (foreground loop, per-remote rows),
+`BackgroundSync` (BGAppRefresh, `com.figlock.ios.sync`) and the wording of each state.
+
+Debug builds accept `-figlock-demo-remotes` (with `-figlock-seed-demo -figlock-unlock-demo`) to add one working and
+one missing folder remote, so the sync chip and the Sync screen can be looked at in a simulator. A simulator build
+needs ad hoc signing to get its App Group: add `CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES` to the xcodebuild call.
+
 ## Build and run
 
 Needs Xcode with an iOS simulator runtime and the tools pinned in `mise.toml` (`just setup`; it also installs the

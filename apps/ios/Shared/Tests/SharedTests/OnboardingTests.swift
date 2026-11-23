@@ -5,7 +5,7 @@ import Testing
 @testable import Shared
 
 /// A phone with no vault yet and a folder standing in for the Google Drive remote. Values are generated.
-private struct Blank {
+struct Blank {
     static let password = "generated-onboarding-password-1"
 
     let container: VaultContainer
@@ -64,7 +64,7 @@ private struct Blank {
     }
 }
 
-private func lastTwoGroups(of secretKey: String) -> String {
+func lastTwoGroups(of secretKey: String) -> String {
     secretKey.split(separator: "-").suffix(2).joined(separator: "-")
 }
 

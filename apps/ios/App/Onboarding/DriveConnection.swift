@@ -49,6 +49,12 @@ final class DriveConnection: NSObject, ASWebAuthenticationPresentationContextPro
     }
 
     /// The Drive store, fed tokens by the app. Only valid while signed in.
+    /// For the background sync, which runs off the main actor: the Drive store while signed in, otherwise nil.
+    nonisolated func remoteIfSignedIn() -> (any BlobStoreFfi)? {
+        guard let tokens, tokens.isSignedIn else { return nil }
+        return DriveStore(tokens: tokens)
+    }
+
     func remote() throws -> any BlobStoreFfi {
         guard let tokens else { throw SignInError.notConfigured }
         return DriveStore(tokens: tokens)
