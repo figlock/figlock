@@ -113,7 +113,7 @@ final class SyncModel {
         let opened = try FolderRemote.open(url: url, localVault: vault.container.vaultFolder)
         defer { opened.close() }
         try FolderRemote.checkCanHold(vaultId: vaultId, in: opened.store)
-        let entry = RemoteEntry.folder(name: url.lastPathComponent, bookmark: try FolderRemote.bookmark(for: url))
+        let entry = try FolderRemote.entry(for: url)
         list.add(entry)
         await sync(entry.id)
     }
@@ -128,7 +128,7 @@ final class SyncModel {
         defer { opened.close() }
         try FolderRemote.checkCanHold(vaultId: vaultId, in: opened.store)
         var entry = old
-        entry.name = url.lastPathComponent
+        entry.name = FolderRemote.displayName(for: url)
         entry.bookmark = try FolderRemote.bookmark(for: url)
         list.add(entry)
         await sync(id)

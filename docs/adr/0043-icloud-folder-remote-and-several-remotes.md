@@ -51,6 +51,9 @@ when the owning app is uninstalled, the CLI cannot carry the entitlement, and pu
   `init --icloud` refuses one that already holds files but no vault: either could otherwise be synced next to
   another device's folder of the same name ("FigLock 2"). A missing iCloud folder is "not available", never
   made again by a sync.
+- A folder remote is any folder the picker returns, not only one in iCloud Drive, so a folder from another Files
+  provider or On My iPhone is accepted. A provider root, whose system name is "File Provider Storage", is shown
+  as "Files folder" (FIG-217).
 - Two remotes mean two uploads of every change; a remote that is slow only delays itself.
 
 ## Alternatives considered

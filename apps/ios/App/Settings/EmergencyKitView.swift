@@ -38,7 +38,7 @@ struct EmergencyKitView: View {
             if reveal.isKept {
                 Section {
                     if let url = reveal.kitFile {
-                        ShareLink(item: url) {
+                        KitShareButton(url: url) {
                             Label("Save the kit", systemImage: "square.and.arrow.up")
                                 .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
                         }

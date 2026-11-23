@@ -113,7 +113,7 @@ struct RecoveryScreen: View {
         do {
             let opened = try FolderRemote.open(url: url, localVault: service.vaultFolder)
             defer { opened.close() }
-            let entry = RemoteEntry.folder(name: url.lastPathComponent, bookmark: try FolderRemote.bookmark(for: url))
+            let entry = try FolderRemote.entry(for: url)
             try await service.openFromRemote(opened.store, entry: entry)
             lock.vaultDidChange()
         } catch let failure as Onboarding.Failure {

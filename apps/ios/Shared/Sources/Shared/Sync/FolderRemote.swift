@@ -55,6 +55,19 @@ public enum FolderRemote {
     /// Whether iCloud Drive is on and signed in for this iPhone.
     public static var iCloudIsOn: Bool { FileManager.default.ubiquityIdentityToken != nil }
 
+    /// The name a remote shows for a folder the person picked. The root of a Files location (such as On My iPhone)
+    /// is a system folder called "File Provider Storage", which means nothing to a person, so it is shown as
+    /// "Files folder" instead (FIG-217).
+    public static func displayName(for url: URL) -> String {
+        let name = url.lastPathComponent
+        return name.isEmpty || name == "/" || name == "File Provider Storage" ? "Files folder" : name
+    }
+
+    /// The remote for a folder the person just picked: a bookmark taken inside its scope and a name for people.
+    public static func entry(for url: URL) throws -> RemoteEntry {
+        .folder(name: displayName(for: url), bookmark: try bookmark(for: url))
+    }
+
     /// A folder in iCloud Drive is under `Mobile Documents`, whichever way the picker hands it out.
     public static func isInICloudDrive(_ url: URL) -> Bool {
         url.resolvingSymlinksInPath().path.contains("/Mobile Documents/")

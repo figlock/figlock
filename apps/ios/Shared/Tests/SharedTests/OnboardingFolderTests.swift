@@ -53,3 +53,16 @@ import Testing
     #expect(!FileSyncState(container: phone.container, remote: .drive).syncedBefore())
     #expect(try CoordinatedFolderStore(root: phone.remoteFolder).get(path: "vault.json").count > 0)
 }
+
+// MARK: Names of picked folders (FIG-217)
+
+@Test func aFilesLocationRootIsNamedForPeopleNotForTheSystem() {
+    let root = URL(fileURLWithPath: "/private/var/mobile/Containers/Shared/AppGroup/ABC/File Provider Storage")
+    #expect(FolderRemote.displayName(for: root) == "Files folder")
+    #expect(FolderRemote.displayName(for: URL(fileURLWithPath: "/")) == "Files folder")
+}
+
+@Test func aFolderThePersonNamedKeepsItsName() {
+    let folder = URL(fileURLWithPath: "/private/var/mobile/Mobile Documents/com~apple~CloudDocs/FigLock")
+    #expect(FolderRemote.displayName(for: folder) == "FigLock")
+}

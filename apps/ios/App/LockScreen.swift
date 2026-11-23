@@ -195,6 +195,9 @@ struct LockScreen: View {
             password = ""
             secretKey = ""
         } else {
+            // A rejected password never stays in the field (FIG-216). A Secret Key typed beside it is kept: it is
+            // long to retype and the message already tells the person which part to check.
+            if case .wrongCredentials = outcome { password = "" }
             focus = outcome == .secretKeyNeeded ? .secretKey : .password
         }
     }
