@@ -66,7 +66,12 @@ private func eventually(_ condition: @Sendable () async -> Bool) async throws {
 private actor RecordingStore: CredentialIdentityStoring {
     private(set) var replaced: [[CredentialIdentity]] = []
     private(set) var cleared = 0
-    func replace(with identities: [CredentialIdentity]) { replaced.append(identities) }
+    private var succeeds = true
+    func setSucceeds(_ value: Bool) { succeeds = value }
+    func replace(with identities: [CredentialIdentity]) -> Bool {
+        replaced.append(identities)
+        return succeeds
+    }
     func removeAll() { cleared += 1 }
 }
 
@@ -99,13 +104,38 @@ private actor RecordingStore: CredentialIdentityStoring {
     try await eventually { await store.replaced.count == 3 }
 }
 
-@Test func removingTheVaultFromThePhoneEmptiesTheSystemStore() async throws {
+@MainActor
+@Test func aFailedWriteIsRetriedOnTheNextUpdate() async throws {
+    let store = RecordingStore()
+    await store.setSucceeds(false)
+    let sync = CredentialIdentitySync(store: store)
+    let items = [item("a", urls: ["https://example.com"])]
+    sync.update(from: items)
+    try await eventually { await store.replaced.count == 1 }
+    await store.setSucceeds(true)
+    sync.update(from: items)
+    try await eventually { await store.replaced.count == 2 }
+    try await Task.sleep(for: .milliseconds(100))
+    sync.update(from: items)
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(await store.replaced.count == 2)
+}
+
+@MainActor
+@Test func removingTheVaultFromThePhoneEmptiesTheSystemStoreAndForgetsWhatWasWritten() async throws {
     let phone = try Phone.make()
     defer { phone.cleanup() }
     let store = RecordingStore()
-    let onboarding = Onboarding(vault: phone.vault, keeper: phone.keeper, quick: phone.quick, identities: store)
+    let sync = CredentialIdentitySync(store: store)
+    let items = [item("a", urls: ["https://example.com"])]
+    sync.update(from: items)
+    try await eventually { await store.replaced.count == 1 }
+    try await Task.sleep(for: .milliseconds(100))
+    let onboarding = Onboarding(vault: phone.vault, keeper: phone.keeper, quick: phone.quick, identities: sync)
     try onboarding.removeFromThisPhone()
     try await eventually { await store.cleared == 1 }
+    sync.update(from: items)
+    try await eventually { await store.replaced.count == 2 }
 }
 
 /// A phone with logins in the vault and Face ID turned on, opened from the extension's side.

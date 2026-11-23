@@ -35,9 +35,9 @@ final class AppEnvironment {
         vault = LocalVault(container: container, access: failure == nil ? .readWrite : .readOnly)
         keeper = SecretKeyKeeper(store: KeychainSecretStore(accessGroup: Self.keychainGroup), container: container)
         let quick = QuickUnlock(container: container, chip: SecureEnclaveChip(accessGroup: Self.keychainGroup))
-        identitySync = CredentialIdentitySync()
-        onboarding = Onboarding(
-            vault: vault, keeper: keeper, quick: quick, identities: SystemCredentialIdentityStore())
+        let identitySync = CredentialIdentitySync()
+        self.identitySync = identitySync
+        onboarding = Onboarding(vault: vault, keeper: keeper, quick: quick, identities: identitySync)
         drive = DriveConnection(store: KeychainSecretStore(accessGroup: Self.keychainGroup))
         sync = SyncModel(vault: vault, keeper: keeper, drive: drive)
         BackgroundSync.model = sync

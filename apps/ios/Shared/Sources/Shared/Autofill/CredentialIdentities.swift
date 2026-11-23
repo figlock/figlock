@@ -33,23 +33,29 @@ public struct CredentialIdentity: Equatable, Sendable {
 
 /// The system store behind QuickType, as a protocol so tests do not need the system.
 public protocol CredentialIdentityStoring: Sendable {
-    func replace(with identities: [CredentialIdentity]) async
+    /// True when the system store now holds exactly these identities.
+    func replace(with identities: [CredentialIdentity]) async -> Bool
     func removeAll() async
 }
 
 public struct SystemCredentialIdentityStore: CredentialIdentityStoring {
     public init() {}
 
-    public func replace(with identities: [CredentialIdentity]) async {
+    public func replace(with identities: [CredentialIdentity]) async -> Bool {
         let store = ASCredentialIdentityStore.shared
         let state = await store.state()
-        guard state.isEnabled else { return }
+        guard state.isEnabled else { return false }
         let system: [ASPasswordCredentialIdentity] = identities.map {
             ASPasswordCredentialIdentity(
                 serviceIdentifier: ASCredentialServiceIdentifier(identifier: $0.domain, type: .domain),
                 user: $0.username, recordIdentifier: $0.recordIdentifier)
         }
-        try? await store.replaceCredentialIdentities(system)
+        do {
+            try await store.replaceCredentialIdentities(system)
+            return true
+        } catch {
+            return false
+        }
     }
 
     public func removeAll() async {
@@ -79,9 +85,14 @@ public final class CredentialIdentitySync {
         }
         let digest = Data(hasher.finalize())
         guard digest != lastDigest else { return }
-        lastDigest = digest
         let store = self.store
-        Task { await store.replace(with: identities) }
+        Task {
+            if await store.replace(with: identities) { remember(digest) }
+        }
+    }
+
+    private func remember(_ digest: Data) {
+        lastDigest = digest
     }
 
     public func clear() {
