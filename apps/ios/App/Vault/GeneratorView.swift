@@ -71,6 +71,7 @@ struct GeneratorView: View {
                     Label("Regenerate", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(SecondaryActionStyle())
+                .disabled(value.isEmpty)
                 Button {
                     copier.copy(value, key: "generator")
                 } label: {

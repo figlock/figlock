@@ -40,4 +40,12 @@ final class ItemDetailUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Item actions"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.keyboards.firstMatch.waitForExistence(timeout: 2))
     }
+
+    // FIG-220: the edit sheet title uses the display name of the kind, not its raw value.
+    func testEditTitleUsesKindDisplayName() {
+        openItem()
+        app.buttons["Item actions"].tap()
+        app.buttons["Edit"].tap()
+        XCTAssertTrue(app.navigationBars["Edit Login"].waitForExistence(timeout: 5))
+    }
 }
