@@ -31,7 +31,8 @@ shared keychain group, `.userPresence`, `ThisDeviceOnly`); the wrap of the Accou
 guesses. `SecretKeyKeeper` keeps the Secret Key and the device keys in the keychain (`ThisDeviceOnly`, never
 synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` ties them together for the app.
 The simulator has no Secure Enclave, so Face ID is off there. Debug builds accept `-figlock-seed-demo` to create a
-made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists, and
+made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists (it also
+clears any saved password pause, so a run that tripped it does not affect the next), and
 `-figlock-unlock-demo` also unlocks it so the vault screens can be looked at in a simulator.
 
 ## Vault screens

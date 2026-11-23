@@ -18,7 +18,7 @@ struct ItemFormView: View {
     @FocusState private var titleFocused: Bool
 
     private var navigationTitle: String {
-        draft.isNew ? "New \(draft.kind.displayName.lowercased())" : "Edit \(draft.kind.displayName.lowercased())"
+        draft.isNew ? "New \(draft.kind.displayName)" : "Edit \(draft.kind.displayName)"
     }
 
     var body: some View {

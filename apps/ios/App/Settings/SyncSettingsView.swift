@@ -231,13 +231,19 @@ private struct RemoteDetailView: View {
     @ViewBuilder
     private func statusSection(_ row: SyncModel.Row) -> some View {
         let state = row.state
+        if notice != nil || errorText != nil {
+            Section {
+                if let notice {
+                    Notice(text: notice, isError: false).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+                if let errorText {
+                    Notice(text: errorText, isError: true).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+            }
+        }
         Section {
-            if let notice {
-                Notice(text: notice, isError: false).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-            }
-            if let errorText {
-                Notice(text: errorText, isError: true).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-            }
             HStack(alignment: .top, spacing: FLSpace.s3) {
                 Image(systemName: state.symbol).foregroundStyle(state.tone.color).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {

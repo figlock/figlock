@@ -71,6 +71,9 @@
         @MainActor
         static func seedIfRequested(_ environment: AppEnvironment) {
             guard ProcessInfo.processInfo.arguments.contains("-figlock-seed-demo") else { return }
+            // Every launch starts with no password pause left over from an earlier run (UI tests trip it on purpose).
+            try? FileManager.default.removeItem(
+                at: environment.vault.container.deviceFolder.appendingPathComponent("password-throttle.json"))
             guard environment.startupError == nil, environment.vault.status() == .noVault else { return }
             do {
                 let created = try createVault(
