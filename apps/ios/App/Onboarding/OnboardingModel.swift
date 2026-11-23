@@ -92,7 +92,7 @@ final class OnboardingModel {
             foundVault = nil
             let opened = try FolderRemote.open(url: url, localVault: service.vaultFolder)
             do {
-                folderEntry = .folder(name: url.lastPathComponent, bookmark: try FolderRemote.bookmark(for: url))
+                folderEntry = try FolderRemote.entry(for: url)
             } catch {
                 opened.close()
                 throw FolderProblem.pickAgain

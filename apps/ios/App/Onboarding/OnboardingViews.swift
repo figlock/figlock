@@ -199,11 +199,11 @@ struct KitView: View {
             subtitle: "A one page PDF with your Secret Key. Store it printed or offline, away from this iPhone."
         ) {
             if let url = model.kitURL {
-                ShareLink(item: url) {
-                    Label("Save Emergency Kit", systemImage: "square.and.arrow.up")
-                }
+                KitShareButton(
+                    url: url, onOpen: { model.kitOpened = true },
+                    label: { Label("Save Emergency Kit", systemImage: "square.and.arrow.up") }
+                )
                 .buttonStyle(PrimaryActionStyle())
-                .simultaneousGesture(TapGesture().onEnded { model.kitOpened = true })
                 if model.kitOpened {
                     Button("I saved it, continue") { model.path.append(.verify) }
                         .buttonStyle(SecondaryActionStyle())

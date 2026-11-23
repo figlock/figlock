@@ -96,7 +96,7 @@ struct SyncSettingsView: View {
         defer { busy = false }
         do {
             try await sync.addFolder(url)
-            notice = "Syncing with \(url.lastPathComponent)."
+            notice = "Syncing with \(FolderRemote.displayName(for: url))."
         } catch let problem as FolderProblem {
             errorText = Self.text(problem)
         } catch {
@@ -362,7 +362,7 @@ private struct RemoteDetailView: View {
         guard case .success(let url) = result else { return }
         do {
             try await sync.replaceFolder(id, with: url)
-            notice = "Syncing with \(url.lastPathComponent)."
+            notice = "Syncing with \(FolderRemote.displayName(for: url))."
         } catch let problem as FolderProblem {
             errorText = SyncSettingsView.text(problem)
         } catch {

@@ -87,7 +87,8 @@ background time, so a stale copy shows its "last synced" time (ADR-0026) rather 
   restarts" (detected from the boot session) so the rule keeps its intent. This changes a default in `crypto.md`
   8 (confirmed by the owner); the same change is made to `crypto.md` 8 by FIG-160.
 - Secret screens are blanked in the app switcher and screen capture is blocked (`DESIGN.md` 8). Clipboard copies use
-  local-only, expiring pasteboard items.
+  local-only, expiring pasteboard items. The Emergency Kit share sheet (it holds the Secret Key) never offers Copy,
+  because that puts the PDF on the general pasteboard (FIG-218); Save to Files, Print and AirDrop stay.
 
 **7. The AutoFill extension.**
 - It **never runs a password derivation.** It unlocks only through `qu_blob` and `QK` (a Face ID prompt inside the
