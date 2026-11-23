@@ -43,13 +43,17 @@ public struct Onboarding: Sendable {
     let keeper: SecretKeyKeeper
     let quick: QuickUnlock
     let now: @Sendable () -> Date
+    /// The system's QuickType suggestions, emptied when the vault leaves this phone (ADR-0041 decision 7).
+    let identities: CredentialIdentitySync?
 
     public init(
-        vault: LocalVault, keeper: SecretKeyKeeper, quick: QuickUnlock, now: @escaping @Sendable () -> Date = { Date() }
+        vault: LocalVault, keeper: SecretKeyKeeper, quick: QuickUnlock,
+        identities: CredentialIdentitySync? = nil, now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.vault = vault
         self.keeper = keeper
         self.quick = quick
+        self.identities = identities
         self.now = now
     }
 
@@ -292,6 +296,7 @@ public struct Onboarding: Sendable {
     public func removeFromThisPhone() throws {
         let id = rememberedVaultId ?? { if case .ready(let id, _) = vault.status() { id } else { nil } }()
         quick.disable()
+        if let identities { Task { @MainActor in identities.clear() } }
         if let id { try keeper.removeAll(vaultId: id) }
         let container = vault.container
         try? FileManager.default.removeItem(at: container.vaultFolder)

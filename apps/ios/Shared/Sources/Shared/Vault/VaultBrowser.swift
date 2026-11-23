@@ -45,6 +45,8 @@ public final class VaultBrowser {
     public private(set) var loadFailures: [String] = []
     public var query = ""
     public var filter: Filter = .all
+    /// When set, the system's QuickType suggestions follow the list after every load.
+    @ObservationIgnored public var identitySync: CredentialIdentitySync?
 
     public let session: VaultSession
     private let log: VaultLog?
@@ -127,6 +129,7 @@ public final class VaultBrowser {
         items = loaded.filter { !$0.isDeleted }.sorted { $0.updated > $1.updated }
         deletedItems = loaded.filter(\.isDeleted).sorted { $0.updated > $1.updated }
         damagedCount = listing.corruptIds.count
+        identitySync?.update(from: items)
     }
 
     private struct Loaded: @unchecked Sendable {

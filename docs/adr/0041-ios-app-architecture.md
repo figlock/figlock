@@ -100,8 +100,11 @@ background time, so a stale copy shows its "last synced" time (ADR-0026) rather 
   compact autofill index sealed under `AUK` into the container after each commit, and the extension reads that
   instead. The index is a fallback only (confirmed by the owner): build it only if the measurement says the
   replay does not fit. Either way the extension holds one secret at a time and zeroizes it.
+- **Measured (FIG-166):** a full replay of 10,000 logins in the extension's code path takes about 0.4 s and grows the
+  process by roughly 10 to 15 MB on the simulator (`AutofillTests`). The full replay fits, so the sealed autofill
+  index is **not built**. The absolute figure on a device is recorded on FIG-166.
 - Identity store: the app registers domain and username (no secrets) with `ASCredentialIdentityStore` so QuickType
-  suggestions work; the store is cleared on lock-out of the vault and on "remove this vault from this iPhone".
+  suggestions work; the store is cleared when the vault is removed from this iPhone (a plain lock does not clear it, or QuickType would be empty whenever the app is locked).
 - Passkeys and one-time codes are a spike (FIG-167), not part of the first extension.
 
 **8. Onboarding.** A new iPhone joins by **pairing** from a trusted device (QR scan or typed code, `pairing-recovery.md`
