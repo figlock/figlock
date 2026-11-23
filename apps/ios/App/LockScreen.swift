@@ -234,6 +234,7 @@ private struct ActionBody<Background: View>: View {
         configuration.label
             .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
             .foregroundStyle(foreground)
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
             .background(background)
             .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
@@ -262,7 +263,29 @@ struct PlainActionStyle: ButtonStyle {
         configuration.label
             .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
             .foregroundStyle(FLColor.textLink)
+            .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
             .opacity(configuration.isPressed ? 0.7 : 1)
+    }
+}
+
+/// A Label whose icon and title share one colour. In a list row a plain `Label` tints its icon with the accent
+/// colour while the title keeps its own, so link rows and destructive rows get a mismatched pair.
+struct RowLabelStyle: LabelStyle {
+    let color: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: FLSpace.s3) {
+            configuration.icon
+            configuration.title
+        }
+        .foregroundStyle(color)
+    }
+}
+
+extension Label {
+    /// The row look for tappable list rows: link colour, or the danger colour for destructive ones.
+    func rowLabel(destructive: Bool = false) -> some View {
+        labelStyle(RowLabelStyle(color: destructive ? FLColor.danger : FLColor.textLink))
     }
 }

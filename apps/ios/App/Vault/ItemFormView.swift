@@ -126,7 +126,7 @@ struct ItemFormView: View {
                     Button {
                         if shown { shownSecrets.remove(spec.name) } else { shownSecrets.insert(spec.name) }
                     } label: {
-                        Image(systemName: shown ? "eye.slash" : "eye")
+                        Image(systemName: shown ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
                     }
                     .flMinTouchTarget()
                     .accessibilityLabel(shown ? "Hide \(spec.label.lowercased())" : "Show \(spec.label.lowercased())")
@@ -135,7 +135,7 @@ struct ItemFormView: View {
                     Button {
                         generatingFor = spec.name
                     } label: {
-                        Image(systemName: "wand.and.stars")
+                        Image(systemName: "wand.and.stars").foregroundStyle(FLColor.textSecondary)
                     }
                     .flMinTouchTarget()
                     .accessibilityLabel("Generate a password")

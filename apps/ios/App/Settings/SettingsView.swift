@@ -80,14 +80,16 @@ struct SettingsView: View {
                 Button(role: .destructive) {
                     confirmingRemoval = true
                 } label: {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: FLSpace.s1) {
                         Label("Remove this vault from this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
+                            .rowLabel(destructive: true)
                             .font(FLFont.ui(FLText.md, weight: FLWeight.medium))
                         Text("Your items stay in your sync places and on your other devices.")
                             .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
                             .foregroundStyle(FLColor.textSecondary)
                     }
                     .frame(minHeight: FLSize.controlHeightLg, alignment: .leading)
+                    .padding(.vertical, FLSpace.s2)
                 }
                 .tint(FLColor.danger)
             }
