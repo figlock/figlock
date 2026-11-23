@@ -343,11 +343,17 @@ private struct RemoteDetailView: View {
         async let shown: Void = { try? await Task.sleep(for: .milliseconds(700)) }()
         await sync.sync(id)
         await shown
-        guard let state = sync.row(id: id)?.state else { return }
-        if state.needsAttention {
-            errorText = "Sync did not work. \(state.title)."
-        } else {
+        guard let row = sync.row(id: id) else { return }
+        let state = row.state
+        switch state.phase {
+        case .synced:
             notice = "Synced just now."
+        case .idle where state.lastSyncMs != nil:
+            notice = "Synced just now."
+        case .offline, .waitingForDownload:
+            errorText = "\(state.title). \(state.detail(for: row.entry))"
+        default:
+            errorText = "Sync did not work. \(state.title)."
         }
     }
 
