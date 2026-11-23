@@ -222,27 +222,38 @@ struct Notice: View {
     }
 }
 
-struct PrimaryActionStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
+/// Dimmed look shared by the action styles. A `ButtonStyle` cannot read the environment in `makeBody`, so the
+/// label is wrapped in a view that reads `\.isEnabled`.
+private struct ActionBody<Background: View>: View {
+    @Environment(\.isEnabled) private var isEnabled
+    let configuration: ButtonStyle.Configuration
+    let foreground: Color
+    let background: Background
+
+    var body: some View {
         configuration.label
             .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
-            .foregroundStyle(FLColor.textOnPrimary)
+            .foregroundStyle(foreground)
             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
-            .background(
-                FLColor.primary.opacity(configuration.isPressed ? 0.85 : 1),
-                in: RoundedRectangle(cornerRadius: FLRadius.md))
+            .background(background)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
+    }
+}
+
+struct PrimaryActionStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        ActionBody(
+            configuration: configuration, foreground: FLColor.textOnPrimary,
+            background: RoundedRectangle(cornerRadius: FLRadius.md).fill(FLColor.primary))
     }
 }
 
 struct SecondaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
-            .foregroundStyle(FLColor.text)
-            .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
-            .background(FLColor.surfaceSunken, in: RoundedRectangle(cornerRadius: FLRadius.md))
-            .overlay(RoundedRectangle(cornerRadius: FLRadius.md).stroke(FLColor.border))
-            .opacity(configuration.isPressed ? 0.8 : 1)
+        ActionBody(
+            configuration: configuration, foreground: FLColor.text,
+            background: RoundedRectangle(cornerRadius: FLRadius.md).fill(FLColor.surfaceSunken)
+                .overlay(RoundedRectangle(cornerRadius: FLRadius.md).stroke(FLColor.border)))
     }
 }
 

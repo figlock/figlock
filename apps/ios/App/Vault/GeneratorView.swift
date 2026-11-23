@@ -48,13 +48,19 @@ struct GeneratorView: View {
 
     private var preview: some View {
         VStack(alignment: .leading, spacing: FLSpace.s3) {
-            Text(value.isEmpty ? "Choose at least one kind of character" : value)
-                .font(FLFont.mono(FLText.lg))
-                .foregroundStyle(value.isEmpty ? FLColor.textSecondary : FLColor.text)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityLabel(
-                    value.isEmpty ? "Nothing generated" : "Generated \(settings.mode.title.lowercased())")
+            if value.isEmpty {
+                Text("Choose at least one kind of character")
+                    .font(FLFont.ui(FLText.md, relativeTo: .body))
+                    .foregroundStyle(FLColor.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text(value)
+                    .font(FLFont.mono(FLText.lg))
+                    .foregroundStyle(FLColor.text)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityLabel("Generated \(settings.mode.title.lowercased())")
+            }
             if let rating = GeneratorSettings.rating(of: value) {
                 StrengthLabel(rating: rating)
             }
