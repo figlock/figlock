@@ -148,7 +148,9 @@ struct CreatePasswordView: View {
             }
             Text(model.password.count >= 12 ? "Long enough." : "Use at least 12 characters.")
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                .foregroundStyle(model.password.count >= 12 ? FLColor.success : FLColor.textTertiary)
+                .foregroundStyle(
+                    model.password.count >= 12
+                        ? FLColor.success : model.password.isEmpty ? FLColor.textTertiary : FLColor.danger)
             LabeledField(label: "Confirm master password") {
                 SecureField("", text: $model.confirmation).textContentType(.newPassword)
             }
