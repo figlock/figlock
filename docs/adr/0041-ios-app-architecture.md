@@ -3,6 +3,7 @@
 - Status: Accepted
 - Date: 2026-11-22
 - Decision: D41 in `docs/decisions.md`
+- Amended by: ADR-0043 (section 4: a device has a list of remotes, not one active remote)
 - Builds on: ADR-0004 (native shell, shared Rust core), ADR-0025, ADR-0026, ADR-0027, ADR-0034, ADR-0037, ADR-0038
 - Task: FIG-153. Unblocks FIG-154 (FFI), FIG-155 (build), FIG-159 (storage), FIG-160 (unlock), FIG-166 (AutoFill)
 
@@ -64,8 +65,9 @@ the CLI and desktop behaviour unchanged.
 accepts `folder`: a folder the person picks in the Files picker (typically `iCloud Drive/FigLock`, the same
 folder the Mac uses, ADR-0002), mirrored from and to the local container exactly like Drive. The picked folder is
 never the working vault, so the extension and the app always read one stable local copy, and a not-yet-downloaded
-iCloud file is "retry", never "missing". Only one remote is active at a time, as on desktop. The desktop
-config and `config.json` do not change; iOS stores its own device config in the container.
+iCloud file is "retry", never "missing". ~~Only one remote is active at a time, as on desktop.~~ Amended by ADR-0043: a
+device has a list of remotes (Drive and one or more folders), each mirrored on its own, and the iCloud folder is never
+created by opening or joining a vault. iOS stores its own device config in the container.
 
 **5. Sync timing.** The app syncs on launch, on foreground, after a local commit, on pull-to-refresh and on a best
 effort background refresh task. The extension never syncs and never writes. iOS gives no guarantee of
