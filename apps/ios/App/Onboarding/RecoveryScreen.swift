@@ -1,5 +1,6 @@
 import Shared
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Shown when this iPhone had a vault and its folder is gone (ADR-0026). The remote copy is never used as a silent
 /// substitute: the person picks. On iOS the vault folder is fixed in the app's container, so there is no
@@ -12,6 +13,7 @@ struct RecoveryScreen: View {
     @State private var confirming: Action?
     @State private var errorText: String?
     @State private var busy = false
+    @State private var picking = false
 
     private enum Action: Identifiable {
         case restore, startOver, remove
@@ -39,6 +41,12 @@ struct RecoveryScreen: View {
                 }
                 .buttonStyle(PrimaryActionStyle()).disabled(busy)
                 Button {
+                    picking = true
+                } label: {
+                    Label("Restore from an iCloud Drive folder", systemImage: "icloud")
+                }
+                .buttonStyle(SecondaryActionStyle()).disabled(busy)
+                Button {
                     confirming = .startOver
                 } label: {
                     Label("Create a new vault", systemImage: "plus")
@@ -47,13 +55,16 @@ struct RecoveryScreen: View {
                 Button("Remove this vault from this iPhone") { confirming = .remove }
                     .buttonStyle(PlainActionStyle()).disabled(busy)
                 Text(
-                    "Restore downloads the copy in Google Drive. Create starts empty with a new Secret Key. Nothing in Google Drive is deleted."
+                    "Restore downloads the copy in Google Drive or in the iCloud Drive folder you pick. Create starts empty with a new Secret Key. Nothing in either is deleted."
                 )
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             }
             .padding(FLSpace.s4).padding(.top, FLSpace.s8)
         }
         .background(FLColor.bg.ignoresSafeArea())
+        .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
+            Task { await restore(from: result) }
+        }
         .alert(title, isPresented: Binding(get: { confirming != nil }, set: { if !$0 { confirming = nil } })) {
             Button("Cancel", role: .cancel) {}
             Button(confirmLabel, role: confirming == .restore ? nil : .destructive) {
@@ -90,6 +101,27 @@ struct RecoveryScreen: View {
         case .remove:
             "This forgets the vault, its keys and Face ID on this iPhone. The copy in Google Drive and your Emergency Kit are not touched."
         case nil: ""
+        }
+    }
+
+    /// Restore from the folder the person picked. Nothing is created in it: it has to hold the vault already.
+    private func restore(from result: Result<URL, Error>) async {
+        guard case .success(let url) = result else { return }
+        busy = true
+        errorText = nil
+        defer { busy = false }
+        do {
+            let opened = try FolderRemote.open(url: url, localVault: service.vaultFolder)
+            defer { opened.close() }
+            let entry = RemoteEntry.folder(name: url.lastPathComponent, bookmark: try FolderRemote.bookmark(for: url))
+            try await service.openFromRemote(opened.store, entry: entry)
+            lock.vaultDidChange()
+        } catch let failure as Onboarding.Failure {
+            errorText = OnboardingModel.text(failure, source: .icloud)
+        } catch let problem as FolderProblem {
+            errorText = SyncSettingsView.text(problem)
+        } catch {
+            errorText = "Something went wrong. Try again."
         }
     }
 

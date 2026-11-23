@@ -11,10 +11,13 @@ extension Onboarding {
         private let keys: DeviceKeysHandle
         private let remote: any BlobStoreFfi
         private let onboarding: Onboarding
+        private let entry: RemoteEntry
 
         init(
-            handle: JoinHandle, keys: DeviceKeysHandle, remote: any BlobStoreFfi, onboarding: Onboarding
+            handle: JoinHandle, keys: DeviceKeysHandle, remote: any BlobStoreFfi, onboarding: Onboarding,
+            entry: RemoteEntry
         ) {
+            self.entry = entry
             self.handle = handle
             self.keys = keys
             self.remote = remote
@@ -60,13 +63,15 @@ extension Onboarding {
                 throw Failure.failed
             }
             outcome.session.lock()
-            try await onboarding.adopt(remote: remote, keys: keys, secretKey: outcome.secretKeyText)
+            try await onboarding.adopt(remote: remote, keys: keys, secretKey: outcome.secretKeyText, entry: entry)
         }
     }
 
     /// Ask to join the vault in `remote` with the invite `code` shown on the trusted device. Stores the request in
     /// `inbox/` of the remote; the trusted device compares `fingerprint` and approves.
-    public func beginPairing(code: String, remote: any BlobStoreFfi, deviceName: String) async throws -> Pairing {
+    public func beginPairing(
+        code: String, remote: any BlobStoreFfi, deviceName: String, entry: RemoteEntry = .drive
+    ) async throws -> Pairing {
         guard case .noVault = vault.status() else { throw Failure.alreadyHasVault }
         guard inviteCodeIsValid(code: code) else { throw Failure.invalidCode }
         let vaultJson: Data
@@ -102,19 +107,20 @@ extension Onboarding {
         } catch let failure as StoreFailure {
             throw Self.map(failure)
         }
-        return Pairing(handle: start.handle, keys: keys, remote: remote, onboarding: self)
+        return Pairing(handle: start.handle, keys: keys, remote: remote, onboarding: self, entry: entry)
     }
 
     /// Store what a finished join produced: the vault files, this phone's keys and the Secret Key. All or nothing.
-    func adopt(remote: any BlobStoreFfi, keys: DeviceKeysHandle, secretKey: String) async throws {
+    func adopt(remote: any BlobStoreFfi, keys: DeviceKeysHandle, secretKey: String, entry: RemoteEntry) async throws {
         let vaultId = try? vaultIdentity(vaultJson: try remote.get(path: "vault.json")).vaultId
         do {
-            try await pull(from: remote)
+            try await pull(from: remote, entry: entry)
             guard case .ready(let readyId, _) = vault.status(), readyId == vaultId else { throw Failure.failed }
             try keeper.saveDeviceKeys(keys, vaultId: readyId)
             try keeper.keep(secretKey, vaultId: readyId)
             try vault.markVaultPresent()
             try remember(vaultId: readyId)
+            RemoteList(container: vault.container).add(entry)
         } catch {
             rollBack(vaultId: vaultId, keepKeys: false, wasMissing: false)
             throw (error as? Failure) ?? Failure.failed

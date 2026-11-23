@@ -61,7 +61,17 @@ struct WelcomeView: View {
                     Choice(
                         icon: "cloud", title: "Open my vault from Google Drive",
                         detail: "Sign in to Google Drive and pick the vault you saved there."
-                    ) { model.path.append(.drive) }
+                    ) {
+                        model.source = .drive
+                        model.path.append(.drive)
+                    }
+                    Choice(
+                        icon: "icloud", title: "Open my vault from iCloud Drive",
+                        detail: "Pick the folder in iCloud Drive where your vault is saved."
+                    ) {
+                        model.source = .icloud
+                        model.path.append(.drive)
+                    }
                 }
                 .padding(.top, FLSpace.s2)
                 Text("You can change where your vault syncs later in Settings.")
@@ -239,7 +249,8 @@ struct PairCodeView: View {
             subtitle:
                 "On your other device open FigLock, then Settings and Devices, and choose Add device. Type the code it shows."
         ) {
-            if model.drive.isSignedIn {
+            SourcePicker(model: model)
+            if model.hasRemote {
                 LabeledField(label: "Pairing code", hint: "20 letters and numbers, like ABCD-EFGH-JKMN-PQRS-TVWX.") {
                     TextField("", text: $model.code)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
@@ -250,31 +261,10 @@ struct PairCodeView: View {
                 Button("Continue") { Task { await model.beginPairing() } }
                     .buttonStyle(PrimaryActionStyle()).disabled(model.code.isEmpty || model.busy)
             } else {
-                DriveSignInBlock(model: model)
+                RemoteChooser(model: model, purpose: "Pairing goes through")
             }
         }
         .onChange(of: model.code) { _, _ in model.clearError() }
-    }
-}
-
-struct DriveSignInBlock: View {
-    let model: OnboardingModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: FLSpace.s4) {
-            Text("Pairing goes through the Google Drive where your vault is saved. Sign in to the same Google account.")
-                .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary)
-            if !model.drive.isConfigured {
-                Notice(text: "Google sign-in is not set up in this build yet.", isError: true)
-            }
-            ErrorNotice(model: model)
-            Button {
-                Task { await model.signInToDrive() }
-            } label: {
-                Label("Sign in to Google Drive", systemImage: "person.crop.circle")
-            }
-            .buttonStyle(PrimaryActionStyle()).disabled(model.busy || !model.drive.isConfigured)
-        }
     }
 }
 
@@ -330,11 +320,13 @@ struct DriveOpenView: View {
 
     var body: some View {
         Screen(title: "Open your vault") {
-            if !model.drive.isSignedIn {
-                DriveSignInBlock(model: model)
+            if !model.hasRemote {
+                RemoteChooser(model: model, purpose: "Your vault is read from")
             } else if let found = model.foundVault {
-                Text("FigLock found one vault in your Google Drive. It was last changed at revision \(found.revision).")
-                    .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary)
+                Text(
+                    "FigLock found one vault in \(model.source == .drive ? "your Google Drive" : "that folder"). It was last changed at revision \(found.revision)."
+                )
+                .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary)
                 LabeledField(label: "Secret Key", hint: "From your Emergency Kit. Needed once on each new device.") {
                     TextField("FL1-...", text: $model.typedSecretKey)
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
@@ -346,16 +338,18 @@ struct DriveOpenView: View {
                 FaceIDToggle(model: model)
                 ErrorNotice(model: model)
                 Busy(label: "Opening your vault", busy: model.busy)
-                Button("Open vault") { Task { await model.openFromDrive() } }
+                Button("Open vault") { Task { await model.openFromRemote() } }
                     .buttonStyle(PrimaryActionStyle())
                     .disabled(model.typedSecretKey.isEmpty || model.password.isEmpty || model.busy)
             } else {
                 ErrorNotice(model: model)
-                Busy(label: "Looking in Google Drive", busy: model.busy)
+                Busy(
+                    label: model.source == .drive ? "Looking in Google Drive" : "Looking in the folder",
+                    busy: model.busy)
             }
         }
-        .task(id: model.drive.isSignedIn) {
-            if model.drive.isSignedIn, model.foundVault == nil { await model.lookForVault() }
+        .task(id: model.hasRemote) {
+            if model.hasRemote, model.foundVault == nil { await model.lookForVault() }
         }
     }
 }

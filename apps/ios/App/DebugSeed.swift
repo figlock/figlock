@@ -48,6 +48,26 @@
             Task { _ = await environment.lock.unlock(password: password, secretKey: nil) }
         }
 
+        /// `-figlock-demo-remotes` adds two folder remotes in the app's Documents folder to the seeded vault, so the
+        /// sync screens can be looked at in a simulator: "FigLock" works and syncs, "Old FigLock" points at a folder
+        /// that is then deleted, which shows the "Folder not found" state next to a working remote.
+        @MainActor
+        static func remotesIfRequested(_ environment: AppEnvironment) {
+            guard ProcessInfo.processInfo.arguments.contains("-figlock-demo-remotes"),
+                environment.startupError == nil, case .ready = environment.vault.status(),
+                environment.sync.list.entries().isEmpty
+            else { return }
+            let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            for name in ["FigLock", "Old FigLock"] {
+                let folder = documents.appendingPathComponent(name, isDirectory: true)
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                guard let bookmark = try? FolderRemote.bookmark(for: folder) else { continue }
+                environment.sync.list.add(.folder(name: name, bookmark: bookmark))
+                if name == "Old FigLock" { try? FileManager.default.removeItem(at: folder) }
+            }
+            Task { await environment.sync.reload() }
+        }
+
         @MainActor
         static func seedIfRequested(_ environment: AppEnvironment) {
             guard ProcessInfo.processInfo.arguments.contains("-figlock-seed-demo") else { return }

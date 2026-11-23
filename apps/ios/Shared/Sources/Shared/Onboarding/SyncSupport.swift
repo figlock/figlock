@@ -24,8 +24,10 @@ public final class FileSyncState: SyncStateStore, @unchecked Sendable {
     private let file: URL
     private let lock = NSLock()
 
-    public init(container: VaultContainer) {
-        file = container.deviceFolder.appendingPathComponent("sync-state.json")
+    /// The record of one remote. Each remote keeps its own, so one that is lost or new never changes what another
+    /// remembers (ADR-0043). `remote` defaults to Google Drive, whose file is the one earlier versions wrote.
+    public init(container: VaultContainer, remote: RemoteEntry = .drive) {
+        file = container.deviceFolder.appendingPathComponent(remote.stateFileName)
     }
 
     private func load() -> Saved {

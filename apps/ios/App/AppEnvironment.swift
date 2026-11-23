@@ -14,6 +14,7 @@ final class AppEnvironment {
     let keeper: SecretKeyKeeper
     let onboarding: Onboarding
     let drive: DriveConnection
+    let sync: SyncModel
     let settings: SettingsContext
     /// Set when the App Group container cannot be reached; the app then shows this instead of working elsewhere.
     let startupError: String?
@@ -35,6 +36,8 @@ final class AppEnvironment {
         let quick = QuickUnlock(container: container, chip: SecureEnclaveChip(accessGroup: Self.keychainGroup))
         onboarding = Onboarding(vault: vault, keeper: keeper, quick: quick)
         drive = DriveConnection(store: KeychainSecretStore(accessGroup: Self.keychainGroup))
+        sync = SyncModel(vault: vault, keeper: keeper, drive: drive)
+        BackgroundSync.model = sync
         let deviceSettings = DeviceSettings(container: container)
         lock = AppLock(
             vault: vault,
@@ -44,9 +47,10 @@ final class AppEnvironment {
             autoLockAfter: deviceSettings.autoLock.seconds)
         settings = SettingsContext(
             lock: lock, service: SettingsService(vault: vault, keeper: keeper), settings: deviceSettings,
-            onboarding: onboarding, drive: drive)
+            onboarding: onboarding, drive: drive, sync: sync)
         #if DEBUG
             DebugSeed.seedIfRequested(self)
+            DebugSeed.remotesIfRequested(self)
             DebugSeed.unlockIfRequested(self)
         #endif
     }

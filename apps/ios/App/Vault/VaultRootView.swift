@@ -7,6 +7,7 @@ import SwiftUI
 struct VaultRootView: View {
     let lock: AppLock
     let vault: LocalVault
+    let sync: SyncModel
 
     @State private var browser: VaultBrowser?
     @State private var copier = ClipboardCopier()
@@ -15,7 +16,7 @@ struct VaultRootView: View {
     var body: some View {
         NavigationStack {
             if let browser {
-                VaultListView(browser: browser, copier: copier, lock: lock)
+                VaultListView(browser: browser, copier: copier, lock: lock, sync: sync)
                     .environment(editor)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(FLColor.bg)
@@ -35,6 +36,8 @@ struct VaultRootView: View {
             }
             browser = loading
         }
+        // A sync that brought files in: read the log again.
+        .onChange(of: sync.changeCount) { Task { await browser?.reload() } }
         .onDisappear { copier.clearNow() }
     }
 }

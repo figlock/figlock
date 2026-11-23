@@ -59,7 +59,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsRow(
                         symbol: "arrow.triangle.2.circlepath", title: "Sync",
-                        value: context.drive.isSignedIn ? "Google Drive" : "This iPhone only")
+                        value: context.sync.summary)
                 }
             }
             .listRowBackground(FLColor.surface)
@@ -83,7 +83,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Label("Remove this vault from this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
                             .font(FLFont.ui(FLText.md, weight: FLWeight.medium))
-                        Text("Your items stay in Google Drive, if you use it, and on your other devices.")
+                        Text("Your items stay in your sync places and on your other devices.")
                             .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
                             .foregroundStyle(FLColor.textSecondary)
                     }
@@ -102,7 +102,7 @@ struct SettingsView: View {
             Button("Remove vault", role: .destructive) { remove() }
         } message: {
             Text(
-                "FigLock forgets this vault, its keys and Face ID on this iPhone. Your items stay in your sync folder and on your other devices, and the copy in Google Drive is not deleted. To add the vault again you need your Secret Key and master password."
+                "FigLock forgets this vault, its keys and Face ID on this iPhone. Your items stay in your sync folder and on your other devices, and the copies in iCloud Drive or Google Drive are not deleted. To add the vault again you need your Secret Key and master password."
             )
         }
         .alert("Could not remove the vault", isPresented: $removalFailed) {

@@ -38,13 +38,18 @@ final class DevicesModel {
         busy = true
         defer { busy = false }
         do {
-            let result = try await context.service.revoke(
+            _ = try await context.service.revoke(
                 deviceId: id, password: password, typedSecretKey: secretKey, session: session,
-                remote: context.remote())
+                remote: nil)
+            // Each remote gets the new vault.json on its own, so one failing never holds back another; the notice says so
+            // unless every one took it.
+            await context.sync.syncNow(force: true)
+            let rows = context.sync.rows
+            let pushed = !rows.isEmpty && rows.allSatisfy { $0.state.phase == .synced }
             reload()
             let name = row(id: id)?.displayName ?? "The device"
             revokedNotice =
-                result.pushed
+                pushed
                 ? "\(name) is revoked."
                 : "\(name) is revoked on this iPhone. It loses access everywhere once this iPhone syncs."
             return nil

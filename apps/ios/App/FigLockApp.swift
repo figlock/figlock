@@ -7,6 +7,10 @@ struct FigLockApp: App {
     @State private var capture = CaptureMonitor()
     @Environment(\.scenePhase) private var scenePhase
 
+    init() {
+        BackgroundSync.register()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(environment: environment)
@@ -17,8 +21,13 @@ struct FigLockApp: App {
                 }
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
-                    case .background: environment.lock.appDidEnterBackground()
-                    case .active: environment.lock.appWillEnterForeground()
+                    case .background:
+                        environment.lock.appDidEnterBackground()
+                        environment.sync.stopForeground()
+                        BackgroundSync.schedule()
+                    case .active:
+                        environment.lock.appWillEnterForeground()
+                        environment.sync.startForeground()
                     default: break
                     }
                 }
@@ -40,7 +49,7 @@ struct RootView: View {
                     switch environment.vault.status() {
                     case .ready:
                         if environment.lock.isUnlocked {
-                            VaultRootView(lock: environment.lock, vault: environment.vault)
+                            VaultRootView(lock: environment.lock, vault: environment.vault, sync: environment.sync)
                                 .environment(\.settingsContext, environment.settings)
                         } else {
                             LockScreen(lock: environment.lock)

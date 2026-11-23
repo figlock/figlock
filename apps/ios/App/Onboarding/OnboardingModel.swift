@@ -14,6 +14,14 @@ final class OnboardingModel {
         case drive
     }
 
+    /// Where the vault is read from while onboarding: Google Drive, or a folder picked in the Files picker (iCloud
+    /// Drive). Pairing and opening work the same over both (ADR-0043).
+    enum Source: String, CaseIterable, Identifiable {
+        case drive = "Google Drive"
+        case icloud = "iCloud Drive"
+        var id: Self { self }
+    }
+
     var path: [Route] = []
     var busy = false
     var errorText: String?
@@ -32,6 +40,15 @@ final class OnboardingModel {
     var fingerprint = ""
 
     // Drive
+    var source: Source = .drive {
+        didSet {
+            guard source != oldValue else { return }
+            foundVault = nil
+            errorText = nil
+        }
+    }
+    private(set) var folder: OpenedFolder?
+    private var folderEntry: RemoteEntry?
     var foundVault: Onboarding.RemoteVault?
     var typedSecretKey = ""
 
@@ -52,6 +69,43 @@ final class OnboardingModel {
     }
 
     var faceIDAvailable: Bool { service.quickAvailable }
+
+    // MARK: The remote
+
+    /// Whether the chosen source is ready: signed in to Google, or a folder picked.
+    var hasRemote: Bool { source == .drive ? drive.isSignedIn : folder != nil }
+
+    private func currentRemote() throws -> (store: any BlobStoreFfi, entry: RemoteEntry) {
+        switch source {
+        case .drive: return (try drive.remote(), .drive)
+        case .icloud:
+            guard let folder, let folderEntry else { throw FolderProblem.pickAgain }
+            return (folder.store, folderEntry)
+        }
+    }
+
+    /// The person picked a folder. Nothing is created in it; it only has to be a folder FigLock may use.
+    func chooseFolder(_ result: Result<URL, Error>) async {
+        guard case .success(let url) = result else { return }
+        await run {
+            closeFolder()
+            foundVault = nil
+            let opened = try FolderRemote.open(url: url, localVault: service.vaultFolder)
+            do {
+                folderEntry = .folder(name: url.lastPathComponent, bookmark: try FolderRemote.bookmark(for: url))
+            } catch {
+                opened.close()
+                throw FolderProblem.pickAgain
+            }
+            folder = opened
+        }
+    }
+
+    func closeFolder() {
+        folder?.close()
+        folder = nil
+        folderEntry = nil
+    }
 
     // MARK: Create
 
@@ -111,8 +165,9 @@ final class OnboardingModel {
             return
         }
         await run {
-            let remote = try drive.remote()
-            let started = try await service.beginPairing(code: code, remote: remote, deviceName: deviceName)
+            let (remote, entry) = try currentRemote()
+            let started = try await service.beginPairing(
+                code: code, remote: remote, deviceName: deviceName, entry: entry)
             pairing = started
             fingerprint = started.fingerprint
             path.append(.pairWait)
@@ -137,6 +192,7 @@ final class OnboardingModel {
     func cancelPairing() {
         pollTask?.cancel()
         pairing = nil
+        closeFolder()
         path = []
     }
 
@@ -155,20 +211,21 @@ final class OnboardingModel {
 
     func lookForVault() async {
         await run {
-            foundVault = try service.inspect(remote: try drive.remote())
+            foundVault = try service.inspect(remote: try currentRemote().store)
             if foundVault == nil { throw Onboarding.Failure.noVaultInStorage }
         }
     }
 
     var secretKeyLooksValid: Bool { FigLockCore.isValidSecretKey(typedSecretKey) }
 
-    func openFromDrive() async {
+    func openFromRemote() async {
         guard secretKeyLooksValid else {
             errorText = "That Secret Key is not well formed. It starts with FL1- and is on your Emergency Kit."
             return
         }
         await run {
-            try await service.openFromRemote(try drive.remote())
+            let (store, entry) = try currentRemote()
+            try await service.openFromRemote(store, entry: entry)
             let password = self.password
             let key = typedSecretKey
             await openVault(password: password, secretKey: key)
@@ -194,6 +251,7 @@ final class OnboardingModel {
     }
 
     private func clearSecrets() {
+        closeFolder()
         password = ""
         confirmation = ""
         verification = ""
@@ -211,26 +269,38 @@ final class OnboardingModel {
         do {
             try await step()
         } catch let failure as Onboarding.Failure {
-            errorText = Self.text(failure)
+            errorText = Self.text(failure, source: source)
         } catch let failure as SignInError {
             errorText = Self.text(failure)
+        } catch let problem as FolderProblem {
+            errorText = SyncSettingsView.text(problem)
         } catch {
             errorText = "Something went wrong. Try again."
         }
     }
 
+    static func text(_ failure: Onboarding.Failure, source: Source = .drive) -> String {
+        let place = source == .drive ? "that Google Drive" : "that folder"
+        switch failure {
+        case .noVaultInStorage: return "FigLock found no vault in \(place)."
+        case .offline: return "FigLock could not reach \(place). Check your connection and try again."
+        case .waitingForDownload:
+            return "iCloud has not downloaded the vault in \(place) yet. Wait a moment and try again."
+        case .foreignVault:
+            return "\(place.prefix(1).uppercased() + place.dropFirst()) holds a different vault than this iPhone."
+        default: return text(failure)
+        }
+    }
+
     static func text(_ failure: Onboarding.Failure) -> String {
         switch failure {
-        case .noVaultInStorage: "FigLock found no vault in that Google Drive."
         case .invalidCode: "That code is not valid, has expired, or belongs to a different vault."
         case .alreadyAnswered: "Someone already answered that code. Ask for a new one on your other device."
         case .joinFailed: "Could not join. The master password may be wrong, or the answer is not valid."
-        case .offline: "FigLock could not reach Google Drive. Check your connection and try again."
         case .signIn: "Google Drive refused the sign-in. Sign in again."
-        case .foreignVault: "That Google Drive holds a different vault than this iPhone."
         case .damaged: "The vault file is damaged."
         case .alreadyHasVault: "This iPhone already has a vault."
-        case .failed: "Something went wrong. Try again."
+        default: "Something went wrong. Try again."
         }
     }
 

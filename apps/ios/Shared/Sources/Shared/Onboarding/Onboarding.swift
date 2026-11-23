@@ -22,6 +22,8 @@ public struct Onboarding: Sendable {
         /// The trusted device refused, or the answer is not valid, or the master password is wrong.
         case joinFailed
         case offline
+        /// iCloud lists the vault but has not downloaded it yet. Not missing: try again shortly.
+        case waitingForDownload
         case signIn
         /// The remote holds a different vault than this phone remembers.
         case foreignVault
@@ -52,6 +54,9 @@ public struct Onboarding: Sendable {
     }
 
     var nowMs: UInt64 { UInt64(now().timeIntervalSince1970 * 1000) }
+
+    /// The local vault folder, which no remote folder may be, contain or sit inside (ADR-0043).
+    public var vaultFolder: URL { vault.container.vaultFolder }
 
     /// Whether this iPhone can offer Face ID at all (the simulator cannot).
     public var quickAvailable: Bool { quick.isAvailable }
@@ -151,7 +156,7 @@ public struct Onboarding: Sendable {
     func rollBack(vaultId: String?, keepKeys: Bool, wasMissing: Bool) {
         try? FileManager.default.removeItem(at: vault.container.vaultFolder)
         if let vaultId, !keepKeys { try? keeper.removeAll(vaultId: vaultId) }
-        try? FileManager.default.removeItem(at: vault.container.deviceFolder.appendingPathComponent("sync-state.json"))
+        clearSyncRecords()
         guard !wasMissing else { return }
         try? vault.forgetVault()
         try? FileManager.default.removeItem(at: vaultIdFile)
@@ -197,9 +202,9 @@ public struct Onboarding: Sendable {
 
     /// Copy everything in `remote` into the local vault folder with the one Rust sync engine, which also refuses a
     /// remote that holds a different vault than the local one.
-    func pull(from remote: any BlobStoreFfi) async throws {
+    func pull(from remote: any BlobStoreFfi, entry: RemoteEntry = .drive) async throws {
         let local = try vault.openStore()
-        let state = FileSyncState(container: vault.container)
+        let state = FileSyncState(container: vault.container, remote: entry)
         do {
             try await Task.detached(priority: .userInitiated) {
                 let engine = SyncEngine(
@@ -218,7 +223,8 @@ public struct Onboarding: Sendable {
     static func map(_ failure: StoreFailure) -> Failure {
         switch failure {
         case .Unauthorized: .signIn
-        case .Unavailable, .NotYetAvailable: .offline
+        case .Unavailable: .offline
+        case .NotYetAvailable: .waitingForDownload
         default: .failed
         }
     }
@@ -226,7 +232,8 @@ public struct Onboarding: Sendable {
     static func map(_ failure: SyncFailure) -> Failure {
         switch failure {
         case .SignIn: .signIn
-        case .Offline, .NotDownloaded: .offline
+        case .Offline: .offline
+        case .NotDownloaded: .waitingForDownload
         case .ForeignVault: .foreignVault
         case .Damaged: .damaged
         default: .failed
@@ -239,7 +246,7 @@ public struct Onboarding: Sendable {
     /// has keys for this vault (a restore after the folder went missing) keeps them, so its record in the vault
     /// still matches. The person then unlocks with the master password and the Secret Key; the unlock adds this
     /// device's record when the vault has none.
-    public func openFromRemote(_ remote: any BlobStoreFfi) async throws {
+    public func openFromRemote(_ remote: any BlobStoreFfi, entry: RemoteEntry = .drive) async throws {
         guard let found = try inspect(remote: remote) else { throw Failure.noVaultInStorage }
         let wasMissing: Bool
         switch vault.status() {
@@ -254,11 +261,12 @@ public struct Onboarding: Sendable {
         }
         let hadKeys = ((try? keeper.deviceKeys(vaultId: found.vaultId)) ?? nil) != nil
         do {
-            try await pull(from: remote)
+            try await pull(from: remote, entry: entry)
             guard case .ready(let vaultId, _) = vault.status(), vaultId == found.vaultId else { throw Failure.failed }
             if !hadKeys { try keeper.saveDeviceKeys(try DeviceKeysHandle.generate(), vaultId: vaultId) }
             try vault.markVaultPresent()
             try remember(vaultId: vaultId)
+            RemoteList(container: vault.container).add(entry)
         } catch {
             rollBack(vaultId: found.vaultId, keepKeys: hadKeys, wasMissing: wasMissing)
             throw (error as? Failure) ?? Failure.failed
@@ -267,15 +275,28 @@ public struct Onboarding: Sendable {
 
     // MARK: Recovery
 
-    /// "Remove this vault from this iPhone": forgets the keys, the Secret Key, Face ID and the local copy of the
-    /// vault. The vault in Google Drive and the Emergency Kit are never touched. Afterwards `status()` is `noVault`.
+    /// Forget every remote of this phone and what each remembered about its syncing. The remotes' own copies of
+    /// the vault are never touched.
+    func clearSyncRecords() {
+        let device = vault.container.deviceFolder
+        RemoteList(container: vault.container).removeAll()
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: device.path)) ?? []
+        for name in names where name.hasPrefix("sync-state") || name == "remotes.json" {
+            try? FileManager.default.removeItem(at: device.appendingPathComponent(name))
+        }
+    }
+
+    /// "Remove this vault from this iPhone": forgets the keys, the Secret Key, Face ID, the list of remotes and the
+    /// local copy of the vault. The vault in Google Drive or an iCloud Drive folder and the Emergency Kit are never
+    /// touched. Afterwards `status()` is `noVault`.
     public func removeFromThisPhone() throws {
         let id = rememberedVaultId ?? { if case .ready(let id, _) = vault.status() { id } else { nil } }()
         quick.disable()
         if let id { try keeper.removeAll(vaultId: id) }
         let container = vault.container
         try? FileManager.default.removeItem(at: container.vaultFolder)
-        for name in ["sync-state.json", "password-throttle.json", "vault-id"] {
+        clearSyncRecords()
+        for name in ["password-throttle.json", "vault-id"] {
             try? FileManager.default.removeItem(at: container.deviceFolder.appendingPathComponent(name))
         }
         try vault.forgetVault()
