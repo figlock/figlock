@@ -46,7 +46,7 @@ struct SyncSettingsView: View {
                 Button {
                     picking = true
                 } label: {
-                    Label("Add an iCloud Drive folder", systemImage: "icloud")
+                    Label("Add an iCloud Drive folder", systemImage: "icloud").rowLabel()
                         .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
                 .disabled(busy)
@@ -54,7 +54,7 @@ struct SyncSettingsView: View {
                     Button {
                         Task { await signInToDrive() }
                     } label: {
-                        Label("Sign in to Google Drive", systemImage: "globe")
+                        Label("Sign in to Google Drive", systemImage: "globe").rowLabel()
                             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                     }
                     .disabled(busy || !context.drive.isConfigured)
@@ -170,6 +170,7 @@ private struct RemoteDetailView: View {
     @State private var confirmingUpload = false
     @State private var deleting = false
     @State private var picking = false
+    @State private var syncingNow = false
     @State private var notice: String?
     @State private var errorText: String?
 
@@ -257,17 +258,26 @@ private struct RemoteDetailView: View {
         let state = row.state
         Section {
             Button {
-                Task { await sync.sync(id) }
+                Task { await syncNow() }
             } label: {
-                Label("Sync now", systemImage: "arrow.triangle.2.circlepath")
-                    .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                Label {
+                    Text(syncingNow ? "Syncing" : "Sync now")
+                } icon: {
+                    if syncingNow {
+                        ProgressView()
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .rowLabel()
+                .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
             }
-            .disabled(state.phase == .syncing)
+            .disabled(syncingNow || state.phase == .syncing)
             if state.phase == .remoteLost {
                 Button {
                     confirmingUpload = true
                 } label: {
-                    Label("Upload this iPhone's copy again", systemImage: "icloud.and.arrow.up")
+                    Label("Upload this iPhone's copy again", systemImage: "icloud.and.arrow.up").rowLabel()
                         .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
             }
@@ -275,7 +285,7 @@ private struct RemoteDetailView: View {
                 Button {
                     picking = true
                 } label: {
-                    Label("Pick the folder again", systemImage: "folder")
+                    Label("Pick the folder again", systemImage: "folder").rowLabel()
                         .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
             }
@@ -290,14 +300,16 @@ private struct RemoteDetailView: View {
                 Button(role: .destructive) {
                     confirmingSignOut = true
                 } label: {
-                    Label("Sign out of Google Drive", systemImage: "rectangle.portrait.and.arrow.right")
-                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
+                    Label("Sign out of Google Drive", systemImage: "rectangle.portrait.and.arrow.right").rowLabel(
+                        destructive: true
+                    )
+                    .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
                 .tint(FLColor.danger)
                 Button(role: .destructive) {
                     deleting = true
                 } label: {
-                    Label("Delete from Google Drive", systemImage: "trash")
+                    Label("Delete from Google Drive", systemImage: "trash").rowLabel(destructive: true)
                         .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
                 .tint(FLColor.danger)
@@ -305,7 +317,7 @@ private struct RemoteDetailView: View {
                 Button(role: .destructive) {
                     confirmingRemoval = true
                 } label: {
-                    Label("Stop syncing with this folder", systemImage: "minus.circle")
+                    Label("Stop syncing with this folder", systemImage: "minus.circle").rowLabel(destructive: true)
                         .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
                 .tint(FLColor.danger)
@@ -318,6 +330,31 @@ private struct RemoteDetailView: View {
             )
         }
         .listRowBackground(FLColor.surface)
+    }
+
+    /// Run a sync the person asked for and say how it went, including when the answer is the same problem as
+    /// before, so a tap never looks like nothing happened.
+    private func syncNow() async {
+        notice = nil
+        errorText = nil
+        syncingNow = true
+        defer { syncingNow = false }
+        // Keep "Syncing" up long enough to be seen when the check fails at once.
+        async let shown: Void = { try? await Task.sleep(for: .milliseconds(700)) }()
+        await sync.sync(id)
+        await shown
+        guard let row = sync.row(id: id) else { return }
+        let state = row.state
+        switch state.phase {
+        case .synced:
+            notice = "Synced just now."
+        case .idle where state.lastSyncMs != nil:
+            notice = "Synced just now."
+        case .offline, .waitingForDownload:
+            errorText = "\(state.title). \(state.detail(for: row.entry))"
+        default:
+            errorText = "Sync did not work. \(state.title)."
+        }
     }
 
     private func picked(_ result: Result<URL, Error>) async {

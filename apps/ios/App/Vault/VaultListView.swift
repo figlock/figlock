@@ -199,7 +199,7 @@ private struct SyncChipRow: View {
             NavigationLink {
                 SyncSettingsView(context: context)
             } label: {
-                HStack(spacing: FLSpace.s2) {
+                VStack(alignment: .leading, spacing: FLSpace.s2) {
                     HStack(spacing: FLSpace.s2) {
                         Image(systemName: chip.state.symbol).accessibilityHidden(true)
                         Text(chip.title)
@@ -209,10 +209,12 @@ private struct SyncChipRow: View {
                     .padding(.horizontal, FLSpace.s3)
                     .frame(minHeight: FLSize.controlHeightLg)
                     .background(chip.state.tone.background, in: RoundedRectangle(cornerRadius: FLRadius.sm))
+                    // The whole sentence, wrapped, never cut off mid-way.
                     Text(chip.detail).font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                        .foregroundStyle(FLColor.textSecondary).lineLimit(2)
-                    Spacer(minLength: 0)
+                        .foregroundStyle(FLColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .accessibilityElement(children: .combine)
             .accessibilityHint("Opens sync settings")
