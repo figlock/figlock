@@ -183,7 +183,7 @@ public actor RemoteSyncCoordinator {
         do { local = try deps.vault.openStore() } catch { return Outcome(phase: .failed) }
         let engine = SyncEngine(
             local: local, remote: remote, state: FileSyncState(container: deps.vault.container, remote: entry),
-            clock: SystemClock(), ownDevice: deps.deviceId())
+            clock: SyncRunClock(), ownDevice: deps.deviceId())
         do {
             let report = try engine.run(confirmReupload: confirmReupload)
             return Outcome(phase: .synced, pulled: Int(report.pulled))
