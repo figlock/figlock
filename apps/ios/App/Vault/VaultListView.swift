@@ -1,8 +1,8 @@
 import Shared
 import SwiftUI
 
-/// The vault list (`design/prototypes/ios`, "list"): items newest first, a type filter, and search that appears
-/// when the list is pulled down.
+/// The vault list (`design/prototypes/ios`, "list"): items newest first, a type filter, and search that is always shown
+/// above the list.
 struct VaultListView: View {
     @Bindable var browser: VaultBrowser
     let copier: ClipboardCopier
@@ -66,9 +66,9 @@ struct VaultListView: View {
             ItemDetailHost(id: id, browser: browser, copier: copier)
         }
         .modifier(ItemManagementToolbar(browser: browser, copier: copier))
-        // Search sits above the list and shows when it is pulled down, as in the prototype.
+        // Search is always visible: a short list does not scroll, so pulling down could not reveal it.
         .searchable(
-            text: $browser.query, placement: .navigationBarDrawer(displayMode: .automatic),
+            text: $browser.query, placement: .navigationBarDrawer(displayMode: .always),
             prompt: "Search names, aliases, domains"
         )
         .textInputAutocapitalization(.never)

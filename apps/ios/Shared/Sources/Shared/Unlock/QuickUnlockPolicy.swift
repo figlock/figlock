@@ -122,3 +122,12 @@ public struct PasswordThrottle: Codable, Equatable, Sendable {
         self = PasswordThrottle()
     }
 }
+
+extension Date {
+    /// The start of the next whole minute, or this instant if it is already on a minute. A time shown without
+    /// seconds must not be earlier than the moment it stands for, or someone acting at that minute is too early.
+    public var roundedUpToMinute: Date {
+        let seconds = timeIntervalSinceReferenceDate
+        return Date(timeIntervalSinceReferenceDate: (seconds / 60).rounded(.up) * 60)
+    }
+}

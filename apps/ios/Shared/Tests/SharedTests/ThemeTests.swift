@@ -58,3 +58,12 @@ private func resolved(_ color: Color, _ style: UIUserInterfaceStyle) -> FLRGBA {
     #expect(resolved(FLShadow.md.color, .light).alpha == 0.1)
     #expect(resolved(FLShadow.md.color, .dark).alpha == 0.5)
 }
+
+@Test func fontsRescaleWithTheDynamicTypeSize() {
+    let body = FLFont.ui(FLText.base)
+    #expect(body.scaledSize(for: .accessibility5) > body.scaledSize(for: .large))
+    #expect(body.scaledSize(for: .xSmall) < body.scaledSize(for: .large))
+    let mono = FLFont.mono(FLText.base, relativeTo: .callout)
+    #expect(mono.scaledSize(for: .accessibility3) > mono.scaledSize(for: .large))
+    #expect(mono.design == .monospaced)
+}

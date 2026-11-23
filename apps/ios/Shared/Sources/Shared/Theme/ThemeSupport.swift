@@ -89,21 +89,80 @@ public enum FLMotion {
     }
 }
 
-/// Fonts: SF Pro for the UI and SF Mono for secrets, scaled with the person's Dynamic Type setting.
+/// A font at a token size that scales with Dynamic Type. It is resolved against the environment's
+/// `dynamicTypeSize` when applied with `View.font(_:)`, so text follows a text size change made while the app
+/// is open (a plain `Font.system(size:)` keeps the size it had when the view body ran).
+public struct FLFontSpec: Equatable, Sendable {
+    public let size: CGFloat
+    public let weight: Font.Weight
+    public let design: Font.Design
+    public let style: UIFont.TextStyle
+
+    /// The point size at `dynamicTypeSize`, scaled like `style`.
+    public func scaledSize(for dynamicTypeSize: DynamicTypeSize) -> CGFloat {
+        UIFontMetrics(forTextStyle: style).scaledValue(
+            for: size,
+            compatibleWith: UITraitCollection(preferredContentSizeCategory: dynamicTypeSize.contentSizeCategory))
+    }
+
+    /// The font at `dynamicTypeSize`.
+    public func font(for dynamicTypeSize: DynamicTypeSize) -> Font {
+        .system(size: scaledSize(for: dynamicTypeSize), weight: weight, design: design)
+    }
+}
+
+extension DynamicTypeSize {
+    /// The UIKit category with the same step, so `UIFontMetrics` can scale for it.
+    var contentSizeCategory: UIContentSizeCategory {
+        switch self {
+        case .xSmall: .extraSmall
+        case .small: .small
+        case .medium: .medium
+        case .large: .large
+        case .xLarge: .extraLarge
+        case .xxLarge: .extraExtraLarge
+        case .xxxLarge: .extraExtraExtraLarge
+        case .accessibility1: .accessibilityMedium
+        case .accessibility2: .accessibilityLarge
+        case .accessibility3: .accessibilityExtraLarge
+        case .accessibility4: .accessibilityExtraExtraLarge
+        case .accessibility5: .accessibilityExtraExtraExtraLarge
+        @unknown default: .large
+        }
+    }
+}
+
+/// Fonts: SF Pro for the UI and SF Mono for secrets, scaled with the person's Dynamic Type setting. Pass the
+/// result to `.font(_:)`.
 public enum FLFont {
     /// The UI font at a token size, scaled like `style` so it follows Dynamic Type.
     public static func ui(
         _ size: CGFloat, weight: Font.Weight = FLWeight.regular, relativeTo style: UIFont.TextStyle = .body
-    ) -> Font {
-        .system(size: UIFontMetrics(forTextStyle: style).scaledValue(for: size), weight: weight)
+    ) -> FLFontSpec {
+        FLFontSpec(size: size, weight: weight, design: .default, style: style)
     }
 
     /// The monospaced font for secrets, tokens and codes, scaled like `style`.
     public static func mono(
         _ size: CGFloat, weight: Font.Weight = FLWeight.regular, relativeTo style: UIFont.TextStyle = .body
-    ) -> Font {
-        .system(
-            size: UIFontMetrics(forTextStyle: style).scaledValue(for: size), weight: weight, design: .monospaced)
+    ) -> FLFontSpec {
+        FLFontSpec(size: size, weight: weight, design: .monospaced, style: style)
+    }
+}
+
+private struct FLFontModifier: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let spec: FLFontSpec
+
+    func body(content: Content) -> some View {
+        content.font(spec.font(for: dynamicTypeSize))
+    }
+}
+
+extension View {
+    /// Sets a token font that rescales live when the Dynamic Type size changes.
+    public func font(_ spec: FLFontSpec) -> some View {
+        modifier(FLFontModifier(spec: spec))
     }
 }
 

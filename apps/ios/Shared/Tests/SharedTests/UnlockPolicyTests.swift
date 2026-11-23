@@ -86,3 +86,10 @@ private func decide(_ state: Policy, after secs: Double, boot: String = "boot-1"
     for _ in 0..<30 { throttle.recordFailure(at: start) }
     #expect(throttle.pausedUntil == start.addingTimeInterval(3600))
 }
+
+@Test func aRetryTimeIsRoundedUpToTheNextMinute() {
+    let minute = Date(timeIntervalSinceReferenceDate: 600)
+    #expect(minute.addingTimeInterval(15).roundedUpToMinute == minute.addingTimeInterval(60))
+    #expect(minute.addingTimeInterval(0.5).roundedUpToMinute == minute.addingTimeInterval(60))
+    #expect(minute.roundedUpToMinute == minute)
+}
