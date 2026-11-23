@@ -26,10 +26,10 @@ public enum FolderProblem: Error, Equatable, Sendable {
 /// store works through file coordination. Nothing is ever created at the folder itself.
 public final class OpenedFolder: @unchecked Sendable {
     public let url: URL
-    public let store: any BlobStoreFfi
+    public let store: CoordinatedFolderStore
     private let scoped: Bool
 
-    fileprivate init(url: URL, scoped: Bool, store: any BlobStoreFfi) {
+    fileprivate init(url: URL, scoped: Bool, store: CoordinatedFolderStore) {
         self.url = url
         self.scoped = scoped
         self.store = store
@@ -118,11 +118,17 @@ public enum FolderRemote {
     /// What may become a remote of a vault that already exists on this phone: an empty folder, or one that holds
     /// this vault. A folder of other files, or another vault, is refused. A `vault.json` that is still downloading
     /// cannot be compared yet and is let through; the first sync compares it before anything is merged.
-    public static func checkCanHold(vaultId: String, in store: any BlobStoreFfi) throws {
+    public static func checkCanHold(vaultId: String, 
+in store: CoordinatedFolderStore) throws {
+        let anything: Bool
         let top: [BlobEntry]
-        do { top = try store.list(prefix: "") } catch { throw FolderProblem.denied }
-        if top.isEmpty { return }
+        do {
+            anything = try store.hasAnyContent()
+            top = try store.list(prefix: "")
+        } catch { throw FolderProblem.denied }
+        if !anything { return }
         guard top.contains(where: { $0.path == "vault.json" }) else { throw FolderProblem.notEmpty }
+
         do {
             let found = try vaultIdentity(vaultJson: try store.get(path: "vault.json"))
             if found.vaultId != vaultId { throw FolderProblem.differentVault }

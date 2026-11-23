@@ -226,6 +226,17 @@ public final class CoordinatedFolderStore: BlobStoreFfi, @unchecked Sendable {
         }
     }
 
+    /// Whether the folder holds anything at all, whatever the names: other apps' files, dot-files and sub folders
+    /// count. Only Finder's `.DS_Store` and `.localized` and this store's own `.tmp-*` files are ignored.
+    public func hasAnyContent() throws -> Bool {
+        try requireRoot()
+        return try coordinate(reading: root) { directory in
+            try FileManager.default.contentsOfDirectory(atPath: directory.path).contains {
+                $0 != ".DS_Store" && $0 != ".localized" && !$0.hasPrefix(".tmp-")
+            }
+        }
+    }
+
     // MARK: Listing helpers
 
     private func relativePath(of item: URL) -> String? {

@@ -215,6 +215,16 @@ func hidden(_ url: URL, _ name: String) -> URL { url.appendingPathComponent(name
         try FolderRemote.checkCanHold(vaultId: vaultId, in: CoordinatedFolderStore(root: busy))
     }
 
+    let named = try temporaryFolder()
+    defer { try? FileManager.default.removeItem(at: named) }
+    try Data("x".utf8).write(to: named.appendingPathComponent("My Notes.pdf"))
+    try Data("x".utf8).write(to: named.appendingPathComponent("IMG_001.JPG"))
+    try FileManager.default.createDirectory(
+        at: named.appendingPathComponent("Sub Folder"), withIntermediateDirectories: false)
+    #expect(throws: FolderProblem.notEmpty, "files a store cannot list still make a folder non-empty") {
+        try FolderRemote.checkCanHold(vaultId: vaultId, in: CoordinatedFolderStore(root: named))
+    }
+
     let local = try seeded.vault.openStore()
     try CoordinatedFolderStore(root: same).putNew(path: "vault.json", bytes: local.get(path: "vault.json"))
     try FolderRemote.checkCanHold(vaultId: vaultId, in: CoordinatedFolderStore(root: same))
