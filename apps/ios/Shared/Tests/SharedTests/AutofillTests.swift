@@ -138,6 +138,31 @@ private actor RecordingStore: CredentialIdentityStoring {
     try await eventually { await store.replaced.count == 2 }
 }
 
+private actor SlowOrderedStore: CredentialIdentityStoring {
+    private(set) var events: [String] = []
+    func replace(with identities: [CredentialIdentity]) async -> Bool {
+        events.append("replace-start")
+        try? await Task.sleep(for: .milliseconds(200))
+        events.append("replace-end")
+        return true
+    }
+    func removeAll() { events.append("removeAll") }
+}
+
+@MainActor
+@Test func aClearDuringASlowWriteRunsAfterItAndTheSameVaultIsWrittenAgain() async throws {
+    let store = SlowOrderedStore()
+    let sync = CredentialIdentitySync(store: store)
+    let items = [item("a", urls: ["https://example.com"])]
+    sync.update(from: items)
+    try await eventually { await store.events == ["replace-start"] }
+    sync.clear()
+    sync.update(from: items)
+    try await eventually { await store.events.count == 5 }
+    let events = await store.events
+    #expect(events == ["replace-start", "replace-end", "removeAll", "replace-start", "replace-end"])
+}
+
 /// A phone with logins in the vault and Face ID turned on, opened from the extension's side.
 private struct AutofillPhone {
     let phone: Phone
