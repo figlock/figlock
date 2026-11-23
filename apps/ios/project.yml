@@ -53,12 +53,23 @@ targets:
         INFOPLIST_FILE: AutofillExtension/Info.plist
         CODE_SIGN_ENTITLEMENTS: AutofillExtension/AutofillExtension.entitlements
         # The extension is a separate process with a small memory limit (ADR-0041): keep it lean.
+  FigLockUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies:
+      - target: FigLock
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.figlock.ios.uitests
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: YES
 schemes:
   FigLock:
     build:
       targets:
         FigLock: all
     test:
-      targets: []
+      targets: [FigLockUITests]
     run:
       config: Debug

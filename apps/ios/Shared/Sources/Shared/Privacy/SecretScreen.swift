@@ -32,12 +32,17 @@ public struct SecretScreen<Content: View>: UIViewRepresentable {
 
 public final class SecretHostView<Content: View>: UIView {
     let host: UIHostingController<Content>
-    private let field = UITextField()
+    private let field = CaptureLayerField()
 
     init(rootView: Content) {
         host = UIHostingController(rootView: rootView)
         super.init(frame: .zero)
         host.view.backgroundColor = .clear
+        // The secure field is only a capture shield. Without this the whole app shows up to VoiceOver and UI tests
+        // as one secure text field with nothing inside it.
+        field.isAccessibilityElement = false
+        isAccessibilityElement = false
+        accessibilityElements = [host.view as Any]
         field.isSecureTextEntry = true
         field.backgroundColor = .clear
         field.translatesAutoresizingMaskIntoConstraints = false
@@ -63,6 +68,15 @@ public final class SecretHostView<Content: View>: UIView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
+}
+
+/// The secure field whose layer hides the app from captures. It exists only for that layer, so it must never take
+/// focus: a tap on the app content could otherwise make it the first responder, which raises the keyboard and a
+/// caret on screens that have no text field, and keeps them there.
+final class CaptureLayerField: UITextField {
+    override var canBecomeFirstResponder: Bool { false }
+    override func caretRect(for position: UITextPosition) -> CGRect { .zero }
+    override func selectionRects(for range: UITextRange) -> [UITextSelectionRect] { [] }
 }
 
 /// True while the screen is being recorded, mirrored or AirPlayed.

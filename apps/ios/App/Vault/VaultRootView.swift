@@ -17,11 +17,13 @@ struct VaultRootView: View {
         NavigationStack {
             if let browser {
                 VaultListView(browser: browser, copier: copier, lock: lock, sync: sync)
-                    .environment(editor)
             } else {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(FLColor.bg)
             }
         }
+        // Above the stack, not on the list: a pushed detail screen takes its environment from the stack, so the
+        // item actions (edit, delete) only see the editor from here.
+        .environment(editor)
         .task {
             guard browser == nil, let session = lock.session else { return }
             let store = try? vault.openStore()
