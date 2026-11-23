@@ -138,7 +138,7 @@ struct LockScreen: View {
         if let until = pausedUntil {
             return Message(
                 text: "Password entry is paused. Too many wrong passwords. You can try again at "
-                    + until.formatted(date: .omitted, time: .shortened)
+                    + until.roundedUpToMinute.formatted(date: .omitted, time: .shortened)
                     + (faceIDReady ? ". Face ID still works." : "."),
                 isError: true)
         }
