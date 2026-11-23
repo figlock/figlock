@@ -89,7 +89,7 @@ remote-lost confirmation, so one failing never blocks another. `CoordinatedFolde
 `BlobStoreFfi` through `NSFileCoordinator`: an evicted file is `NotYetAvailable` after a download request, never
 missing; the root folder is never created. `FolderRemote` holds the real-path check (a folder may not be, contain or
 sit inside the local vault, checked on every open), the iCloud-off check and the rule that an existing vault goes only
-to an empty folder or one holding it. The app side is `App/Sync`: `SyncModel` (foreground loop, per-remote rows),
+to an empty folder (any other file, even one with a non-store name, makes it non-empty) or one holding it. The app side is `App/Sync`: `SyncModel` (foreground loop, per-remote rows),
 `BackgroundSync` (BGAppRefresh, `com.figlock.ios.sync`) and the wording of each state.
 
 Debug builds accept `-figlock-demo-remotes` (with `-figlock-seed-demo -figlock-unlock-demo`) to add one working and
