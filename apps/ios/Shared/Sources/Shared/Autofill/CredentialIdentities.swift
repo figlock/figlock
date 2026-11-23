@@ -69,6 +69,7 @@ public struct SystemCredentialIdentityStore: CredentialIdentityStoring {
 public final class CredentialIdentitySync {
     private let store: any CredentialIdentityStoring
     private var lastDigest: Data?
+    private var pendingDigest: Data?
     private var generation = 0
     private var tail: Task<Void, Never>?
 
@@ -86,16 +87,20 @@ public final class CredentialIdentitySync {
             }
         }
         let digest = Data(hasher.finalize())
-        guard digest != lastDigest else { return }
+        guard digest != lastDigest, digest != pendingDigest else { return }
         generation += 1
         let current = generation
+        pendingDigest = digest
         enqueue { [store] in
-            if await store.replace(with: identities) { self.remember(digest, ifGeneration: current) }
+            let wrote = await store.replace(with: identities)
+            self.finish(digest, wrote: wrote, ifGeneration: current)
         }
     }
 
-    private func remember(_ digest: Data, ifGeneration current: Int) {
-        if current == generation { lastDigest = digest }
+    private func finish(_ digest: Data, wrote: Bool, ifGeneration current: Int) {
+        guard current == generation else { return }
+        pendingDigest = nil
+        if wrote { lastDigest = digest }
     }
 
     private func enqueue(_ work: @escaping @MainActor () async -> Void) {
@@ -109,6 +114,7 @@ public final class CredentialIdentitySync {
     public func clear() {
         generation += 1
         lastDigest = nil
+        pendingDigest = nil
         enqueue { [store] in await store.removeAll() }
     }
 }
