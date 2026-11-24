@@ -75,7 +75,7 @@ struct EmergencyKitView: View {
         .navigationTitle("Secret Key")
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { reveal.cleanUp() }
+            if phase != .active { reveal.cleanUpForScenePhase(isBackground: phase == .background) }
         }
         .onDisappear { reveal.cleanUp() }
     }

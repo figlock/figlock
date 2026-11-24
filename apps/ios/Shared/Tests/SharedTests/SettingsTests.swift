@@ -233,6 +233,45 @@ private func twoDevices(_ phone: Phone) async throws -> (session: VaultSession, 
 }
 
 @MainActor
+@Test func theScenePausingForFaceIDDoesNotThrowAwayTheSecretKey() async throws {
+    // The Face ID sheet takes the scene to inactive while it is up; the reveal it asks for must still show (FIG-233).
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let authenticator = GatedAuthenticator()
+    let reveal = SecretKeyReveal(
+        service: SettingsService(vault: phone.vault, keeper: phone.keeper), authenticator: authenticator,
+        sleep: { _ in })
+
+    let pending = Task { await reveal.show() }
+    await waitFor { await authenticator.pending > 0 }
+    reveal.cleanUpForScenePhase(isBackground: false)
+    await authenticator.release()
+    #expect(await pending.value)
+    #expect(reveal.shown == phone.secretKey)
+
+    // With nothing pending, leaving the foreground masks it again.
+    reveal.cleanUpForScenePhase(isBackground: false)
+    #expect(reveal.shown == nil)
+}
+
+@MainActor
+@Test func theAppGoingToTheBackgroundDuringFaceIDStillCancelsTheSecretKey() async throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let authenticator = GatedAuthenticator()
+    let reveal = SecretKeyReveal(
+        service: SettingsService(vault: phone.vault, keeper: phone.keeper), authenticator: authenticator,
+        sleep: { _ in })
+
+    let pending = Task { await reveal.show() }
+    await waitFor { await authenticator.pending > 0 }
+    reveal.cleanUpForScenePhase(isBackground: true)
+    await authenticator.release()
+    #expect(await pending.value == false)
+    #expect(reveal.shown == nil)
+}
+
+@MainActor
 @Test func aPhoneWithoutAKeptSecretKeyShowsNothing() async throws {
     let phone = try Phone.make()
     defer { phone.cleanup() }
