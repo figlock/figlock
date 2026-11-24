@@ -146,11 +146,14 @@ struct CreatePasswordView: View {
                     .accessibilityLabel(reveal ? "Hide master password" : "Show master password")
                 }
             }
-            Text(model.password.count >= 12 ? "Long enough." : "Use at least 12 characters.")
-                .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                .foregroundStyle(
-                    model.password.count >= 12
-                        ? FLColor.success : model.password.isEmpty ? FLColor.textTertiary : FLColor.danger)
+            Text(
+                VaultPasswordRule.isLongEnough(model.password)
+                    ? "Long enough." : "Use at least \(VaultPasswordRule.minimumLength) characters."
+            )
+            .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+            .foregroundStyle(
+                VaultPasswordRule.isLongEnough(model.password)
+                    ? FLColor.success : model.password.isEmpty ? FLColor.textTertiary : FLColor.danger)
             LabeledField(label: "Confirm master password") {
                 SecureField("", text: $model.confirmation).textContentType(.newPassword)
             }

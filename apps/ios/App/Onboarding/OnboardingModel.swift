@@ -110,7 +110,7 @@ final class OnboardingModel {
     // MARK: Create
 
     var passwordsMatch: Bool { password == confirmation }
-    var canContinuePassword: Bool { password.count >= 12 && passwordsMatch && !busy }
+    var canContinuePassword: Bool { VaultPasswordRule.isLongEnough(password) && passwordsMatch && !busy }
 
     func startCreation() async {
         guard canContinuePassword else { return }
