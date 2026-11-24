@@ -31,7 +31,7 @@ a full unlock, which is far too much for the same phone coming back.
    unlock writes a new record, it sets `replaces` to that id. A first install, or a phone whose id is gone (a
    new phone, a wiped keychain), writes no `replaces`, which is right: it is a new device.
 4. Rotations re-sign the remaining records and keep `replaces`. A client that does not know the member and
-   re-signs a record drops it, which only brings the earlier entry back in the list; it is never a failure. A
+   re-signs a record drops it, which only brings the earlier entry back in the list (as a second entry of the same phone); it is never a failure. A
    record with `replaces` verifies in any client, since the signature is over the JCS of the whole record, so
    `min_format_version` does not change.
 5. A device that is revoked is not a device again (`pairing-recovery.md` 4.6): it writes no record, so it
