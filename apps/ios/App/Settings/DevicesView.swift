@@ -79,7 +79,7 @@ struct DevicesView: View {
                 Notice(text: notice, isError: false).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             }
             Section {
-                ForEach(model.rows.filter { !$0.isRevoked && !$0.isEarlierEntry }) { row in
+                ForEach(model.rows.filter { !$0.isRevoked }) { row in
                     NavigationLink {
                         DeviceDetailView(model: model, id: row.id)
                     } label: {
@@ -92,26 +92,6 @@ struct DevicesView: View {
                 Text("To add a device, open FigLock on it and choose Join my vault by pairing.")
             }
             .listRowBackground(FLColor.surface)
-
-            let earlier = model.rows.filter(\.isEarlierEntry)
-            if !earlier.isEmpty {
-                Section {
-                    ForEach(earlier) { row in
-                        NavigationLink {
-                            DeviceDetailView(model: model, id: row.id)
-                        } label: {
-                            DeviceRowView(row: row)
-                        }
-                    }
-                } header: {
-                    Text("Earlier entries").textCase(nil)
-                } footer: {
-                    Text(
-                        "The same device, added to your vault again. These entries are no longer used. Revoke one to remove it."
-                    )
-                }
-                .listRowBackground(FLColor.surface)
-            }
 
             let revoked = model.rows.filter(\.isRevoked)
             if !revoked.isEmpty {
@@ -164,10 +144,8 @@ private struct DeviceRowView: View {
 
     /// The name is what a person goes by; the fingerprint is for the detail screen, not the list.
     private var subtitle: String? {
-        if let revokedAt = row.revokedAt {
-            return "Revoked \(revokedAt.formatted(date: .abbreviated, time: .omitted))"
-        }
-        return row.isEarlierEntry ? "Earlier entry" : nil
+        guard let revokedAt = row.revokedAt else { return nil }
+        return "Revoked \(revokedAt.formatted(date: .abbreviated, time: .omitted))"
     }
 }
 
