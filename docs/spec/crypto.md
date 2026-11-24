@@ -227,7 +227,10 @@ A reader MUST verify, in order: (1) `device_id` has a valid, non-revoked device 
 ### 7.4 Device records
 
 `devices/<device_id>.json` holds `device_id`, name, `sign_pub` (Ed25519), `agree_pub` (X25519), `added_at`
-and `epoch_added`. The authority key signs the JCS form of the record:
+and `epoch_added`, and optionally `replaces` (ADR-0044): the 32 hex character id of an earlier entry of the
+same device, written when a device that was removed from the vault is added again. It is a hint for the device
+list only (that entry is shown as an earlier one of this device) and grants nothing; one equal to the record's
+own id or that does not read as an id is ignored. The authority key signs the JCS form of the record:
 
 ```
 sig = Ed25519.sign(authority_key, "figlock/v1/device-record" || 0x00 || JCS(record))

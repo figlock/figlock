@@ -136,6 +136,7 @@ struct RecoveryScreen: View {
                 try await service.openFromRemote(try drive.remote())
             case .startOver, .remove:
                 try service.removeFromThisPhone()
+                drive.signOut()
             }
             lock.vaultDidChange()
         } catch let failure as Onboarding.Failure {

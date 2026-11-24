@@ -267,6 +267,7 @@ fn clone_device(v: &figlock_core::Vault) -> figlock_core::DeviceKeys {
         device_id: d.device_id,
         sign_seed: figlock_core::Key::from_bytes(*d.sign_seed.expose()),
         agree_priv: figlock_core::Key::from_bytes(*d.agree_priv.expose()),
+        replaces: None,
     }
 }
 

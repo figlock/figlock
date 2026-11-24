@@ -365,6 +365,7 @@ fn a_device_id_already_in_use_is_refused() {
         device_id: *a.device_id(),
         sign_seed: Key::random().unwrap(),
         agree_priv: Key::random().unwrap(),
+        replaces: None,
     };
     let (mut invite, offer) = Invite::create(a.vault_id(), T0).unwrap();
     let (_, req) = JoinAttempt::begin(&offer.code, &offer.inv, clash, "Clone", T0 + 1).unwrap();

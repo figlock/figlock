@@ -264,6 +264,13 @@ public final class GoogleAccessTokens: AccessTokens, @unchecked Sendable {
         setCache(nil)
     }
 
+    /// Delete a kept Google grant from `store` without a client id or a running sign-in: what "remove this vault from
+    /// this iPhone" needs, since a build or a state with no sign-in can still hold a refresh token. Only the token
+    /// on this phone goes; nothing in Drive is touched.
+    public static func forgetGrant(in store: any SecretStore) {
+        try? store.delete(account)
+    }
+
     private func setCache(_ value: Cached?) {
         lock.lock()
         defer { lock.unlock() }

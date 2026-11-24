@@ -607,6 +607,7 @@ fn own_files_replay_after_unlock_to_restore_the_chain() {
         device_id: *a.device_id(),
         sign_seed: figlock_core::Key::from_bytes(*a.device_keys().sign_seed.expose()),
         agree_priv: figlock_core::Key::from_bytes(*a.device_keys().agree_priv.expose()),
+        replaces: None,
     };
     let id = a
         .add_item(ItemType::Note, "personal", &[("title", "one")], T0 + 10)

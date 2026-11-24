@@ -79,7 +79,7 @@ struct DevicesView: View {
                 Notice(text: notice, isError: false).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             }
             Section {
-                ForEach(model.rows.filter { !$0.isRevoked }) { row in
+                ForEach(model.rows.filter { !$0.isRevoked && !$0.isEarlierEntry }) { row in
                     NavigationLink {
                         DeviceDetailView(model: model, id: row.id)
                     } label: {
@@ -92,6 +92,26 @@ struct DevicesView: View {
                 Text("To add a device, open FigLock on it and choose Join my vault by pairing.")
             }
             .listRowBackground(FLColor.surface)
+
+            let earlier = model.rows.filter(\.isEarlierEntry)
+            if !earlier.isEmpty {
+                Section {
+                    ForEach(earlier) { row in
+                        NavigationLink {
+                            DeviceDetailView(model: model, id: row.id)
+                        } label: {
+                            DeviceRowView(row: row)
+                        }
+                    }
+                } header: {
+                    Text("Earlier entries").textCase(nil)
+                } footer: {
+                    Text(
+                        "The same device, added to your vault again. These entries are no longer used. Revoke one to remove it."
+                    )
+                }
+                .listRowBackground(FLColor.surface)
+            }
 
             let revoked = model.rows.filter(\.isRevoked)
             if !revoked.isEmpty {
@@ -124,10 +144,12 @@ private struct DeviceRowView: View {
                 Text(row.displayName)
                     .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
                     .foregroundStyle(row.isRevoked ? FLColor.textSecondary : FLColor.text)
-                Text(subtitle)
-                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                    .foregroundStyle(FLColor.textSecondary)
-                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+                        .foregroundStyle(FLColor.textSecondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: FLSpace.s2)
             if row.isThisDevice {
@@ -140,11 +162,12 @@ private struct DeviceRowView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var subtitle: String {
+    /// The name is what a person goes by; the fingerprint is for the detail screen, not the list.
+    private var subtitle: String? {
         if let revokedAt = row.revokedAt {
             return "Revoked \(revokedAt.formatted(date: .abbreviated, time: .omitted))"
         }
-        return row.fingerprint
+        return row.isEarlierEntry ? "Earlier entry" : nil
     }
 }
 

@@ -86,5 +86,6 @@ pub fn clone_keys(v: &Vault) -> DeviceKeys {
         device_id: k.device_id,
         sign_seed: Key::from_bytes(*k.sign_seed.expose()),
         agree_priv: Key::from_bytes(*k.agree_priv.expose()),
+        replaces: None,
     }
 }

@@ -301,6 +301,7 @@ fn pair_and_revoke(store: impl BlobStore) {
         device_id: *b.vault.device_id(),
         sign_seed: figlock_core::Key::from_bytes(*b.vault.device_keys().sign_seed.expose()),
         agree_priv: figlock_core::Key::from_bytes(*b.vault.device_keys().agree_priv.expose()),
+        replaces: None,
     };
     let (vault, fresh) =
         Vault::unlock(&vault_json, &pw, &sk, keys, "Phone", &records, T0 + 700).unwrap();

@@ -281,7 +281,7 @@ func lastTwoGroups(of secretKey: String) -> String {
     try phone.onboarding.removeFromThisPhone()
 
     #expect(phone.vault.status() == .noVault)
-    #expect(phone.secrets.accounts.isEmpty)
+    #expect(phone.secrets.accounts.allSatisfy { $0.hasPrefix("earlier-device.") }, "only the phone's own id stays")
     #expect(phone.quick.status() == .off)
     #expect(!phone.chip.hasKey)
     #expect(phone.onboarding.rememberedVaultId == nil)
@@ -301,7 +301,7 @@ func lastTwoGroups(of secretKey: String) -> String {
 
     try phone.onboarding.removeFromThisPhone()
     #expect(phone.vault.status() == .noVault)
-    #expect(phone.secrets.accounts.isEmpty)
+    #expect(phone.secrets.accounts.allSatisfy { $0.hasPrefix("earlier-device.") }, "only the phone's own id stays")
 }
 
 // MARK: All or nothing

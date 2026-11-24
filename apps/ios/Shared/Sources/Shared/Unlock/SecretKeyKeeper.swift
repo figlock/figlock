@@ -18,6 +18,7 @@ public struct SecretKeyKeeper: Sendable {
 
     private func secretKeyAccount(_ vaultId: String) -> String { "secret-key.\(vaultId)" }
     private func deviceKeysAccount(_ vaultId: String) -> String { "device-keys.\(vaultId)" }
+    private func earlierDeviceAccount(_ vaultId: String) -> String { "earlier-device.\(vaultId)" }
 
     // MARK: Secret Key
 
@@ -67,20 +68,46 @@ public struct SecretKeyKeeper: Sendable {
 
     // MARK: Device keys
 
+    /// This device's keys. When the vault was removed from this phone and added again, the handle also carries the
+    /// id the phone had before, so the record the next unlock writes says it replaces that entry and the device
+    /// lists show one phone (ADR-0044). The id is not a key and is not part of what is stored with the keys.
     public func deviceKeys(vaultId: String) throws -> DeviceKeysHandle? {
+        guard let keys = try storedDeviceKeys(vaultId: vaultId) else { return nil }
+        if let earlier = try earlierDeviceId(vaultId: vaultId), earlier != keys.deviceId() {
+            try? keys.setReplaces(oldId: earlier)
+        }
+        return keys
+    }
+
+    private func storedDeviceKeys(vaultId: String) throws -> DeviceKeysHandle? {
         guard let data = try store.read(deviceKeysAccount(vaultId)) else { return nil }
         return try? DeviceKeysHandle.fromBytes(bytes: data)
+    }
+
+    /// The id this phone had in the vault before it was removed from it, if any. Only an id: no key material.
+    public func earlierDeviceId(vaultId: String) throws -> String? {
+        guard let data = try store.read(earlierDeviceAccount(vaultId)) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     public func saveDeviceKeys(_ keys: DeviceKeysHandle, vaultId: String) throws {
         try store.write(deviceKeysAccount(vaultId), keys.toBytes())
     }
 
-    /// Remove everything kept for the vault, for "remove this vault from this iPhone".
+    /// Remove everything kept for the vault, for a half-finished setup that is rolled back. Nothing stays.
     public func removeAll(vaultId: String) throws {
         try store.delete(secretKeyAccount(vaultId))
         try store.delete(deviceKeysAccount(vaultId))
         try setOptedOut(false, vaultId: vaultId)
+    }
+
+    /// Remove everything kept for the vault, for "remove this vault from this iPhone". The device's own id (never
+    /// a key) stays, so adding the vault again marks the old entry as this phone's (ADR-0044).
+    public func removeForRemoval(vaultId: String) throws {
+        if let own = try? storedDeviceKeys(vaultId: vaultId)?.deviceId() {
+            try? store.write(earlierDeviceAccount(vaultId), Data(own.utf8))
+        }
+        try removeAll(vaultId: vaultId)
     }
 
     // MARK: Opt-out file

@@ -1,7 +1,9 @@
 use figlock_core::{DeviceKeys, Key};
 use zeroize::Zeroizing;
 
-use crate::error::{FigLockError, Result, id_hex};
+use std::sync::Mutex;
+
+use crate::error::{FigLockError, Result, id_hex, parse_id};
 
 /// Length of the serialised device keys: device id (16) + signing seed (32) + agreement key (32).
 const DEVICE_KEYS_LEN: usize = 16 + 32 + 32;
@@ -14,6 +16,8 @@ pub struct DeviceKeysHandle {
     id: [u8; 16],
     sign_seed: Key,
     agree_priv: Key,
+    /// An earlier id of this same device (ADR-0044). Not a key, not in `to_bytes`: the app sets it before `unlock`.
+    replaces: Mutex<Option<[u8; 16]>>,
 }
 
 impl DeviceKeysHandle {
@@ -22,6 +26,7 @@ impl DeviceKeysHandle {
             id: keys.device_id,
             sign_seed: Key::from_bytes(*keys.sign_seed.expose()),
             agree_priv: Key::from_bytes(*keys.agree_priv.expose()),
+            replaces: Mutex::new(keys.replaces),
         }
     }
 
@@ -31,6 +36,7 @@ impl DeviceKeysHandle {
             device_id: self.id,
             sign_seed: Key::from_bytes(*self.sign_seed.expose()),
             agree_priv: Key::from_bytes(*self.agree_priv.expose()),
+            replaces: self.replaces.lock().map_or(None, |r| *r),
         }
     }
 }
@@ -58,6 +64,7 @@ impl DeviceKeysHandle {
             id,
             sign_seed: Key::from_slice(&bytes[16..48])?,
             agree_priv: Key::from_slice(&bytes[48..])?,
+            replaces: Mutex::new(None),
         })
     }
 
@@ -74,6 +81,15 @@ impl DeviceKeysHandle {
     /// The fingerprint both screens show while pairing (`XXXX-XXXX-XXXX-XXXX`).
     pub fn fingerprint(&self) -> String {
         figlock_core::device_fingerprint(&self.to_core().sign_public())
+    }
+
+    /// Say that this device was in the vault before under `old_id` (32 hex characters), so the record the next
+    /// `unlock` writes for it marks that earlier entry as this device's (ADR-0044). Pass `None` to clear it. A
+    /// hint for the device list only; it changes no key and is not saved with the keys.
+    pub fn set_replaces(&self, old_id: Option<String>) -> Result<()> {
+        let parsed = old_id.as_deref().map(parse_id).transpose()?;
+        *self.replaces.lock().map_err(|_| FigLockError::Failed)? = parsed;
+        Ok(())
     }
 
     /// The public device id, 32 hex characters.

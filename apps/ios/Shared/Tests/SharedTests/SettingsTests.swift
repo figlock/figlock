@@ -68,9 +68,10 @@ import Testing
 // MARK: Device list
 
 private func entry(
-    _ id: String, name: String?, revoked: UInt64? = nil, current: Bool = false
+    _ id: String, name: String?, revoked: UInt64? = nil, current: Bool = false, replacedBy: String? = nil
 ) -> DeviceEntry {
-    DeviceEntry(id: id, name: name, fingerprint: "fp-\(id)", revokedMs: revoked, isThisDevice: current)
+    DeviceEntry(
+        id: id, name: name, fingerprint: "fp-\(id)", revokedMs: revoked, isThisDevice: current, replacedBy: replacedBy)
 }
 
 @Test func theDeviceListPutsThisPhoneFirstAndRevokedLast() {
@@ -85,6 +86,21 @@ private func entry(
     #expect(rows[1].vaultName == "iPad")
     #expect(rows[4].displayName == "Unnamed device", "a revoked device from before ADR-0036 has no name")
     #expect(rows[3].isRevoked && !rows[0].isRevoked)
+}
+
+@Test func aPhoneAddedAgainShowsOnceAndItsEarlierEntriesAreSeparate() {
+    // The same iPhone added to the vault three times (ADR-0044): one main row, the older ones as earlier entries.
+    let rows = DeviceList.rows(
+        entries: [
+            entry("p1", name: "iPhone", replacedBy: "p2"), entry("p2", name: "iPhone", replacedBy: "p3"),
+            entry("p3", name: "iPhone", current: true), entry("m", name: "Mac"),
+            entry("old", name: "iPhone", revoked: 1_000, replacedBy: "p3"),
+        ],
+        nicknames: [:])
+    #expect(rows.map(\.id) == ["p3", "m", "p1", "p2", "old"])
+    #expect(rows.filter { !$0.isRevoked && !$0.isEarlierEntry }.map(\.id) == ["p3", "m"])
+    #expect(rows.filter(\.isEarlierEntry).map(\.id) == ["p1", "p2"])
+    #expect(!rows[4].isEarlierEntry, "a revoked entry stays in the revoked list")
 }
 
 // MARK: Revoking
@@ -305,6 +321,18 @@ private func twoDevices(_ phone: Phone) async throws -> (session: VaultSession, 
     #expect(reveal.kitFile == nil)
 }
 
+@MainActor
+@Test func removingTheVaultWorksWhenNotSignedInToGoogle() async throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let driveSecrets = MemorySecrets()
+    let onboarding = Onboarding(
+        vault: phone.vault, keeper: phone.keeper, quick: phone.quick, driveGrants: driveSecrets)
+    try onboarding.removeFromThisPhone()
+    #expect(phone.vault.status() == .noVault)
+    #expect(driveSecrets.accounts.isEmpty)
+}
+
 // MARK: Delete the Drive copy
 
 @MainActor
@@ -349,9 +377,15 @@ private func twoDevices(_ phone: Phone) async throws -> (session: VaultSession, 
 
     let settings = DeviceSettings(container: phone.container)
     try settings.setAutoLock(.oneHour)
-    let onboarding = Onboarding(vault: phone.vault, keeper: phone.keeper, quick: phone.quick)
+    // Signed in to Google Drive on this phone: the refresh token goes with the vault, the Drive copy stays.
+    let driveSecrets = MemorySecrets()
+    try driveSecrets.write("google-drive-refresh-token", Data("generated-refresh-token".utf8))
+    let onboarding = Onboarding(
+        vault: phone.vault, keeper: phone.keeper, quick: phone.quick, driveGrants: driveSecrets)
     try onboarding.removeFromThisPhone()
     settings.clear()
+    #expect(driveSecrets.accounts.isEmpty, "removing the vault signs out of Google")
+    #expect(try remote.get(path: "vault.json").count > 0, "the cloud copy is untouched")
 
     #expect(phone.vault.status() == .noVault)
     #expect((try? phone.keeper.secretKey(vaultId: phone.vaultId)) == nil)

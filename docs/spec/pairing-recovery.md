@@ -175,7 +175,8 @@ in the device list on the next sync, from where it can be revoked.
    message and marks the row of this device `revoked`. Desktop: a screen with "Add this Mac again with an
    invite code", "Keep reading my copy" and "Remove this vault from this Mac"; reading shows a banner with the
    same message. Removing the vault from the device forgets its config, device keys, kept Secret Key and quick
-   unlock entry, and leaves the vault folder and the storage copy alone. The desktop has no export of the readable
+   unlock entry, and leaves the vault folder and the storage copy alone. An app MAY keep the device's own id (never a key)
+   so that adding the vault again writes a record with `replaces` for it (ADR-0044); the iPhone app does. The desktop has no export of the readable
    copy yet: "Keep reading my copy" is how to get at the data there, and `figlock export` reads it from the CLI.
 
 ## 5. Emergency Kit
