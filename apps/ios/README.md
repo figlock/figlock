@@ -47,6 +47,17 @@ pasteboard still holds that copy. `SecretReveal` gates reveal behind Face ID or 
 needs no extra check (the vault is unlocked), revealing does. Face ID and the real pasteboard do not run on the
 simulator. The views are in `App/Vault`.
 
+## Forgot password
+
+The lock screen's "I forgot my password or Secret Key" opens `ForgotPasswordView`: Recovery Key code, new master
+password, new Emergency Kit, then the check of the new Secret Key. It is the desktop's Forgot flow over the same Rust
+`Vault::recover` (`start_recovery` in `figlock-ffi`); `Onboarding.startRecovery` / `prepareRecovery` /
+`commitRecovery` hold it. Nothing is written until the kit check passes; the commit replaces `vault.json`, drops the
+kept Secret Key, Face ID's blob and any password pause, and the app then unlocks with the new credentials. The old
+Recovery Key keeps working (the phone does not make a new one). Entry by cards and recovery of a vault that is only
+in Drive are not on the phone yet. Debug builds accept `-figlock-seed-recovery` (a throwaway vault with a made-up
+Recovery Key, `RecoveryFixture`) for the UI test.
+
 ## Editing items
 
 `ItemDraft` is what the editor works on (all six kinds, document files included); `changes()` turns it into the

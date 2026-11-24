@@ -68,6 +68,25 @@
             Task { await environment.sync.reload() }
         }
 
+        /// `-figlock-seed-recovery` puts the throwaway vault of `RecoveryFixture` (with a Recovery Key) on a phone
+        /// that has none, left locked, for the forgot-password UI test.
+        @MainActor
+        static func seedRecoveryIfRequested(_ environment: AppEnvironment) {
+            guard ProcessInfo.processInfo.arguments.contains("-figlock-seed-recovery"),
+                environment.startupError == nil, environment.vault.status() == .noVault
+            else { return }
+            do {
+                try environment.vault.openStore().putNew(path: "vault.json", bytes: RecoveryFixture.vaultJson)
+                try environment.vault.markVaultPresent()
+                if case .ready(let id, _) = environment.vault.status() {
+                    try environment.keeper.saveDeviceKeys(try DeviceKeysHandle.generate(), vaultId: id)
+                    try environment.keeper.keep(RecoveryFixture.oldSecretKey, vaultId: id)
+                }
+            } catch {
+                print("recovery seed failed")
+            }
+        }
+
         /// `-figlock-fresh` removes any vault from this phone first, so a UI test starts at onboarding.
         @MainActor
         static func freshIfRequested(_ environment: AppEnvironment) {
@@ -78,6 +97,8 @@
         @MainActor
         static func seedIfRequested(_ environment: AppEnvironment) {
             guard ProcessInfo.processInfo.arguments.contains("-figlock-seed-demo") else { return }
+            // Whatever an earlier run left (a recovered vault, a created one) goes first, so the demo is the demo.
+            try? environment.onboarding.removeFromThisPhone()
             // Every launch starts with no password pause left over from an earlier run (UI tests trip it on purpose).
             try? FileManager.default.removeItem(
                 at: environment.vault.container.deviceFolder.appendingPathComponent("password-throttle.json"))

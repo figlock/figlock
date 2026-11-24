@@ -4,12 +4,14 @@ import SwiftUI
 /// The unlock screen (`design/prototypes/ios`, "unlock"): Face ID first, the master password as the fallback.
 struct LockScreen: View {
     let lock: AppLock
+    let environment: AppEnvironment
 
     @State private var password = ""
     @State private var secretKey = ""
     @State private var showPassword = false
     @State private var revealPassword = false
     @State private var working = false
+    @State private var forgot = false
     @FocusState private var focus: Field?
 
     private enum Field { case password, secretKey }
@@ -36,6 +38,8 @@ struct LockScreen: View {
                         }
                         .buttonStyle(PlainActionStyle())
                     }
+                    Button("I forgot my password or Secret Key") { forgot = true }
+                        .buttonStyle(PlainActionStyle())
                 }
             }
             .padding(.horizontal, FLSpace.s4)
@@ -43,6 +47,7 @@ struct LockScreen: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .background(FLColor.bg.ignoresSafeArea())
+        .sheet(isPresented: $forgot) { ForgotPasswordView(environment: environment) }
         .task {
             // Face ID is offered the moment the screen shows, as the system apps do.
             if faceIDReady, lock.lastOutcome == nil { await faceID() }
