@@ -21,7 +21,8 @@ until the security audit (phase 6) is done.
 - **`figlock` CLI** (macOS and Linux): create and open vaults, add, edit, find, get, copy, generate, export and import
   items, sync, pair devices, change the master password, rotate the Secret Key, and let an agent use a secret
   through the broker (`figlock --help`).
-- **Planned:** iPhone and Android apps and a browser extension.
+- **iPhone app:** in beta, release coming soon.
+- **Planned:** Android app and a browser extension.
 
 - What we're building: [docs/prd.md](docs/prd.md)
 - What's decided: [docs/decisions.md](docs/decisions.md)
