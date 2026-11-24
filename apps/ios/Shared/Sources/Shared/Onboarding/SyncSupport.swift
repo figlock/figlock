@@ -30,6 +30,19 @@ public final class FileSyncState: SyncStateStore, @unchecked Sendable {
         file = container.deviceFolder.appendingPathComponent(remote.stateFileName)
     }
 
+    /// When every remote of this phone had last finished a sync that started at or after this time: the oldest
+    /// of their records. An item changed here has reached the other devices only once all of them have it, so
+    /// one remote that never synced (or needs a sign-in) keeps it marked, which is true. `nil` when this phone
+    /// has no remote, or any of its remotes never finished a sync.
+    public static func settledMs(container: VaultContainer, remotes: [RemoteEntry]) -> UInt64? {
+        var oldest: UInt64?
+        for remote in remotes {
+            guard let synced = FileSyncState(container: container, remote: remote).lastSyncMs() else { return nil }
+            oldest = min(oldest ?? synced, synced)
+        }
+        return oldest
+    }
+
     private func load() -> Saved {
         guard let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(Saved.self, from: data)
         else { return Saved() }

@@ -82,6 +82,45 @@ import Testing
 }
 
 @MainActor
+@Test func theScenePausingForFaceIDDoesNotThrowAwayTheReveal() async throws {
+    // The Face ID sheet takes the scene to inactive while it is up; the reveal it asks for must still show (FIG-223).
+    let seeded = try SeededVault.make([("login", [("title", "Fastmail"), ("password", "generated-pass-42")])])
+    defer { seeded.cleanup() }
+    _ = await seeded.browser()
+    let authenticator = GatedAuthenticator()
+    let reveal = SecretReveal(
+        session: seeded.session, itemId: seeded.itemIds[0], authenticator: authenticator, sleep: { _ in })
+
+    let pending = Task { await reveal.show("password", label: "Password") }
+    await waitFor { await authenticator.pending > 0 }
+    reveal.hideForScenePhase(isBackground: false)
+    await authenticator.release()
+    #expect(await pending.value)
+    #expect(reveal.shown["password"] == "generated-pass-42")
+
+    // With nothing pending, leaving the foreground masks it again.
+    reveal.hideForScenePhase(isBackground: false)
+    #expect(reveal.shown.isEmpty)
+}
+
+@MainActor
+@Test func theAppGoingToTheBackgroundDuringFaceIDStillCancelsTheReveal() async throws {
+    let seeded = try SeededVault.make([("login", [("title", "Fastmail"), ("password", "generated-pass-42")])])
+    defer { seeded.cleanup() }
+    _ = await seeded.browser()
+    let authenticator = GatedAuthenticator()
+    let reveal = SecretReveal(
+        session: seeded.session, itemId: seeded.itemIds[0], authenticator: authenticator, sleep: { _ in })
+
+    let pending = Task { await reveal.show("password", label: "Password") }
+    await waitFor { await authenticator.pending > 0 }
+    reveal.hideForScenePhase(isBackground: true)
+    await authenticator.release()
+    #expect(await pending.value == false)
+    #expect(reveal.shown.isEmpty)
+}
+
+@MainActor
 @Test func aFieldMaskingItselfDoesNotCancelAPromptForAnotherField() async throws {
     let seeded = try SeededVault.make([
         ("login", [("title", "Fastmail"), ("password", "generated-pass-42"), ("totp", "generated-totp-7")])

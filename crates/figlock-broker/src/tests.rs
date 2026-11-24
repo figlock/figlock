@@ -1999,6 +1999,7 @@ fn failures_back_off_and_a_healthy_sync_returns_to_fifteen_seconds() {
             Ok(figlock_session::sync::Report {
                 pulled: 0,
                 pushed: 0,
+                waiting: 0,
                 warnings: Vec::new(),
             })
         } else {
@@ -2124,6 +2125,7 @@ fn a_sync_that_brings_a_revocation_stops_the_syncer() {
         Ok(figlock_session::sync::Report {
             pulled: 3,
             pushed: 0,
+            waiting: 0,
             warnings: Vec::new(),
         })
     };

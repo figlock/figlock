@@ -35,6 +35,7 @@ public final class SecretReveal {
     private let sleep: @Sendable (TimeInterval) async -> Void
     private var timers: [String: Task<Void, Never>] = [:]
     private var generation = 0
+    private var authenticating = false
 
     public init(
         session: VaultSession, itemId: String, authenticator: any Authenticating = DeviceAuthenticator(),
@@ -55,7 +56,9 @@ public final class SecretReveal {
     public func show(_ field: String, label: String) async -> Bool {
         failed.remove(field)
         let started = generation
+        authenticating = true
         let allowed = await authenticator.authenticate(reason: "Show the \(label) in FigLock")
+        authenticating = false
         guard allowed, started == generation, !Task.isCancelled else { return false }
         guard let value = try? session.revealField(itemId: itemId, field: field) else {
             failed.insert(field)
@@ -76,6 +79,14 @@ public final class SecretReveal {
         timers[field]?.cancel()
         timers[field] = nil
         shown[field] = nil
+    }
+
+    /// The app left the foreground. Face ID's own sheet also takes the app out of `.active` (the scene goes
+    /// `inactive` while it is up), and that must not throw away the reveal it is asking for: it would succeed and
+    /// then show nothing (FIG-223). Only a real `background` cancels a reveal that is waiting on Face ID.
+    public func hideForScenePhase(isBackground: Bool) {
+        if authenticating && !isBackground { return }
+        hideAll()
     }
 
     public func hideAll() {

@@ -125,7 +125,9 @@ public actor RemoteSyncCoordinator {
 
         var next = states[entry.id] ?? RemoteState()
         next.phase = outcome.phase
-        if outcome.phase == .synced {
+        // A run that left files behind still finished: it pulled and pushed what it could, and the state says so.
+        // It is not a failure to back off from (the files are on their way), but it is not "Synced" either.
+        if outcome.phase == .synced || outcome.waiting > 0 {
             next.failures = 0
             next.retryAfter = nil
             next.lastSyncMs = FileSyncState(container: dependencies.vault.container, remote: entry).lastSyncMs()
@@ -141,6 +143,8 @@ public actor RemoteSyncCoordinator {
     struct Outcome: Error {
         var phase: RemoteState.Phase
         var pulled = 0
+        /// Files the remote lists that iCloud has not downloaded yet. A download was asked for each one.
+        var waiting = 0
     }
 
     /// The store of `entry`, ready to use, or the state to report when it cannot be opened. A folder stays open
@@ -186,7 +190,11 @@ public actor RemoteSyncCoordinator {
             clock: SyncRunClock(), ownDevice: deps.deviceId())
         do {
             let report = try engine.run(confirmReupload: confirmReupload)
-            return Outcome(phase: .synced, pulled: Int(report.pulled))
+            // "Synced" only when nothing was skipped: files another device wrote that iCloud still holds in
+            // the cloud mean this phone has not seen everything yet (FIG-226).
+            return Outcome(
+                phase: report.waiting > 0 ? .waitingForDownload : .synced, pulled: Int(report.pulled),
+                waiting: Int(report.waiting))
         } catch let failure as SyncFailure {
             return Outcome(phase: phase(for: failure))
         } catch let failure as StoreFailure {

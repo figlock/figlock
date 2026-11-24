@@ -304,11 +304,22 @@ final class OnboardingModel {
         }
     }
 
+}
+
+extension OnboardingModel {
     static func text(_ failure: SignInError) -> String {
         switch failure {
         case .notConfigured: "Google sign-in is not set up in this build yet."
         case .cancelled: "Sign-in was cancelled."
         case .refused: "Google did not accept the sign-in. Try again."
+        case .accessDenied:
+            "Google was not given permission. Sign in again and allow FigLock to keep its vault in your Drive."
+        case .clientRejected:
+            "Google does not recognise this build of FigLock as a sign-in client. It needs an iOS OAuth client made for this app."
+        case .codeRejected: "Google's sign-in code expired or was already used. Try again."
+        case .noRefreshToken:
+            "Google did not let FigLock stay signed in. Remove FigLock under your Google account's third-party access, then try again."
+        case .broaderScope: "Google offered more access than FigLock asked for, so FigLock refused it. Try again."
         case .unavailable: "FigLock could not reach Google. Check your connection and try again."
         }
     }

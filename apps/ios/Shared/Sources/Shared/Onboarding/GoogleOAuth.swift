@@ -107,7 +107,20 @@ public enum SignInError: Error, Equatable, Sendable {
     /// This build has no Google client id (the id comes from the signing setup, FIG-44).
     case notConfigured
     case cancelled
+    /// Google or its token endpoint said no, for no reason this app can name.
     case refused
+    /// The person pressed Cancel or Deny on Google's own consent screen.
+    case accessDenied
+    /// Google does not accept this build's OAuth client: the wrong client type (an iOS client has no secret and
+    /// this app sends none), a client id that is not an iOS client of this bundle id, or a redirect it does not
+    /// know. A setup problem of the build, not something the person did.
+    case clientRejected
+    /// The sign-in code was already used or has expired.
+    case codeRejected
+    /// Google finished the sign-in but gave no refresh token, so the phone could not stay signed in.
+    case noRefreshToken
+    /// Google granted more than the one scope that was asked for.
+    case broaderScope
     case unavailable
 }
 
@@ -150,6 +163,14 @@ public struct GoogleOAuth: Sendable {
         return components?.url
     }
 
+    /// Why a redirect carries no code, when Google put an `error` in it. `nil` when there is none.
+    public func failure(from redirect: URL) -> SignInError? {
+        guard let items = URLComponents(url: redirect, resolvingAgainstBaseURL: false)?.queryItems,
+            let error = items.first(where: { $0.name == "error" })?.value
+        else { return nil }
+        return error == "access_denied" ? .accessDenied : .refused
+    }
+
     /// The `code` of a redirect, when its `state` is the one we sent. Anything else is `nil`.
     public func code(from redirect: URL, expectedState: String) -> String? {
         guard let items = URLComponents(url: redirect, resolvingAgainstBaseURL: false)?.queryItems,
@@ -164,13 +185,25 @@ public struct GoogleOAuth: Sendable {
         public let lifetime: TimeInterval
     }
 
+    /// What the token endpoint's error body says. Only the standard `error` code is read, never a description,
+    /// so nothing from the reply reaches a message.
+    static func tokenError(_ body: Data) -> SignInError {
+        let code = (try? JSONSerialization.jsonObject(with: body) as? [String: Any])?["error"] as? String
+        switch code {
+        case "invalid_client", "unauthorized_client", "redirect_uri_mismatch", "invalid_request": return .clientRejected
+        case "invalid_grant": return .codeRejected
+        case "access_denied": return .accessDenied
+        default: return .refused
+        }
+    }
+
     private func decode(_ result: (status: Int, body: Data)) throws -> Grant {
-        if result.status == 400 || result.status == 401 { throw SignInError.refused }
+        if result.status == 400 || result.status == 401 { throw Self.tokenError(result.body) }
         guard result.status == 200, let response = try? JSONDecoder().decode(TokenResponse.self, from: result.body)
         else { throw SignInError.unavailable }
         // Anything broader than the one scope means something other than what was asked for.
         if let scope = response.scope, Set(scope.split(separator: " ").map(String.init)) != [GoogleOAuthConfig.scope] {
-            throw SignInError.refused
+            throw SignInError.broaderScope
         }
         return Grant(
             accessToken: response.accessToken, refreshToken: response.refreshToken,
@@ -221,7 +254,7 @@ public final class GoogleAccessTokens: AccessTokens, @unchecked Sendable {
 
     /// Keep the grant of a finished sign-in.
     public func adopt(_ grant: GoogleOAuth.Grant) throws {
-        guard let refresh = grant.refreshToken else { throw SignInError.refused }
+        guard let refresh = grant.refreshToken else { throw SignInError.noRefreshToken }
         try store.write(Self.account, Data(refresh.utf8))
         setCache(Cached(token: grant.accessToken, expires: now().addingTimeInterval(grant.lifetime - 60)))
     }
@@ -252,7 +285,7 @@ public final class GoogleAccessTokens: AccessTokens, @unchecked Sendable {
             let grant = try oauth.refresh(refreshToken: refresh)
             setCache(Cached(token: grant.accessToken, expires: now().addingTimeInterval(grant.lifetime - 60)))
             return grant.accessToken
-        } catch SignInError.refused {
+        } catch let failure as SignInError where failure != .unavailable {
             throw StoreFailure.Unauthorized
         } catch {
             throw StoreFailure.Unavailable
