@@ -229,7 +229,7 @@ A reader MUST verify, in order: (1) `device_id` has a valid, non-revoked device 
 `devices/<device_id>.json` holds `device_id`, name, `sign_pub` (Ed25519), `agree_pub` (X25519), `added_at`
 and `epoch_added`, and optionally `replaces` (ADR-0044): the 32 hex character id of an earlier entry of the
 same device, written when a device that was removed from the vault is added again. It is a hint for the device
-list only (that entry is shown as an earlier one of this device) and grants nothing; one equal to the record's
+list only (a list does not show that entry while this device is live) and grants nothing; one equal to the record's
 own id or that does not read as an id is ignored. The authority key signs the JCS form of the record:
 
 ```

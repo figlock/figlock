@@ -11,39 +11,30 @@ public struct DeviceRow: Identifiable, Equatable, Sendable {
     public let fingerprint: String
     public let revokedAt: Date?
     public let isThisDevice: Bool
-    /// The live device whose record says it replaces this one: the same phone added again after it was removed
-    /// (ADR-0044). The list keeps such an entry out of the main devices and shows it as an earlier one.
-    public let replacedBy: String?
 
     /// What the list shows.
     public var displayName: String { nickname ?? vaultName ?? "Unnamed device" }
     public var isRevoked: Bool { revokedAt != nil }
-    /// A live entry that a later entry of the same device took over; it can still be revoked by hand.
-    public var isEarlierEntry: Bool { replacedBy != nil && !isRevoked }
 }
 
 public enum DeviceList {
-    /// Live devices first (this iPhone at the top), then earlier entries of devices that were added again, then
-    /// revoked ones, newest revocation first.
+    /// Live devices first (this iPhone at the top), then revoked ones, newest revocation first. A live entry that a
+    /// later entry of the same device replaces (the phone was removed and added again, ADR-0044) is not listed.
     public static func rows(entries: [DeviceEntry], nicknames: [String: String]) -> [DeviceRow] {
-        let rows = entries.map { entry in
+        let rows = entries.filter { $0.replacedBy == nil || $0.revokedMs != nil }.map { entry in
             DeviceRow(
                 id: entry.id,
                 vaultName: entry.name,
                 nickname: nicknames[entry.id],
                 fingerprint: entry.fingerprint,
                 revokedAt: entry.revokedMs.map { Date(timeIntervalSince1970: TimeInterval($0) / 1000) },
-                isThisDevice: entry.isThisDevice,
-                replacedBy: entry.replacedBy)
+                isThisDevice: entry.isThisDevice)
         }
-        let live = rows.filter { !$0.isRevoked && !$0.isEarlierEntry }.sorted {
+        let live = rows.filter { !$0.isRevoked }.sorted {
             if $0.isThisDevice != $1.isThisDevice { return $0.isThisDevice }
             return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
         }
-        let earlier = rows.filter(\.isEarlierEntry).sorted {
-            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
         let gone = rows.filter(\.isRevoked).sorted { ($0.revokedAt ?? .distantPast) > ($1.revokedAt ?? .distantPast) }
-        return live + earlier + gone
+        return live + gone
     }
 }

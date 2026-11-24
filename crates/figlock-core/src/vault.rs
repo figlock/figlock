@@ -173,7 +173,7 @@ pub struct DeviceInfo {
     pub fingerprint: String,
     pub revoked_at: Option<Stamp>,
     /// The live device whose record says it replaces this one (ADR-0044): the same phone added again after
-    /// it was removed. A list shows this entry as an earlier one of that device, not as another device.
+    /// it was removed. A list leaves this entry out while that device is live (a revoked entry still shows).
     pub replaced_by: Option<DeviceId>,
 }
 

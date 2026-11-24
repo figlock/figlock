@@ -88,8 +88,8 @@ private func entry(
     #expect(rows[3].isRevoked && !rows[0].isRevoked)
 }
 
-@Test func aPhoneAddedAgainShowsOnceAndItsEarlierEntriesAreSeparate() {
-    // The same iPhone added to the vault three times (ADR-0044): one main row, the older ones as earlier entries.
+@Test func aPhoneAddedAgainShowsOnceAndItsEarlierEntriesAreNotListed() {
+    // The same iPhone added to the vault three times (ADR-0044): one row, the older live ones are not listed.
     let rows = DeviceList.rows(
         entries: [
             entry("p1", name: "iPhone", replacedBy: "p2"), entry("p2", name: "iPhone", replacedBy: "p3"),
@@ -97,10 +97,9 @@ private func entry(
             entry("old", name: "iPhone", revoked: 1_000, replacedBy: "p3"),
         ],
         nicknames: [:])
-    #expect(rows.map(\.id) == ["p3", "m", "p1", "p2", "old"])
-    #expect(rows.filter { !$0.isRevoked && !$0.isEarlierEntry }.map(\.id) == ["p3", "m"])
-    #expect(rows.filter(\.isEarlierEntry).map(\.id) == ["p1", "p2"])
-    #expect(!rows[4].isEarlierEntry, "a revoked entry stays in the revoked list")
+    #expect(rows.map(\.id) == ["p3", "m", "old"])
+    #expect(rows.filter { !$0.isRevoked }.map(\.id) == ["p3", "m"])
+    #expect(rows[2].isRevoked, "a revoked entry stays in the revoked list")
 }
 
 // MARK: Revoking

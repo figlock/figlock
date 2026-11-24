@@ -23,15 +23,15 @@ a full unlock, which is far too much for the same phone coming back.
 1. A device record (`crypto.md` 7.4) may carry one more member, `replaces`: the 16 byte device id, 32 hex
    characters, of an earlier entry of the same device. It is part of the signed record like every other member.
 2. It is a hint for the device list and nothing else. It changes no key, grants nothing, revokes nothing, and
-   the earlier entry's ops stay valid (`sync.md` 9). A list shows an entry that a live device `replaces` as an
-   earlier entry of that device, not as another device. A `replaces` equal to the record's own id, or one that
+   the earlier entry's ops stay valid (`sync.md` 9). A list does not show a live entry that another live device `replaces`: it
+   is the same device (FIG-234). A `replaces` equal to the record's own id, or one that
    does not read as an id, is ignored. An id with no record hides nothing.
 3. An app that removes the vault from a device keeps the device's own id, only the id and no key material, in
    its keystore (iOS: the keychain, which survives deleting the app). When the vault is added again and the
    unlock writes a new record, it sets `replaces` to that id. A first install, or a phone whose id is gone (a
    new phone, a wiped keychain), writes no `replaces`, which is right: it is a new device.
 4. Rotations re-sign the remaining records and keep `replaces`. A client that does not know the member and
-   re-signs a record drops it, which only brings the earlier entry back in the list; it is never a failure. A
+   re-signs a record drops it, which only brings the earlier entry back in the list (as a second entry of the same phone); it is never a failure. A
    record with `replaces` verifies in any client, since the signature is over the JCS of the whole record, so
    `min_format_version` does not change.
 5. A device that is revoked is not a device again (`pairing-recovery.md` 4.6): it writes no record, so it
