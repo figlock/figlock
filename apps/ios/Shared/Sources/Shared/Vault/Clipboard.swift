@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import UIKit
 import UniformTypeIdentifiers
 
@@ -27,15 +28,15 @@ public final class SystemPasteboard: Pasteboard {
 }
 
 /// Copies a value and clears it again 30 seconds later, unless something else was copied in between.
-@MainActor
+@MainActor @Observable
 public final class ClipboardCopier {
     public static let clearAfter: TimeInterval = 30
 
-    private let pasteboard: any Pasteboard
-    private let sleep: @Sendable (TimeInterval) async -> Void
-    private let now: @Sendable () -> Date
-    private var clearTask: Task<Void, Never>?
-    private var mark = 0
+    @ObservationIgnored private let pasteboard: any Pasteboard
+    @ObservationIgnored private let sleep: @Sendable (TimeInterval) async -> Void
+    @ObservationIgnored private let now: @Sendable () -> Date
+    @ObservationIgnored private var clearTask: Task<Void, Never>?
+    @ObservationIgnored private var mark = 0
     /// Which field is on the clipboard now, for the "Copied" caption. Cleared with the clipboard.
     public private(set) var copiedKey: String?
 

@@ -33,7 +33,8 @@ synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` tie
 The simulator has no Secure Enclave, so Face ID is off there. Debug builds accept `-figlock-seed-demo` to create a
 made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists (it also
 clears any saved password pause, so a run that tripped it does not affect the next), and
-`-figlock-unlock-demo` also unlocks it so the vault screens can be looked at in a simulator.
+`-figlock-unlock-demo` also unlocks it so the vault screens can be looked at in a simulator. `-figlock-fresh`
+removes any vault from the phone first, so a UI test starts at onboarding.
 
 ## Vault screens
 

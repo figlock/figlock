@@ -68,6 +68,13 @@
             Task { await environment.sync.reload() }
         }
 
+        /// `-figlock-fresh` removes any vault from this phone first, so a UI test starts at onboarding.
+        @MainActor
+        static func freshIfRequested(_ environment: AppEnvironment) {
+            guard ProcessInfo.processInfo.arguments.contains("-figlock-fresh") else { return }
+            try? environment.onboarding.removeFromThisPhone()
+        }
+
         @MainActor
         static func seedIfRequested(_ environment: AppEnvironment) {
             guard ProcessInfo.processInfo.arguments.contains("-figlock-seed-demo") else { return }

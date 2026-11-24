@@ -184,6 +184,17 @@ struct SecretKeyView: View {
                 .accessibilityLabel(model.secretKeyShown ? "Secret Key" : "Secret Key, hidden")
             Button(model.secretKeyShown ? "Hide Secret Key" : "Show Secret Key") { model.secretKeyShown.toggle() }
                 .buttonStyle(SecondaryActionStyle())
+            Button {
+                model.copySecretKey()
+            } label: {
+                Label("Copy Secret Key", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(SecondaryActionStyle())
+            .accessibilityHint("Clears from the clipboard in 30 seconds")
+            if model.copier.copiedKey == OnboardingModel.secretKeyCopyKey {
+                Text("Copied. The clipboard clears in 30 s")
+                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.success)
+            }
             Button("Continue to Emergency Kit") {
                 model.secretKeyShown = false
                 model.path.append(.kit)
