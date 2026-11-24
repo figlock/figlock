@@ -12,7 +12,7 @@
 	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSFaceIDUsageDescription</key><string>FigLock uses Face ID to unlock your vault without typing your master password.</string>
-	<!-- Set by FIGLOCK_GOOGLE_CLIENT_ID (project.yml) once the iOS OAuth client exists (FIG-44). Empty means no Google sign-in. -->
+	<!-- Set by FIGLOCK_GOOGLE_CLIENT_ID (project.yml) from the iOS OAuth client in figlock-prod. Empty means no Google sign-in. -->
 	<key>FigLockGoogleClientID</key><string>$(FIGLOCK_GOOGLE_CLIENT_ID)</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array><string>com.figlock.ios.sync</string></array>

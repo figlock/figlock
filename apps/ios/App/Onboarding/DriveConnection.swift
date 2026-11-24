@@ -4,8 +4,7 @@ import Shared
 import SwiftUI
 
 /// Google Drive sign-in and the Drive store for onboarding (ADR-0021, ADR-0041 decision 3). The client id comes
-/// from the build (`FigLockGoogleClientID` in Info.plist, set by `FIGLOCK_GOOGLE_CLIENT_ID`); until the OAuth
-/// client exists (FIG-44) the build has none and `signIn` says so instead of failing in a browser.
+/// from the build (`FigLockGoogleClientID` in Info.plist, set by `FIGLOCK_GOOGLE_CLIENT_ID`); a build without one has no sign-in and `signIn` says so instead of failing in a browser.
 @MainActor
 @Observable
 final class DriveConnection: NSObject, ASWebAuthenticationPresentationContextProviding {
