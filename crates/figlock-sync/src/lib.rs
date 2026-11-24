@@ -38,6 +38,9 @@ pub struct Report {
     pub pulled: usize,
     /// Files written to the remote.
     pub pushed: usize,
+    /// Files the storage lists but has not downloaded yet (iCloud). A download was asked for each; they are
+    /// not missing, and a sync that left any behind is not complete (FIG-226).
+    pub waiting: usize,
     pub warnings: Vec<Warning>,
 }
 
@@ -215,14 +218,28 @@ fn under(all: &BTreeMap<String, bool>, prefix: &str) -> BTreeMap<String, bool> {
         .collect()
 }
 
-/// Copy `path` from one store to the other unless the destination already has it. `Ok(true)` when written.
-fn copy_new(from: &dyn BlobStore, to: &dyn BlobStore, path: &str) -> Result<bool, SyncError> {
-    let Some(bytes) = read(from, path)? else {
-        return Ok(false);
+/// What copying one file did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Copied {
+    Written,
+    /// The destination had it, or the source no longer does.
+    Skipped,
+    /// The source lists it but its bytes are not on this device yet. Reading it asked the OS to download it.
+    NotDownloaded,
+}
+
+/// Copy `path` from one store to the other unless the destination already has it. A source file that is not
+/// downloaded is read anyway: that read is what asks iCloud to fetch it (FIG-226).
+fn copy_new(from: &dyn BlobStore, to: &dyn BlobStore, path: &str) -> Result<Copied, SyncError> {
+    let bytes = match from.get(path) {
+        Ok(b) => b,
+        Err(StoreError::NotFound) => return Ok(Copied::Skipped),
+        Err(StoreError::NotYetAvailable) => return Ok(Copied::NotDownloaded),
+        Err(e) => return Err(e.into()),
     };
     match to.put_new(path, &bytes) {
-        Ok(()) => Ok(true),
-        Err(StoreError::Exists) => Ok(false),
+        Ok(()) => Ok(Copied::Written),
+        Err(StoreError::Exists) => Ok(Copied::Skipped),
         Err(e) => Err(e.into()),
     }
 }
@@ -262,7 +279,7 @@ impl Mirror<'_> {
     fn create_all(&mut self, jobs: Vec<(bool, String)>) -> Result<(), SyncError> {
         let next = AtomicUsize::new(0);
         let failed = AtomicBool::new(false);
-        let done: Mutex<Vec<(usize, Result<bool, SyncError>)>> = Mutex::new(Vec::new());
+        let done: Mutex<Vec<(usize, Result<Copied, SyncError>)>> = Mutex::new(Vec::new());
         let (local, remote) = (self.local, self.remote);
         std::thread::scope(|scope| {
             for _ in 0..PARALLEL_COPIES.min(jobs.len()) {
@@ -289,8 +306,9 @@ impl Mirror<'_> {
         let mut first_err = None;
         for (i, r) in done {
             match r {
-                Ok(true) => self.count(jobs[i].0),
-                Ok(false) => {}
+                Ok(Copied::Written) => self.count(jobs[i].0),
+                Ok(Copied::NotDownloaded) => self.report.waiting += 1,
+                Ok(Copied::Skipped) => {}
                 Err(e) => first_err = first_err.or(Some(e)),
             }
         }
@@ -299,8 +317,14 @@ impl Mirror<'_> {
 
     fn replace(&mut self, into_local: bool, path: &str) -> Result<(), SyncError> {
         let (from, to) = self.sides(into_local);
-        let Some(bytes) = read(from, path)? else {
-            return Ok(());
+        let bytes = match from.get(path) {
+            Ok(b) => b,
+            Err(StoreError::NotFound) => return Ok(()),
+            Err(StoreError::NotYetAvailable) => {
+                self.report.waiting += 1;
+                return Ok(());
+            }
+            Err(e) => return Err(e.into()),
         };
         if read(to, path)?.as_deref() != Some(bytes.as_slice()) {
             to.put_replace(path, &bytes)?;
@@ -315,13 +339,13 @@ impl Mirror<'_> {
             under(&self.remote_all, prefix),
         );
         let mut jobs = Vec::new();
-        for (path, available) in &r {
-            if *available && !l.contains_key(path) {
+        for path in r.keys() {
+            if !l.contains_key(path) {
                 jobs.push((true, path.clone()));
             }
         }
-        for (path, available) in &l {
-            if *available && !r.contains_key(path) && pushable(path, prefix, opts) {
+        for path in l.keys() {
+            if !r.contains_key(path) && pushable(path, prefix, opts) {
                 jobs.push((false, path.clone()));
             }
         }
@@ -337,13 +361,13 @@ impl Mirror<'_> {
         match winner {
             Winner::Same => {
                 let mut jobs = Vec::new();
-                for (path, available) in &r {
-                    if *available && !l.contains_key(path) {
+                for path in r.keys() {
+                    if !l.contains_key(path) {
                         jobs.push((true, path.clone()));
                     }
                 }
-                for (path, available) in &l {
-                    if *available && !r.contains_key(path) {
+                for path in l.keys() {
+                    if !r.contains_key(path) {
                         jobs.push((false, path.clone()));
                     }
                 }
@@ -352,10 +376,8 @@ impl Mirror<'_> {
             w => {
                 let into_local = w == Winner::Remote;
                 let (src, dst) = if into_local { (&r, &l) } else { (&l, &r) };
-                for (path, available) in src {
-                    if *available {
-                        self.replace(into_local, path)?;
-                    }
+                for path in src.keys() {
+                    self.replace(into_local, path)?;
                 }
                 let gone: Vec<&String> = dst.keys().filter(|p| !src.contains_key(*p)).collect();
                 for path in gone {
@@ -456,7 +478,11 @@ fn mirror_waiting(
     for prefix in CREATE_ONLY {
         m.create_only(prefix, opts)?;
     }
+    let waiting_before = m.report.waiting;
     m.devices(winner)?;
+    if m.report.waiting > waiting_before {
+        return Ok(m.report);
+    }
     match winner {
         Winner::Local => m.replace(false, "vault.json")?,
         Winner::Remote => m.replace(true, "vault.json")?,
@@ -782,6 +808,102 @@ mod tests {
             );
         }
         assert!(remote.inner.get("log/aa/00000001.op").is_err());
+    }
+
+    /// A store whose op files of other devices are cloud-only until `arrive` is called, as iCloud Drive lists
+    /// them: they show up in the listing as not available, and reading one asks for the download.
+    struct CloudOnly {
+        inner: LocalFolder,
+        cloud_only: std::sync::atomic::AtomicBool,
+        download_requests: AtomicUsize,
+    }
+
+    impl CloudOnly {
+        fn is_op(path: &str) -> bool {
+            path.starts_with("log/") || path.starts_with("devices/")
+        }
+        fn arrive(&self) {
+            self.cloud_only.store(false, Ordering::SeqCst);
+        }
+    }
+
+    impl BlobStore for CloudOnly {
+        fn get(&self, path: &str) -> figlock_store::Result<Vec<u8>> {
+            if Self::is_op(path) && self.cloud_only.load(Ordering::SeqCst) {
+                self.download_requests.fetch_add(1, Ordering::SeqCst);
+                return Err(StoreError::NotYetAvailable);
+            }
+            self.inner.get(path)
+        }
+        fn put_new(&self, path: &str, bytes: &[u8]) -> figlock_store::Result<()> {
+            self.inner.put_new(path, bytes)
+        }
+        fn put_replace(&self, path: &str, bytes: &[u8]) -> figlock_store::Result<()> {
+            self.inner.put_replace(path, bytes)
+        }
+        fn list(&self, prefix: &str) -> figlock_store::Result<Vec<Entry>> {
+            let cloud_only = self.cloud_only.load(Ordering::SeqCst);
+            Ok(self
+                .inner
+                .list(prefix)?
+                .into_iter()
+                .map(|mut e| {
+                    if cloud_only && Self::is_op(&e.path) {
+                        e.available = false;
+                    }
+                    e
+                })
+                .collect())
+        }
+        fn delete(&self, path: &str) -> figlock_store::Result<()> {
+            self.inner.delete(path)
+        }
+    }
+
+    #[test]
+    fn cloud_only_files_are_requested_and_counted_as_waiting_until_they_arrive() {
+        let (_a, la) = device_a();
+        let (_r, inner) = store();
+        put(&inner, "vault.json", &vault_json("v1", 1, "x"));
+        put(&inner, "log/bb/00000001.op", b"op-b1");
+        let remote = CloudOnly {
+            inner,
+            cloud_only: std::sync::atomic::AtomicBool::new(true),
+            download_requests: AtomicUsize::new(0),
+        };
+
+        let first = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!(first.waiting, 1);
+        assert!(remote.download_requests.load(Ordering::SeqCst) >= 1);
+        assert!(la.get("log/bb/00000001.op").is_err());
+
+        remote.arrive();
+        let second = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!((second.waiting, second.pulled), (0, 1));
+        assert_eq!(la.get("log/bb/00000001.op").unwrap(), b"op-b1");
+    }
+
+    #[test]
+    fn a_cloud_only_record_on_the_winning_side_is_requested_and_counted_as_waiting() {
+        let (_a, la) = device_a();
+        let (_r, inner) = store();
+        put(&inner, "vault.json", &vault_json("v1", 2, "rotated"));
+        put(&inner, "devices/aa.json", b"rec-a-resigned");
+        let remote = CloudOnly {
+            inner,
+            cloud_only: std::sync::atomic::AtomicBool::new(true),
+            download_requests: AtomicUsize::new(0),
+        };
+
+        let first = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!(first.waiting, 1);
+        assert!(remote.download_requests.load(Ordering::SeqCst) >= 1);
+        assert_eq!(la.get("devices/aa.json").unwrap(), b"rec-a");
+
+        remote.arrive();
+        let second = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!(second.waiting, 0);
+        assert_eq!(la.get("devices/aa.json").unwrap(), b"rec-a-resigned");
     }
 
     #[test]

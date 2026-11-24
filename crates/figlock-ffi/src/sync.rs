@@ -203,6 +203,9 @@ pub struct SyncReport {
     pub pulled: u32,
     /// Files written to the remote.
     pub pushed: u32,
+    /// Files the remote lists but has not downloaded yet (iCloud); a download was asked for each. While any
+    /// remain the sync is not complete and must not be shown as "Synced".
+    pub waiting: u32,
     pub warnings: Vec<SyncWarning>,
 }
 
@@ -211,6 +214,7 @@ impl From<figlock_sync::Report> for SyncReport {
         SyncReport {
             pulled: u32::try_from(r.pulled).unwrap_or(u32::MAX),
             pushed: u32::try_from(r.pushed).unwrap_or(u32::MAX),
+            waiting: u32::try_from(r.waiting).unwrap_or(u32::MAX),
             warnings: r
                 .warnings
                 .into_iter()

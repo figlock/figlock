@@ -474,15 +474,13 @@ impl Session {
             let done = self.vault.applied_seq(&device);
             let total = files.len();
             for at in 0..total {
-                let (seq, path, available) = files[at].clone();
+                let (seq, path, _) = files[at].clone();
                 if seq <= done {
                     continue;
                 }
-                let bytes = if available {
-                    self.store.get(&path).ok()
-                } else {
-                    None
-                };
+                // A listed file whose bytes are not here yet is read anyway: that read is what asks iCloud to
+                // download it. Without it nothing ever fetches the file (FIG-226).
+                let bytes = self.store.get(&path).ok();
                 let Some(bytes) = bytes else {
                     self.ui.warn(&format!(
                         "op {seq} from device {} is not available yet; later changes from it wait",

@@ -43,7 +43,8 @@ extension RemoteState {
         switch phase {
         case .offline: "No connection. Changes save on this iPhone and go up when you are back online."
         case .signInNeeded: "Google needs you to sign in again. Sync with Google Drive is paused."
-        case .waitingForDownload: "iCloud has not downloaded the vault in \(place) yet. FigLock tries again shortly."
+        case .waitingForDownload:
+            "iCloud has not finished downloading files in \(place). FigLock asks for them again shortly."
         case .differentVault: "\(place) holds a different vault than this iPhone. Nothing was merged."
         case .remoteLost: "The copy of your vault in \(place) is gone. Upload this iPhone's copy there again?"
         case .damaged: "The vault file in \(place) cannot be read. Nothing was changed."

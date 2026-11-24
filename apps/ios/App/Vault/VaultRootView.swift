@@ -33,13 +33,19 @@ struct VaultRootView: View {
             loading.identitySync = identitySync
             await loading.reload()
             if let store {
-                let state = FileSyncState(container: vault.container)
+                // Every remote of this phone, read when asked: an iCloud-only phone has no Google Drive record.
+                let container = vault.container
                 editor = VaultEditor(
-                    browser: loading, store: store, pending: PendingSync(container: vault.container),
-                    lastSyncMs: { state.lastSyncMs() })
+                    browser: loading, store: store, pending: PendingSync(container: container),
+                    lastSyncMs: {
+                        FileSyncState.settledMs(
+                            container: container, remotes: RemoteList(container: container).entries())
+                    })
             }
             browser = loading
         }
+        // A sync finished: items it covered are no longer "not synced".
+        .onChange(of: sync.rows) { editor?.refreshUnsynced() }
         // A sync that brought files in: read the log again.
         .onChange(of: sync.changeCount) { Task { await browser?.reload() } }
         .onDisappear { copier.clearNow() }

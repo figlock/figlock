@@ -289,6 +289,7 @@ pub fn run(cfg: &Config, confirm_reupload: bool) -> Result<Report, SyncError> {
             Ok(r) => {
                 total.pulled += r.pulled;
                 total.pushed += r.pushed;
+                total.waiting += r.waiting;
                 for w in r.warnings {
                     if !total.warnings.contains(&w) {
                         total.warnings.push(w);
@@ -367,6 +368,7 @@ pub fn exchange(place: &Place, first: bool) -> Result<Report, SyncError> {
             Ok(r) => {
                 total.pulled += r.pulled;
                 total.pushed += r.pushed;
+                total.waiting += r.waiting;
             }
             Err(e) => first_err = first_err.or(Some(e)),
         }

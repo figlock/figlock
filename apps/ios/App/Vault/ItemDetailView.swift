@@ -54,7 +54,7 @@ struct ItemDetailView: View {
         // A shown secret hides when the person leaves the screen or the app, not only after 10 seconds.
         .onDisappear { reveal.hideAll() }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { reveal.hideAll() }
+            if phase != .active { reveal.hideForScenePhase(isBackground: phase == .background) }
         }
     }
 

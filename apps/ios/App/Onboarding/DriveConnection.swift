@@ -37,7 +37,9 @@ final class DriveConnection: NSObject, ASWebAuthenticationPresentationContextPro
             throw SignInError.unavailable
         }
         let redirect = try await authenticate(url: url, scheme: oauth.config.redirectScheme)
-        guard let code = oauth.code(from: redirect, expectedState: state) else { throw SignInError.refused }
+        guard let code = oauth.code(from: redirect, expectedState: state) else {
+            throw oauth.failure(from: redirect) ?? SignInError.refused
+        }
         let grant = try await Task.detached { try oauth.exchange(code: code, verifier: verifier) }.value
         try tokens.adopt(grant)
         isSignedIn = true

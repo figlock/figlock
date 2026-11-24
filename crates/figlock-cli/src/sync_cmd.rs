@@ -56,13 +56,24 @@ fn warning_code(w: Warning) -> &'static str {
 
 /// One remote's line in the text output.
 fn outcome_line(label: &str, report: &Report) -> String {
-    if report.pulled == 0 && report.pushed == 0 {
+    let base = if report.pulled == 0 && report.pushed == 0 && report.waiting == 0 {
         format!("{label}: already up to date.")
     } else {
         format!(
             "{label}: {} downloaded, {} uploaded.",
             report.pulled, report.pushed
         )
+    };
+    format!("{base}{}", waiting_note(report))
+}
+
+/// The line that says files are still on their way, so "up to date" is never claimed while some are missing.
+fn waiting_note(report: &Report) -> String {
+    match report.waiting {
+        0 => String::new(),
+        n => format!(
+            " Waiting for {n} file(s) to download from the cloud; run sync again in a minute."
+        ),
     }
 }
 
@@ -92,6 +103,7 @@ pub fn run(reupload: bool, json: bool) -> Res<()> {
     for r in outcomes.iter().filter_map(|o| o.result.as_ref().ok()) {
         total.pulled += r.pulled;
         total.pushed += r.pushed;
+        total.waiting += r.waiting;
         for w in &r.warnings {
             if !total.warnings.contains(w) {
                 total.warnings.push(*w);
@@ -107,7 +119,7 @@ pub fn run(reupload: bool, json: bool) -> Res<()> {
         let remotes: Vec<_> = outcomes
             .iter()
             .map(|o| match &o.result {
-                Ok(r) => json!({"remote": o.remote.id(), "status": "synced", "pulled": r.pulled, "pushed": r.pushed}),
+                Ok(r) => json!({"remote": o.remote.id(), "status": if r.waiting == 0 { "synced" } else { "waiting" }, "pulled": r.pulled, "pushed": r.pushed, "waiting": r.waiting}),
                 Err(e) => json!({"remote": o.remote.id(), "status": "failed", "error": failure_text(&o.remote, e)}),
             })
             .collect();
@@ -115,6 +127,7 @@ pub fn run(reupload: bool, json: bool) -> Res<()> {
             "status": if failed == 0 { "synced" } else if failed == outcomes.len() { "failed" } else { "partial" },
             "pulled": total.pulled,
             "pushed": total.pushed,
+            "waiting": total.waiting,
             "warnings": warnings,
             "remotes": remotes,
         }))?;
@@ -126,12 +139,15 @@ pub fn run(reupload: bool, json: bool) -> Res<()> {
         for o in &outcomes {
             match &o.result {
                 Ok(r) if several => println!("{}", outcome_line(&label(&o.remote), r)),
-                Ok(r) if r.pulled == 0 && r.pushed == 0 => println!("Already up to date."),
+                Ok(r) if r.pulled == 0 && r.pushed == 0 && r.waiting == 0 => {
+                    println!("Already up to date.")
+                }
                 Ok(r) => println!(
-                    "Synced with {}: {} downloaded, {} uploaded.",
+                    "Synced with {}: {} downloaded, {} uploaded.{}",
                     label(&o.remote),
                     r.pulled,
-                    r.pushed
+                    r.pushed,
+                    waiting_note(r)
                 ),
                 Err(e) => eprintln!("{}: {}", label(&o.remote), failure_text(&o.remote, e)),
             }

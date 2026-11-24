@@ -75,10 +75,14 @@ final class SyncModel {
                 try? await Task.sleep(for: .milliseconds(400))
             }
         }
+        let wasWaiting = rows.contains { $0.state.phase == .waitingForDownload }
         let pulled = await work.value
         watcher.cancel()
-        if pulled > 0 { changeCount += 1 }
         await reload()
+        // Files that arrived late change what the log holds, even when this run pulled none itself (iCloud may
+        // have delivered them into the folder between runs): read the vault again once nothing is missing.
+        let stillWaiting = rows.contains { $0.state.phase == .waitingForDownload }
+        if pulled > 0 || (wasWaiting && !stillWaiting) { changeCount += 1 }
     }
 
     func sync(_ id: String, confirmReupload: Bool = false) async {

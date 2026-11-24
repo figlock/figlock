@@ -69,11 +69,11 @@ private let scope = GoogleOAuthConfig.scope
     let broad = ScriptedTransport([
         (200, "{\"access_token\":\"a\",\"refresh_token\":\"r\",\"scope\":\"\(scope) https://mail.google.com/\"}")
     ])
-    #expect(throws: SignInError.refused) {
+    #expect(throws: SignInError.broaderScope) {
         try GoogleOAuth(config: config, transport: broad).exchange(code: "c", verifier: "v")
     }
     let denied = ScriptedTransport([(400, "{\"error\":\"invalid_grant\"}")])
-    #expect(throws: SignInError.refused) {
+    #expect(throws: SignInError.codeRejected) {
         try GoogleOAuth(config: config, transport: denied).exchange(code: "c", verifier: "v")
     }
     let down = ScriptedTransport([(503, "")])
@@ -119,7 +119,7 @@ private let scope = GoogleOAuthConfig.scope
     tokens.signOut()
     #expect(!tokens.isSignedIn)
     #expect(secrets.accounts.isEmpty)
-    #expect(throws: SignInError.refused) {
+    #expect(throws: SignInError.noRefreshToken) {
         try tokens.adopt(GoogleOAuth.Grant(accessToken: "a", refreshToken: nil, lifetime: 1))
     }
 }
@@ -140,4 +140,32 @@ private let scope = GoogleOAuthConfig.scope
     state.clearSignInRefused()
     state.forget()
     #expect(!FileSyncState(container: container).syncedBefore())
+}
+
+@Test func theTokenEndpointsReasonIsNamedNotJustRefused() {
+    func reason(_ status: Int, _ body: String) -> SignInError? {
+        do {
+            _ = try GoogleOAuth(config: config, transport: ScriptedTransport([(status, body)]))
+                .exchange(code: "c", verifier: "v")
+            return nil
+        } catch { return error as? SignInError }
+    }
+    // A desktop or web client needs its secret on the exchange; an iOS client app has none to send.
+    #expect(
+        reason(401, "{\"error\":\"invalid_client\",\"error_description\":\"client_secret is missing.\"}")
+            == .clientRejected)
+    #expect(reason(400, "{\"error\":\"redirect_uri_mismatch\"}") == .clientRejected)
+    #expect(reason(400, "{\"error\":\"invalid_grant\"}") == .codeRejected)
+    #expect(reason(400, "{\"error\":\"something_new\"}") == .refused)
+    #expect(reason(400, "not json") == .refused)
+}
+
+@Test func aRedirectWithAnErrorSaysWhy() throws {
+    let oauth = GoogleOAuth(config: config, transport: ScriptedTransport([]))
+    let denied = try #require(URL(string: "\(config.redirectScheme):/oauth2redirect?error=access_denied&state=st"))
+    let other = try #require(URL(string: "\(config.redirectScheme):/oauth2redirect?error=invalid_request&state=st"))
+    let plain = try #require(URL(string: "\(config.redirectScheme):/oauth2redirect?state=st"))
+    #expect(oauth.failure(from: denied) == .accessDenied)
+    #expect(oauth.failure(from: other) == .refused)
+    #expect(oauth.failure(from: plain) == nil)
 }
