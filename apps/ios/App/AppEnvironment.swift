@@ -52,6 +52,7 @@ final class AppEnvironment {
             lock: lock, service: SettingsService(vault: vault, keeper: keeper), settings: deviceSettings,
             onboarding: onboarding, drive: drive, sync: sync)
         #if DEBUG
+            DebugSeed.freshIfRequested(self)
             DebugSeed.seedIfRequested(self)
             DebugSeed.remotesIfRequested(self)
             DebugSeed.unlockIfRequested(self)

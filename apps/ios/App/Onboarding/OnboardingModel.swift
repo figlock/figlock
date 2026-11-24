@@ -60,8 +60,13 @@ final class OnboardingModel {
     let lock: AppLock
     let drive: DriveConnection
     private let deviceName: String
+    let copier: ClipboardCopier
 
-    init(service: Onboarding, lock: AppLock, drive: DriveConnection, deviceName: String) {
+    init(
+        service: Onboarding, lock: AppLock, drive: DriveConnection, deviceName: String,
+        copier: ClipboardCopier = ClipboardCopier()
+    ) {
+        self.copier = copier
         self.service = service
         self.lock = lock
         self.drive = drive
@@ -122,6 +127,10 @@ final class OnboardingModel {
     }
 
     func secretKeyText() -> String { (try? pending?.secretKeyText()) ?? "" }
+
+    /// The key as plain text, local-only and expiring (ADR-0041 decision 6); never the Emergency Kit PDF (FIG-218).
+    func copySecretKey() { copier.copy(secretKeyText(), key: Self.secretKeyCopyKey) }
+    static let secretKeyCopyKey = "secretKey"
 
     func prepareKit() {
         guard kitURL == nil, let pending else { return }
