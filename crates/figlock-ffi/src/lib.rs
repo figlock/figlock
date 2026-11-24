@@ -20,6 +20,7 @@ mod error;
 mod generator;
 mod join;
 mod quick;
+mod recovery;
 mod session;
 mod sync;
 
@@ -40,6 +41,9 @@ pub use join::{
 pub use quick::{
     UnlockKey, derive_unlock_key, open_quick_unlock, quick_unlock_ephemeral_public,
     unlock_vault_with_key,
+};
+pub use recovery::{
+    RecoveredVault, RecoveryAttempt, recovery_key_is_valid, start_recovery, vault_has_recovery_key,
 };
 pub use session::{
     CommittedFile, DeviceEntry, FieldInput, ItemListing, ItemSummary, RevocationFiles, SearchHit,

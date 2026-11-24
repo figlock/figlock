@@ -30,6 +30,11 @@ public struct Onboarding: Sendable {
         case damaged
         /// This phone already has a vault; onboarding does not replace it.
         case alreadyHasVault
+        /// "I forgot my password": the Recovery Key is not well formed, does not open this vault, or the vault has
+        /// none.
+        case badRecoveryKey
+        case recoveryFailed
+        case noRecoveryKey
         case failed
     }
 

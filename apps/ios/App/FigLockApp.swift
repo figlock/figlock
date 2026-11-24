@@ -55,7 +55,7 @@ struct RootView: View {
                             )
                             .environment(\.settingsContext, environment.settings)
                         } else {
-                            LockScreen(lock: environment.lock)
+                            LockScreen(lock: environment.lock, environment: environment)
                         }
                     case .noVault:
                         OnboardingRoot(environment: environment)

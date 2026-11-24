@@ -56,6 +56,7 @@ final class AppEnvironment {
         #if DEBUG
             DebugSeed.freshIfRequested(self)
             DebugSeed.seedIfRequested(self)
+            DebugSeed.seedRecoveryIfRequested(self)
             DebugSeed.remotesIfRequested(self)
             DebugSeed.unlockIfRequested(self)
         #endif
