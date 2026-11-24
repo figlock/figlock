@@ -317,8 +317,14 @@ impl Mirror<'_> {
 
     fn replace(&mut self, into_local: bool, path: &str) -> Result<(), SyncError> {
         let (from, to) = self.sides(into_local);
-        let Some(bytes) = read(from, path)? else {
-            return Ok(());
+        let bytes = match from.get(path) {
+            Ok(b) => b,
+            Err(StoreError::NotFound) => return Ok(()),
+            Err(StoreError::NotYetAvailable) => {
+                self.report.waiting += 1;
+                return Ok(());
+            }
+            Err(e) => return Err(e.into()),
         };
         if read(to, path)?.as_deref() != Some(bytes.as_slice()) {
             to.put_replace(path, &bytes)?;
@@ -472,7 +478,11 @@ fn mirror_waiting(
     for prefix in CREATE_ONLY {
         m.create_only(prefix, opts)?;
     }
+    let waiting_before = m.report.waiting;
     m.devices(winner)?;
+    if m.report.waiting > waiting_before {
+        return Ok(m.report);
+    }
     match winner {
         Winner::Local => m.replace(false, "vault.json")?,
         Winner::Remote => m.replace(true, "vault.json")?,
@@ -810,7 +820,7 @@ mod tests {
 
     impl CloudOnly {
         fn is_op(path: &str) -> bool {
-            path.starts_with("log/")
+            path.starts_with("log/") || path.starts_with("devices/")
         }
         fn arrive(&self) {
             self.cloud_only.store(false, Ordering::SeqCst);
@@ -871,6 +881,29 @@ mod tests {
         let second = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
         assert_eq!((second.waiting, second.pulled), (0, 1));
         assert_eq!(la.get("log/bb/00000001.op").unwrap(), b"op-b1");
+    }
+
+    #[test]
+    fn a_cloud_only_record_on_the_winning_side_is_requested_and_counted_as_waiting() {
+        let (_a, la) = device_a();
+        let (_r, inner) = store();
+        put(&inner, "vault.json", &vault_json("v1", 2, "rotated"));
+        put(&inner, "devices/aa.json", b"rec-a-resigned");
+        let remote = CloudOnly {
+            inner,
+            cloud_only: std::sync::atomic::AtomicBool::new(true),
+            download_requests: AtomicUsize::new(0),
+        };
+
+        let first = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!(first.waiting, 1);
+        assert!(remote.download_requests.load(Ordering::SeqCst) >= 1);
+        assert_eq!(la.get("devices/aa.json").unwrap(), b"rec-a");
+
+        remote.arrive();
+        let second = mirror(&la, &remote, &opts(Some(A), false)).unwrap();
+        assert_eq!(second.waiting, 0);
+        assert_eq!(la.get("devices/aa.json").unwrap(), b"rec-a-resigned");
     }
 
     #[test]
