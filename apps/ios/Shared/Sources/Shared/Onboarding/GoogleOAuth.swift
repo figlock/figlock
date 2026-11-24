@@ -104,7 +104,7 @@ public struct URLSessionTransport: FormTransport {
 
 /// Why a sign-in step failed.
 public enum SignInError: Error, Equatable, Sendable {
-    /// This build has no Google client id (the id comes from the signing setup, FIG-44).
+    /// This build has no Google client id (`FIGLOCK_GOOGLE_CLIENT_ID` in project.yml is empty).
     case notConfigured
     case cancelled
     /// Google or its token endpoint said no, for no reason this app can name.
