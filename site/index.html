@@ -15,7 +15,16 @@
   <meta property="og:description" content="FigLock is a free, open-source password and secrets manager. Your vault is encrypted and lives in storage you already own, and AI agents can use a secret after you approve it, without seeing it.">
   <meta property="og:url" content="https://figlock.com/">
   <meta property="og:image" content="https://figlock.com/logo/figlock-social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="FigLock, your secrets approved by you. A lock icon next to the FigLock wordmark.">
+  <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="FigLock - one vault for you and your agents">
+  <meta name="twitter:description" content="FigLock is a free, open-source password and secrets manager. Your vault is encrypted and lives in storage you already own, and AI agents can use a secret after you approve it, without seeing it.">
+  <meta name="twitter:image" content="https://figlock.com/logo/figlock-social-card.png">
+  <meta name="twitter:image:alt" content="FigLock, your secrets approved by you. A lock icon next to the FigLock wordmark.">
+  <link rel="preload" href="/fonts/figtree-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/site.css">
@@ -24,8 +33,18 @@
     "@context": "https://schema.org",
     "@graph": [
       {
+        "@type": "Organization",
+        "@id": "https://figlock.com/#organization",
+        "name": "FigLock",
+        "url": "https://figlock.com/",
+        "logo": "https://figlock.com/favicon.svg",
+        "email": "support@figlock.com",
+        "sameAs": ["https://github.com/figlock"]
+      },
+      {
         "@type": "WebSite",
         "@id": "https://figlock.com/#website",
+        "publisher": {"@id": "https://figlock.com/#organization"},
         "url": "https://figlock.com/",
         "name": "FigLock",
         "description": "A free, open-source password and secrets manager that lets AI agents use a secret after you approve it, without seeing it."
@@ -39,6 +58,7 @@
         "softwareVersion": "0.5.0",
         "description": "Mac app and command-line password and secrets manager with an encrypted vault in storage you already own, and approved, time-boxed access for AI agents.",
         "url": "https://figlock.com/",
+        "publisher": {"@id": "https://figlock.com/#organization"},
         "downloadUrl": "https://figlock.com/install/",
         "isAccessibleForFree": true,
         "license": "https://opensource.org/license/mit",
@@ -252,6 +272,29 @@
           <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><h3>Updates you click</h3><p>The Mac app checks a signed feed and installs a new version only when you say so. The command line is one <code>brew upgrade</code> away.</p></li>
           <li class="col reveal"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></svg><h3>Command line inside</h3><p>The app can install the <code>figlock</code> command for you, so scripts and agents work against the same vault from a terminal.</p></li>
         </ul>
+
+        <div class="gallery">
+          <figure>
+            <div class="window">
+              <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <picture>
+                <source srcset="/img/mac-generator-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="/img/mac-generator-light.png" width="1600" height="1047" loading="lazy" alt="The generator in the FigLock Mac app with a 24 character password rated Strong, a length slider and options for letters, numbers and symbols.">
+              </picture>
+            </div>
+            <figcaption>The generator rates every password as you change it.</figcaption>
+          </figure>
+          <figure>
+            <div class="window">
+              <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i></div>
+              <picture>
+                <source srcset="/img/mac-health-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="/img/mac-health-light.png" width="1600" height="1047" loading="lazy" alt="The password health report in the FigLock Mac app listing one weak password and an opt-in check for known breaches.">
+              </picture>
+            </div>
+            <figcaption>The health report finds weak and reused passwords on your Mac. Nothing leaves it unless you check for breaches.</figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
@@ -309,7 +352,7 @@
       <div class="wrap">
         <p class="eyebrow">Where it runs</p>
         <h2 class="display" id="next-title">What's next.</h2>
-        <p class="section-lede">The Mac app and the command line are out. The phone apps follow, in this order. We have no dates yet. Each one ships when it is ready and has been checked, and every one uses the same core and the same encryption.</p>
+        <p class="section-lede">The Mac app and the command line are out. The iPhone app is in beta and coming soon, and the Android app follows. We have no dates yet. Each one ships when it is ready and has been checked, and every one uses the same core and the same encryption.</p>
 
         <div class="roadmap">
           <article class="platform platform--now" aria-labelledby="mac-title">
@@ -327,35 +370,10 @@
               <div class="actions"><a class="button button--primary" href="/download/v0.5.0/FigLock-0.5.0-universal.dmg">Download FigLock 0.5.0</a><a class="button" href="/install/#mac-app">Install guide</a></div>
             </div>
             <div class="art">
-              <svg class="ill" viewBox="0 0 320 250" role="img" aria-label="Mock-up of the Mac app: a window with a searchable list of items on the left and the Cloudflare login on the right.">
-                  <rect class="shade" x="10" y="14" width="300" height="232" rx="12"/>
-                  <rect class="frame" x="8" y="8" width="304" height="232" rx="12"/>
-                  <circle class="dot" cx="24" cy="22" r="4"/><circle class="dot" cx="36" cy="22" r="4"/><circle class="dot" cx="48" cy="22" r="4"/>
-                  <rect class="rule" x="8" y="36" width="304" height="1"/>
-                  <path class="well" d="M9 37h109v190a12 12 0 0 1-12 12H21A12 12 0 0 1 9 227z"/>
-                  <rect class="field" x="17" y="46" width="93" height="16" rx="8"/>
-                  <text class="ink2" x="28" y="57">Search</text>
-                  <rect class="brand-soft" x="15" y="70" width="97" height="28" rx="6"/>
-                  <text class="ink" x="24" y="83">Cloudflare</text>
-                  <text class="ink2" x="24" y="93">Login</text>
-                  <text class="ink" x="24" y="115">GitHub token</text>
-                  <text class="ink2" x="24" y="125">Token</text>
-                  <text class="ink" x="24" y="147">Home Wi-Fi</text>
-                  <text class="ink2" x="24" y="157">Note</text>
-                  <text class="ink" x="24" y="179">Apple signing</text>
-                  <text class="ink2" x="24" y="189">Document</text>
-                  <text class="ink" x="24" y="211">Work VPN</text>
-                  <text class="ink2" x="24" y="221">Login</text>
-                  <text class="ink ink-lg" x="136" y="62">Cloudflare</text>
-                  <text class="ink2" x="136" y="86">Username</text>
-                  <text class="ink" x="136" y="100">ada@example.com</text>
-                  <text class="ink2" x="136" y="122">Password</text>
-                  <text class="ink" x="136" y="136">************</text>
-                  <text class="ink2" x="136" y="158">Website</text>
-                  <text class="ink" x="136" y="172">dash.cloudflare.com</text>
-                  <rect class="brand" x="136" y="196" width="88" height="22" rx="6"/>
-                  <text class="on-brand" x="148" y="211">Copy password</text>
-                </svg>
+              <picture>
+                <source srcset="/img/app-dark.png" media="(prefers-color-scheme: dark)">
+                <img src="/img/app-light.png" width="2200" height="1440" loading="lazy" alt="The FigLock Mac app with a searchable list of items on the left and the selected login on the right.">
+              </picture>
             </div>
           </article>
 
@@ -392,30 +410,13 @@
             <li class="platform" aria-labelledby="ios-title">
               <header>
                 <h3 id="ios-title">iPhone app</h3>
-                <span class="pill pill--next">Planned</span>
+                <span class="pill pill--beta">In beta</span>
               </header>
               <div class="art">
-                <svg class="ill ill--phone" viewBox="0 0 160 300" role="img" aria-label="Mock-up of the iPhone app: a list of items with a sheet asking to approve the GitHub token for 15 minutes with Face ID.">
-                  <rect class="shade" x="10" y="10" width="144" height="288" rx="26"/>
-                  <rect class="frame" x="8" y="4" width="144" height="288" rx="26"/>
-                  <rect class="island" x="62" y="14" width="36" height="10" rx="5"/>
-                  <text class="ink ink-lg" x="22" y="52">Vault</text>
-                  <rect class="field" x="20" y="62" width="120" height="16" rx="8"/>
-                  <text class="ink2" x="32" y="73">Search</text>
-                  <rect class="rule" x="20" y="108" width="120" height="1"/>
-                  <text class="ink" x="22" y="100">Cloudflare</text>
-                  <rect class="rule" x="20" y="132" width="120" height="1"/>
-                  <text class="ink" x="22" y="124">GitHub token</text>
-                  <text class="ink" x="22" y="148">Home Wi-Fi</text>
-                  <rect class="agent-soft" x="14" y="168" width="132" height="118" rx="16"/>
-                  <rect class="agent" x="14" y="168" width="132" height="3" rx="1.5"/>
-                  <text class="ink2" x="26" y="188">AGENT REQUEST</text>
-                  <text class="ink" x="26" y="204">Approve GitHub token</text>
-                  <text class="ink" x="26" y="217">for 15 minutes?</text>
-                  <path class="stroke-agent" d="M68 234v-3a5 5 0 0 1 5-5h3M84 226h3a5 5 0 0 1 5 5v3M92 242v3a5 5 0 0 1-5 5h-3M76 250h-3a5 5 0 0 1-5-5v-3M75 234v3M85 234v3M80 234v4h-1M75 243c3 3 7 3 10 0"/>
-                  <rect class="agent" x="26" y="262" width="108" height="18" rx="9"/>
-                  <text class="on-brand" x="58" y="274">Approve</text>
-                </svg>
+                <div class="shots">
+                  <img src="/img/iphone-list.png" width="460" height="1000" loading="lazy" alt="The FigLock iPhone app, now in beta: the vault list with a search field, filters for logins and API tokens, and items such as a GitHub token and a Stripe API key.">
+                  <img src="/img/iphone-detail.png" width="460" height="1000" loading="lazy" alt="The FigLock iPhone app showing a GitHub token with its provider, scopes and allowed host, and the token itself hidden behind Show and Copy buttons.">
+                </div>
               </div>
               <p>Your vault on your phone, with autofill in apps and Safari and approvals for agents running on your computer.</p>
               <ul class="ticks">
@@ -475,7 +476,7 @@
         <h2 class="display" id="status-title">Where we are.</h2>
         <div class="notice" role="note">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-          <p>FigLock is an early release. Version 0.5 is the Mac app and the command line, and it has had no outside security audit yet. Please don't store real secrets in anything built from it until the audit is done and published. The phone apps above are planned and not built yet.</p>
+          <p>FigLock is an early release. Version 0.5 is the Mac app and the command line, and it has had no outside security audit yet. Please don't store real secrets in anything built from it until the audit is done and published. The iPhone app is in beta and not released yet, and the Android app is planned and not built yet.</p>
         </div>
       </div>
     </section>
@@ -494,6 +495,7 @@
       </div>
       <ul>
         <li><a href="/install/">Install</a></li>
+        <li><a href="/faq/">FAQ</a></li>
         <li><a href="/privacy/">Privacy</a></li>
         <li><a href="/terms/">Terms</a></li>
         <li><a href="mailto:security@figlock.com">Report a security issue</a></li>

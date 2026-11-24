@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frequently asked questions - FigLock</title>
+  <meta name="description" content="Answers about FigLock: where your vault lives, how AI agents use secrets without seeing them, what happens if you forget your password, and which devices it runs on.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#faf9f9" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121114" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://figlock.com/faq/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FigLock">
+  <meta property="og:title" content="Frequently asked questions - FigLock">
+  <meta property="og:description" content="Answers about FigLock: where your vault lives, how AI agents use secrets without seeing them, what happens if you forget your password, and which devices it runs on.">
+  <meta property="og:url" content="https://figlock.com/faq/">
+  <meta property="og:image" content="https://figlock.com/logo/figlock-social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="FigLock, your secrets approved by you. A lock icon next to the FigLock wordmark.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Frequently asked questions - FigLock">
+  <meta name="twitter:description" content="Answers about FigLock: where your vault lives, how AI agents use secrets without seeing them, what happens if you forget your password, and which devices it runs on.">
+  <meta name="twitter:image" content="https://figlock.com/logo/figlock-social-card.png">
+  <meta name="twitter:image:alt" content="FigLock, your secrets approved by you. A lock icon next to the FigLock wordmark.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/site.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://figlock.com/faq/#webpage",
+        "url": "https://figlock.com/faq/",
+        "name": "Frequently asked questions - FigLock",
+        "description": "Answers about FigLock: where your vault lives, how AI agents use secrets without seeing them, what happens if you forget your password, and which devices it runs on.",
+        "isPartOf": {
+          "@id": "https://figlock.com/#website"
+        }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "FigLock",
+            "item": "https://figlock.com/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "FAQ",
+            "item": "https://figlock.com/faq/"
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is FigLock?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "FigLock is a free, open-source password and secrets manager. It keeps your passwords, API tokens and notes in one encrypted vault that lives in storage you already own. AI agents can use a secret after you approve it, without seeing it. Today it is a Mac app and a command line tool."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is FigLock free and open source?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. FigLock is free software, dual licensed MIT or Apache-2.0, and the source is on GitHub. There are no FigLock accounts and nothing to subscribe to."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Where is my vault stored?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Your vault is a set of encrypted files. A full copy sits on each of your devices, and the same files are kept in the storage you choose: Google Drive, iCloud Drive, or a folder you sync yourself. We run no server or database that holds your vault."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can FigLock or my storage provider read my vault?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Everything is encrypted on your device with keys derived from your master password and your Secret Key, and we never receive either. Item titles, URLs and usernames are encrypted too. Your storage provider sees encrypted files, how many there are, how big they are and when they changed, and nothing else."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What if I forget my master password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "You save your Secret Key in an Emergency Kit when you set up, and you also choose a Recovery Key, so a forgotten password is not the end of your vault. We can't reset your password for you, because we don't have it. If you lose both your master password and your Secret Key, the data can't be recovered."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How can an AI agent use a secret without seeing it?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "You start the broker and the agent asks for access. FigLock draws the prompt itself, never the agent, and names exactly what will happen. You approve with Touch ID, for a limited time and only for hosts you list. The broker then adds the token to the agent's HTTP requests for it, or injects it into a command and scrubs it from the output."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can an agent ever see my secret?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Only if you choose to reveal it. Reveal is opt-in per item and needs its own approval every time. Approving an agent only limits what the agent is handed, and a revealed secret can still end up in an agent's transcript, so reveal sparingly."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which devices does FigLock run on?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The Mac app runs on Apple silicon and Intel Macs. The command line runs on macOS and Linux (x86_64 and ARM64), and the Linux builds are lightly tested so far. The iPhone app is in beta and coming soon. An Android app, a browser extension and Windows are planned. There is no hosted web version by design, so no website holds your vault or asks for your master password."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I install FigLock?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Download the Mac app from the install page, or install the command line with Homebrew using brew install figlock/tap/figlock, or with the installer script for macOS and Linux. The Mac app updates itself when you click, and the command line updates with brew upgrade figlock."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Has FigLock been security audited?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Not yet. FigLock 0.5 is an early release and has had no outside security audit. Please don't store real secrets in it until the audit is done and published."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does this website track me?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. These pages are plain static files with no cookies, no analytics and no scripts or fonts from other sites."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I report a security problem?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Write to security@figlock.com. Please don't include real vault data, tokens or recovery codes in a report."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="FigLock home">
+        <picture>
+          <source srcset="/logo/lockups/figlock-lockup-horizontal-on-dark.svg" media="(prefers-color-scheme: dark)">
+          <img src="/logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="114" height="32">
+        </picture>
+      </a>
+      <nav class="site-nav" aria-label="Main">
+        <a href="/#features">Features</a>
+        <a href="/#how-it-works">How it works</a>
+        <a href="/install/">Install</a>
+        <a href="/#whats-next">What's next</a>
+      </nav>
+      <a class="button button--primary header-cta" href="/install/#mac-app">Download</a>
+    </div>
+  </header>
+
+  <main id="main" class="prose-page">
+    <div class="wrap">
+      <article class="prose">
+        <h1>Frequently asked questions</h1>
+        <p class="meta">Last updated 25 November 2026. FigLock 0.5 is an early release: the Mac app and the command line. The iPhone app is in beta.</p>
+
+        <h2>What is FigLock?</h2>
+        <p>FigLock is a free, open-source password and secrets manager. It keeps your passwords, API tokens and notes in one encrypted vault that lives in storage you already own. AI agents can use a secret after you approve it, without seeing it. Today it is a Mac app and a command line tool.</p>
+
+        <h2>Is FigLock free and open source?</h2>
+        <p>Yes. FigLock is free software, dual licensed MIT or Apache-2.0, and the source is on GitHub. There are no FigLock accounts and nothing to subscribe to. <a href="https://github.com/figlock/figlock">See the source on GitHub</a>.</p>
+
+        <h2>Where is my vault stored?</h2>
+        <p>Your vault is a set of encrypted files. A full copy sits on each of your devices, and the same files are kept in the storage you choose: Google Drive, iCloud Drive, or a folder you sync yourself. We run no server or database that holds your vault.</p>
+
+        <h2>Can FigLock or my storage provider read my vault?</h2>
+        <p>No. Everything is encrypted on your device with keys derived from your master password and your Secret Key, and we never receive either. Item titles, URLs and usernames are encrypted too. Your storage provider sees encrypted files, how many there are, how big they are and when they changed, and nothing else. More on <a href="/privacy/">what we store and who can see it</a>.</p>
+
+        <h2>What if I forget my master password?</h2>
+        <p>You save your Secret Key in an Emergency Kit when you set up, and you also choose a Recovery Key, so a forgotten password is not the end of your vault. We can&#x27;t reset your password for you, because we don&#x27;t have it. If you lose both your master password and your Secret Key, the data can&#x27;t be recovered.</p>
+
+        <h2>How can an AI agent use a secret without seeing it?</h2>
+        <p>You start the broker and the agent asks for access. FigLock draws the prompt itself, never the agent, and names exactly what will happen. You approve with Touch ID, for a limited time and only for hosts you list. The broker then adds the token to the agent&#x27;s HTTP requests for it, or injects it into a command and scrubs it from the output.</p>
+
+        <h2>Can an agent ever see my secret?</h2>
+        <p>Only if you choose to reveal it. Reveal is opt-in per item and needs its own approval every time. Approving an agent only limits what the agent is handed, and a revealed secret can still end up in an agent&#x27;s transcript, so reveal sparingly.</p>
+
+        <h2>Which devices does FigLock run on?</h2>
+        <p>The Mac app runs on Apple silicon and Intel Macs. The command line runs on macOS and Linux (x86_64 and ARM64), and the Linux builds are lightly tested so far. The iPhone app is in beta and coming soon. An Android app, a browser extension and Windows are planned. There is no hosted web version by design, so no website holds your vault or asks for your master password.</p>
+
+        <h2>How do I install FigLock?</h2>
+        <p>Download the Mac app from the install page, or install the command line with Homebrew using brew install figlock/tap/figlock, or with the installer script for macOS and Linux. The Mac app updates itself when you click, and the command line updates with brew upgrade figlock. See the <a href="/install/">install guide</a>.</p>
+
+        <h2>Has FigLock been security audited?</h2>
+        <p>Not yet. FigLock 0.5 is an early release and has had no outside security audit. Please don&#x27;t store real secrets in it until the audit is done and published.</p>
+
+        <h2>Does this website track me?</h2>
+        <p>No. These pages are plain static files with no cookies, no analytics and no scripts or fonts from other sites.</p>
+
+        <h2>How do I report a security problem?</h2>
+        <p>Write to security@figlock.com. Please don&#x27;t include real vault data, tokens or recovery codes in a report.</p>
+
+        <h2>Still have a question?</h2>
+        <p>Ask in <a href="https://github.com/figlock/figlock/discussions">GitHub Discussions</a>, or write to <a href="mailto:support@figlock.com">support@figlock.com</a>.</p>
+      </article>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="foot-brand">
+        <a class="brand" href="/" aria-label="FigLock home">
+          <picture>
+            <source srcset="/logo/lockups/figlock-lockup-horizontal-on-dark.svg" media="(prefers-color-scheme: dark)">
+            <img src="/logo/lockups/figlock-lockup-horizontal.svg" alt="FigLock" width="114" height="32">
+          </picture>
+        </a>
+        <p>FigLock is free software, dual licensed MIT or Apache-2.0.</p>
+      </div>
+      <ul>
+        <li><a href="/install/">Install</a></li>
+        <li><a href="/faq/">FAQ</a></li>
+        <li><a href="/privacy/">Privacy</a></li>
+        <li><a href="/terms/">Terms</a></li>
+        <li><a href="mailto:security@figlock.com">Report a security issue</a></li>
+      </ul>
+    </div>
+  </footer>
+</body>
+</html>
