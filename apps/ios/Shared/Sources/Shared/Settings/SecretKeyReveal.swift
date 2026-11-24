@@ -19,6 +19,7 @@ public final class SecretKeyReveal {
     private let kitFolder: URL
     private var timer: Task<Void, Never>?
     private var generation = 0
+    private var authenticating = false
 
     public init(
         service: SettingsService, authenticator: any Authenticating = DeviceAuthenticator(),
@@ -40,7 +41,7 @@ public final class SecretKeyReveal {
     @discardableResult
     public func show() async -> Bool {
         let started = generation
-        guard await authenticator.authenticate(reason: "Show your Secret Key in FigLock"),
+        guard await authenticate(reason: "Show your Secret Key in FigLock"),
             started == generation, !Task.isCancelled,
             let key = service.keptSecretKey()
         else { return false }
@@ -65,7 +66,7 @@ public final class SecretKeyReveal {
     /// removed by `cleanUp` as soon as the share sheet is done, and when this screen goes away.
     public func prepareKit(storage: String) async -> URL? {
         let started = generation
-        guard await authenticator.authenticate(reason: "Save your Emergency Kit"), started == generation,
+        guard await authenticate(reason: "Save your Emergency Kit"), started == generation,
             !Task.isCancelled, let pdf = try? service.emergencyKit(storage: storage)
         else { return nil }
         let url = kitFolder.appendingPathComponent("FigLock Emergency Kit.pdf")
@@ -76,6 +77,20 @@ public final class SecretKeyReveal {
         }
         kitFile = url
         return url
+    }
+
+    private func authenticate(reason: String) async -> Bool {
+        authenticating = true
+        defer { authenticating = false }
+        return await authenticator.authenticate(reason: reason)
+    }
+
+    /// The app left the foreground. Face ID's own sheet also takes the app out of `.active` (the scene goes
+    /// `inactive` while it is up), and that must not throw away the reveal it is asking for: it would succeed and
+    /// then show nothing (FIG-233, same cause as FIG-223). Only a real `background` cancels one waiting on Face ID.
+    public func cleanUpForScenePhase(isBackground: Bool) {
+        if authenticating && !isBackground { return }
+        cleanUp()
     }
 
     public func cleanUp() {
