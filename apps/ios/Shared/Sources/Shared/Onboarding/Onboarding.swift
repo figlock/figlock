@@ -45,11 +45,15 @@ public struct Onboarding: Sendable {
     let now: @Sendable () -> Date
     /// The system's QuickType suggestions, emptied when the vault leaves this phone (ADR-0041 decision 7).
     let identities: CredentialIdentitySync?
+    /// Where the Google Drive refresh token lives; removing the vault from this phone signs out of Drive too.
+    let driveGrants: (any SecretStore)?
 
     public init(
         vault: LocalVault, keeper: SecretKeyKeeper, quick: QuickUnlock,
-        identities: CredentialIdentitySync? = nil, now: @escaping @Sendable () -> Date = { Date() }
+        identities: CredentialIdentitySync? = nil, driveGrants: (any SecretStore)? = nil,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
+        self.driveGrants = driveGrants
         self.vault = vault
         self.keeper = keeper
         self.quick = quick
@@ -290,14 +294,15 @@ public struct Onboarding: Sendable {
         }
     }
 
-    /// "Remove this vault from this iPhone": forgets the keys, the Secret Key, Face ID, the list of remotes and the
-    /// local copy of the vault. The vault in Google Drive or an iCloud Drive folder and the Emergency Kit are never
+    /// "Remove this vault from this iPhone": forgets the keys, the Secret Key, Face ID, the list of remotes, the
+    /// Google sign-in and the local copy of the vault. The phone's own device id (no key) is kept, so adding the
+    /// vault again shows this phone once in the device list (ADR-0044). The vault in Google Drive or an iCloud Drive folder and the Emergency Kit are never
     /// touched. Afterwards `status()` is `noVault`.
     public func removeFromThisPhone() throws {
         let id = rememberedVaultId ?? { if case .ready(let id, _) = vault.status() { id } else { nil } }()
         quick.disable()
         if let identities { Task { @MainActor in identities.clear() } }
-        if let id { try keeper.removeAll(vaultId: id) }
+        if let id { try keeper.removeForRemoval(vaultId: id) }
         let container = vault.container
         try? FileManager.default.removeItem(at: container.vaultFolder)
         clearSyncRecords()
@@ -306,5 +311,7 @@ public struct Onboarding: Sendable {
         }
         try vault.forgetVault()
         try container.prepare()
+        // Signed out of Google too: a removed vault leaves no Drive access on this phone. The copy in Drive stays.
+        if let driveGrants { GoogleAccessTokens.forgetGrant(in: driveGrants) }
     }
 }

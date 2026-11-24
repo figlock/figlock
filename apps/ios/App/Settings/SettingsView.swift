@@ -104,7 +104,7 @@ struct SettingsView: View {
             Button("Remove vault", role: .destructive) { remove() }
         } message: {
             Text(
-                "FigLock forgets this vault, its keys and Face ID on this iPhone. Your items stay in your sync folder and on your other devices, and the copies in iCloud Drive or Google Drive are not deleted. To add the vault again you need your Secret Key and master password."
+                "FigLock forgets this vault, its keys and Face ID on this iPhone, and signs out of Google Drive. Your items stay in your sync folder and on your other devices, and the copies in iCloud Drive or Google Drive are not deleted. To add the vault again you need your Secret Key and master password."
             )
         }
         .alert("Could not remove the vault", isPresented: $removalFailed) {
@@ -121,6 +121,7 @@ struct SettingsView: View {
     private func remove() {
         do {
             try context.onboarding.removeFromThisPhone()
+            context.drive.signOut()
             context.settings.clear()
             context.lock.lock()
             context.lock.vaultDidChange()

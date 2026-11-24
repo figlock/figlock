@@ -358,6 +358,20 @@ def signatures():
     cases.append(reject("device-record-altered-name", "crypto.md 7.4", {**v, "record": {**record, "name": "Evil"}},
                         "record is signed in canonical form"))
     cases.append(reject("device-record-bad-signature", "crypto.md 7.4", {**v, "signature": x(flip(sig))}, "signature"))
+    # ADR-0044: the optional `replaces` member is signed with the rest of the record.
+    again = {**record, "replaces": x(DEVICE_B)}
+    sig_again = r.sign_json(d["authority_seed"], "device-record", again)
+    cases.append(case("device-record-replaces-sign", "crypto.md 7.4, ADR-0044",
+                      {"authority_seed": x(d["authority_seed"]), "record": again,
+                       "jcs": r.jcs(again).decode()},
+                      {"signature": x(sig_again), "authority_pub": x(d["authority_pub"])}))
+    va = {"authority_pub": x(d["authority_pub"]), "record": again, "signature": x(sig_again)}
+    cases.append(case("device-record-replaces-verify", "crypto.md 7.4, ADR-0044", va, "valid"))
+    cases.append(reject("device-record-replaces-altered", "crypto.md 7.4, ADR-0044",
+                        {**va, "record": {**again, "replaces": x(DEVICE_A)}},
+                        "a replaces member cannot be added or changed without the authority key"))
+    cases.append(reject("device-record-replaces-added", "crypto.md 7.4, ADR-0044",
+                        {**v, "record": again}, "a replaces member cannot be added to a signed record"))
     vault_json = {"vault_id": x(VAULT_ID), "revision": 1, "key_epoch": 1, "min_format_version": 1, "suite": "fl1",
                   "kdf": {"m_kib": 65536, "t": 3, "p": 4, "salt": x(SALT)}}
     vsig = r.sign_json(d["authority_seed"], "vault-json", vault_json)

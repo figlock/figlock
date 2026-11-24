@@ -635,6 +635,7 @@ fn load_device_in(home: &Path, store: Option<&dyn SecretStore>) -> Res<DeviceKey
         device_id,
         sign_seed: Key::from_slice(&field("sign_seed")?).map_err(|_| damaged())?,
         agree_priv: Key::from_slice(&field("agree_priv")?).map_err(|_| damaged())?,
+        replaces: None,
     };
     if let Some(store) = store {
         // A device set up before the keystore existed. A failed move leaves the file as it was, and the
@@ -652,6 +653,7 @@ fn keys_from_blob(device_id: [u8; 16], blob: &[u8]) -> Option<DeviceKeys> {
         device_id,
         sign_seed: Key::from_slice(&blob[..32]).ok()?,
         agree_priv: Key::from_slice(&blob[32..]).ok()?,
+        replaces: None,
     })
 }
 

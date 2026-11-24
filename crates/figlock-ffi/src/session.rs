@@ -51,6 +51,8 @@ pub struct DeviceEntry {
     pub revoked_ms: Option<u64>,
     /// True for the device this session runs on.
     pub is_this_device: bool,
+    /// 32 hex characters: the live device whose record says it replaces this one, if any (ADR-0044).
+    pub replaced_by: Option<String>,
 }
 
 #[derive(uniffi::Record)]
@@ -160,6 +162,7 @@ impl VaultSession {
                     fingerprint: d.fingerprint,
                     revoked_ms: d.revoked_at.map(|s| s.wall),
                     is_this_device: d.device_id == me,
+                    replaced_by: d.replaced_by.as_ref().map(id_hex),
                 })
                 .collect())
         })

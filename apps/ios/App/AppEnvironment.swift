@@ -37,8 +37,10 @@ final class AppEnvironment {
         let quick = QuickUnlock(container: container, chip: SecureEnclaveChip(accessGroup: Self.keychainGroup))
         let identitySync = CredentialIdentitySync()
         self.identitySync = identitySync
-        onboarding = Onboarding(vault: vault, keeper: keeper, quick: quick, identities: identitySync)
-        drive = DriveConnection(store: KeychainSecretStore(accessGroup: Self.keychainGroup))
+        let driveSecrets = KeychainSecretStore(accessGroup: Self.keychainGroup)
+        onboarding = Onboarding(
+            vault: vault, keeper: keeper, quick: quick, identities: identitySync, driveGrants: driveSecrets)
+        drive = DriveConnection(store: driveSecrets)
         sync = SyncModel(vault: vault, keeper: keeper, drive: drive)
         BackgroundSync.model = sync
         let deviceSettings = DeviceSettings(container: container)

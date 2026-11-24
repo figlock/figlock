@@ -59,9 +59,49 @@ import Testing
     let phone = try Phone.make()
     defer { phone.cleanup() }
     try phone.keeper.stopKeeping(vaultId: phone.vaultId)
+    try phone.keeper.removeForRemoval(vaultId: phone.vaultId)
+    // Every key and the Secret Key are gone; only this phone's own device id stays (ADR-0044).
+    #expect(phone.secrets.accounts == ["earlier-device.\(phone.vaultId)"])
+    #expect(try phone.keeper.deviceKeys(vaultId: phone.vaultId) == nil)
+    #expect(try phone.keeper.secretKey(vaultId: phone.vaultId) == nil)
+    #expect(try phone.keeper.earlierDeviceId(vaultId: phone.vaultId) == phone.deviceKeys.deviceId())
+    #expect(!phone.keeper.isOptedOut(vaultId: phone.vaultId))
+}
+
+@Test func aPhoneAddedAgainMarksItsEarlierEntryAsItsOwnWithNewKeys() throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let store = try phone.vault.openStore()
+    let records = try store.list(prefix: "devices/").map { try store.get(path: $0.path) }
+    let before = try phone.deviceKeys.deviceId()
+
+    try phone.keeper.removeForRemoval(vaultId: phone.vaultId)
+    let fresh = try DeviceKeysHandle.generate()
+    try phone.keeper.saveDeviceKeys(fresh, vaultId: phone.vaultId)
+    let loaded = try #require(try phone.keeper.deviceKeys(vaultId: phone.vaultId))
+    #expect(try loaded.deviceId() != before, "new keys, not the old ones")
+
+    // The unlock after the re-add writes a record that names the earlier id.
+    let unlocked = try unlockVault(
+        vaultJson: store.get(path: "vault.json"), password: Phone.password, secretKey: phone.secretKey,
+        device: loaded, deviceName: "iPhone", deviceRecords: records, nowMs: 1_800_000_200_000)
+    let record = try #require(unlocked.newDeviceRecord)
+    let body = try #require(try JSONSerialization.jsonObject(with: record) as? [String: Any])
+    #expect(body["replaces"] as? String == before)
+    #expect(body["device_id"] as? String == (try loaded.deviceId()))
+    // Another device that reads the records lists the earlier entry as this phone's.
+    let entries = try unlocked.session.devices()
+    #expect(entries.first { $0.id == before }?.replacedBy == (try loaded.deviceId()))
+}
+
+@Test func aFirstInstallWritesNoReplacesAndAnotherVaultIsNotAffected() throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    // A rolled back setup keeps nothing, not even the id.
     try phone.keeper.removeAll(vaultId: phone.vaultId)
     #expect(phone.secrets.accounts.isEmpty)
-    #expect(!phone.keeper.isOptedOut(vaultId: phone.vaultId))
+    #expect(try phone.keeper.earlierDeviceId(vaultId: "another-vault") == nil)
+    #expect(try phone.keeper.deviceKeys(vaultId: "another-vault") == nil)
 }
 
 @Test func turningFaceIDOffDeletesTheKeyTheBlobAndTheState() async throws {

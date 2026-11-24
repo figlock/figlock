@@ -392,6 +392,7 @@ impl JoinAttempt {
                 device_id: self.device.device_id,
                 sign_seed: Key::from_bytes(*self.device.sign_seed.expose()),
                 agree_priv: Key::from_bytes(*self.device.agree_priv.expose()),
+                replaces: self.device.replaces,
             },
             &self.device_name,
             records,

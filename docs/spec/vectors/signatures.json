@@ -77,6 +77,83 @@
       "why": "signature"
     },
     {
+      "name": "device-record-replaces-sign",
+      "spec": "crypto.md 7.4, ADR-0044",
+      "inputs": {
+        "authority_seed": "a15b8684865d1ca8d5ab682f371f06ea1802e9d98b0928ef8ef2c3d5e15feedc",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1,
+          "replaces": "bb8b7895c05bf9f375d4217069c7ff4a"
+        },
+        "jcs": "{\"added_at\":1700000000000,\"agree_pub\":\"65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c\",\"device_id\":\"f4a178f4ea1922f1a69bee4ab47e8407\",\"epoch_added\":1,\"name\":\"Work MacBook\",\"replaces\":\"bb8b7895c05bf9f375d4217069c7ff4a\",\"sign_pub\":\"f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81\"}"
+      },
+      "expected": {
+        "signature": "e3fc95ffc86f14cb193af2323222f21851606a945b33241594c17c416411174e61382e0438b2cce784a84e60a10e24a9bfca220bfd31d41406fad3c4854c6f05",
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a"
+      }
+    },
+    {
+      "name": "device-record-replaces-verify",
+      "spec": "crypto.md 7.4, ADR-0044",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1,
+          "replaces": "bb8b7895c05bf9f375d4217069c7ff4a"
+        },
+        "signature": "e3fc95ffc86f14cb193af2323222f21851606a945b33241594c17c416411174e61382e0438b2cce784a84e60a10e24a9bfca220bfd31d41406fad3c4854c6f05"
+      },
+      "expected": "valid"
+    },
+    {
+      "name": "device-record-replaces-altered",
+      "spec": "crypto.md 7.4, ADR-0044",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1,
+          "replaces": "f4a178f4ea1922f1a69bee4ab47e8407"
+        },
+        "signature": "e3fc95ffc86f14cb193af2323222f21851606a945b33241594c17c416411174e61382e0438b2cce784a84e60a10e24a9bfca220bfd31d41406fad3c4854c6f05"
+      },
+      "expected": "reject",
+      "why": "a replaces member cannot be added or changed without the authority key"
+    },
+    {
+      "name": "device-record-replaces-added",
+      "spec": "crypto.md 7.4, ADR-0044",
+      "inputs": {
+        "authority_pub": "b192ab41719d479fe82de946be572f137709f8aafb0bed8c9725a54f6681fb6a",
+        "record": {
+          "device_id": "f4a178f4ea1922f1a69bee4ab47e8407",
+          "name": "Work MacBook",
+          "sign_pub": "f1bd8b6d370ba5c8c2bb57f2161793529c0cf6cfeded72bb2a6302b90d081b81",
+          "agree_pub": "65e163a79ebc093a8bf2ea1b720dfff8419f8fe09abedf491be2d3c9742b926c",
+          "added_at": 1700000000000,
+          "epoch_added": 1,
+          "replaces": "bb8b7895c05bf9f375d4217069c7ff4a"
+        },
+        "signature": "a892acf8cbb4ded4eaae2b71f9dbddd244f65c8ef19cd97e2c96f6112d2333f8d2a77ccb3a74dd291a86e82974e66a073b605742c9695528e1177c0cde16c208"
+      },
+      "expected": "reject",
+      "why": "a replaces member cannot be added to a signed record"
+    },
+    {
       "name": "vault-json-sign",
       "spec": "crypto.md 7.4",
       "inputs": {

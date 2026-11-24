@@ -79,6 +79,10 @@ pub struct DeviceKeys {
     pub device_id: DeviceId,
     pub sign_seed: Key,
     pub agree_priv: Key,
+    /// An earlier identity of this same device, when it is added to a vault again after being removed from it
+    /// (ADR-0044). Not a key and not stored with the keys: the app sets it before `unlock`, and it goes into
+    /// the device record this unlock may write.
+    pub replaces: Option<DeviceId>,
 }
 
 impl DeviceKeys {
@@ -87,6 +91,7 @@ impl DeviceKeys {
             device_id: random()?,
             sign_seed: Key::random()?,
             agree_priv: Key::random()?,
+            replaces: None,
         })
     }
 
@@ -111,6 +116,8 @@ struct DeviceMeta {
     agree_pub: [u8; 32],
     added_at: u64,
     epoch_added: u32,
+    /// The earlier device id this record says it replaces (ADR-0044); a hint for the device list only.
+    replaces: Option<DeviceId>,
 }
 
 /// An entry of the signed `revoked` list (`crypto.md` 9.2).
@@ -165,6 +172,9 @@ pub struct DeviceInfo {
     pub name: Option<String>,
     pub fingerprint: String,
     pub revoked_at: Option<Stamp>,
+    /// The live device whose record says it replaces this one (ADR-0044): the same phone added again after
+    /// it was removed. A list shows this entry as an earlier one of that device, not as another device.
+    pub replaced_by: Option<DeviceId>,
 }
 
 /// Files to store after approving a join request. Write the record first, then the response, so the new
@@ -588,10 +598,14 @@ fn device_record_body(
     now_ms: u64,
     epoch: u32,
 ) -> Json {
-    json!({
+    let mut body = json!({
         "device_id": hexs(&d.device_id), "name": name, "sign_pub": hexs(&d.sign_public()),
         "agree_pub": hexs(agree_pub), "added_at": now_ms, "epoch_added": epoch,
-    })
+    });
+    if let Some(old) = d.replaces.filter(|old| *old != d.device_id) {
+        body["replaces"] = json!(hexs(&old));
+    }
+    body
 }
 
 // ---- CBOR field values (text) ----
@@ -831,6 +845,10 @@ impl Vault {
                 agree_pub,
                 added_at: now_ms,
                 epoch_added: self.epoch,
+                replaces: self
+                    .device
+                    .replaces
+                    .filter(|old| *old != self.device.device_id),
             },
         );
         Ok(rec)
@@ -856,6 +874,11 @@ impl Vault {
             added_at: o.get("added_at").and_then(Json::as_u64).ok_or(Error)?,
             epoch_added: u32::try_from(o.get("epoch_added").and_then(Json::as_u64).ok_or(Error)?)
                 .map_err(|_| Error)?,
+            // A hint only: one that does not read is no hint, the record is signed and stays valid.
+            replaces: o
+                .get("replaces")
+                .and_then(|v| unhex::<16>(v).ok())
+                .filter(|old| *old != id),
         };
         self.devices
             .insert(id, unhex(o.get("sign_pub").ok_or(Error)?)?);
@@ -896,17 +919,28 @@ impl Vault {
 
     /// Every device this vault knows: those with a valid record, then the revoked ones.
     pub fn devices(&self) -> Vec<DeviceInfo> {
+        // Only a live device can replace another, and a device never replaces itself.
+        let replaced_by = |old: &DeviceId| {
+            self.device_meta
+                .iter()
+                .find(|(id, m)| {
+                    m.replaces == Some(*old) && *id != old && self.devices.contains_key(*id)
+                })
+                .map(|(id, _)| *id)
+        };
         let live = self.devices.iter().map(|(id, sign_pub)| DeviceInfo {
             device_id: *id,
             name: self.device_meta.get(id).map(|m| m.name.clone()),
             fingerprint: device_fingerprint(sign_pub),
             revoked_at: None,
+            replaced_by: replaced_by(id),
         });
         let gone = self.revoked.iter().map(|(id, r)| DeviceInfo {
             device_id: *id,
             name: r.name.clone(),
             fingerprint: device_fingerprint(&r.sign_pub),
             revoked_at: Some(r.revoked_at),
+            replaced_by: replaced_by(id),
         });
         live.chain(gone).collect()
     }
@@ -937,6 +971,7 @@ impl Vault {
             agree_pub: req.agree_pub,
             added_at: now_ms,
             epoch_added: self.epoch,
+            replaces: None,
         };
         let record = Committed {
             path: record_path(&req.device_id),
@@ -948,10 +983,13 @@ impl Vault {
     }
 
     fn sign_record(&self, id: &DeviceId, sign_pub: &[u8; 32], m: &DeviceMeta) -> Result<Vec<u8>> {
-        let body = json!({
+        let mut body = json!({
             "device_id": hexs(id), "name": m.name, "sign_pub": hexs(sign_pub),
             "agree_pub": hexs(&m.agree_pub), "added_at": m.added_at, "epoch_added": m.epoch_added,
         });
+        if let Some(old) = m.replaces {
+            body["replaces"] = json!(hexs(&old));
+        }
         with_signature(
             body.clone(),
             sign_json(&self.keys.authority_seed, "device-record", &body)?,
@@ -1115,11 +1153,14 @@ impl Vault {
         let mut records = Vec::new();
         for (id, sign_pub) in self.devices.iter().filter(|(id, _)| *id != target) {
             let meta = self.device_meta.get(id).ok_or(Error)?;
-            let body = json!({
+            let mut body = json!({
                 "device_id": hexs(id), "name": meta.name, "sign_pub": hexs(sign_pub),
                 "agree_pub": hexs(&meta.agree_pub), "added_at": meta.added_at,
                 "epoch_added": meta.epoch_added,
             });
+            if let Some(old) = meta.replaces {
+                body["replaces"] = json!(hexs(&old));
+            }
             records.push(Committed {
                 path: record_path(id),
                 bytes: with_signature(
