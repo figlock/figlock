@@ -65,7 +65,7 @@ Emergency Kit check passes), joins one by pairing through the remote's `inbox/` 
 Google Drive and restores a missing folder from it, and removes a vault from the phone. The remote is any
 `BlobStoreFfi`; Drive is the Rust `DriveStore` fed tokens by `GoogleAccessTokens` (PKCE sign-in, refresh token in the
 keychain). The Google client id comes from the build (`FIGLOCK_GOOGLE_CLIENT_ID`, Info.plist `FigLockGoogleClientID`)
-and is empty until the iOS OAuth client exists (FIG-44), in which case the screens say sign-in is not set up. The
+and is the iOS-type OAuth client in the `figlock-prod` project (bundle id `com.figlock.ios`, no secret). A build with it empty says sign-in is not set up. The
 SwiftUI screens are in `App/Onboarding` and `App/Onboarding/RecoveryScreen.swift`.
 
 ## Settings

@@ -15,8 +15,9 @@ settings:
     SUPPORTS_MACCATALYST: NO
     SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
     SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: NO
-    # The iOS OAuth client id for Google Drive sign-in (ADR-0021); empty until FIG-44 creates the client.
-    FIGLOCK_GOOGLE_CLIENT_ID: ""
+    # The iOS-type OAuth client (bundle id com.figlock.ios) in the figlock-prod Google Cloud project, the same
+    # project as the desktop client so both see one Drive appDataFolder. Public by nature, no secret (ADR-0021).
+    FIGLOCK_GOOGLE_CLIENT_ID: "994923112244-blndm5i1ll7pi2ieljblm43voqmi6mkj.apps.googleusercontent.com"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     # Team and signing identities arrive with FIG-175; simulator builds do not need them.
