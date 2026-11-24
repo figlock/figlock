@@ -38,7 +38,8 @@ Provider notes:
   not "missing". Before macOS 14 it is a hidden `.name.icloud` stub; from macOS 14 it keeps its name and has the
   `SF_DATALESS` flag. The adapter asks the OS to download it and the sync engine waits a bounded time for
   `vault.json` and retries on the next run; it is never treated as a gap or as a missing vault (section 8,
-  ADR-0043).
+  ADR-0043). Op files that are listed but not downloaded are read anyway, which is what requests the download; a sync that
+  leaves any behind counts them in `Report.waiting` and clients show "waiting for download" rather than synced.
 - **Several remotes.** A device may mirror its local folder to a list of remotes (`drive`, folders). Each is
   synced on its own with its own back-off, same-vault check, lost-remote confirmation and state; one failing never
   fails another (ADR-0043).
