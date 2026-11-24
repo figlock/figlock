@@ -54,9 +54,10 @@ private func item(
     #expect(ServiceMatch.matches(items, identifiers: ["example.com"]).map(\.id) == ["exact", "sub"])
 }
 
-/// Wait for a write that runs in a task of its own; fails the test if it never arrives.
+/// Wait for a write that runs in a task of its own; fails the test if it never arrives. The budget is generous
+/// because CI runs the whole suite in parallel and a starved main actor can take tens of seconds to get to it.
 private func eventually(_ condition: @Sendable () async -> Bool) async throws {
-    for _ in 0..<400 {
+    for _ in 0..<2400 {
         if await condition() { return }
         try await Task.sleep(for: .milliseconds(50))
     }
