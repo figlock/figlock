@@ -1,0 +1,18 @@
+# FigLock
+
+> FigLock is a free, open-source, headless, agent-aware password and secrets manager. One encrypted vault holds passwords, API tokens and notes. The vault lives as ciphertext in storage you already own (Google Drive, iCloud Drive or a synced folder), and FigLock runs no server that holds vault data. An AI agent can use a secret after you approve it with Touch ID, without seeing it.
+
+Status: early release, version 0.5.0. The Mac app and the command line (macOS and Linux) are released. The iPhone app is in beta and not released yet. The Android app, a browser extension and Windows are planned. There has been no outside security audit yet.
+
+## Pages
+
+- [Home](https://figlock.com/): what FigLock is, how agents use secrets, and what is coming next
+- [Install](https://figlock.com/install/): download the Mac app, or install the command line with Homebrew or one command
+- [Privacy](https://figlock.com/privacy/): what FigLock stores, where it lives and who can see it
+- [Terms](https://figlock.com/terms/): plain-language terms for the software and this website
+
+## Source and community
+
+- [GitHub repository](https://github.com/figlock/figlock): source code, issues, releases and discussions
+- [Security policy](https://github.com/figlock/figlock/security/policy): how to report a vulnerability
+- Contact: support@figlock.com
