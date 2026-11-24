@@ -364,6 +364,9 @@ h2:not(.display) { margin-bottom: var(--space-6); }
 .platform h3 { font-size: var(--text-xl); }
 .platform p { color: var(--color-text-secondary); }
 .platform .art { display: grid; place-items: center; padding: var(--space-4); background: var(--color-surface-sunken); border-radius: var(--radius-md); }
+.platform .art img { display: block; width: 100%; height: auto; border-radius: var(--radius-md); }
+.platform .art .shots { display: flex; justify-content: center; gap: var(--space-3); width: 100%; }
+.platform .art .shots img { width: 46%; max-width: 9.5rem; border: var(--hairline) solid var(--color-border-strong); border-radius: var(--radius-lg); }
 .platform .art svg { display: block; width: 100%; max-width: 20rem; height: auto; }
 .platform--now { border-color: var(--color-success); }
 .platform-copy { display: grid; gap: var(--space-4); align-content: start; }
@@ -431,3 +434,8 @@ h2:not(.display) { margin-bottom: var(--space-6); }
   .site-nav a { padding-inline: var(--space-2); }
 }
 .prose .steps h3 { color: var(--color-text); margin-top: 0; }
+
+/* Extra app screenshots under the features (FIG-221). */
+.gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: var(--space-6); margin-top: var(--space-8); }
+.gallery figure { display: grid; align-content: start; gap: var(--space-3); margin: 0; }
+.gallery figcaption { color: var(--color-text-secondary); font-size: var(--text-sm); }
