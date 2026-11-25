@@ -9,6 +9,8 @@ public enum FolderProblem: Error, Equatable, Sendable {
     case pickAgain
     /// The folder is, contains or sits inside the local vault folder (ADR-0043).
     case insideVault
+    /// The folder is, contains or sits inside a folder this phone already syncs with (FIG-225).
+    case alreadyRemote
     /// The folder is in iCloud Drive and iCloud Drive is off or signed out on this iPhone.
     case iCloudOff
     /// The folder holds files but no vault. Syncing into it could sit next to another device's folder of the
@@ -126,6 +128,31 @@ public enum FolderRemote {
 
     private static func components(of url: URL) -> [String] {
         url.resolvingSymlinksInPath().standardizedFileURL.pathComponents
+    }
+
+    /// Whether two folders are the same, or one holds the other, by their resolved real paths. Symbolic links are
+    /// followed, and a folder whose name only starts like the other's is a different folder.
+    public static func overlap(_ one: URL, _ other: URL) -> Bool {
+        let first = components(of: one)
+        let second = components(of: other)
+        let shared = zip(first, second).prefix { $0 == $1 }.count
+        return shared == first.count || shared == second.count
+    }
+
+    /// FIG-225: refuse a folder that is, contains or sits inside a folder this phone already syncs with. Each
+    /// remote's bookmark is resolved to its real folder, so the same folder picked again (which gives different
+    /// bookmark bytes) is still found. `ignoring` is the remote being replaced. A bookmark that cannot be resolved
+    /// holds no known folder and is skipped.
+    public static func checkNotARemote(_ url: URL, among entries: [RemoteEntry], ignoring: String? = nil) throws {
+        for entry in entries where entry.kind == .folder && entry.id != ignoring {
+            guard let bookmark = entry.bookmark else { continue }
+            var stale = false
+            guard
+                let existing = try? URL(
+                    resolvingBookmarkData: bookmark, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
+            else { continue }
+            if overlap(url, existing) { throw FolderProblem.alreadyRemote }
+        }
     }
 
     /// What may become a remote of a vault that already exists on this phone: an empty folder, or one that holds

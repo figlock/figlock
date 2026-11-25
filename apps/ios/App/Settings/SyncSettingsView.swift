@@ -127,6 +127,7 @@ struct SyncSettingsView: View {
             "That folder already has other files in it. Pick an empty folder, or make a new one, so your vault stays apart from them."
         case .differentVault: "That folder holds a different vault than this iPhone."
         case .insideVault: "That folder overlaps the vault on this iPhone. Pick another one."
+        case .alreadyRemote: "FigLock already syncs with that folder, or one inside or around it. Pick a different one."
         case .iCloudOff: "iCloud Drive is off on this iPhone. Turn it on in Settings, under your name, then iCloud."
         case .missing: "That folder is not there any more."
         case .pickAgain: "FigLock could not open that folder. Pick it again."

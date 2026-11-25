@@ -200,6 +200,39 @@ private actor OrderLog {
     #expect(try store.list(prefix: "").map(\.path) == ["vault.json"])
 }
 
+// MARK: The same folder twice (FIG-225)
+
+@Test func aFolderThatIsOrOverlapsAnExistingRemoteIsRefusedWhateverItsBookmarkBytes() throws {
+    let root = try temporaryFolder("remotes")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let icloud = root.appendingPathComponent("FigLock", isDirectory: true)
+    let inside = icloud.appendingPathComponent("sub", isDirectory: true)
+    let sibling = root.appendingPathComponent("FigLock 2", isDirectory: true)
+    for folder in [inside, sibling] {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    }
+    // Bookmarks taken separately differ in bytes; they must still lead to the same folder.
+    let existing = [RemoteEntry.drive, try FolderRemote.entry(for: icloud)]
+
+    #expect(throws: FolderProblem.alreadyRemote, "the same folder again") {
+        try FolderRemote.checkNotARemote(icloud, among: existing)
+    }
+    #expect(throws: FolderProblem.alreadyRemote, "inside a remote") {
+        try FolderRemote.checkNotARemote(inside, among: existing)
+    }
+    #expect(throws: FolderProblem.alreadyRemote, "containing a remote") {
+        try FolderRemote.checkNotARemote(root, among: existing)
+    }
+    let link = root.appendingPathComponent("link")
+    try FileManager.default.createSymbolicLink(at: link, withDestinationURL: icloud)
+    #expect(throws: FolderProblem.alreadyRemote, "through a symbolic link") {
+        try FolderRemote.checkNotARemote(link, among: existing)
+    }
+    try FolderRemote.checkNotARemote(sibling, among: existing)
+    try FolderRemote.checkNotARemote(icloud, among: existing, ignoring: existing[1].id)
+    try FolderRemote.checkNotARemote(icloud, among: [])
+}
+
 // MARK: The folder checks of ADR-0043
 
 @Test func aFolderMayNotBeContainOrSitInsideTheLocalVault() throws {
