@@ -152,7 +152,7 @@ final class OnboardingModel {
         }
         await run {
             _ = try await service.commitCreation(
-                pending, enableFaceID: faceID, keepRemote: drive.isSignedIn ? .drive : nil)
+                pending, enableFaceID: faceID, keepRemote: source == .drive && drive.isSignedIn ? .drive : nil)
             removeKit()
             let password = self.password
             self.pending = nil
