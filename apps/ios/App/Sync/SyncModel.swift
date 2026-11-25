@@ -116,6 +116,7 @@ final class SyncModel {
         guard case .ready(let vaultId, _) = vault.status() else { throw FolderProblem.noVault }
         let opened = try FolderRemote.open(url: url, localVault: vault.container.vaultFolder)
         defer { opened.close() }
+        try FolderRemote.checkNotARemote(url, among: list.entries())
         try FolderRemote.checkCanHold(vaultId: vaultId, in: opened.store)
         let entry = try FolderRemote.entry(for: url)
         list.add(entry)
@@ -130,6 +131,7 @@ final class SyncModel {
         else { throw FolderProblem.noVault }
         let opened = try FolderRemote.open(url: url, localVault: vault.container.vaultFolder)
         defer { opened.close() }
+        try FolderRemote.checkNotARemote(url, among: list.entries(), ignoring: id)
         try FolderRemote.checkCanHold(vaultId: vaultId, in: opened.store)
         var entry = old
         entry.name = FolderRemote.displayName(for: url)
