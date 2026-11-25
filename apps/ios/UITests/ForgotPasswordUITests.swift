@@ -76,7 +76,9 @@ final class ForgotPasswordUITests: XCTestCase {
         typeNewPassword()
         app.buttons["Save Emergency Kit"].tap()
         // Close the share sheet; the kit was opened, so the next step is offered.
-        app.buttons["Close"].firstMatch.tap()
+        let close = app.buttons["Close"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        close.tap()
         app.buttons["I saved it, continue"].tap()
         XCTAssertTrue(app.staticTexts["Check that you saved it"].waitForExistence(timeout: 10))
         // A wrong check does not change the vault.

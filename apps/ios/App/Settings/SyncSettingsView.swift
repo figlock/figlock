@@ -50,11 +50,14 @@ struct SyncSettingsView: View {
                         .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
                 .disabled(busy)
-                if !context.drive.isSignedIn {
+                if !context.drive.isSignedIn || !sync.rows.contains(where: { $0.entry.kind == .drive }) {
                     Button {
                         Task { await signInToDrive() }
                     } label: {
-                        Label("Sign in to Google Drive", systemImage: "globe").rowLabel()
+                        Label(
+                            context.drive.isSignedIn ? "Sync with Google Drive" : "Sign in to Google Drive",
+                            systemImage: "globe"
+                        ).rowLabel()
                             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg, alignment: .leading)
                     }
                     .disabled(busy || !context.drive.isConfigured)
@@ -109,7 +112,7 @@ struct SyncSettingsView: View {
         busy = true
         defer { busy = false }
         do {
-            try await context.drive.signIn()
+            if !context.drive.isSignedIn { try await context.drive.signIn() }
             await sync.driveSignedIn()
         } catch let failure as SignInError {
             errorText = OnboardingModel.text(failure)

@@ -379,3 +379,21 @@ private func onboarding(_ phone: Blank, refusing prefix: String) -> Onboarding {
     }
     #expect(phone.vault.status() == .missing)
 }
+
+@MainActor
+@Test func aVaultCreatedAfterAnEmptyDriveKeepsDriveAsItsRemote() async throws {
+    let phone = try Blank.make()
+    defer { phone.cleanup() }
+    let pending = try await phone.onboarding.startCreation(password: Blank.password, deviceName: "Test iPhone")
+    try await phone.onboarding.commitCreation(pending, enableFaceID: false, keepRemote: .drive)
+    #expect(RemoteList(container: phone.container).entries().map(\.id) == ["drive"])
+}
+
+@MainActor
+@Test func aVaultCreatedWithNoChosenRemoteHasNone() async throws {
+    let phone = try Blank.make()
+    defer { phone.cleanup() }
+    let pending = try await phone.onboarding.startCreation(password: Blank.password, deviceName: "Test iPhone")
+    try await phone.onboarding.commitCreation(pending, enableFaceID: false)
+    #expect(RemoteList(container: phone.container).entries().isEmpty)
+}
