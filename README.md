@@ -12,7 +12,7 @@ usable from CLI, desktop, web, browser extension and native mobile apps, with no
 our own. Your vault lives as ciphertext in storage you already own (Google Drive, iCloud Drive, later Git
 and S3). AI agents can *use* a secret after you approve with Touch ID, without ever seeing it.
 
-**Status:** early development, current release v0.5.0. Do not store real secrets in anything from this repo
+**Status:** early development, current release v0.5.1. Do not store real secrets in anything from this repo
 until the security audit (phase 6) is done.
 
 - **Mac app** (Apple silicon and Intel, signed and notarized, updates itself when you click): browse, search and
