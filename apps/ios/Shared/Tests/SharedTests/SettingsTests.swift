@@ -359,6 +359,11 @@ private func twoDevices(_ phone: Phone) async throws -> (session: VaultSession, 
     #expect(files >= 2)
     #expect(try remote.list(prefix: "").isEmpty)
     #expect(try local.get(path: "vault.json").count > 0, "the vault on this phone stays")
+    try remote.putNew(path: "vault.json", bytes: Data("{}".utf8))
+    await #expect(throws: SettingsService.Failure.self) {
+        _ = try await service.deleteDriveCopy(typed: SettingsService.deleteFromDrivePhrase, remote: remote)
+    }
+    #expect(try !remote.list(prefix: "").isEmpty, "an unrecognised copy stays")
     #expect(try phone.keeper.deviceKeys(vaultId: phone.vaultId) != nil)
 }
 

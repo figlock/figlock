@@ -17,6 +17,11 @@ public struct SettingsService: Sendable {
         case offline
         /// The remote holds a different vault than this phone.
         case foreignVault
+        /// The Drive copy has a `vault.json` that is not valid, so it cannot be matched to this vault.
+        case damaged
+        /// The deletion ran but files were still in Drive after it, or the copy could not be matched. Safe to
+        /// run again.
+        case incomplete
     }
 
     /// What a revocation did.
@@ -146,7 +151,10 @@ public struct SettingsService: Sendable {
             }.value
             return Int(files)
         } catch let failure as SyncFailure {
-            throw Onboarding.map(failure).asSettingsFailure
+            switch failure {
+            case .Other, .Busy: throw Failure.incomplete
+            default: throw Onboarding.map(failure).asSettingsFailure
+            }
         } catch let failure as StoreFailure {
             throw Onboarding.map(failure).asSettingsFailure
         } catch {
@@ -161,6 +169,7 @@ extension Onboarding.Failure {
         case .signIn: .signIn
         case .offline: .offline
         case .foreignVault: .foreignVault
+        case .damaged: .damaged
         default: .failed
         }
     }

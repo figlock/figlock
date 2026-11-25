@@ -89,6 +89,15 @@ public actor RemoteSyncCoordinator {
         states[id] = nil
     }
 
+    /// Run `work` while no sync of `id` runs and none starts: a sync that uploads while the copy is being deleted
+    /// would put files back and fail the deletion.
+    public func exclusive<T: Sendable>(_ id: String, _ work: @Sendable () async throws -> T) async throws -> T {
+        while running.contains(id) { try await Task.sleep(for: .milliseconds(200)) }
+        running.insert(id)
+        defer { running.remove(id) }
+        return try await work()
+    }
+
     /// Sync every remote that is due, all at once. `force` ignores the back-off (a person asked for it).
     /// Returns the number of remote files that changed the local vault.
     @discardableResult

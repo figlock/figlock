@@ -94,6 +94,16 @@ public final class RemoteList: @unchecked Sendable {
         try? FileManager.default.removeItem(at: file)
     }
 
+    /// Whether this phone has ever saved a list. A phone from an earlier version has none yet.
+    public var hasSavedList: Bool { FileManager.default.fileExists(atPath: file.path) }
+
+    /// Start-up: a phone signed in to Google with no list yet (an earlier version, or a vault just opened from
+    /// Drive) gets its Drive entry. Once a list exists it is left alone, so a Drive remote the person turned off
+    /// (after deleting the Drive copy) stays off while the Google sign-in stays.
+    public func adoptSignedInDrive(signedIn: Bool) {
+        if signedIn { if !hasSavedList { add(.drive) } } else { reconcileDrive(signedIn: false) }
+    }
+
     /// Keep Drive's entry in line with the sign-in: present while signed in, gone after sign out. A phone from an
     /// earlier version, signed in but with no list yet, gets its Drive entry here.
     public func reconcileDrive(signedIn: Bool) {

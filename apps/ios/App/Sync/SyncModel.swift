@@ -31,7 +31,7 @@ final class SyncModel {
         self.drive = drive
         let list = RemoteList(container: vault.container)
         self.list = list
-        list.reconcileDrive(signedIn: drive.isSignedIn)
+        list.adoptSignedInDrive(signedIn: drive.isSignedIn)
         coordinator = RemoteSyncCoordinator(
             .init(
                 vault: vault, list: list, drive: { [drive] in drive.remoteIfSignedIn() },
@@ -148,6 +148,17 @@ final class SyncModel {
         list.reconcileDrive(signedIn: true)
         await reload()
         await sync(RemoteEntry.driveID)
+    }
+
+    /// Delete the copy in Google Drive, then stop syncing with it: a Drive row left syncing would upload the
+    /// vault again at once (ADR-0035). The Google sign-in stays, so Drive can be turned on again from Sync.
+    func deleteDriveCopy(using service: SettingsService, typed: String, remote: any BlobStoreFfi) async throws {
+        _ = try await coordinator.exclusive(RemoteEntry.driveID) {
+            try await service.deleteDriveCopy(typed: typed, remote: remote)
+        }
+        list.remove(id: RemoteEntry.driveID)
+        await coordinator.forget(id: RemoteEntry.driveID)
+        await reload()
     }
 
     func driveSignedOut() async {
