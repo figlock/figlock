@@ -70,6 +70,24 @@ final class ForgotPasswordUITests: XCTestCase {
         XCTAssertTrue(app.buttons["I forgot my password or Secret Key"].waitForNonExistence(timeout: 60))
     }
 
+    func testALostRecoveryKeyCanRemoveTheVaultAfterConfirmingAndLandsOnSetup() {
+        openForgot()
+        let remove = app.buttons["Remove this vault from this iPhone"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 10))
+        remove.tap()
+        // Cancelling changes nothing.
+        let alert = app.alerts["Remove this vault from this iPhone?"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 10))
+        alert.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["Enter your Recovery Key"].exists)
+        remove.tap()
+        XCTAssertTrue(alert.waitForExistence(timeout: 10))
+        alert.buttons["Remove vault"].tap()
+        let create = app.buttons.matching(NSPredicate(format: "label BEGINSWITH \"Create a new vault\"")).firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 30), "the vault setup screen shows")
+        XCTAssertFalse(app.buttons["I forgot my password or Secret Key"].exists)
+    }
+
     func testRecoveringSetsANewPasswordAndOldOneStopsWorking() {
         openForgot()
         enterKeyAndContinue(Self.recoveryKey)

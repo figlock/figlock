@@ -5,9 +5,13 @@ import SwiftUI
 /// flow with the Recovery Key as a code: key, new master password, new Emergency Kit, check.
 struct ForgotPasswordView: View {
     @State private var model: ForgotPasswordModel
+    @State private var confirmingRemoval = false
+    @State private var removalFailed = false
     @Environment(\.dismiss) private var dismiss
+    private let environment: AppEnvironment
 
     init(environment: AppEnvironment) {
+        self.environment = environment
         _model = State(
             initialValue: ForgotPasswordModel(
                 service: environment.onboarding, lock: environment.lock, deviceName: UIDevice.current.name))
@@ -34,6 +38,33 @@ struct ForgotPasswordView: View {
         }
         .interactiveDismissDisabled(model.step == .kit || model.step == .verify)
         .onDisappear { model.cancel() }
+        .alert("Remove this vault from this iPhone?", isPresented: $confirmingRemoval) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove vault", role: .destructive) { removeVault() }
+        } message: {
+            Text(
+                "FigLock forgets this vault, its keys and Face ID on this iPhone, and signs out of Google Drive. Your items stay in your sync folder and on your other devices, and the copies in iCloud Drive or Google Drive are not deleted. To add the vault again you need your Secret Key and master password."
+            )
+        }
+        .alert("Could not remove the vault", isPresented: $removalFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Something stopped FigLock from clearing this iPhone. Try again.")
+        }
+    }
+
+    /// Same as Settings: forget the vault on this iPhone, never touch the copies in the sync places. The app then
+    /// shows the vault setup screen.
+    private func removeVault() {
+        do {
+            try environment.onboarding.removeFromThisPhone()
+            environment.drive.signOut()
+            environment.settings.settings.clear()
+            environment.lock.vaultDidChange()
+            dismiss()
+        } catch {
+            removalFailed = true
+        }
     }
 
     private func notice() -> some View {
@@ -56,6 +87,19 @@ struct ForgotPasswordView: View {
             Busy(label: "Checking the Recovery Key", busy: model.busy)
             Button("Continue") { Task { await model.findVault() } }
                 .buttonStyle(PrimaryActionStyle()).disabled(model.recoveryKey.isEmpty || model.busy)
+            VStack(spacing: FLSpace.s2) {
+                Text("I lost my Recovery Key")
+                    .font(FLFont.ui(FLText.base, weight: FLWeight.semibold, relativeTo: .callout))
+                    .foregroundStyle(FLColor.text)
+                Text(
+                    "Without the Recovery Key, this vault can be opened only with the master password and the Secret Key. You can remove it from this iPhone and set up a vault again, or add yours back from a sync place."
+                )
+                .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textSecondary)
+                .multilineTextAlignment(.center)
+                Button("Remove this vault from this iPhone") { confirmingRemoval = true }
+                    .buttonStyle(PlainActionStyle()).foregroundStyle(FLColor.danger).disabled(model.busy)
+            }
+            .padding(.top, FLSpace.s4)
         }
         .onChange(of: model.recoveryKey) { _, _ in model.clearError() }
     }
