@@ -34,6 +34,10 @@ final class RecoveryKeySettingsUITests: XCTestCase {
     private func type(_ text: String, into field: XCUIElement) {
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        if XCTWaiter.wait(for: [expectation(for: focused, evaluatedWith: field)], timeout: 3) != .completed {
+            field.tap()
+        }
         field.typeText(text)
     }
 
@@ -71,11 +75,20 @@ final class RecoveryKeySettingsUITests: XCTestCase {
         password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 14) + Self.password)
         turnOn.tap()
         XCTAssertTrue(app.staticTexts["Your Recovery Key is on."].waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["On"].exists)
+        // The sheet is gone, not left on step 1 while the sync runs.
+        XCTAssertTrue(app.staticTexts["On"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Step 2 of 2: check it"].waitForNonExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["Step 1 of 2: save it"].exists)
+        XCTAssertFalse(app.buttons["Back"].exists)
         XCTAssertTrue(app.buttons["Replace Recovery Key"].exists)
 
         // Turning it off needs the master password too.
-        app.buttons["Turn off the Recovery Key"].tap()
+        let turnOff = app.buttons["Turn off the Recovery Key"]
+        XCTAssertTrue(turnOff.waitForExistence(timeout: 10))
+        let hittable = NSPredicate(format: "isHittable == true")
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation(for: hittable, evaluatedWith: turnOff)], timeout: 10), .completed)
+        turnOff.tap()
         let offPassword = app.secureTextFields["Master password"]
         type("wrong-password", into: offPassword)
         sheetTurnOffButton().tap()
@@ -88,6 +101,6 @@ final class RecoveryKeySettingsUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Your Recovery Key is off. The old code opens nothing from now on."]
                 .waitForExistence(timeout: 30))
-        XCTAssertTrue(app.staticTexts["Off"].exists)
+        XCTAssertTrue(app.staticTexts["Off"].waitForExistence(timeout: 10))
     }
 }

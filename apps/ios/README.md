@@ -56,7 +56,10 @@ password, new Emergency Kit, then the check of the new Secret Key. It is the des
 kept Secret Key, Face ID's blob and any password pause, and the app then unlocks with the new credentials. The old
 Recovery Key keeps working (the phone does not make a new one). Entry by cards and recovery of a vault that is only
 in Drive are not on the phone yet. Debug builds accept `-figlock-seed-recovery` (a throwaway vault with a made-up
-Recovery Key, `RecoveryFixture`) for the UI test.
+Recovery Key, `RecoveryFixture`) for the UI test. If the Recovery Key is lost, the code step offers "Remove this
+vault from this iPhone" (with a confirmation): the same removal as Settings (`Onboarding.removeFromThisPhone`, Drive
+sign out, device settings cleared, `lock.vaultDidChange`), landing on the vault setup screen and never touching the
+copies in the sync places.
 
 ## Editing items
 
@@ -100,7 +103,8 @@ groups) and, after the master password and the Secret Key (kept or typed) were c
 from the new `vault.json` on. `removeRecoveryKey` proves the same credentials against the stored `vault.json` first,
 because dropping the key needs no secret of the vault. A wrong password or Secret Key changes nothing; if the write
 itself fails after the vault took the change, the app locks so the next unlock reads what is really stored. FigLock
-never keeps the code and never shows an old one again. The UI test (`RecoveryKeySettingsUITests`) runs on the demo
+never keeps the code and never shows an old one again. The sheets (`RecoveryKeySheets.swift`) close right after the
+vault change and the sync runs afterwards. The UI test (`RecoveryKeySettingsUITests`) runs on the demo
 vault.
 
 ## Sync
