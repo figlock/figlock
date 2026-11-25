@@ -65,11 +65,11 @@ struct VaultListView: View {
         .navigationDestination(for: String.self) { id in
             ItemDetailHost(id: id, browser: browser, copier: copier)
         }
-        .modifier(ItemManagementToolbar(browser: browser, copier: copier))
+        .modifier(ItemManagementToolbar(browser: browser, copier: copier, lock: lock))
         // Search is always visible: a short list does not scroll, so pulling down could not reveal it.
         .searchable(
             text: $browser.query, placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search names, aliases, domains"
+            prompt: "Search"
         )
         .textInputAutocapitalization(.never)
         .autocorrectionDisabled()
@@ -79,15 +79,6 @@ struct VaultListView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarLeading) { SettingsLink() }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    lock.lock()
-                } label: {
-                    Image(systemName: "lock")
-                }
-                .accessibilityLabel("Lock FigLock")
-                .flMinTouchTarget()
-            }
         }
     }
 }
@@ -183,8 +174,8 @@ private struct EmptyState: View {
     private var title: String { isSearching ? "No matches" : hasItems ? "Nothing of this type" : "No items yet" }
     private var detail: String {
         isSearching
-            ? "Check the spelling, or search by website or username."
-            : hasItems ? "Choose All to see everything." : "Items you add or sync from your other devices appear here."
+            ? "Try a different search."
+            : hasItems ? "Choose All to see everything." : "Tap + to add one."
     }
 }
 
@@ -195,7 +186,7 @@ private struct SyncChipRow: View {
     @Environment(\.settingsContext) private var context
 
     var body: some View {
-        if let chip = sync.chip, let context {
+        if let chip = sync.chip, chip.state.tone != .good, let context {
             NavigationLink {
                 SyncSettingsView(context: context)
             } label: {
@@ -209,10 +200,11 @@ private struct SyncChipRow: View {
                     .padding(.horizontal, FLSpace.s3)
                     .frame(minHeight: FLSize.controlHeightLg)
                     .background(chip.state.tone.background, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                    // The whole sentence, wrapped, never cut off mid-way.
-                    Text(chip.detail).font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                        .foregroundStyle(FLColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if chip.state.tone == .warn {
+                        Text(chip.detail).font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+                            .foregroundStyle(FLColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

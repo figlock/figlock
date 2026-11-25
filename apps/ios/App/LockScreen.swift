@@ -32,13 +32,13 @@ struct LockScreen: View {
                     if showPasswordFields {
                         passwordFields
                     } else {
-                        Button("Use master password") {
+                        Button("Use password") {
                             showPassword = true
                             focus = .password
                         }
                         .buttonStyle(PlainActionStyle())
                     }
-                    Button("I forgot my password or Secret Key") { forgot = true }
+                    Button("Forgot password?") { forgot = true }
                         .buttonStyle(PlainActionStyle())
                 }
             }
@@ -56,8 +56,8 @@ struct LockScreen: View {
 
     private var header: some View {
         VStack(spacing: FLSpace.s3) {
-            FigLockLogo(size: 72)
-            Text("FigLock is locked")
+            FigLockLogo(size: 88)
+            Text("FigLock")
                 .font(FLFont.ui(FLText.xl2, weight: FLWeight.bold, relativeTo: .title2))
                 .foregroundStyle(FLColor.text)
                 .accessibilityAddTraits(.isHeader)
@@ -86,11 +86,8 @@ struct LockScreen: View {
                         .font(FLFont.mono(FLText.md))
                         .focused($focus, equals: .secretKey)
                         .padding(FLSpace.s3)
-                        .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                        .overlay(RoundedRectangle(cornerRadius: FLRadius.sm).stroke(FLColor.border))
-                    Text("From your Emergency Kit. This iPhone asks for it once.")
-                        .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
-                }
+                        .background(FLColor.surfaceSunken, in: RoundedRectangle(cornerRadius: FLRadius.md))
+                                    }
             }
             VStack(alignment: .leading, spacing: FLSpace.s1) {
                 Text("Master password").font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(
@@ -118,10 +115,9 @@ struct LockScreen: View {
                     .accessibilityLabel(revealPassword ? "Hide master password" : "Show master password")
                 }
                 .padding(.horizontal, FLSpace.s3)
-                .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                .overlay(RoundedRectangle(cornerRadius: FLRadius.sm).stroke(FLColor.border))
+                .background(FLColor.surfaceSunken, in: RoundedRectangle(cornerRadius: FLRadius.md))
             }
-            Button("Unlock with master password") { Task { await unlock() } }
+            Button("Unlock") { Task { await unlock() } }
                 .buttonStyle(SecondaryActionStyle())
                 .disabled(working || password.isEmpty || pausedUntil != nil)
         }
@@ -137,29 +133,27 @@ struct LockScreen: View {
     private var message: Message? {
         if let until = pausedUntil {
             return Message(
-                text: "Password entry is paused. Too many wrong passwords. You can try again at "
+                text: "Too many tries. Try again at "
                     + until.roundedUpToMinute.formatted(date: .omitted, time: .shortened)
-                    + (faceIDReady ? ". Face ID still works." : "."),
+                    + (faceIDReady ? ", or use Face ID." : "."),
                 isError: true)
         }
         switch lock.lastOutcome {
         case .wrongCredentials(let left):
-            let tries =
-                left.map { " \($0) \($0 == 1 ? "try" : "tries") left before FigLock pauses password entry." } ?? ""
-            return Message(text: "That master password isn't right. Check it and try again." + tries, isError: true)
+            let tries = left.map { " \($0) \($0 == 1 ? "try" : "tries") left." } ?? ""
+            return Message(text: "That master password isn't right." + tries, isError: true)
         case .secretKeyNeeded:
-            return Message(text: "Enter your Secret Key from the Emergency Kit to continue.", isError: true)
+            return Message(text: "Enter your Secret Key to continue.", isError: true)
         case .faceIDNotRecognised(let left):
             return Message(
-                text:
-                    "Face ID did not recognise you. \(left) \(left == 1 ? "try" : "tries") left, then FigLock asks for your master password.",
+                text: "Face ID did not work. \(left) \(left == 1 ? "try" : "tries") left.",
                 isError: true)
         case .passwordNeeded(let reason):
             return Message(text: Self.reasonText(reason), isError: false)
         case .notSetUp:
-            return Message(text: "This iPhone is not set up for this vault yet.", isError: true)
+            return Message(text: "This iPhone is not set up for this vault.", isError: true)
         case .failed:
-            return Message(text: "FigLock could not unlock. Try again.", isError: true)
+            return Message(text: "Could not unlock. Try again.", isError: true)
         default:
             if case .needsPassword(let reason) = quick { return Message(text: Self.reasonText(reason), isError: false) }
             return nil
@@ -168,11 +162,11 @@ struct LockScreen: View {
 
     private static func reasonText(_ reason: QuickUnlockPolicy.Reason) -> String {
         switch reason {
-        case .phoneRestarted: "Your iPhone restarted. Enter your master password to unlock."
-        case .idleTooLong: "FigLock has not been unlocked for a while. Enter your master password."
-        case .fullUnlockTooOld: "It has been a week. Enter your master password to keep Face ID on."
-        case .tooManyFailures: "Face ID did not work 5 times. Enter your master password."
-        case .biometricsChanged: "Face ID changed on this iPhone. Enter your master password to use it again."
+        case .phoneRestarted: "Enter your master password after a restart."
+        case .idleTooLong: "Enter your master password to unlock."
+        case .fullUnlockTooOld: "Enter your master password to keep using Face ID."
+        case .tooManyFailures: "Face ID failed too often. Enter your master password."
+        case .biometricsChanged: "Face ID changed. Enter your master password."
         case .lockedByUser, .passwordChanged: "Enter your master password to unlock."
         }
     }
@@ -244,7 +238,11 @@ private struct ActionBody<Background: View>: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
             .background(background)
-            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
+            .clipShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
     }
 }
 
@@ -252,7 +250,7 @@ struct PrimaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         ActionBody(
             configuration: configuration, foreground: FLColor.textOnPrimary,
-            background: RoundedRectangle(cornerRadius: FLRadius.md).fill(FLColor.primary))
+            background: Capsule().fill(FLColor.primary))
     }
 }
 
@@ -260,8 +258,7 @@ struct SecondaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         ActionBody(
             configuration: configuration, foreground: FLColor.text,
-            background: RoundedRectangle(cornerRadius: FLRadius.md).fill(FLColor.surfaceSunken)
-                .overlay(RoundedRectangle(cornerRadius: FLRadius.md).stroke(FLColor.border)))
+            background: Capsule().fill(FLColor.surfaceSunken))
     }
 }
 

@@ -41,7 +41,7 @@ struct SettingsView: View {
                 NavigationLink {
                     EmergencyKitView(context: context)
                 } label: {
-                    SettingsRow(symbol: "key", title: "Secret Key and Emergency Kit")
+                    SettingsRow(symbol: "key", title: "Emergency Kit")
                 }
                 NavigationLink {
                     RecoveryKeyView(context: context)
@@ -50,8 +50,6 @@ struct SettingsView: View {
                         symbol: "lifepreserver", title: "Recovery Key",
                         value: context.recoveryKeyIsOn ? "On" : "Off")
                 }
-                SettingsRow(
-                    symbol: "doc.on.doc", title: "Clipboard", detail: "Copied secrets clear after 30 seconds.")
             }
             .listRowBackground(FLColor.surface)
 
@@ -72,33 +70,17 @@ struct SettingsView: View {
             .listRowBackground(FLColor.surface)
 
             Section {
-                Button {
-                    context.lock.lock()
-                } label: {
-                    Label("Lock FigLock now", systemImage: "lock")
-                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg)
-                }
-                .buttonStyle(SecondaryActionStyle())
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-            }
-
-            Section {
                 Button(role: .destructive) {
                     confirmingRemoval = true
                 } label: {
-                    VStack(alignment: .leading, spacing: FLSpace.s1) {
-                        Label("Remove this vault from this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
-                            .rowLabel(destructive: true)
-                            .font(FLFont.ui(FLText.md, weight: FLWeight.medium))
-                        Text("Your items stay in your sync places and on your other devices.")
-                            .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                            .foregroundStyle(FLColor.textSecondary)
-                    }
-                    .frame(minHeight: FLSize.controlHeightLg, alignment: .leading)
-                    .padding(.vertical, FLSpace.s2)
+                    Label("Remove this vault from this iPhone", systemImage: "rectangle.portrait.and.arrow.right")
+                        .rowLabel(destructive: true)
+                        .font(FLFont.ui(FLText.md, weight: FLWeight.medium))
+                        .frame(minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
                 .tint(FLColor.danger)
+            } footer: {
+                Text("Your items stay in your sync places and on your other devices.")
             }
             .listRowBackground(FLColor.surface)
         }
@@ -111,13 +93,13 @@ struct SettingsView: View {
             Button("Remove vault", role: .destructive) { remove() }
         } message: {
             Text(
-                "FigLock forgets this vault, its keys and Face ID on this iPhone, and signs out of Google Drive. Your items stay in your sync folder and on your other devices, and the copies in iCloud Drive or Google Drive are not deleted. To add the vault again you need your Secret Key and master password."
+                "This removes the vault, its keys and Face ID from this iPhone. Your synced copies are not deleted. To add it again you need your Secret Key and master password."
             )
         }
         .alert("Could not remove the vault", isPresented: $removalFailed) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Something stopped FigLock from clearing this iPhone. Try again.")
+            Text("Try again.")
         }
     }
 
@@ -201,15 +183,12 @@ struct AutoLockView: View {
                     }
                     .accessibilityAddTraits(option == selected ? .isSelected : [])
                 }
-            } header: {
-                Text("FigLock locks after you leave it for this long. It also locks when you lock it yourself.")
-                    .textCase(nil)
             } footer: {
-                Text("Shorter is safer. There is no \u{201C}never\u{201D} option.")
+                Text("Locks after you leave the app for this long.")
             }
             .listRowBackground(FLColor.surface)
             if failed {
-                Notice(text: "That choice could not be saved. Try again.", isError: true)
+                Notice(text: "Could not save. Try again.", isError: true)
                     .listRowBackground(Color.clear)
             }
         }

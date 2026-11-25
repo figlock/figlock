@@ -20,12 +20,12 @@ final class LockScreenUITests: XCTestCase {
         field.tap()
         field.typeText("not-the-password")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
-        app.buttons["Unlock with master password"].tap()
+        app.buttons["Unlock"].tap()
         XCTAssertTrue(
             app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"isn't right\"")).firstMatch
                 .waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["Unlock with master password"].exists)
-        XCTAssertFalse(app.buttons["Unlock with master password"].isEnabled, "the empty field disables Unlock")
+        XCTAssertTrue(app.buttons["Unlock"].exists)
+        XCTAssertFalse(app.buttons["Unlock"].isEnabled, "the empty field disables Unlock")
         XCTAssertEqual(app.secureTextFields.firstMatch.value as? String ?? "", "")
     }
 
@@ -36,7 +36,7 @@ final class LockScreenUITests: XCTestCase {
             if attempt == 1 { XCTAssertTrue(field.waitForExistence(timeout: 15)) }
             field.tap()
             field.typeText("not-the-password")
-            app.buttons["Unlock with master password"].tap()
+            app.buttons["Unlock"].tap()
             if attempt < 3 {
                 XCTAssertTrue(
                     app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"isn't right\"")).firstMatch
@@ -44,7 +44,7 @@ final class LockScreenUITests: XCTestCase {
             }
         }
         XCTAssertTrue(
-            app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"Password entry is paused\"")).firstMatch
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"Too many tries\"")).firstMatch
                 .waitForExistence(timeout: 15))
         XCTAssertEqual(app.secureTextFields.firstMatch.value as? String ?? "", "")
     }

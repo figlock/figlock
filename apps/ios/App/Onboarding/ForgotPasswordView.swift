@@ -43,13 +43,13 @@ struct ForgotPasswordView: View {
             Button("Remove vault", role: .destructive) { removeVault() }
         } message: {
             Text(
-                "FigLock forgets this vault, its keys and Face ID on this iPhone, and signs out of Google Drive. Your items stay in your sync folder and on your other devices, and the copies in iCloud Drive or Google Drive are not deleted. To add the vault again you need your Secret Key and master password."
+                "This removes the vault, its keys and Face ID from this iPhone. Your synced copies are not deleted. To add it again you need your Secret Key and master password."
             )
         }
         .alert("Could not remove the vault", isPresented: $removalFailed) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Something stopped FigLock from clearing this iPhone. Try again.")
+            Text("Try again.")
         }
     }
 
@@ -75,7 +75,7 @@ struct ForgotPasswordView: View {
         Screen(
             title: "Enter your Recovery Key", step: "Step 1 of 4",
             subtitle:
-                "The Recovery Key you saved when you turned it on, on the desktop app. It opens this vault without the master password or the Secret Key."
+                "The code you saved when you turned it on."
         ) {
             LabeledField(label: "Recovery Key", hint: "Starts with FLR1, then 14 groups of four characters.") {
                 TextField("FLR1-...", text: $model.recoveryKey, axis: .vertical)
@@ -92,7 +92,7 @@ struct ForgotPasswordView: View {
                     .font(FLFont.ui(FLText.base, weight: FLWeight.semibold, relativeTo: .callout))
                     .foregroundStyle(FLColor.text)
                 Text(
-                    "Without the Recovery Key, this vault can be opened only with the master password and the Secret Key. You can remove it from this iPhone and set up a vault again, or add yours back from a sync place."
+                    "No Recovery Key? You can remove this vault from this iPhone and set up again."
                 )
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textSecondary)
                 .multilineTextAlignment(.center)
@@ -107,7 +107,7 @@ struct ForgotPasswordView: View {
     private var passwordStep: some View {
         Screen(
             title: "Choose a new master password", step: "Step 2 of 4",
-            subtitle: "The Recovery Key opened your vault. Your items are untouched. Pick a new master password."
+            subtitle: "Choose a new master password."
         ) {
             LabeledField(label: "New master password") {
                 SecureField("", text: $model.password).textContentType(.newPassword)
@@ -124,7 +124,7 @@ struct ForgotPasswordView: View {
                 SecureField("", text: $model.confirmation).textContentType(.newPassword)
             }
             if !model.confirmation.isEmpty, !model.passwordsMatch {
-                Notice(text: "The two passwords don't match. Type the same password in both fields.", isError: true)
+                Notice(text: "The passwords don't match.", isError: true)
             }
             notice()
             Busy(label: "Making your new Secret Key", busy: model.busy)
@@ -137,7 +137,7 @@ struct ForgotPasswordView: View {
         Screen(
             title: "Save your new Emergency Kit", step: "Step 3 of 4",
             subtitle:
-                "Your Secret Key changed too. A one page PDF holds the new one. Store it printed or offline, away from this iPhone. The old kit no longer opens this vault."
+                "Your Secret Key changed. Print the new Emergency Kit or keep it offline."
         ) {
             if let url = model.kitURL {
                 KitShareButton(
@@ -159,7 +159,7 @@ struct ForgotPasswordView: View {
         Screen(
             title: "Check that you saved it", step: "Step 4 of 4",
             subtitle:
-                "Open your saved Emergency Kit and type the last two groups of the new Secret Key, the eight characters after the last but one dash. The vault changes only after this check."
+                "Type the last two groups of the new Secret Key from your Emergency Kit."
         ) {
             LabeledField(label: "Last two groups of your new Secret Key") {
                 TextField("XXXX-XXXX", text: $model.verification)

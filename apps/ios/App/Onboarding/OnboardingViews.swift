@@ -43,7 +43,7 @@ struct WelcomeView: View {
                 FigLockLogo(size: 72)
                 Text("Welcome to FigLock").font(FLFont.ui(FLText.xl3, weight: FLWeight.bold, relativeTo: .title1))
                     .foregroundStyle(FLColor.text).accessibilityAddTraits(.isHeader)
-                Text("Passwords, API tokens and files in a vault that only you can open.")
+                Text("Passwords, tokens and files. Only you can open them.")
                     .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary).multilineTextAlignment(.center)
                 VStack(spacing: FLSpace.s3) {
                     Choice(
@@ -70,7 +70,7 @@ struct WelcomeView: View {
                     }
                 }
                 .padding(.top, FLSpace.s2)
-                Text("You can change where your vault syncs later in Settings.")
+                Text("You can change this later in Settings.")
                     .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             }
             .padding(FLSpace.s4)
@@ -121,7 +121,7 @@ struct CreatePasswordView: View {
     var body: some View {
         Screen(
             title: "Choose a master password", step: "Step 1 of 4",
-            subtitle: "It unlocks your vault. FigLock can't reset it, so pick something long that you can remember."
+            subtitle: "FigLock can't reset it. Make it long and memorable."
         ) {
             LabeledField(label: "Master password") {
                 HStack {
@@ -154,7 +154,7 @@ struct CreatePasswordView: View {
                 SecureField("", text: $model.confirmation).textContentType(.newPassword)
             }
             if !model.confirmation.isEmpty, !model.passwordsMatch {
-                Notice(text: "The two passwords don't match. Type the same password in both fields.", isError: true)
+                Notice(text: "The passwords don't match.", isError: true)
             }
             ErrorNotice(model: model)
             Busy(label: "Making your vault", busy: model.busy)
@@ -170,9 +170,9 @@ struct SecretKeyView: View {
     var body: some View {
         Screen(
             title: "Your Secret Key", step: "Step 2 of 4",
-            subtitle: "With your master password, it protects your vault. You need both to add a new device."
+            subtitle: "You need it, with your master password, to add a device."
         ) {
-            Notice(text: "Keep this safe, it is shown only once. FigLock can't recover it for you.", isError: false)
+            Notice(text: "Shown once. FigLock can't recover it.", isError: false)
             Text(model.secretKeyShown ? model.secretKeyText() : String(repeating: "•", count: 31))
                 .font(FLFont.mono(FLText.lg, weight: FLWeight.medium)).foregroundStyle(FLColor.text)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(FLSpace.s3)
@@ -206,7 +206,7 @@ struct KitView: View {
     var body: some View {
         Screen(
             title: "Save your Emergency Kit", step: "Step 3 of 4",
-            subtitle: "A one page PDF with your Secret Key. Store it printed or offline, away from this iPhone."
+            subtitle: "Print it or keep it offline."
         ) {
             if let url = model.kitURL {
                 KitShareButton(
@@ -233,7 +233,7 @@ struct VerifyView: View {
         Screen(
             title: "Check that you saved it", step: "Step 4 of 4",
             subtitle:
-                "Open your saved Emergency Kit and type the last two groups of the Secret Key, the eight characters after the last but one dash."
+                "Type the last two groups of your Secret Key from your Emergency Kit."
         ) {
             LabeledField(label: "Last two groups of your Secret Key") {
                 TextField("XXXX-XXXX", text: $model.verification)
@@ -259,7 +259,7 @@ struct PairCodeView: View {
         Screen(
             title: "Pair this iPhone", step: "Join an existing vault",
             subtitle:
-                "On your other device open FigLock, then Settings and Devices, and choose Add device. Type the code it shows."
+                "On your other device, choose Settings, Devices, Add device. Enter the code."
         ) {
             SourcePicker(model: model)
             if model.hasRemote {
@@ -287,7 +287,7 @@ struct PairWaitView: View {
         Screen(
             title: "Waiting for approval",
             subtitle:
-                "On your other device, open FigLock and approve this iPhone. Check that it shows the same code as below."
+                "Approve this iPhone on your other device. Check the codes match."
         ) {
             ProgressView().frame(maxWidth: .infinity)
             Text(model.fingerprint).font(FLFont.mono(FLText.xl, weight: FLWeight.semibold)).foregroundStyle(
@@ -296,7 +296,7 @@ struct PairWaitView: View {
             .frame(maxWidth: .infinity).padding(FLSpace.s4)
             .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.md))
             .accessibilityLabel("Code to check: \(model.fingerprint)")
-            Text("There is no time limit. You can leave this screen and pair later.")
+            Text("No time limit. You can pair later.")
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             Button("Cancel pairing") { model.cancelPairing() }.buttonStyle(SecondaryActionStyle())
         }
@@ -310,7 +310,7 @@ struct PairApprovedView: View {
     var body: some View {
         Screen(
             title: "This iPhone is approved",
-            subtitle: "Type your master password to open the vault. Your Secret Key came with the approval."
+            subtitle: "Enter your master password."
         ) {
             LabeledField(label: "Master password") {
                 SecureField("", text: $model.password).textContentType(.password)
