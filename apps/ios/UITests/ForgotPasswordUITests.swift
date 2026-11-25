@@ -97,8 +97,13 @@ final class ForgotPasswordUITests: XCTestCase {
         let close = app.buttons["Close"].firstMatch
         XCTAssertTrue(close.waitForExistence(timeout: 15))
         close.tap()
-        app.buttons["I saved it, continue"].tap()
-        XCTAssertTrue(app.staticTexts["Check that you saved it"].waitForExistence(timeout: 10))
+        // Wait for the share sheet to finish dismissing, otherwise the tap lands on the closing sheet.
+        let saved = app.buttons["I saved it, continue"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 15))
+        let hittable = NSPredicate(format: "isHittable == true")
+        XCTAssertEqual(XCTWaiter.wait(for: [expectation(for: hittable, evaluatedWith: saved)], timeout: 15), .completed)
+        saved.tap()
+        XCTAssertTrue(app.staticTexts["Check that you saved it"].waitForExistence(timeout: 30))
         // A wrong check does not change the vault.
         let groups = app.staticTexts["debug-new-key-groups"].label
         let field = app.textFields.firstMatch
