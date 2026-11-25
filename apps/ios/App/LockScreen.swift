@@ -56,12 +56,7 @@ struct LockScreen: View {
 
     private var header: some View {
         VStack(spacing: FLSpace.s3) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 34, weight: .semibold))
-                .foregroundStyle(FLColor.textOnPrimary)
-                .frame(width: 72, height: 72)
-                .background(FLColor.primary, in: RoundedRectangle(cornerRadius: 72 * 0.22))
-                .accessibilityHidden(true)
+            FigLockLogo(size: 72)
             Text("FigLock is locked")
                 .font(FLFont.ui(FLText.xl2, weight: FLWeight.bold, relativeTo: .title2))
                 .foregroundStyle(FLColor.text)
