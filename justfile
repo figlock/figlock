@@ -57,8 +57,11 @@ ios-project:
     cd apps/ios && xcodegen generate --quiet
 
 # iOS: run the Shared package tests on a simulator (needs the xcframework, which has no macOS slice).
+# The extension memory test measures the footprint of the whole process, so it runs alone: other tests (Argon2id
+# in the onboarding ones) allocate at the same time and would fail it for memory it did not use.
 ios-test: ios-xcframework
-    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build
+    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build -skip-testing:'SharedTests/replayingTenThousandItemsInTheExtensionStaysInsideTheMemoryLimit()'
+    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build -only-testing:'SharedTests/replayingTenThousandItemsInTheExtensionStaysInsideTheMemoryLimit()'
 
 # iOS: SwiftLint and swift-format (strict). Generated bindings are excluded. Run `just ios-fmt` to fix formatting.
 ios-lint:
