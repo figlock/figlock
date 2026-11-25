@@ -13,7 +13,6 @@ import UniformTypeIdentifiers
 struct ItemManagementToolbar: ViewModifier {
     let browser: VaultBrowser
     let copier: ClipboardCopier
-    var lock: AppLock?
     @Environment(VaultEditor.self) private var editor: VaultEditor?
 
     @State private var creating: ItemKind?
@@ -34,12 +33,6 @@ struct ItemManagementToolbar: ViewModifier {
                             showDeleted = true
                         } label: {
                             Label("Recently deleted", systemImage: "trash")
-                        }
-                        Divider()
-                        Button {
-                            lock?.lock()
-                        } label: {
-                            Label("Lock", systemImage: "lock")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")

@@ -2,19 +2,12 @@ import Shared
 import SwiftUI
 
 /// The entry from the vault list: a gear in the navigation bar that opens Settings.
-struct SettingsLink: View {
+/// The Settings tab: the settings list once the context is in the environment.
+struct SettingsTab: View {
     @Environment(\.settingsContext) private var context
 
     var body: some View {
-        if let context {
-            NavigationLink {
-                SettingsView(context: context)
-            } label: {
-                Image(systemName: "gearshape")
-            }
-            .accessibilityLabel("Settings")
-            .flMinTouchTarget()
-        }
+        if let context { SettingsView(context: context) }
     }
 }
 
@@ -65,6 +58,17 @@ struct SettingsView: View {
                     SettingsRow(
                         symbol: "arrow.triangle.2.circlepath", title: "Sync",
                         value: context.sync.summary)
+                }
+            }
+            .listRowBackground(FLColor.surface)
+
+            Section {
+                Button {
+                    context.lock.lock()
+                } label: {
+                    Label("Lock", systemImage: "lock")
+                        .font(FLFont.ui(FLText.md, weight: FLWeight.medium))
+                        .frame(minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
             }
             .listRowBackground(FLColor.surface)

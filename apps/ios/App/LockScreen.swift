@@ -86,7 +86,7 @@ struct LockScreen: View {
                         .font(FLFont.mono(FLText.md))
                         .focused($focus, equals: .secretKey)
                         .padding(FLSpace.s3)
-                        .background(FLColor.surfaceSunken, in: RoundedRectangle(cornerRadius: FLRadius.md))
+                        .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: FLRadius.md))
                                     }
             }
             VStack(alignment: .leading, spacing: FLSpace.s1) {
@@ -115,7 +115,7 @@ struct LockScreen: View {
                     .accessibilityLabel(revealPassword ? "Hide master password" : "Show master password")
                 }
                 .padding(.horizontal, FLSpace.s3)
-                .background(FLColor.surfaceSunken, in: RoundedRectangle(cornerRadius: FLRadius.md))
+                .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: FLRadius.md))
             }
             Button("Unlock") { Task { await unlock() } }
                 .buttonStyle(SecondaryActionStyle())
@@ -258,7 +258,7 @@ struct SecondaryActionStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         ActionBody(
             configuration: configuration, foreground: FLColor.text,
-            background: Capsule().fill(FLColor.surfaceSunken))
+            background: Capsule().fill(Color(uiColor: .tertiarySystemFill)))
     }
 }
 

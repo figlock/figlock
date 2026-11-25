@@ -6,7 +6,6 @@ import SwiftUI
 struct VaultListView: View {
     @Bindable var browser: VaultBrowser
     let copier: ClipboardCopier
-    let lock: AppLock
     let sync: SyncModel
 
     var body: some View {
@@ -65,7 +64,7 @@ struct VaultListView: View {
         .navigationDestination(for: String.self) { id in
             ItemDetailHost(id: id, browser: browser, copier: copier)
         }
-        .modifier(ItemManagementToolbar(browser: browser, copier: copier, lock: lock))
+        .modifier(ItemManagementToolbar(browser: browser, copier: copier))
         // Search is always visible: a short list does not scroll, so pulling down could not reveal it.
         .searchable(
             text: $browser.query, placement: .navigationBarDrawer(displayMode: .always),
@@ -78,7 +77,6 @@ struct VaultListView: View {
             await browser.reload()
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { SettingsLink() }
         }
     }
 }
@@ -87,23 +85,14 @@ private struct FilterRail: View {
     @Binding var selection: VaultBrowser.Filter
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: FLSpace.s2) {
-                ForEach(VaultBrowser.Filter.allCases) { filter in
-                    Button(filter.title) { selection = filter }
-                        .font(FLFont.ui(FLText.base, weight: FLWeight.medium, relativeTo: .callout))
-                        .padding(.horizontal, FLSpace.s3)
-                        .frame(minHeight: FLSize.controlHeightLg)
-                        .foregroundStyle(selection == filter ? FLColor.textOnPrimary : FLColor.text)
-                        .background(
-                            selection == filter ? FLColor.primary : FLColor.surfaceSunken, in: Capsule()
-                        )
-                        .accessibilityAddTraits(selection == filter ? .isSelected : [])
-                }
+        Picker("Filter items", selection: $selection) {
+            ForEach(VaultBrowser.Filter.allCases) { filter in
+                Text(filter.title).tag(filter)
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Filter items")
+        .pickerStyle(.segmented)
+        .padding(.horizontal, FLSpace.s4)
+        .sensoryFeedback(.selection, trigger: selection)
     }
 }
 
