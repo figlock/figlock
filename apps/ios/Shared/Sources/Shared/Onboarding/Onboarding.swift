@@ -136,7 +136,12 @@ public struct Onboarding: Sendable {
     /// Store a verified vault. Returns whether Face ID is on afterwards (it is only turned on when asked and when
     /// this iPhone can do it; a failure there never fails the creation, the vault exists either way).
     @discardableResult
-    public func commitCreation(_ pending: PendingVault, enableFaceID: Bool) async throws -> Bool {
+    ///
+    /// `keepRemote` is the place the person chose before creating (Google Drive after "open from Drive" found no
+    /// vault): the new vault keeps syncing there, so it is not lost from Sync settings.
+    public func commitCreation(
+        _ pending: PendingVault, enableFaceID: Bool, keepRemote: RemoteEntry? = nil
+    ) async throws -> Bool {
         guard case .noVault = vault.status() else { throw Failure.alreadyHasVault }
         let created = pending.created
         let secretKey: String
@@ -159,6 +164,7 @@ public struct Onboarding: Sendable {
             rollBack(vaultId: known, keepKeys: false, wasMissing: false)
             throw Failure.failed
         }
+        if let keepRemote { RemoteList(container: vault.container).add(keepRemote) }
         guard enableFaceID else { return false }
         return await turnOnFaceID(password: pending.password, secretKey: secretKey)
     }
