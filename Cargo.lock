@@ -1448,7 +1448,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-biometric"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "block2",
  "core-foundation",
@@ -1463,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-broker"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "figlock-biometric",
  "figlock-core",
@@ -1485,7 +1485,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-cli"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "clap",
  "figlock-broker",
@@ -1502,7 +1502,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-core"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "argon2",
  "base64 0.23.1",
@@ -1530,7 +1530,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-desktop"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "figlock-biometric",
  "figlock-broker",
@@ -1553,7 +1553,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-ffi"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "figlock-core",
  "figlock-store",
@@ -1567,7 +1567,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-procinfo"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "libc",
  "tempfile",
@@ -1575,7 +1575,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-session"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "figlock-biometric",
  "figlock-core",
@@ -1594,7 +1594,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-store"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "base64 0.23.1",
  "figlock-core",
@@ -1610,7 +1610,7 @@ dependencies = [
 
 [[package]]
 name = "figlock-sync"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "figlock-store",
  "proptest",
