@@ -24,10 +24,11 @@ final class RecoveryKeySettingsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Recovery Key"].waitForExistence(timeout: 10))
     }
 
-    /// The list behind the sheet has a button of the same name; the sheet's is the last one.
+    /// The list behind the sheet has a button of the same name; the sheet's is the one in the form that holds
+    /// the master password field.
     private func sheetTurnOffButton() -> XCUIElement {
-        let buttons = app.buttons.matching(identifier: "Turn off the Recovery Key")
-        return buttons.element(boundBy: buttons.count - 1)
+        app.collectionViews.containing(.secureTextField, identifier: "Master password")
+            .buttons["Turn off the Recovery Key"]
     }
 
     private func type(_ text: String, into field: XCUIElement) {
