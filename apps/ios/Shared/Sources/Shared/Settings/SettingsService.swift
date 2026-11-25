@@ -22,6 +22,10 @@ public struct SettingsService: Sendable {
         /// The deletion ran but files were still in Drive after it, or the copy could not be matched. Safe to
         /// run again.
         case incomplete
+
+        /// Writing the new `vault.json` failed after the vault accepted the change, so it is unknown what is stored.
+        /// The caller locks the app, and the next unlock reads what is really there.
+        case changeUncertain
     }
 
     /// What a revocation did.
@@ -111,6 +115,84 @@ public struct SettingsService: Sendable {
         for record in files.records { try store.putReplace(path: record.path, bytes: record.bytes) }
         for path in files.remove { try store.delete(path: path) }
         try store.putReplace(path: "vault.json", bytes: files.vaultJson)
+    }
+
+    // MARK: Recovery Key (ADR-0029)
+
+    /// Whether the vault has a Recovery Key. Never what it is: FigLock does not keep it.
+    public func hasRecoveryKey(session: VaultSession) -> Bool { (try? session.hasRecoveryKey()) ?? false }
+
+    /// The Secret Key to check a change against: the typed one, else the one this phone keeps.
+    private func secretKeyText(typed: String?) throws -> String {
+        let text: String
+        if let typed, !typed.isEmpty {
+            text = typed
+        } else if let id = vaultId(), let kept = try? keeper.secretKey(vaultId: id) {
+            text = kept
+        } else {
+            throw Failure.secretKeyNeeded
+        }
+        guard FigLockCore.isValidSecretKey(text) else { throw Failure.secretKeyNeeded }
+        return text
+    }
+
+    /// The printable Recovery Key page for `draft` as a PDF, dated today.
+    public func recoveryKitPage(_ draft: RecoveryDraft, storage: String) throws -> Data {
+        let date = String(ISO8601DateFormatter().string(from: now()).prefix(10))
+        return try draft.renderKit(vaultName: Self.vaultName, storage: storage, created: date)
+    }
+
+    /// Turn the Recovery Key on, or replace it with `draft`, after the master password and the Secret Key (the typed
+    /// one, or the kept one) were checked by the vault. A wrong pair changes nothing. The new `vault.json` is
+    /// written to this phone's folder; the sync that follows sends it on.
+    public func setRecoveryKey(
+        _ draft: RecoveryDraft, password: String, typedSecretKey: String?, session: VaultSession
+    ) async throws {
+        let secretKey = try secretKeyText(typed: typedSecretKey)
+        let store = try vault.openStore()
+        try await Task.detached(priority: .userInitiated) {
+            let vaultJson: Data
+            do {
+                vaultJson = try session.setRecoveryKey(draft: draft, password: password, secretKey: secretKey)
+            } catch FigLockError.InvalidInput {
+                throw Failure.secretKeyNeeded
+            } catch FigLockError.Failed {
+                throw Failure.wrongCredentials
+            } catch {
+                throw Failure.failed
+            }
+            try Self.writeVaultJson(vaultJson, to: store)
+        }.value
+    }
+
+    /// Turn the Recovery Key off. Removing it needs no secret of the vault, so the master password and the Secret
+    /// Key are proven against the stored `vault.json` first. Cards or codes made earlier open nothing from then on.
+    public func removeRecoveryKey(password: String, typedSecretKey: String?, session: VaultSession) async throws {
+        let secretKey = try secretKeyText(typed: typedSecretKey)
+        let store = try vault.openStore()
+        try await Task.detached(priority: .userInitiated) {
+            let stored: Data
+            let vaultJson: Data
+            do {
+                stored = try store.get(path: "vault.json")
+                vaultJson = try session.clearRecoveryKey(vaultJson: stored, password: password, secretKey: secretKey)
+            } catch FigLockError.InvalidInput {
+                throw Failure.secretKeyNeeded
+            } catch FigLockError.Failed {
+                throw Failure.wrongCredentials
+            } catch {
+                throw Failure.failed
+            }
+            try Self.writeVaultJson(vaultJson, to: store)
+        }.value
+    }
+
+    private static func writeVaultJson(_ bytes: Data, to store: any BlobStoreFfi) throws {
+        do {
+            try store.putReplace(path: "vault.json", bytes: bytes)
+        } catch {
+            throw Failure.changeUncertain
+        }
     }
 
     // MARK: Emergency Kit

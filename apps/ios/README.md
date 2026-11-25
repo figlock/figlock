@@ -92,6 +92,17 @@ copy only after the typed phrase of ADR-0035. Signing out of Google and removing
 delete the Drive copy. A device rename is a nickname shown on this iPhone only: renaming it for every device means
 re-signing its record outside a key rotation, which `sync.md` does not allow and needs an ADR first.
 
+Settings > Recovery Key (ADR-0029, the same rules as the desktop) shows whether the vault has one, turns it on or
+replaces it, and turns it off. `SettingsService.setRecoveryKey` takes a `RecoveryDraft` (`new_recovery_draft` in
+`figlock-ffi`: the code is made in memory, shown once, with a one page PDF to save, and checked by typing its last two
+groups) and, after the master password and the Secret Key (kept or typed) were checked by the vault
+(`VaultSession.setRecoveryKey`), writes the new `vault.json` and syncs it. Replacing makes the old code open nothing
+from the new `vault.json` on. `removeRecoveryKey` proves the same credentials against the stored `vault.json` first,
+because dropping the key needs no secret of the vault. A wrong password or Secret Key changes nothing; if the write
+itself fails after the vault took the change, the app locks so the next unlock reads what is really stored. FigLock
+never keeps the code and never shows an old one again. The UI test (`RecoveryKeySettingsUITests`) runs on the demo
+vault.
+
 ## Sync
 
 `Shared/Sources/Shared/Sync` mirrors the local vault to a list of remotes (ADR-0043): Google Drive and any number of

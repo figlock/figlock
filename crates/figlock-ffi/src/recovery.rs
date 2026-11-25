@@ -5,7 +5,8 @@
 use std::sync::Arc;
 
 use figlock_core::{
-    KitInfo, Recover, Recovered, RecoveryKey, SecretKey, Vault, render_kit, verify_kit_groups,
+    DeviceKeys, KitInfo, Recover, Recovered, RecoveryCards, RecoveryKey, SecretKey, Vault,
+    render_kit, render_recovery_kit, verify_kit_groups,
 };
 use zeroize::Zeroizing;
 
@@ -164,4 +165,109 @@ pub fn start_recovery(
         device,
         device_name,
     }))
+}
+
+/// A new Recovery Key made for Settings (`pairing-recovery.md` 7, ADR-0029): shown once as a code, checked by a
+/// forced re-entry, and only then written into `vault.json` by `VaultSession::set_recovery_key`. Never stored.
+#[derive(uniffi::Object)]
+pub struct RecoveryDraft {
+    key: RecoveryKey,
+}
+
+/// Make a new Recovery Key to show. Nothing changes in any vault until it is applied.
+#[uniffi::export]
+pub fn new_recovery_draft() -> Result<Arc<RecoveryDraft>> {
+    let key = RecoveryKey::random().map_err(|_| FigLockError::Failed)?;
+    Ok(Arc::new(RecoveryDraft { key }))
+}
+
+/// The last two groups of `code` and a typed answer, squashed the way a typed answer is (case, dashes, spaces
+/// and the look-alike characters).
+fn squash(text: &str) -> String {
+    text.chars()
+        .filter(|c| *c != '-' && !c.is_whitespace())
+        .map(|c| match c.to_ascii_uppercase() {
+            'I' | 'L' => '1',
+            'O' => '0',
+            u => u,
+        })
+        .collect()
+}
+
+#[uniffi::export]
+impl RecoveryDraft {
+    /// The code, `FLR1-...`, for the screen.
+    pub fn code(&self) -> String {
+        self.key.format().to_string()
+    }
+
+    /// The forced check that the code was saved: its last two groups, as typed.
+    pub fn verify_tail(&self, typed: String) -> bool {
+        let typed = Zeroizing::new(typed);
+        let code = self.key.format();
+        let groups: Vec<&str> = code.split('-').collect();
+        let tail = groups[groups.len().saturating_sub(2)..].concat();
+        squash(&typed) == squash(&tail)
+    }
+
+    /// The printable Recovery Key page as a PDF. `created` is `YYYY-MM-DD`.
+    pub fn render_kit(
+        &self,
+        vault_name: String,
+        storage: String,
+        created: String,
+    ) -> Result<Vec<u8>> {
+        let info = KitInfo {
+            vault_name: &vault_name,
+            storage: &storage,
+            created: &created,
+        };
+        let code = self.key.format();
+        let pdf = render_recovery_kit(&info, &RecoveryCards::Code(&code))
+            .map_err(|_| FigLockError::InvalidInput)?;
+        Ok(pdf.to_vec())
+    }
+}
+
+#[uniffi::export]
+impl VaultSession {
+    /// Whether this vault has a Recovery Key (`rk_pub` in its `vault.json`).
+    pub fn has_recovery_key(&self) -> Result<bool> {
+        self.with_vault(|v| Ok(v.has_recovery()))
+    }
+
+    /// Turn the Recovery Key on, or replace it with `draft` (ADR-0029). The master password and Secret Key are
+    /// checked by opening the Vault Key; a wrong pair is `Failed`, a malformed Secret Key `InvalidInput`, and
+    /// nothing changes. Returns the new `vault.json` for the caller to store.
+    pub fn set_recovery_key(
+        &self,
+        draft: Arc<RecoveryDraft>,
+        password: String,
+        secret_key: String,
+    ) -> Result<Vec<u8>> {
+        let password = Zeroizing::new(password);
+        let secret_key = Zeroizing::new(secret_key);
+        let secret = SecretKey::parse(&secret_key).map_err(|_| FigLockError::InvalidInput)?;
+        self.with_vault(|v| {
+            Ok(v.set_recovery_with(&draft.key, &password, &secret)?
+                .vault_json)
+        })
+    }
+
+    /// Turn the Recovery Key off. Removing it needs no credentials of the vault, so this is a downgrade the
+    /// master password and Secret Key are proven for first, against the stored `vault_json`. `Failed` for a
+    /// wrong pair or a vault with no Recovery Key. Returns the new `vault.json` for the caller to store.
+    pub fn clear_recovery_key(
+        &self,
+        vault_json: Vec<u8>,
+        password: String,
+        secret_key: String,
+    ) -> Result<Vec<u8>> {
+        let password = Zeroizing::new(password);
+        let secret_key = Zeroizing::new(secret_key);
+        let secret = SecretKey::parse(&secret_key).map_err(|_| FigLockError::InvalidInput)?;
+        let auk = Vault::unlock_key(&vault_json, &password, &secret)?;
+        Vault::unlock_with_key(&vault_json, &auk, DeviceKeys::generate()?, "check", &[], 0)?;
+        self.with_vault(|v| Ok(v.clear_recovery()?.vault_json))
+    }
 }
