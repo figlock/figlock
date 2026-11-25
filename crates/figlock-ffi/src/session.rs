@@ -107,7 +107,7 @@ impl VaultSession {
         self.state.lock().map_err(|_| FigLockError::Failed)
     }
 
-    fn with_vault<T>(&self, f: impl FnOnce(&mut Vault) -> Result<T>) -> Result<T> {
+    pub(crate) fn with_vault<T>(&self, f: impl FnOnce(&mut Vault) -> Result<T>) -> Result<T> {
         let mut st = self.state()?;
         let vault = st.vault.as_mut().ok_or(FigLockError::Locked)?;
         f(vault)

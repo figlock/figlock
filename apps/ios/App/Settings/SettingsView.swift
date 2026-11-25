@@ -43,6 +43,13 @@ struct SettingsView: View {
                 } label: {
                     SettingsRow(symbol: "key", title: "Secret Key and Emergency Kit")
                 }
+                NavigationLink {
+                    RecoveryKeyView(context: context)
+                } label: {
+                    SettingsRow(
+                        symbol: "lifepreserver", title: "Recovery Key",
+                        value: context.recoveryKeyIsOn ? "On" : "Off")
+                }
                 SettingsRow(
                     symbol: "doc.on.doc", title: "Clipboard", detail: "Copied secrets clear after 30 seconds.")
             }

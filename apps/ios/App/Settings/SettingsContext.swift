@@ -28,6 +28,9 @@ final class SettingsContext {
     /// The Drive store while this iPhone is signed in to Google, otherwise nil.
     func remote() -> (any BlobStoreFfi)? { drive.isSignedIn ? try? drive.remote() : nil }
 
+    /// Whether the unlocked vault has a Recovery Key.
+    var recoveryKeyIsOn: Bool { lock.session.map { service.hasRecoveryKey(session: $0) } ?? false }
+
     /// Where the kit says the vault is kept.
     var storageLabel: String { sync.rows.isEmpty ? "On this iPhone" : sync.summary }
 }

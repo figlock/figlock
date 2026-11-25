@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use figlock_core::{KdfParams, RecoveryKey, Vault};
 use figlock_ffi::{
-    DeviceKeysHandle, FigLockError, recovery_key_is_valid, start_recovery, unlock_vault,
-    vault_has_recovery_key,
+    DeviceKeysHandle, FigLockError, VaultSession, new_recovery_draft, recovery_key_is_valid,
+    start_recovery, unlock_vault, vault_has_recovery_key,
 };
 
 const T0: u64 = 1_800_000_000_000;
@@ -141,4 +141,154 @@ fn a_wrong_or_malformed_recovery_key_is_refused() {
 fn a_vault_without_a_recovery_key_says_so() {
     let (_, created) = Vault::create(OLD_PASSWORD, "phone", KdfParams::FLOOR, T0).unwrap();
     assert!(!vault_has_recovery_key(created.vault_json).unwrap());
+}
+
+/// An unlocked session of a vault that has a Recovery Key (when `with_key`) or none.
+fn session_of(w: &World, vault_json: Vec<u8>) -> Arc<VaultSession> {
+    unlock_vault(
+        vault_json,
+        OLD_PASSWORD.to_owned(),
+        w.old_secret.clone(),
+        w.device.clone(),
+        "phone".to_owned(),
+        vec![w.record.clone()],
+        T0 + 1,
+    )
+    .unwrap()
+    .session
+}
+
+#[test]
+fn settings_can_replace_the_recovery_key_and_the_old_one_stops_working() {
+    let w = world();
+    let session = session_of(&w, w.vault_json.clone());
+    assert!(session.has_recovery_key().unwrap());
+    let draft = new_recovery_draft().unwrap();
+    let code = draft.code();
+    assert!(recovery_key_is_valid(code.clone()));
+    assert_ne!(code, w.code);
+    let stored = session
+        .set_recovery_key(draft, OLD_PASSWORD.to_owned(), w.old_secret.clone())
+        .unwrap();
+    // The new key opens the new vault.json, the old one no longer does.
+    assert!(vault_has_recovery_key(stored.clone()).unwrap());
+    let with = |code: &str| {
+        start_recovery(
+            code.to_owned(),
+            stored.clone(),
+            vec![w.record.clone()],
+            w.device.clone(),
+            "phone".to_owned(),
+            T0 + 2,
+        )
+    };
+    assert!(with(&code).is_ok());
+    assert!(matches!(with(&w.code), Err(FigLockError::Failed)));
+}
+
+#[test]
+fn settings_can_turn_the_recovery_key_on_for_a_vault_without_one() {
+    let (vault, created) = Vault::create(OLD_PASSWORD, "phone", KdfParams::FLOOR, T0).unwrap();
+    let w = World {
+        vault_json: created.vault_json.clone(),
+        old_secret: created.secret_key.format().to_string(),
+        code: String::new(),
+        device: Arc::new(DeviceKeysHandle::from_bytes(keys_bytes(vault.device_keys())).unwrap()),
+        record: created.device_record,
+    };
+    let session = session_of(&w, w.vault_json.clone());
+    assert!(!session.has_recovery_key().unwrap());
+    let draft = new_recovery_draft().unwrap();
+    let stored = session
+        .set_recovery_key(draft, OLD_PASSWORD.to_owned(), w.old_secret.clone())
+        .unwrap();
+    assert!(vault_has_recovery_key(stored).unwrap());
+    assert!(session.has_recovery_key().unwrap());
+}
+
+#[test]
+fn a_wrong_master_password_or_secret_key_changes_no_recovery_key() {
+    let w = world();
+    let session = session_of(&w, w.vault_json.clone());
+    let wrong_password = session.set_recovery_key(
+        new_recovery_draft().unwrap(),
+        "generated-wrong-password".to_owned(),
+        w.old_secret.clone(),
+    );
+    assert!(matches!(wrong_password, Err(FigLockError::Failed)));
+    let other_secret = Vault::create(OLD_PASSWORD, "x", KdfParams::FLOOR, T0)
+        .unwrap()
+        .1
+        .secret_key
+        .format()
+        .to_string();
+    let wrong_secret = session.set_recovery_key(
+        new_recovery_draft().unwrap(),
+        OLD_PASSWORD.to_owned(),
+        other_secret.clone(),
+    );
+    assert!(matches!(wrong_secret, Err(FigLockError::Failed)));
+    assert!(matches!(
+        session.set_recovery_key(
+            new_recovery_draft().unwrap(),
+            OLD_PASSWORD.to_owned(),
+            "not a secret key".to_owned()
+        ),
+        Err(FigLockError::InvalidInput)
+    ));
+    // Removing is a downgrade, so it proves the credentials too.
+    for (password, secret) in [
+        ("generated-wrong-password", w.old_secret.clone()),
+        (OLD_PASSWORD, other_secret),
+    ] {
+        assert!(matches!(
+            session.clear_recovery_key(w.vault_json.clone(), password.to_owned(), secret),
+            Err(FigLockError::Failed)
+        ));
+    }
+    assert!(session.has_recovery_key().unwrap());
+}
+
+#[test]
+fn settings_can_remove_the_recovery_key() {
+    let w = world();
+    let session = session_of(&w, w.vault_json.clone());
+    let stored = session
+        .clear_recovery_key(
+            w.vault_json.clone(),
+            OLD_PASSWORD.to_owned(),
+            w.old_secret.clone(),
+        )
+        .unwrap();
+    assert!(!vault_has_recovery_key(stored).unwrap());
+    assert!(!session.has_recovery_key().unwrap());
+    // There is nothing left to remove.
+    assert!(matches!(
+        session.clear_recovery_key(
+            w.vault_json.clone(),
+            OLD_PASSWORD.to_owned(),
+            w.old_secret.clone()
+        ),
+        Err(FigLockError::Failed)
+    ));
+}
+
+#[test]
+fn the_new_code_is_checked_by_its_last_two_groups_and_has_a_printable_page() {
+    let draft = new_recovery_draft().unwrap();
+    let code = draft.code();
+    let groups: Vec<&str> = code.split('-').collect();
+    let tail = groups[groups.len() - 2..].join("-");
+    assert!(draft.verify_tail(tail.to_lowercase()));
+    assert!(draft.verify_tail(format!(" {} ", tail.replace('-', " "))));
+    assert!(!draft.verify_tail("AAAA-AAAA".to_owned()));
+    assert!(!draft.verify_tail(String::new()));
+    let page = draft
+        .render_kit(
+            "My vault".into(),
+            "On this iPhone".into(),
+            "2026-11-25".into(),
+        )
+        .unwrap();
+    assert!(page.starts_with(b"%PDF"));
 }

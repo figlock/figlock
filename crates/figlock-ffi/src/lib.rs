@@ -43,7 +43,8 @@ pub use quick::{
     unlock_vault_with_key,
 };
 pub use recovery::{
-    RecoveredVault, RecoveryAttempt, recovery_key_is_valid, start_recovery, vault_has_recovery_key,
+    RecoveredVault, RecoveryAttempt, RecoveryDraft, new_recovery_draft, recovery_key_is_valid,
+    start_recovery, vault_has_recovery_key,
 };
 pub use session::{
     CommittedFile, DeviceEntry, FieldInput, ItemListing, ItemSummary, RevocationFiles, SearchHit,
