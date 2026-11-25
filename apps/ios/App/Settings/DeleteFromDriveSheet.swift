@@ -63,7 +63,7 @@ struct DeleteFromDriveSheet: View {
         busy = true
         defer { busy = false }
         do {
-            _ = try await context.service.deleteDriveCopy(typed: typed, remote: remote)
+            try await context.sync.deleteDriveCopy(using: context.service, typed: typed, remote: remote)
             finished("Deleted from Google Drive.")
             dismiss()
         } catch let failure as SettingsService.Failure {
@@ -71,6 +71,12 @@ struct DeleteFromDriveSheet: View {
             case .signIn: errorText = "Google needs you to sign in again."
             case .offline: errorText = "FigLock could not reach Google Drive. Check your connection and try again."
             case .foreignVault: errorText = "Google Drive holds a different vault. Nothing was deleted."
+            case .damaged:
+                errorText =
+                    "The copy in Google Drive looks damaged, so FigLock cannot tell it is yours. Nothing was deleted."
+            case .incomplete:
+                errorText =
+                    "FigLock could not finish deleting from Google Drive. Nothing of yours is lost. Tap Delete again."
             default: errorText = "FigLock could not delete the copy. Try again."
             }
         } catch {

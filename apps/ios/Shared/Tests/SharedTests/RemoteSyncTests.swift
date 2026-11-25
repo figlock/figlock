@@ -64,6 +64,48 @@ func hidden(_ url: URL, _ name: String) -> URL { url.appendingPathComponent(name
     #expect(FileSyncState(container: container, remote: folder).lastSyncMs() == 6)
 }
 
+@Test func aDriveRemoteTurnedOffStaysOffAtStartWhileSignedIn() throws {
+    let root = try temporaryFolder("phone")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let container = VaultContainer(root: root)
+    try container.prepare()
+    let list = RemoteList(container: container)
+
+    list.adoptSignedInDrive(signedIn: true)
+    #expect(list.entries().map(\.id) == ["drive"], "a signed in phone with no list yet gets Drive")
+
+    list.remove(id: RemoteEntry.driveID)
+    list.adoptSignedInDrive(signedIn: true)
+    #expect(list.entries().isEmpty, "turned off, and a restart does not turn it back on")
+}
+
+@Test func exclusiveWorkWaitsForARunningSyncOfTheSameRemote() async throws {
+    let root = try temporaryFolder("phone")
+    defer { try? FileManager.default.removeItem(at: root) }
+    let container = VaultContainer(root: root)
+    try container.prepare()
+    let coordinator = RemoteSyncCoordinator(
+        .init(
+            vault: LocalVault(container: container, access: .readOnly), list: RemoteList(container: container),
+            drive: { nil },
+            deviceId: { nil }))
+    let order = OrderLog()
+    async let first: Void = coordinator.exclusive("drive") {
+        await order.add("first start")
+        try? await Task.sleep(for: .milliseconds(300))
+        await order.add("first end")
+    }
+    try await Task.sleep(for: .milliseconds(50))
+    try await coordinator.exclusive("drive") { await order.add("second") }
+    try await first
+    #expect(await order.items == ["first start", "first end", "second"])
+}
+
+private actor OrderLog {
+    var items: [String] = []
+    func add(_ item: String) { items.append(item) }
+}
+
 // MARK: The coordinated folder store
 
 @Test func theFolderStoreFollowsTheStorageContract() throws {
