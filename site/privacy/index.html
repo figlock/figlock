@@ -87,7 +87,7 @@
     <div class="wrap">
       <article class="prose">
         <h1>Privacy</h1>
-        <p class="meta">Last updated 16 November 2026. FigLock 0.5 is an early release: the Mac app and the command line. The phone apps are not built yet, so parts of this describe how they are designed to work.</p>
+        <p class="meta">Last updated 26 November 2026. FigLock 0.5 is an early release: the Mac app and the command line. The iPhone app is in beta. The Android app is not built yet, so parts of this describe how it is designed to work.</p>
 
         <section class="summary" aria-labelledby="summary-title">
           <h2 id="summary-title">The short version</h2>
@@ -123,6 +123,15 @@
             <dd>Nothing about your vault. We don't have it.</dd>
           </div>
         </dl>
+
+        <h2>The iPhone app</h2>
+        <p>The iPhone app keeps the vault in its own protected storage on the phone and shares it only with FigLock's AutoFill extension. It collects no data about you, has no analytics or crash reporting that leaves the phone, and does not track you across other apps or websites.</p>
+        <ul>
+          <li><strong>Face ID.</strong> iOS checks your face and tells FigLock only whether it matched. FigLock never receives face data. A key held in the phone's Secure Enclave can open the vault after a match.</li>
+          <li><strong>Files and Google Drive.</strong> The app reads and writes only the vault files, in the Google Drive app folder or a folder you pick in the Files app. Sign-in goes to Google, not to us, and the sign-in token stays in your phone's keychain.</li>
+          <li><strong>Background refresh.</strong> iOS may wake the app now and then to sync encrypted vault files. Nothing else is sent.</li>
+          <li><strong>AutoFill.</strong> The extension reads the vault on the phone and needs Face ID. It never writes to it and sends nothing anywhere.</li>
+        </ul>
 
         <h2>Google Drive</h2>
         <p>If you pick Google Drive, FigLock asks for one narrow permission, <code>drive.appdata</code>. It gives FigLock a hidden app folder and no access to the rest of your files. The folder counts against your Drive storage, and you can remove it from your Google account settings. Removing it deletes the copy in Drive, so each device keeps its own full local copy.</p>
@@ -167,6 +176,7 @@
       <ul>
         <li><a href="/install/">Install</a></li>
         <li><a href="/faq/">FAQ</a></li>
+        <li><a href="/support/">Support</a></li>
         <li><a href="/privacy/">Privacy</a></li>
         <li><a href="/terms/">Terms</a></li>
         <li><a href="mailto:security@figlock.com">Report a security issue</a></li>

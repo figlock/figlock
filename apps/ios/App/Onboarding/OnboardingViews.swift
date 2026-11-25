@@ -40,11 +40,7 @@ struct WelcomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: FLSpace.s4) {
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 34, weight: .semibold)).foregroundStyle(FLColor.textOnPrimary)
-                    .frame(width: 72, height: 72)
-                    .background(FLColor.primary, in: RoundedRectangle(cornerRadius: 72 * 0.22))
-                    .accessibilityHidden(true)
+                FigLockLogo(size: 72)
                 Text("Welcome to FigLock").font(FLFont.ui(FLText.xl3, weight: FLWeight.bold, relativeTo: .title1))
                     .foregroundStyle(FLColor.text).accessibilityAddTraits(.isHeader)
                 Text("Passwords, API tokens and files in a vault that only you can open.")
