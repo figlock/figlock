@@ -90,8 +90,7 @@ The first three are launched with `-figlock-fresh`, `-figlock-seed-demo` and `-f
 taken by `apps/ios/scripts/app-store-screenshots.sh`, which runs an opt-in UI test that navigates while the script
 takes the picture with `simctl` (the app hides itself from in-process screenshots on purpose). The test does nothing
 unless `FIGLOCK_SCREENSHOT_DIR` is set. Retake all of them when the design changes, with the same made-up data
-(`mira@example.com`, `Stripe API key`) as the desktop screenshots. Not captured: the generator and an agent approval
-(the iPhone app has no agent approval screen yet). Dark variants of 04 and 05 can be added by running the script with the
+(`mira@example.com`, `Stripe API key`) as the desktop screenshots. Not captured yet: the generator. Dark variants of 04 and 05 can be added by running the script with the
 simulator in dark mode.
 
 ## 5. Checklist for the account holder (App Store Connect)
