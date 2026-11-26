@@ -17,6 +17,9 @@ final class SyncModel {
     /// Counts syncs that changed the local vault, so the vault list reloads.
     private(set) var changeCount = 0
     private(set) var isSyncing = false
+    /// True for a few seconds after a sync finished cleanly, so the vault list can say "Synced" and then go quiet.
+    private(set) var justSynced = false
+    private var syncedReset: Task<Void, Never>?
 
     let list: RemoteList
     let drive: DriveConnection
@@ -59,6 +62,25 @@ final class SyncModel {
         return rows.map(\.entry.name).joined(separator: ", ")
     }
 
+    /// The line under the Vault title: nothing, "Syncing", "Synced" (for 3 seconds) or "Offline".
+    var statusLine: SyncStatusLine? {
+        SyncStatusLine.resolve(phases: rows.map(\.state.phase), isSyncing: isSyncing, justSynced: justSynced)
+    }
+
+    private var lastSyncStamp: UInt64? { rows.compactMap(\.state.lastSyncMs).max() }
+
+    /// Show "Synced" now and take it away after `SyncStatusLine.syncedVisibleSeconds`, but only when a sync really ran (the newest finish time moved): a run skipped for back-off stays quiet.
+    private func flashSynced(since before: UInt64?) {
+        guard lastSyncStamp != before, rows.allSatisfy({ $0.state.phase == .synced }) else { return }
+        justSynced = true
+        syncedReset?.cancel()
+        syncedReset = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(SyncStatusLine.syncedVisibleSeconds))
+            guard !Task.isCancelled else { return }
+            self?.justSynced = false
+        }
+    }
+
     var attentionRows: [Row] { rows.filter { $0.state.needsAttention } }
 
     // MARK: Running
@@ -66,6 +88,7 @@ final class SyncModel {
     /// Sync every remote that is due. A person asking for it (`force`) skips the back-off.
     func syncNow(force: Bool) async {
         guard !list.entries().isEmpty else { return }
+        let before = lastSyncStamp
         isSyncing = true
         let work = Task { await coordinator.syncAll(force: force) }
         // Show "syncing" on the rows while the work runs.
@@ -81,15 +104,18 @@ final class SyncModel {
         await reload()
         // Files that arrived late change what the log holds, even when this run pulled none itself (iCloud may
         // have delivered them into the folder between runs): read the vault again once nothing is missing.
+        flashSynced(since: before)
         let stillWaiting = rows.contains { $0.state.phase == .waitingForDownload }
         if pulled > 0 || (wasWaiting && !stillWaiting) { changeCount += 1 }
     }
 
     func sync(_ id: String, confirmReupload: Bool = false) async {
         guard let entry = list.entry(id: id) else { return }
+        let before = lastSyncStamp
         let pulled = await coordinator.sync(entry, force: true, confirmReupload: confirmReupload)
         if pulled > 0 { changeCount += 1 }
         await reload()
+        flashSynced(since: before)
     }
 
     /// Keep syncing while the app is in front: now, then every `syncIntervalSecs`. Cheap to call again.

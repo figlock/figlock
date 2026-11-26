@@ -45,42 +45,40 @@ struct AboutView: View {
     @State private var opened: AboutLink?
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: FLSpace.s6) {
-                VStack(spacing: FLSpace.s2) {
-                    FigLockLogo(size: 88)
-                    Text("FigLock").font(FLFont.ui(FLText.xl, weight: FLWeight.bold, relativeTo: .title2))
-                        .foregroundStyle(FLColor.text).accessibilityAddTraits(.isHeader)
-                    Text(AboutLink.versionText).font(FLFont.ui(FLText.base, relativeTo: .callout))
-                        .foregroundStyle(FLColor.textSecondary)
-                }
-                .padding(.top, FLSpace.s6)
-                VStack(spacing: 0) {
-                    ForEach(AboutLink.all) { link in
-                        Button {
-                            opened = link
-                        } label: {
-                            HStack {
-                                SettingsRow(symbol: link.symbol, title: link.title)
-                                Image(systemName: "chevron.right").font(.footnote.weight(.semibold))
-                                    .foregroundStyle(FLColor.textTertiary).accessibilityHidden(true)
-                            }
-                            .padding(.horizontal, FLSpace.s4)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("about-\(link.id)")
-                        .accessibilityHint("Opens figlock.com in the app")
-                        if link.id != AboutLink.all.last?.id {
-                            Divider().padding(.leading, FLSpace.s4 + 32 + FLSpace.s3)
-                        }
-                    }
-                }
-                .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.md))
+        List {
+            VStack(spacing: FLSpace.s2) {
+                FigLockLogo(size: 88)
+                Text("FigLock").font(FLFont.ui(FLText.xl, weight: FLWeight.bold, relativeTo: .title2))
+                    .foregroundStyle(FLColor.text).accessibilityAddTraits(.isHeader)
+                Text(AboutLink.versionText).font(FLFont.ui(FLRowText.subtitle, relativeTo: .subheadline))
+                    .foregroundStyle(FLColor.textSecondary)
             }
-            .padding(.horizontal, FLSpace.s4)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, FLSpace.s4)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            Section {
+                ForEach(AboutLink.all) { link in
+                    Button {
+                        opened = link
+                    } label: {
+                        HStack {
+                            SettingsRow(symbol: link.symbol, title: link.title)
+                            Image(systemName: "chevron.right").font(.footnote.weight(.semibold))
+                                .foregroundStyle(FLColor.textTertiary).accessibilityHidden(true)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("about-\(link.id)")
+                    .accessibilityHint("Opens figlock.com in the app")
+                }
+            } header: {
+                FLSectionHeader("Learn more")
+            }
+            .listRowBackground(FLColor.surface)
         }
-        .background(FLColor.bg.ignoresSafeArea())
+        .flTileList()
         .navigationTitle("About FigLock")
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $opened) { link in

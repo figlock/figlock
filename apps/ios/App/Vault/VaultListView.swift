@@ -10,7 +10,10 @@ struct VaultListView: View {
 
     var body: some View {
         List {
-            SyncChipRow(sync: sync)
+            VaultHeader(sync: sync, query: $browser.query)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
             if browser.damagedCount > 0 {
                 Label(
                     "\(browser.damagedCount) \(browser.damagedCount == 1 ? "item" : "items") could not be read",
@@ -35,6 +38,14 @@ struct VaultListView: View {
                     .listRowSeparator(.hidden)
             }
             let rows = browser.visible
+            if !browser.items.isEmpty {
+                Text(rows.count == 1 ? "1 item" : "\(rows.count) items")
+                    .font(FLFont.ui(FLText.base, relativeTo: .callout))
+                    .foregroundStyle(FLColor.textSecondary)
+                    .listRowInsets(EdgeInsets(top: 0, leading: FLSpace.s4 + FLSpace.s1, bottom: 0, trailing: 0))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
             if rows.isEmpty {
                 EmptyState(isSearching: browser.isSearching, hasItems: !browser.items.isEmpty)
                     .listRowBackground(Color.clear)
@@ -59,40 +70,53 @@ struct VaultListView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        .contentMargins(.top, 0, for: .scrollContent)
         .background(FLColor.bg)
         .navigationTitle("Vault")
+        .navigationBarTitleDisplayMode(.inline)
+        // The big title is part of the list (`VaultHeader`), so the bar keeps its name but shows no second title.
+        .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) } }
         .navigationDestination(for: String.self) { id in
             ItemDetailHost(id: id, browser: browser, copier: copier)
         }
         .modifier(ItemManagementToolbar(browser: browser, copier: copier))
-        // Search is always visible: a short list does not scroll, so pulling down could not reveal it.
-        .searchable(
-            text: $browser.query, placement: .navigationBarDrawer(displayMode: .always),
-            prompt: "Search"
-        )
-        .textInputAutocapitalization(.never)
-        .autocorrectionDisabled()
         .refreshable {
             await sync.syncNow(force: true)
             await browser.reload()
         }
-        .toolbar {
-        }
     }
 }
 
+/// The type filter as a row of large chips (the prototype's "All, Logins, ..."): each is a full 44 pt target.
 private struct FilterRail: View {
     @Binding var selection: VaultBrowser.Filter
 
     var body: some View {
-        Picker("Filter items", selection: $selection) {
+        HStack(spacing: FLSpace.s2) {
             ForEach(VaultBrowser.Filter.allCases) { filter in
-                Text(filter.title).tag(filter)
+                let chosen = filter == selection
+                Button {
+                    selection = filter
+                } label: {
+                    Text(filter.title)
+                        .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
+                        .foregroundStyle(chosen ? FLColor.textOnPrimary : FLColor.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg + 4)
+                        .background(
+                            chosen ? FLColor.primary : FLColor.surface,
+                            in: RoundedRectangle(cornerRadius: FLRadius.lg))
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(chosen ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
         .padding(.horizontal, FLSpace.s4)
+        .padding(.vertical, FLSpace.s1)
         .sensoryFeedback(.selection, trigger: selection)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Filter items")
     }
 }
 
@@ -168,40 +192,84 @@ private struct EmptyState: View {
     }
 }
 
-/// The sync chip of the prototype: how syncing stands, worst problem first, and a way to the Sync screen. Nothing
-/// shows while the vault is on this iPhone only.
-private struct SyncChipRow: View {
+/// The top of the vault list: the big title, one plain line about syncing when there is something to say, and
+/// search. With nothing to say there is no line and no gap between the title and the search field.
+private struct VaultHeader: View {
+    let sync: SyncModel
+    @Binding var query: String
+    @FocusState private var searching: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: FLSpace.s3) {
+            VStack(alignment: .leading, spacing: FLSpace.s1) {
+                Text("Vault")
+                    .font(FLFont.ui(FLText.xl4, weight: FLWeight.bold, relativeTo: .largeTitle))
+                    .foregroundStyle(FLColor.text)
+                    .accessibilityAddTraits(.isHeader)
+                SyncStatusText(sync: sync)
+            }
+            .animation(.default, value: sync.statusLine)
+            HStack(spacing: FLSpace.s2) {
+                Image(systemName: "magnifyingglass").foregroundStyle(FLColor.textSecondary)
+                    .accessibilityHidden(true)
+                TextField("Search", text: $query)
+                    .font(FLFont.ui(FLText.md))
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .submitLabel(.search)
+                    .focused($searching)
+                    .accessibilityIdentifier("vault-search")
+                if !query.isEmpty {
+                    Button {
+                        query = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(FLColor.textTertiary)
+                    }
+                    .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, FLSpace.s3)
+            .frame(minHeight: FLSize.controlHeightLg + 4)
+            .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.lg))
+        }
+        .padding(.horizontal, FLSpace.s4)
+        .padding(.top, FLSpace.s1)
+        .padding(.bottom, FLSpace.s2)
+    }
+}
+
+/// "Syncing", "Synced" (three seconds), "Offline", or a problem that needs the person (it opens Sync). Plain text with
+/// a small icon; nothing at all, and no space, when there is nothing to say.
+private struct SyncStatusText: View {
     let sync: SyncModel
     @Environment(\.settingsContext) private var context
 
     var body: some View {
-        if let chip = sync.chip, chip.state.tone != .good, let context {
-            NavigationLink {
-                SyncSettingsView(context: context)
-            } label: {
-                VStack(alignment: .leading, spacing: FLSpace.s2) {
-                    HStack(spacing: FLSpace.s2) {
-                        Image(systemName: chip.state.symbol).accessibilityHidden(true)
-                        Text(chip.title)
-                    }
-                    .font(FLFont.ui(FLText.base, weight: FLWeight.semibold, relativeTo: .callout))
-                    .foregroundStyle(chip.state.tone.color)
-                    .padding(.horizontal, FLSpace.s3)
-                    .frame(minHeight: FLSize.controlHeightLg)
-                    .background(chip.state.tone.background, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                    if chip.state.tone == .warn {
-                        Text(chip.detail).font(FLFont.ui(FLText.sm, relativeTo: .footnote))
-                            .foregroundStyle(FLColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+        if let line = sync.statusLine {
+            let problem = sync.attentionRows.first
+            if line == .attention, let problem, let context {
+                NavigationLink {
+                    SyncSettingsView(context: context)
+                } label: {
+                    label(for: line, text: problem.state.title)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens sync settings")
+            } else {
+                label(for: line, text: line.text)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityHint("Opens sync settings")
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
-            .listRowSeparator(.hidden)
         }
+    }
+
+    private func label(for line: SyncStatusLine, text: String) -> some View {
+        HStack(spacing: FLSpace.s1 + 2) {
+            Image(systemName: line.symbol).accessibilityHidden(true)
+            Text(text)
+        }
+        .font(FLFont.ui(FLText.base, weight: FLWeight.medium, relativeTo: .callout))
+        .foregroundStyle(line.color)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("sync-status")
+        .transition(.opacity)
     }
 }

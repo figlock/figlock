@@ -131,31 +131,32 @@ extension RemoteEntry {
     var symbol: String { kind == .drive ? "globe" : "folder" }
 }
 
-/// What the vault list chip shows.
-struct SyncChip {
-    let title: String
-    let state: RemoteState
-    let detail: String
-}
+extension SyncStatusLine {
+    /// The words for the line under the Vault title (a problem uses its own title).
+    var text: String {
+        switch self {
+        case .attention: "Needs attention"
+        case .offline: "Offline"
+        case .syncing: "Syncing"
+        case .synced: "Synced"
+        }
+    }
 
-extension SyncModel {
-    /// The vault list chip: the worst thing first, otherwise the common state.
-    var chip: SyncChip? {
-        guard !rows.isEmpty else { return nil }
-        if let problem = rows.first(where: { $0.state.needsAttention }) {
-            return SyncChip(
-                title: problem.state.title, state: problem.state,
-                detail: problem.state.detail(for: problem.entry))
+    var symbol: String {
+        switch self {
+        case .attention: "exclamationmark.triangle.fill"
+        case .offline: "icloud.slash"
+        case .syncing: "arrow.triangle.2.circlepath"
+        case .synced: "icloud"
         }
-        if let busy = rows.first(where: { $0.state.phase == .syncing }) {
-            return SyncChip(title: busy.state.title, state: busy.state, detail: busy.state.detail(for: busy.entry))
+    }
+
+    var color: Color {
+        switch self {
+        case .attention: FLColor.warning
+        case .offline: FLColor.textSecondary
+        case .syncing: FLColor.textSecondary
+        case .synced: FLColor.success
         }
-        if let waiting = rows.first(where: { [.offline, .waitingForDownload].contains($0.state.phase) }) {
-            return SyncChip(title: "Not synced", state: waiting.state, detail: waiting.state.detail(for: waiting.entry))
-        }
-        let newest = rows.max { ($0.state.lastSyncMs ?? 0) < ($1.state.lastSyncMs ?? 0) } ?? rows[0]
-        var state = newest.state
-        state.phase = newest.state.lastSyncMs == nil ? .idle : .synced
-        return SyncChip(title: state.title, state: state, detail: state.detail(for: newest.entry))
     }
 }

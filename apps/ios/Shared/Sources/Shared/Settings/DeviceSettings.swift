@@ -33,6 +33,28 @@ public enum AutoLockOption: Double, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Which look the app has: the system's, or always light or always dark.
+public enum AppearanceOption: String, CaseIterable, Identifiable, Sendable {
+    case system
+    case light
+    case dark
+
+    public var id: String { rawValue }
+
+    public var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
+        }
+    }
+
+    /// The option for a stored value; anything unknown is the system look.
+    public static func from(stored: String?) -> AppearanceOption {
+        stored.flatMap(AppearanceOption.init(rawValue:)) ?? .system
+    }
+}
+
 /// This phone's own settings: the auto-lock time and the names the person gave to the devices in the list. A small
 /// file in the device folder; not secret and never synced.
 ///
@@ -42,6 +64,7 @@ public enum AutoLockOption: Double, CaseIterable, Identifiable, Sendable {
 public struct DeviceSettings: Sendable {
     private struct Saved: Codable {
         var autoLockSeconds: Double?
+        var appearance: String?
         var nicknames: [String: String] = [:]
     }
 
@@ -72,6 +95,14 @@ public struct DeviceSettings: Sendable {
     public func setAutoLock(_ option: AutoLockOption) throws {
         var saved = load()
         saved.autoLockSeconds = option.seconds
+        try save(saved)
+    }
+
+    public var appearance: AppearanceOption { AppearanceOption.from(stored: load().appearance) }
+
+    public func setAppearance(_ option: AppearanceOption) throws {
+        var saved = load()
+        saved.appearance = option.rawValue
         try save(saved)
     }
 

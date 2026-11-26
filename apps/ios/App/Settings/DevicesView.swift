@@ -87,7 +87,7 @@ struct DevicesView: View {
                     }
                 }
             } header: {
-                Text("Devices that can open your vault.").textCase(nil)
+                FLSectionHeader("Devices that can open your vault")
             } footer: {
                 Text("To add a device, choose Join my vault by pairing on it.")
             }
@@ -95,15 +95,15 @@ struct DevicesView: View {
 
             let revoked = model.rows.filter(\.isRevoked)
             if !revoked.isEmpty {
-                Section("Revoked") {
+                Section {
                     ForEach(revoked) { row in DeviceRowView(row: row) }
+                } header: {
+                    FLSectionHeader("Revoked")
                 }
                 .listRowBackground(FLColor.surface)
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(FLColor.bg)
+        .flTileList()
         .navigationTitle("Devices")
         .onAppear { model.reload() }
     }
@@ -115,18 +115,18 @@ private struct DeviceRowView: View {
     var body: some View {
         HStack(spacing: FLSpace.s3) {
             Image(systemName: "iphone")
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(row.isRevoked ? FLColor.textTertiary : FLColor.primary)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.displayName)
-                    .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
+                    .font(FLFont.ui(FLRowText.title))
                     .foregroundStyle(row.isRevoked ? FLColor.textSecondary : FLColor.text)
                 if let subtitle {
                     Text(subtitle)
-                        .font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+                        .font(FLFont.ui(FLRowText.subtitle, relativeTo: .subheadline))
                         .foregroundStyle(FLColor.textSecondary)
                         .lineLimit(1)
                 }
@@ -134,7 +134,7 @@ private struct DeviceRowView: View {
             Spacer(minLength: FLSpace.s2)
             if row.isThisDevice {
                 Text("This iPhone")
-                    .font(FLFont.ui(FLText.sm, weight: FLWeight.medium, relativeTo: .footnote))
+                    .font(FLFont.ui(FLRowText.subtitle, weight: FLWeight.medium, relativeTo: .subheadline))
                     .foregroundStyle(FLColor.success)
             }
         }

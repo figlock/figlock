@@ -21,7 +21,7 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("Security") {
+            Section {
                 NavigationLink {
                     AutoLockView(context: context)
                 } label: {
@@ -49,10 +49,26 @@ struct SettingsView: View {
                         symbol: "lifepreserver", title: "Recovery Key",
                         value: context.recoveryKeyIsOn ? "On" : "Off")
                 }
+            } header: {
+                FLSectionHeader("Security")
             }
             .listRowBackground(FLColor.surface)
 
-            Section("Vault") {
+            Section {
+                NavigationLink {
+                    AppearanceView(context: context)
+                } label: {
+                    SettingsRow(
+                        symbol: "circle.lefthalf.filled", title: "Appearance",
+                        value: context.appearance.option.title)
+                }
+                .accessibilityIdentifier("settings-appearance")
+            } header: {
+                FLSectionHeader("Display")
+            }
+            .listRowBackground(FLColor.surface)
+
+            Section {
                 NavigationLink {
                     DevicesView(context: context)
                 } label: {
@@ -65,16 +81,20 @@ struct SettingsView: View {
                         symbol: "arrow.triangle.2.circlepath", title: "Sync",
                         value: context.sync.summary)
                 }
+            } header: {
+                FLSectionHeader("Vault")
             }
             .listRowBackground(FLColor.surface)
 
-            Section("About") {
+            Section {
                 NavigationLink {
                     AboutView()
                 } label: {
                     SettingsRow(symbol: "info.circle", title: "About FigLock")
                 }
                 .accessibilityIdentifier("about-figlock")
+            } header: {
+                FLSectionHeader("About")
             }
             .listRowBackground(FLColor.surface)
 
@@ -104,9 +124,7 @@ struct SettingsView: View {
             }
             .listRowBackground(FLColor.surface)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(FLColor.bg)
+        .flTileList()
         .navigationTitle("Settings")
         .alert(removalTitle, isPresented: $confirmingRemoval) {
             Button("Cancel", role: .cancel) {}
@@ -150,25 +168,26 @@ struct SettingsRow: View {
     var body: some View {
         HStack(spacing: FLSpace.s3) {
             Image(systemName: symbol)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 19, weight: .medium))
                 .foregroundStyle(FLColor.primary)
-                .frame(width: 32, height: 32)
+                .frame(width: 36, height: 36)
                 .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(FLFont.ui(FLText.md, weight: FLWeight.medium)).foregroundStyle(FLColor.text)
+                Text(title).font(FLFont.ui(FLRowText.title)).foregroundStyle(FLColor.text)
                 if let detail {
-                    Text(detail).font(FLFont.ui(FLText.sm, relativeTo: .footnote))
+                    Text(detail).font(FLFont.ui(FLRowText.subtitle, relativeTo: .subheadline))
                         .foregroundStyle(FLColor.textSecondary)
                 }
             }
             Spacer(minLength: FLSpace.s2)
             if let value {
-                Text(value).font(FLFont.ui(FLText.base, relativeTo: .callout)).foregroundStyle(
+                Text(value).font(FLFont.ui(FLRowText.title, relativeTo: .body)).foregroundStyle(
                     FLColor.textSecondary)
             }
         }
-        .frame(minHeight: FLSize.controlHeightLg)
+        .padding(.vertical, FLSpace.s1)
+        .frame(minHeight: FLSize.controlHeightLg + FLSpace.s3)
         .accessibilityElement(children: .combine)
     }
 }
@@ -192,7 +211,7 @@ struct AutoLockView: View {
                         choose(option)
                     } label: {
                         HStack {
-                            Text(option.title).foregroundStyle(FLColor.text)
+                            Text(option.title).font(FLFont.ui(FLRowText.title)).foregroundStyle(FLColor.text)
                             Spacer()
                             if option == selected {
                                 Image(systemName: "checkmark").foregroundStyle(FLColor.primary)
@@ -213,9 +232,7 @@ struct AutoLockView: View {
             }
         }
         .font(FLFont.ui(FLText.md))
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(FLColor.bg)
+        .flTileList()
         .navigationTitle("Auto-lock")
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -229,5 +246,45 @@ struct AutoLockView: View {
         } catch {
             failed = true
         }
+    }
+}
+
+/// Appearance: follow the system, or always light or always dark.
+struct AppearanceView: View {
+    let context: SettingsContext
+    @State private var failed = false
+
+    var body: some View {
+        List {
+            Section {
+                ForEach(AppearanceOption.allCases) { option in
+                    Button {
+                        failed = !context.appearance.choose(option)
+                    } label: {
+                        HStack {
+                            Text(option.title).font(FLFont.ui(FLRowText.title)).foregroundStyle(FLColor.text)
+                            Spacer()
+                            if option == context.appearance.option {
+                                Image(systemName: "checkmark").foregroundStyle(FLColor.primary)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+                        .frame(minHeight: FLSize.controlHeightLg)
+                    }
+                    .accessibilityIdentifier("appearance-\(option.rawValue)")
+                    .accessibilityAddTraits(option == context.appearance.option ? .isSelected : [])
+                }
+            } footer: {
+                Text("System follows the light or dark setting of this iPhone.")
+            }
+            .listRowBackground(FLColor.surface)
+            if failed {
+                Notice(text: "Could not save. Try again.", isError: true)
+                    .listRowBackground(Color.clear)
+            }
+        }
+        .flTileList()
+        .navigationTitle("Appearance")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }

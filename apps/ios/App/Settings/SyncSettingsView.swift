@@ -36,7 +36,7 @@ struct SyncSettingsView: View {
                     }
                 }
             } header: {
-                Text("Where your vault is kept")
+                FLSectionHeader("Where your vault is kept")
             } footer: {
                 Text("Each place syncs on its own. If one fails, the others keep working.")
             }
@@ -79,9 +79,7 @@ struct SyncSettingsView: View {
             }
             .listRowBackground(FLColor.surface)
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(FLColor.bg)
+        .flTileList()
         .navigationTitle("Sync")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await sync.syncNow(force: true) }
@@ -163,9 +161,7 @@ private struct RemoteDetailView: View {
                 content(for: row)
             }
         }
-        .listStyle(.insetGrouped)
-        .scrollContentBackground(.hidden)
-        .background(FLColor.bg)
+        .flTileList()
         .navigationTitle(sync.row(id: id)?.entry.name ?? "Sync")
         .navigationBarTitleDisplayMode(.inline)
         .task {

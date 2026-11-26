@@ -89,7 +89,8 @@ SwiftUI screens are in `App/Onboarding` and `App/Onboarding/RecoveryScreen.swift
 ## Settings
 
 `Shared/Sources/Shared/Settings` is the logic behind Settings, the screens are in `App/Settings` (the gear in the
-vault list). `DeviceSettings` keeps this phone's auto-lock time (5 minutes by default, no "never") and device
+vault list). `DeviceSettings` keeps this phone's auto-lock time (5 minutes by default, no "never"), the appearance
+(System, Light or Dark; System by default, applied app-wide with `preferredColorScheme`) and device
 nicknames in the device folder. `SettingsService` revokes a device (`VaultSession.revokeDevice` in the Rust core,
 ADR-0018: needs the master password and the Secret Key, which the vault checks; the new files are written snapshot,
 records, `vault.json` last, then pushed when this phone is signed in to Drive), renders the Emergency Kit again from
@@ -121,10 +122,12 @@ remote-lost confirmation, so one failing never blocks another. `CoordinatedFolde
 missing; the root folder is never created. `FolderRemote` holds the real-path check (a folder may not be, contain or
 sit inside the local vault, checked on every open), the iCloud-off check and the rule that an existing vault goes only
 to an empty folder (any other file, even one with a non-store name, makes it non-empty) or one holding it. The app side is `App/Sync`: `SyncModel` (foreground loop, per-remote rows),
-`BackgroundSync` (BGAppRefresh, `com.figlock.ios.sync`) and the wording of each state.
+`BackgroundSync` (BGAppRefresh, `com.figlock.ios.sync`) and the wording of each state. The status line under the
+Vault title follows `SyncStatusLine` in Shared (Syncing, Synced for 3 s after a sync that ran, Offline, or a tappable
+problem title that opens Sync settings; nothing otherwise).
 
 Debug builds accept `-figlock-demo-remotes` (with `-figlock-seed-demo -figlock-unlock-demo`) to add one working and
-one missing folder remote, so the sync chip and the Sync screen can be looked at in a simulator. A simulator build
+one missing folder remote, so the sync status line and the Sync screen can be looked at in a simulator. A simulator build
 needs ad hoc signing to get its App Group: add `CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES` to the xcodebuild call.
 
 ## Build and run
