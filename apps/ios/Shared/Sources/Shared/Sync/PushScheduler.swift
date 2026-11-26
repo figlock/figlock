@@ -40,6 +40,12 @@ public final class PushScheduler {
         await task?.value
     }
 
+    /// Stop the run in flight and drop writes still waiting, for when the system takes the background time back.
+    public func cancel() {
+        again = false
+        task?.cancel()
+    }
+
     private func drain() async {
         while again {
             again = false

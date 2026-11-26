@@ -103,24 +103,26 @@ final class SyncModel {
     /// The app is leaving the front: finish the push of anything just written, inside the time iOS grants for it.
     func finishPushes() async {
         guard let pusher, pusher.isBusy else { return }
-        let keepAlive = Self.beginKeepAlive()
+        let keepAlive = beginKeepAlive()
         await pusher.finish()
-        Self.endKeepAlive(keepAlive)
+        keepAlive.end()
     }
 
     /// Sync once while holding a background task, so a person who saves and switches away does not cut the upload.
     private func runKeepingAlive(force: Bool) async {
-        let keepAlive = Self.beginKeepAlive()
+        let keepAlive = beginKeepAlive()
         await syncNow(force: force)
-        Self.endKeepAlive(keepAlive)
+        keepAlive.end()
     }
 
-    private static func beginKeepAlive() -> UIBackgroundTaskIdentifier {
-        UIApplication.shared.beginBackgroundTask(withName: "FigLock push")
-    }
-
-    private static func endKeepAlive(_ id: UIBackgroundTaskIdentifier) {
-        if id != .invalid { UIApplication.shared.endBackgroundTask(id) }
+    /// Hold a background task. When iOS says the time is up, the push in flight is cancelled and the task ends, so
+    /// the system does not terminate the app.
+    private func beginKeepAlive() -> KeepAlive {
+        let keepAlive = KeepAlive()
+        keepAlive.begin { [weak self] in
+            MainActor.assumeIsolated { self?.pusher?.cancel() }
+        }
+        return keepAlive
     }
 
     /// Keep syncing while the app is in front: now, then every `syncIntervalSecs`. Cheap to call again.
@@ -206,5 +208,24 @@ final class SyncModel {
         stopForeground()
         rows = []
         for entry in list.entries() { await coordinator.forget(id: entry.id) }
+    }
+}
+
+/// A UIKit background task that ends exactly once, whether the work finishes or iOS runs out of time first.
+@MainActor
+private final class KeepAlive {
+    private var id: UIBackgroundTaskIdentifier = .invalid
+
+    func begin(onExpiry: @escaping @Sendable () -> Void) {
+        id = UIApplication.shared.beginBackgroundTask(withName: "FigLock push") { [weak self] in
+            onExpiry()
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }

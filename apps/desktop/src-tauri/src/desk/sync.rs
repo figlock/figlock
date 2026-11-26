@@ -653,8 +653,6 @@ impl Desk {
         self.sync_status()
     }
 
-    /// Called every second by the sync thread. Returns true when a sync ran, so the window can refresh what it
-    /// shows.
     /// Sleep until the next sync round is due, or until a save wakes it. The sync thread calls this between
     /// rounds instead of waking every second (FIG-261).
     pub fn wait_for_sync_work(&self) {
@@ -663,6 +661,8 @@ impl Desk {
         self.wake.wait(wait);
     }
 
+    /// Called by the sync thread each time `wait_for_sync_work` returns. Returns true when a sync ran, so the window
+    /// can refresh what it shows.
     pub fn sync_tick(&self) -> bool {
         let dirty = std::mem::take(&mut self.inner().dirty);
         if self.sync_state().running {
