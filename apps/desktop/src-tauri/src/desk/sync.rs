@@ -95,6 +95,20 @@ impl SyncState {
         !self.remotes.is_empty() && self.remotes.values().all(|r| r.kind != Kind::Idle)
     }
 
+    /// How long the sync thread may sleep: until the nearest place that is due, or the open vault's next look at
+    /// the local folder, never longer than one interval and never in a tight loop (FIG-261).
+    fn next_wait(&self, unlocked: bool) -> Duration {
+        let now = Instant::now();
+        let mut wait = INTERVAL;
+        for rs in self.remotes.values().filter(|rs| !rs.blocked()) {
+            wait = wait.min(rs.next_at.saturating_duration_since(now));
+        }
+        if unlocked {
+            wait = wait.min((self.local_at + INTERVAL).saturating_duration_since(now));
+        }
+        wait.max(Duration::from_millis(250))
+    }
+
     /// Forget one remote, as turning it off does.
     fn drop_remote(&mut self, id: &str) {
         self.remotes.remove(id);
@@ -641,6 +655,14 @@ impl Desk {
 
     /// Called every second by the sync thread. Returns true when a sync ran, so the window can refresh what it
     /// shows.
+    /// Sleep until the next sync round is due, or until a save wakes it. The sync thread calls this between
+    /// rounds instead of waking every second (FIG-261).
+    pub fn wait_for_sync_work(&self) {
+        let unlocked = self.inner().session.is_some();
+        let wait = self.sync_state().next_wait(unlocked);
+        self.wake.wait(wait);
+    }
+
     pub fn sync_tick(&self) -> bool {
         let dirty = std::mem::take(&mut self.inner().dirty);
         if self.sync_state().running {
@@ -671,5 +693,43 @@ fn plain(remote: &Remote, e: &SyncError) -> String {
             format!("{name} could not be reached. Check your connection and try again.")
         }
         e => e.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod wait_tests {
+    use super::*;
+
+    #[test]
+    fn the_wait_ends_at_the_nearest_deadline_and_never_spins() {
+        let mut s = SyncState::new();
+        // Nothing known and locked: look again in one interval.
+        assert_eq!(s.next_wait(false), INTERVAL);
+        // A place due in two seconds pulls the wait in.
+        s.remote("a").next_at = Instant::now() + Duration::from_secs(2);
+        let w = s.next_wait(false);
+        assert!(w <= Duration::from_secs(2) && w > Duration::from_millis(1500));
+        // A place already due still waits a beat: a blocked loop must not spin.
+        s.remote("a").next_at = Instant::now();
+        assert_eq!(s.next_wait(false), Duration::from_millis(250));
+    }
+
+    #[test]
+    fn a_place_waiting_for_the_person_does_not_wake_the_thread() {
+        let mut s = SyncState::new();
+        let r = s.remote("a");
+        r.kind = Kind::SignIn;
+        r.next_at = Instant::now();
+        assert_eq!(s.next_wait(false), INTERVAL);
+    }
+
+    #[test]
+    fn an_open_vault_also_wakes_for_the_local_folder_check() {
+        let mut s = SyncState::new();
+        s.local_at = Instant::now() - INTERVAL + Duration::from_secs(3);
+        let w = s.next_wait(true);
+        assert!(w <= Duration::from_secs(3) && w > Duration::from_secs(2));
+        // Locked, the local folder check is not due, so it does not matter.
+        assert_eq!(s.next_wait(false), INTERVAL);
     }
 }

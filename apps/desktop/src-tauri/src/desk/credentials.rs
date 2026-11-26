@@ -85,7 +85,7 @@ impl Desk {
             ));
         }
         inner.cache = None;
-        inner.dirty = true;
+        inner.mark_dirty();
         // The key a quick unlock would need to keep working here: the new credentials' Account Unlock Key.
         let unlock_key = touch_was_on
             .then(|| {

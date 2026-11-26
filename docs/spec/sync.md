@@ -285,6 +285,11 @@ seen newer state syncs, and is listed in the threat model (S5, S6). It cannot fo
   (PRD NFR).
 - Local writes are batched into one op file at most every 2 seconds while editing, immediately on lock,
   quit and sleep, and never split a single user action across files.
+- A committed local write is pushed to every remote at once, not at the next poll (ADR-0047). The first write
+  runs a sync immediately; writes during that run or within 2 seconds after it share one more run. On iOS the run
+  holds a background task and the app waits for it on the way to the background.
+- Idle costs nothing: a thread that only waits for the next poll sleeps until its deadline or a write, rather than
+  waking on a short timer.
 - Backoff on errors: 5 s, 15 s, 60 s, then every 5 minutes; resume on the next manual sync.
 
 ## 11. Size, padding and the storage provider's view

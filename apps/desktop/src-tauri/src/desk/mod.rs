@@ -204,6 +204,8 @@ struct Inner {
     inviting: Option<pairing::Inviting>,
     /// A save happened since the last sync tick, so the next tick syncs soon instead of waiting its turn.
     dirty: bool,
+    /// Wakes the sync thread; a save pokes it.
+    wake: Arc<wake::Waker>,
     active_at: Instant,
     ticked_at: Instant,
     ticked_wall: SystemTime,
@@ -214,6 +216,8 @@ pub struct Desk {
     /// The agent broker this window hosts (ADR-0040): the socket, and the broker of the current unlock.
     hosting: broker_host::Hosting,
     sync: Mutex<sync::SyncState>,
+    /// The sync thread sleeps on this until its next deadline or a save.
+    wake: Arc<wake::Waker>,
     kdf: KdfParams,
     /// The idle time before the vault locks; Settings changes it without a restart.
     autolock: Mutex<Duration>,
@@ -222,6 +226,12 @@ pub struct Desk {
 }
 
 impl Inner {
+    /// A save happened: the next sync round runs now, not at its turn.
+    fn mark_dirty(&mut self) {
+        self.dirty = true;
+        self.wake.notify();
+    }
+
     /// Drop the unlocked vault and everything read from it, a copied secret included. Keys and secret values
     /// are zeroed as they drop.
     fn drop_session(&mut self) {
@@ -404,6 +414,7 @@ impl Desk {
         clock: Box<dyn Clock>,
     ) -> Self {
         let (now, wall) = (clock.now(), clock.wall());
+        let wake = Arc::new(wake::Waker::default());
         Desk {
             inner: Arc::new(Mutex::new(Inner {
                 session: None,
@@ -419,12 +430,14 @@ impl Desk {
                 recovering: None,
                 inviting: None,
                 dirty: false,
+                wake: Arc::clone(&wake),
                 active_at: now,
                 ticked_at: now,
                 ticked_wall: wall,
             })),
             hosting: broker_host::Hosting::default(),
             sync: Mutex::new(sync::SyncState::new()),
+            wake,
             kdf,
             autolock: Mutex::new(autolock),
             clipboard_clear,
@@ -1058,6 +1071,7 @@ pub mod secret_key;
 pub mod sync;
 pub mod touch_id;
 pub mod update;
+mod wake;
 
 #[cfg(test)]
 mod agent_request_tests;

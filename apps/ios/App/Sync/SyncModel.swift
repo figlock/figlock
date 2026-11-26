@@ -1,6 +1,7 @@
 import FigLockFFI
 import Shared
 import SwiftUI
+import UIKit
 
 /// What the screens know about syncing: one row per remote, each with its own state (ADR-0043), and the actions
 /// that add, remove and run them. The work itself is `RemoteSyncCoordinator` in `Shared`.
@@ -23,6 +24,8 @@ final class SyncModel {
     private let vault: LocalVault
     private let coordinator: RemoteSyncCoordinator
     private var loop: Task<Void, Never>?
+    /// Sends a local write on its way at once (FIG-261). Built after `init`, because it calls back into the model.
+    private var pusher: PushScheduler?
 
     init(
         vault: LocalVault, keeper: SecretKeyKeeper, drive: DriveConnection
@@ -39,6 +42,7 @@ final class SyncModel {
                     guard case .ready(let id, _) = vault.status() else { return nil }
                     return (try? keeper.deviceKeys(vaultId: id))?.deviceId()
                 }))
+        pusher = PushScheduler { [weak self] in await self?.runKeepingAlive(force: true) }
         Task { await reload() }
     }
 
@@ -90,6 +94,33 @@ final class SyncModel {
         let pulled = await coordinator.sync(entry, force: true, confirmReupload: confirmReupload)
         if pulled > 0 { changeCount += 1 }
         await reload()
+    }
+
+    /// An item was saved, deleted or restored on this phone: push it now instead of waiting for the next turn of
+    /// the loop. Writes close together share one run (`PushScheduler`).
+    func noteLocalWrite() { pusher?.noteWrite() }
+
+    /// The app is leaving the front: finish the push of anything just written, inside the time iOS grants for it.
+    func finishPushes() async {
+        guard let pusher, pusher.isBusy else { return }
+        let keepAlive = Self.beginKeepAlive()
+        await pusher.finish()
+        Self.endKeepAlive(keepAlive)
+    }
+
+    /// Sync once while holding a background task, so a person who saves and switches away does not cut the upload.
+    private func runKeepingAlive(force: Bool) async {
+        let keepAlive = Self.beginKeepAlive()
+        await syncNow(force: force)
+        Self.endKeepAlive(keepAlive)
+    }
+
+    private static func beginKeepAlive() -> UIBackgroundTaskIdentifier {
+        UIApplication.shared.beginBackgroundTask(withName: "FigLock push")
+    }
+
+    private static func endKeepAlive(_ id: UIBackgroundTaskIdentifier) {
+        if id != .invalid { UIApplication.shared.endBackgroundTask(id) }
     }
 
     /// Keep syncing while the app is in front: now, then every `syncIntervalSecs`. Cheap to call again.

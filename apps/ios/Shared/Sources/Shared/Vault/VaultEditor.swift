@@ -37,11 +37,15 @@ public final class VaultEditor {
     private let pending: PendingSync
     private let lastSyncMs: @Sendable () -> UInt64?
     private let now: @Sendable () -> Date
+    private let didWrite: @MainActor () -> Void
 
+    /// `didWrite` runs after every change that reached the vault folder: the app uses it to push the change.
     public init(
         browser: VaultBrowser, store: any BlobStoreFfi, pending: PendingSync,
-        lastSyncMs: @escaping @Sendable () -> UInt64? = { nil }, now: @escaping @Sendable () -> Date = { Date() }
+        lastSyncMs: @escaping @Sendable () -> UInt64? = { nil }, now: @escaping @Sendable () -> Date = { Date() },
+        didWrite: @escaping @MainActor () -> Void = {}
     ) {
+        self.didWrite = didWrite
         self.browser = browser
         self.store = store
         self.pending = pending
@@ -137,6 +141,7 @@ public final class VaultEditor {
         browser.didWrite(path: file.path)
         pending.record(ids, atMs: stamp)
         refreshUnsynced()
+        didWrite()
         await browser.refresh()
         return ids
     }
