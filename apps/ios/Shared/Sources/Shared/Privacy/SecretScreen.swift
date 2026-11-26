@@ -109,9 +109,11 @@ public struct PrivacyCover: View {
         ZStack {
             FLColor.bg.ignoresSafeArea()
             // The FigLock logo from the app's asset catalog (the main bundle); only the app shows this cover.
-            Image("Logo", bundle: .main)
-                .resizable().scaledToFit()
+            Image("FigLockLogo", bundle: .main)
+                .resizable()
+                .interpolation(.high)
                 .frame(width: 88, height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 88 * 228 / 1024, style: .continuous))
                 .accessibilityHidden(true)
         }
     }
