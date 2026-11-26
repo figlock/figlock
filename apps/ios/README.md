@@ -5,7 +5,8 @@ or later.
 
 ```
 App/                  the app target
-AutofillExtension/    the credential provider extension (read-only, Face ID only, ADR-0041)
+AutofillExtension/    the credential provider extension (read-only, Face ID only, ADR-0041); with no login matching the site it lists
+                      every login newest first under "No saved login for <site>", with search
 Shared/               Swift package wrapping the generated bindings; used by both targets
 scripts/              build-xcframework.sh, run-simulator.sh
 project.yml           XcodeGen spec; the .xcodeproj is generated and never committed or hand edited
@@ -70,7 +71,8 @@ file per save and writes it to the local vault folder; if the write fails the co
 changes. `PendingSync` remembers which items were changed here, and an item shows as "not synced" until
 `FileSyncState.lastSyncMs` (the time a sync started) is later than its edit. Document files (ADR-0024: 8 files,
 768 KB each) come from the Files picker through `DocumentFiles` and go back out through `FileExtraction` (Face ID
-first). The generator is the Rust one (`GeneratorSettings`). Views: `App/Vault/ItemFormView.swift`,
+first). Tags are chips with a remove button (`TagsField`) over the `ItemDraft.tags` rules. Website is what AutoFill
+matches on, and the editor says so. The generator is the Rust one (`GeneratorSettings`). Views: `App/Vault/ItemFormView.swift`,
 `GeneratorView.swift`, `ItemManagement.swift`.
 
 ## Onboarding
@@ -79,7 +81,8 @@ first). The generator is the Rust one (`GeneratorSettings`). Views: `App/Vault/I
 Emergency Kit check passes), joins one by pairing through the remote's `inbox/` (`Onboarding.Pairing`), opens one from
 Google Drive and restores a missing folder from it, and removes a vault from the phone. The remote is any
 `BlobStoreFfi`; Drive is the Rust `DriveStore` fed tokens by `GoogleAccessTokens` (PKCE sign-in, refresh token in the
-keychain). The Google client id comes from the build (`FIGLOCK_GOOGLE_CLIENT_ID`, Info.plist `FigLockGoogleClientID`)
+keychain, and the account email from the Drive `about` call, kept beside it, cleared on sign out, shown on the Sync
+screens and never logged; no scope beyond `drive.appdata`). The Google client id comes from the build (`FIGLOCK_GOOGLE_CLIENT_ID`, Info.plist `FigLockGoogleClientID`)
 and is the iOS-type OAuth client in the `figlock-prod` project (bundle id `com.figlock.ios`, no secret). A build with it empty says sign-in is not set up. The
 SwiftUI screens are in `App/Onboarding` and `App/Onboarding/RecoveryScreen.swift`.
 
