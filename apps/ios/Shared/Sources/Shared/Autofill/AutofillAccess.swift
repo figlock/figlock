@@ -32,9 +32,6 @@ public struct AutofillAccess: Sendable {
         self.now = now
     }
 
-    /// Sizes of the Face ID state saved and read now, to say why it looked changed (FIG-247).
-    public func biometricNote() -> String { quick.biometricNote() }
-
     /// Whether Face ID can be asked for now, without prompting.
     public func canUnlock() -> Failure? {
         guard case .ready = vault.status() else { return .noVault }

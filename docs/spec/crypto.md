@@ -282,14 +282,16 @@ Quick unlock is local to a device and is never synced.
   ```
 
   Opening runs `ECDH(QK_secret, eph_public)` inside the chip, which asks for user presence first. The key is
-  made with `.userPresence` (Touch ID or the device password) and the watch constraint, so a paired Apple
-  Watch can approve where macOS allows. Vectors for the software half are in `quick-unlock.json`.
+  made with `.userPresence` (Touch ID or the device password) and the watch constraint on macOS, so a paired Apple
+  Watch can approve where the Mac allows, and with `.biometryCurrentSet` on iOS (no passcode fallback, ADR-0046).
+  Vectors for the software half are in `quick-unlock.json`.
 - A full master-password unlock is required: after a reboot or app restart, after 4 hours without use, after 7 days since the last full
   unlock, after 5 failed biometric attempts, after a password change or key rotation, and when the vault is
   locked by the user. These are defaults; users MAY tighten them.
   On iOS "after a reboot or app restart" means after the phone restarts (detected from the boot session id),
   because the system ends and restarts app processes at will (ADR-0041 decision 6). A change of the enrolled
-  Face ID or Touch ID set also needs a full unlock, and ends quick unlock (FIG-160).
+  Face ID or Touch ID set also needs a full unlock: on iOS the system ends the key itself and quick unlock finds it
+  gone (ADR-0046, FIG-160).
 - Disabling quick unlock or revoking the device deletes `qu_blob` and `QK`.
 
 The web app (PWA) MAY keep `qu_blob` under a non-extractable WebCrypto key, and MAY offer passkey PRF as an

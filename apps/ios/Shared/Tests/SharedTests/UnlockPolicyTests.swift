@@ -6,14 +6,14 @@ import Testing
 private let start = Date(timeIntervalSince1970: 1_800_000_000)
 
 private func policy() -> QuickUnlockPolicy {
-    QuickUnlockPolicy(bootSession: "boot-1", lastFullUnlock: start, biometricState: Data("a".utf8))
+    QuickUnlockPolicy(bootSession: "boot-1", lastFullUnlock: start)
 }
 
 private typealias Decision = QuickUnlockPolicy.Decision
 private typealias Policy = QuickUnlockPolicy
 
-private func decide(_ state: Policy, after secs: Double, boot: String = "boot-1", bio: String = "a") -> Decision {
-    state.decision(now: start.addingTimeInterval(secs), bootSession: boot, currentBiometricState: Data(bio.utf8))
+private func decide(_ state: Policy, after secs: Double, boot: String = "boot-1") -> Decision {
+    state.decision(now: start.addingTimeInterval(secs), bootSession: boot)
 }
 
 @Test func faceIDIsAllowedRightAfterAFullUnlock() {
@@ -47,10 +47,6 @@ private func decide(_ state: Policy, after secs: Double, boot: String = "boot-1"
     #expect(state.failedAttempts == 0)
     for _ in 0..<5 { state.recordFailure() }
     #expect(decide(state, after: 2) == .needsPassword(.tooManyFailures))
-}
-
-@Test func aChangedBiometricSetNeedsThePassword() {
-    #expect(decide(policy(), after: 60, bio: "b") == .needsPassword(.biometricsChanged))
 }
 
 @Test func aEndedPolicyStaysEndedWhateverElseIsTrue() {
