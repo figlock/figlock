@@ -26,7 +26,7 @@ protection class belongs to the on-device tests (FIG-172); the simulator does no
 
 `Shared/Sources/Shared/Unlock` holds the whole unlock layer, with the hardware parts behind protocols so tests run
 on the simulator with a software key. `QuickUnlockChip` is the Secure Enclave key (`SecureEnclaveChip`: permanent,
-shared keychain group, `.userPresence`, `ThisDeviceOnly`); the wrap of the Account Unlock Key is the Rust code of
+shared keychain group, `.biometryCurrentSet`, `ThisDeviceOnly`, ADR-0046); the wrap of the Account Unlock Key is the Rust code of
 `figlock-core`. `QuickUnlockPolicy` enforces the limits of `crypto.md` 8 and `PasswordThrottle` slows password
 guesses. `SecretKeyKeeper` keeps the Secret Key and the device keys in the keychain (`ThisDeviceOnly`, never
 synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` ties them together for the app.
