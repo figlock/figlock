@@ -4,7 +4,8 @@ import SwiftUI
 /// What the extension shows: a short wait, a message (open the app, try again), or the list of matching logins.
 struct AutofillScreen: View {
     enum Message {
-        case openApp
+        /// Face ID cannot be used here. `why` says which rule ended it, so a wrong 'open the app' is not a mystery.
+        case openApp(why: String)
         case retry(Int)
         case failed
         case storage
@@ -20,7 +21,7 @@ struct AutofillScreen: View {
 
         var detail: String {
             switch self {
-            case .openApp: "Unlock FigLock with your master password once, then try again."
+            case .openApp(let why): "\(why) Unlock FigLock with your master password once, then try again."
             case .retry(let left):
                 "You have \(left) more \(left == 1 ? "try" : "tries") before the master password is needed."
             case .failed: "Try again. If this stays, open FigLock."

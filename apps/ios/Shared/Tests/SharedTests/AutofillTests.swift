@@ -356,3 +356,13 @@ enum Memory {
         return result == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
     }
 }
+
+@Test func everyReasonFaceIDEndedHasItsOwnSentence() {
+    let reasons: [QuickUnlockPolicy.Reason] = [
+        .phoneRestarted, .idleTooLong, .fullUnlockTooOld, .tooManyFailures, .biometricsChanged, .lockedByUser,
+        .passwordChanged,
+    ]
+    let sentences = reasons.map(\.endedText)
+    #expect(sentences.allSatisfy { !$0.isEmpty })
+    #expect(Set(sentences).count == reasons.count)
+}
