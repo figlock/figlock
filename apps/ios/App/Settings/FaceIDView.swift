@@ -24,8 +24,15 @@ struct FaceIDView: View {
         List {
             Section {
                 if context.lock.quickUnlockIsAvailable {
-                    Toggle("Unlock with Face ID", isOn: Binding(get: { isOn }, set: change))
-                        .accessibilityIdentifier("face-id-toggle")
+                    Text(isOn ? "Face ID is on" : "Face ID is off").foregroundStyle(FLColor.textSecondary)
+                    Button {
+                        toggleFaceID()
+                    } label: {
+                        Text(isOn ? "Turn off Face ID" : "Turn on Face ID")
+                            .font(FLFont.ui(FLText.md, weight: FLWeight.medium))
+                            .frame(minHeight: FLSize.controlHeightLg, alignment: .leading)
+                    }
+                    .accessibilityIdentifier("face-id-button")
                 } else {
                     Text("Face ID is unavailable").foregroundStyle(FLColor.textSecondary)
                 }
@@ -52,12 +59,12 @@ struct FaceIDView: View {
             "Face ID unlocks FigLock and fills passwords from AutoFill. If a face is added or removed in iOS, you enter your master password once to turn it back on."
     }
 
-    private func change(_ enabled: Bool) {
-        if enabled {
-            askingForPassword = true
-        } else {
+    private func toggleFaceID() {
+        if isOn {
             context.lock.turnOffFaceID()
             isOn = false
+        } else {
+            askingForPassword = true
         }
     }
 }

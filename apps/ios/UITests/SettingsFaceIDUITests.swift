@@ -17,6 +17,6 @@ final class SettingsFaceIDUITests: XCTestCase {
         XCTAssertTrue(row.label.contains("Unavailable"), row.label)
         row.tap()
         XCTAssertTrue(app.staticTexts["Face ID is unavailable"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.switches["face-id-toggle"].exists)
+        XCTAssertFalse(app.buttons["face-id-button"].exists)
     }
 }
