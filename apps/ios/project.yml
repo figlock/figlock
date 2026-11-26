@@ -18,9 +18,10 @@ settings:
     # The iOS-type OAuth client (bundle id com.figlock.ios) in the figlock-prod Google Cloud project, the same
     # project as the desktop client so both see one Drive appDataFolder. Public by nature, no secret (ADR-0021).
     FIGLOCK_GOOGLE_CLIENT_ID: "994923112244-blndm5i1ll7pi2ieljblm43voqmi6mkj.apps.googleusercontent.com"
+    # Overridden on the command line by release-ios.yml (scripts/ios-version.sh) from the tag and the run number.
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    # Team and signing identities arrive with FIG-175; simulator builds do not need them.
+    # The team id comes from the release workflow (docs/ios-release.md); simulator builds need no signing.
     CODE_SIGN_STYLE: Automatic
 packages:
   Shared:
