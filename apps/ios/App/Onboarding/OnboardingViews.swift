@@ -40,38 +40,32 @@ struct WelcomeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: FLSpace.s4) {
-                FigLockLogo(size: 72)
+                FigLockLogo(size: 88)
                 Text("Welcome to FigLock").font(FLFont.ui(FLText.xl3, weight: FLWeight.bold, relativeTo: .title1))
                     .foregroundStyle(FLColor.text).accessibilityAddTraits(.isHeader)
                 Text("Passwords, tokens and files. Only you can open them.")
                     .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary).multilineTextAlignment(.center)
                 VStack(spacing: FLSpace.s3) {
                     Choice(
-                        icon: "link", title: "Join my vault by pairing",
-                        detail: "Pair this iPhone with a device that already has your vault."
+                        icon: "link", title: "Join my vault by pairing"
                     ) { model.path.append(.pairCode) }
                     Choice(
-                        icon: "plus", title: "Create a new vault",
-                        detail: "Start fresh with a master password and a Secret Key."
+                        icon: "plus", title: "Create a new vault"
                     ) { model.path.append(.create) }
                     Choice(
-                        icon: "cloud", title: "Open my vault from Google Drive",
-                        detail: "Sign in to Google Drive and pick the vault you saved there."
+                        icon: "cloud", title: "Open my vault from Google Drive"
                     ) {
                         model.source = .drive
                         model.path.append(.drive)
                     }
                     Choice(
-                        icon: "icloud", title: "Open my vault from iCloud Drive",
-                        detail: "Pick the folder in iCloud Drive where your vault is saved."
+                        icon: "icloud", title: "Open my vault from iCloud Drive"
                     ) {
                         model.source = .icloud
                         model.path.append(.drive)
                     }
                 }
                 .padding(.top, FLSpace.s2)
-                Text("You can change this later in Settings.")
-                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             }
             .padding(FLSpace.s4)
             .padding(.top, FLSpace.s8)
@@ -83,7 +77,6 @@ struct WelcomeView: View {
 private struct Choice: View {
     let icon: String
     let title: String
-    let detail: String
     let action: () -> Void
 
     var body: some View {
@@ -93,19 +86,13 @@ private struct Choice: View {
                     .frame(width: 44, height: 44)
                     .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(FLFont.ui(FLText.md, weight: FLWeight.semibold)).foregroundStyle(FLColor.text)
-                    Text(detail).font(FLFont.ui(FLText.base, relativeTo: .callout)).foregroundStyle(
-                        FLColor.textSecondary
-                    )
+                Text(title).font(FLFont.ui(FLText.md, weight: FLWeight.semibold)).foregroundStyle(FLColor.text)
                     .multilineTextAlignment(.leading)
-                }
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").foregroundStyle(FLColor.textTertiary).accessibilityHidden(true)
             }
             .padding(FLSpace.s3)
             .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.md))
-            .overlay(RoundedRectangle(cornerRadius: FLRadius.md).stroke(FLColor.border))
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
