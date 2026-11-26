@@ -366,3 +366,16 @@ enum Memory {
     #expect(sentences.allSatisfy { !$0.isEmpty })
     #expect(Set(sentences).count == reasons.count)
 }
+
+/// Both processes that ask for Face ID (the app and the AutoFill extension) must say why. Without the key iOS gives
+/// the extension no Face ID state, and Face ID then looks changed (FIG-247). The plists are the declared artifact.
+@Test(arguments: ["App/Info.plist", "AutofillExtension/Info.plist"])
+func everyProcessThatAsksForFaceIDDeclaresWhy(plist: String) throws {
+    let ios = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let data = try Data(contentsOf: ios.appendingPathComponent(plist))
+    let parsed = try PropertyListSerialization.propertyList(from: data, format: nil)
+    let dictionary = try #require(parsed as? [String: Any])
+    let why = try #require(dictionary["NSFaceIDUsageDescription"] as? String)
+    #expect(!why.trimmingCharacters(in: .whitespaces).isEmpty)
+}
