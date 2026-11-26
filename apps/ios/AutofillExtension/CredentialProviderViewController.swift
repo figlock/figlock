@@ -51,7 +51,9 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         } catch let failure as AutofillAccess.Failure {
             switch failure {
             case .cancelled: finish(error: .userCanceled)
-            case .noVault, .needsApp: show(.message(.openApp))
+            case .noVault: show(.message(.openApp(why: "FigLock has no vault on this iPhone.")))
+            case .needsApp(let reason):
+                show(.message(.openApp(why: reason?.endedText ?? "Face ID is off for FigLock.")))
             case .notRecognised(let left): show(.message(.retry(left)))
             case .failed: show(.message(.failed))
             }

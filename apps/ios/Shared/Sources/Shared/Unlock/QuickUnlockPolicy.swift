@@ -131,3 +131,18 @@ extension Date {
         return Date(timeIntervalSinceReferenceDate: (seconds / 60).rounded(.up) * 60)
     }
 }
+
+extension QuickUnlockPolicy.Reason {
+    /// Why Face ID ended, in a sentence, for the AutoFill screen that cannot ask for the master password.
+    public var endedText: String {
+        switch self {
+        case .phoneRestarted: "This iPhone restarted since you last used the master password."
+        case .idleTooLong: "FigLock has not been unlocked for several hours."
+        case .fullUnlockTooOld: "It has been a week since you last used the master password."
+        case .tooManyFailures: "Face ID did not recognise you too often."
+        case .biometricsChanged: "Face ID on this iPhone changed."
+        case .lockedByUser: "FigLock was locked by you."
+        case .passwordChanged: "Your master password changed."
+        }
+    }
+}
