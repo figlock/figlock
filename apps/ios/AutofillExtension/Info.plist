@@ -11,6 +11,8 @@
 	<key>CFBundlePackageType</key><string>XPC!</string>
 	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+	<!-- Without this key the extension gets no Face ID state and no Face ID prompt, so Quick unlock looks changed (FIG-247). -->
+	<key>NSFaceIDUsageDescription</key><string>FigLock uses Face ID to unlock your vault so it can fill a password.</string>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key><string>com.apple.authentication-services-credential-provider-ui</string>
