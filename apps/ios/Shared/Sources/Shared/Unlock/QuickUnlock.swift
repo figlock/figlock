@@ -36,13 +36,19 @@ public struct QuickUnlock: Sendable {
     private let blobFile: URL
     private let bootSession: @Sendable () -> String
     private let now: @Sendable () -> Date
+    private let readsBiometricStateReliably: Bool
 
+    /// `readsBiometricStateReliably` is false for the AutoFill extension: iOS can give an extension no Face ID state,
+    /// and "cannot read" must not be taken for "the faces changed", which ended Face ID on a real phone (FIG-247).
+    /// There the saved state stands in for an unreadable one; the app, which can read it, keeps the strict check.
     public init(
         container: VaultContainer,
         chip: any QuickUnlockChip,
         bootSession: @escaping @Sendable () -> String = BootSession.current,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        readsBiometricStateReliably: Bool = true
     ) {
+        self.readsBiometricStateReliably = readsBiometricStateReliably
         self.chip = chip
         self.stateFile = container.deviceFolder.appendingPathComponent("quick-unlock.json")
         self.blobFile = container.deviceFolder.appendingPathComponent("quick-unlock.blob")
@@ -76,10 +82,28 @@ public struct QuickUnlock: Sendable {
         guard let policy = saved.policy, FileManager.default.fileExists(atPath: blobFile.path) else {
             return .needsPassword(saved.policy?.endedBy ?? .passwordChanged)
         }
-        switch policy.decision(now: now(), bootSession: bootSession(), currentBiometricState: chip.biometricState()) {
+        let decision = policy.decision(
+            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: policy))
+        switch decision {
         case .allowed: return .ready
         case .needsPassword(let reason): return .needsPassword(reason)
         }
+    }
+
+    /// What the system says about the enrolled faces now. Where that cannot be read reliably (the extension), an
+    /// unreadable state counts as unchanged.
+    private func biometricState(for policy: QuickUnlockPolicy) -> Data? {
+        let state = chip.biometricState()
+        if state == nil, !readsBiometricStateReliably { return policy.biometricState }
+        return state
+    }
+
+    /// What the Face ID check saw, for the AutoFill screen when it says Face ID changed: sizes only, never the data.
+    public func biometricNote() -> String {
+        let saved = load().policy?.biometricState
+        let now = chip.biometricState()
+        let describe: (Data?) -> String = { $0.map { "\($0.count) bytes" } ?? "none" }
+        return "saved \(describe(saved)), now \(describe(now)), \(saved == now ? "same" : "different")"
     }
 
     // MARK: Turn on, off
@@ -155,7 +179,9 @@ public struct QuickUnlock: Sendable {
         guard var policy = saved.policy, let blob = try? Data(contentsOf: blobFile) else {
             throw Failure.needsPassword(saved.policy?.endedBy ?? .passwordChanged)
         }
-        switch policy.decision(now: now(), bootSession: bootSession(), currentBiometricState: chip.biometricState()) {
+        let decision = policy.decision(
+            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: policy))
+        switch decision {
         case .allowed: break
         case .needsPassword(let why):
             end(why)
