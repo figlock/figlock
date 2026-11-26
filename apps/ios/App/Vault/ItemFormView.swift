@@ -111,35 +111,34 @@ struct ItemFormView: View {
         let removed = draft.removedSecrets.contains(spec.name)
         let shown = shownSecrets.contains(spec.name)
         LabeledField(label: spec.label) {
-            HStack(spacing: FLSpace.s2) {
-                Group {
-                    if shown || spec.isMultiline {
-                        TextField(placeholder(stored: stored, removed: removed), text: binding, axis: .vertical)
-                            .lineLimit(1...(spec.isMultiline ? 10 : 3))
-                    } else {
-                        SecureField(placeholder(stored: stored, removed: removed), text: binding)
-                    }
+            Group {
+                if shown || spec.isMultiline {
+                    TextField(placeholder(stored: stored, removed: removed), text: binding, axis: .vertical)
+                        .lineLimit(1...(spec.isMultiline ? 10 : 3))
+                } else {
+                    SecureField(placeholder(stored: stored, removed: removed), text: binding)
                 }
-                .font(FLFont.mono(FLText.base))
-                .textInputAutocapitalization(.never).autocorrectionDisabled()
-                if !spec.isMultiline {
-                    Button {
-                        if shown { shownSecrets.remove(spec.name) } else { shownSecrets.insert(spec.name) }
-                    } label: {
-                        Image(systemName: shown ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
-                    }
-                    .flMinTouchTarget()
-                    .accessibilityLabel(shown ? "Hide \(spec.label.lowercased())" : "Show \(spec.label.lowercased())")
+            }
+            .font(FLFont.mono(FLText.base))
+            .textInputAutocapitalization(.never).autocorrectionDisabled()
+        } trailing: {
+            if !spec.isMultiline {
+                Button {
+                    if shown { shownSecrets.remove(spec.name) } else { shownSecrets.insert(spec.name) }
+                } label: {
+                    Image(systemName: shown ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
                 }
-                if spec.offersGenerator {
-                    Button {
-                        generatingFor = spec.name
-                    } label: {
-                        Image(systemName: "wand.and.stars").foregroundStyle(FLColor.textSecondary)
-                    }
-                    .flMinTouchTarget()
-                    .accessibilityLabel("Generate a password")
+                .flMinTouchTarget()
+                .accessibilityLabel(shown ? "Hide \(spec.label.lowercased())" : "Show \(spec.label.lowercased())")
+            }
+            if spec.offersGenerator {
+                Button {
+                    generatingFor = spec.name
+                } label: {
+                    Image(systemName: "wand.and.stars").foregroundStyle(FLColor.textSecondary)
                 }
+                .flMinTouchTarget()
+                .accessibilityLabel("Generate a password")
             }
         }
         if spec.offersGenerator, let rating = GeneratorSettings.rating(of: binding.wrappedValue) {

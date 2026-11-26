@@ -30,23 +30,47 @@ struct Screen<Content: View>: View {
     }
 }
 
-struct LabeledField<Field: View>: View {
+/// A labelled text box. Every box is the same height: `trailing` buttons (show or hide, generate) sit inside the
+/// box next to the field, without the field's own padding around them, so a 44pt touch target does not make
+/// the box taller than its neighbours (FIG-254).
+struct LabeledField<Field: View, Trailing: View>: View {
     let label: String
     var hint: String?
     @ViewBuilder var field: Field
+    @ViewBuilder var trailing: Trailing
+
+    init(
+        label: String, hint: String? = nil, @ViewBuilder field: () -> Field,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.label = label
+        self.hint = hint
+        self.field = field()
+        self.trailing = trailing()
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: FLSpace.s1) {
             Text(label).font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(FLColor.textSecondary)
-            field
-                .padding(FLSpace.s3)
-                .frame(minHeight: FLSize.controlHeightLg)
-                .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                .overlay(RoundedRectangle(cornerRadius: FLRadius.sm).stroke(FLColor.border))
+            HStack(spacing: FLSpace.s2) {
+                field.padding(.vertical, FLSpace.s3)
+                trailing
+            }
+            .padding(.leading, FLSpace.s3)
+            .padding(.trailing, Trailing.self == EmptyView.self ? FLSpace.s3 : FLSpace.s1)
+            .frame(minHeight: FLSize.controlHeightLg)
+            .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.sm))
+            .overlay(RoundedRectangle(cornerRadius: FLRadius.sm).stroke(FLColor.border))
             if let hint {
                 Text(hint).font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             }
         }
+    }
+}
+
+extension LabeledField where Trailing == EmptyView {
+    init(label: String, hint: String? = nil, @ViewBuilder field: () -> Field) {
+        self.init(label: label, hint: hint, field: field, trailing: { EmptyView() })
     }
 }
 

@@ -1,10 +1,10 @@
 import XCTest
 
-/// FIG-241: Settings > About lists the Privacy, Terms and Support links and the version (App Store guideline 5.1.1),
-/// against the made-up demo vault.
+/// FIG-253: Settings has one "About FigLock" row. It opens the About screen with the version and the figlock.com
+/// pages (App Store guideline 5.1.1), which open inside the app. Runs against the made-up demo vault.
 @MainActor
 final class AboutSettingsUITests: XCTestCase {
-    func testSettingsShowsPrivacyTermsSupportAndVersion() {
+    func testAboutScreenListsPagesAndOpensOneInApp() {
         let app = XCUIApplication()
         app.launchArguments = ["-figlock-seed-demo", "-figlock-unlock-demo"]
         app.launch()
@@ -14,10 +14,22 @@ final class AboutSettingsUITests: XCTestCase {
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
 
-        for id in ["about-privacy", "about-terms", "about-support"] {
-            XCTAssertTrue(reveal(app.descendants(matching: .any)[id], in: app), "missing \(id)")
+        let about = app.descendants(matching: .any)["about-figlock"]
+        XCTAssertTrue(reveal(about, in: app), "missing About FigLock row")
+        about.tap()
+
+        XCTAssertTrue(app.navigationBars["About FigLock"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Version '")).firstMatch.exists)
+        for id in ["about-protects", "about-privacy", "about-terms", "about-support"] {
+            XCTAssertTrue(app.descendants(matching: .any)[id].exists, "missing \(id)")
         }
-        XCTAssertTrue(reveal(app.staticTexts["Version"], in: app), "missing Version")
+
+        // The page opens in the in-app browser (Safari's own view with a close button), and closing returns to About.
+        app.descendants(matching: .any)["about-privacy"].tap()
+        let close = app.buttons.matching(NSPredicate(format: "label IN {'Close', 'Done'}")).firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 15), "the in-app browser did not open")
+        close.tap()
+        XCTAssertTrue(app.navigationBars["About FigLock"].waitForExistence(timeout: 10))
     }
 
     /// The list is lazy, so a row below the fold only exists once it is scrolled near.

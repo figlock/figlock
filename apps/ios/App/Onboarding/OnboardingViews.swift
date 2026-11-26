@@ -111,23 +111,22 @@ struct CreatePasswordView: View {
             subtitle: "FigLock can't reset it. Make it long and memorable."
         ) {
             LabeledField(label: "Master password") {
-                HStack {
-                    Group {
-                        if reveal {
-                            TextField("", text: $model.password)
-                        } else {
-                            SecureField("", text: $model.password)
-                        }
+                Group {
+                    if reveal {
+                        TextField("", text: $model.password)
+                    } else {
+                        SecureField("", text: $model.password)
                     }
-                    .textContentType(.newPassword).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button {
-                        reveal.toggle()
-                    } label: {
-                        Image(systemName: reveal ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
-                    }
-                    .flMinTouchTarget()
-                    .accessibilityLabel(reveal ? "Hide master password" : "Show master password")
                 }
+                .textContentType(.newPassword).textInputAutocapitalization(.never).autocorrectionDisabled()
+            } trailing: {
+                Button {
+                    reveal.toggle()
+                } label: {
+                    Image(systemName: reveal ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
+                }
+                .flMinTouchTarget()
+                .accessibilityLabel(reveal ? "Hide master password" : "Show master password")
             }
             Text(
                 VaultPasswordRule.isLongEnough(model.password)
