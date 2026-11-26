@@ -61,8 +61,8 @@ ios-project:
 # The extension memory test measures the footprint of the whole process, so it runs alone: other tests (Argon2id
 # in the onboarding ones) allocate at the same time and would fail it for memory it did not use.
 ios-test: ios-xcframework
-    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build -skip-testing:'SharedTests/replayingTenThousandItemsInTheExtensionStaysInsideTheMemoryLimit()'
-    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath ../build -only-testing:'SharedTests/replayingTenThousandItemsInTheExtensionStaysInsideTheMemoryLimit()'
+    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,id='"$({{justfile_directory()}}/apps/ios/scripts/simulator-id.sh)" -derivedDataPath ../build -skip-testing:'SharedTests/replayingTenThousandItemsInTheExtensionStaysInsideTheMemoryLimit()'
+    cd apps/ios/Shared && xcodebuild test -scheme Shared -destination 'platform=iOS Simulator,id='"$({{justfile_directory()}}/apps/ios/scripts/simulator-id.sh)" -derivedDataPath ../build -only-testing:'SharedTests/replayingTenThousandItemsInTheExtensionStaysInsideTheMemoryLimit()'
 
 # iOS: SwiftLint and swift-format (strict). Generated bindings are excluded. Run `just ios-fmt` to fix formatting.
 ios-lint:
@@ -75,7 +75,7 @@ ios-fmt:
 
 # iOS: UI tests on the simulator against the demo vault (needs the xcframework and project)
 ios-uitest: ios-xcframework ios-project
-    cd apps/ios && xcodebuild test -project FigLock.xcodeproj -scheme FigLock -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build
+    cd apps/ios && xcodebuild test -project FigLock.xcodeproj -scheme FigLock -destination 'platform=iOS Simulator,id='"$({{justfile_directory()}}/apps/ios/scripts/simulator-id.sh)" -derivedDataPath build
 
 # iOS: build the app for the simulator.
 ios-build: ios-xcframework ios-project
