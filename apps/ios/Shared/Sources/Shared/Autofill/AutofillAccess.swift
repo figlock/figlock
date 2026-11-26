@@ -139,13 +139,19 @@ public final class AutofillVault: @unchecked Sendable {
         ServiceMatch.suggestions(logins, identifiers: identifiers)
     }
 
-    /// Logins whose title, username or website contains every word of `query` (case blind), newest first.
+    /// Logins whose title, username, website or website host contains every word of `query` (case blind), newest first.
     public func search(_ query: String) -> [VaultItem] {
-        let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        // A pasted address ("https://github.com/x") is searched by its host, so it still finds a login saved as
+        // "www.github.com".
+        let words = query.lowercased().split(whereSeparator: \.isWhitespace).map { word -> String in
+            let text = String(word)
+            return text.contains("://") ? (ServiceMatch.host(of: text) ?? text) : text
+        }
         guard !words.isEmpty else { return logins.sorted { $0.updated > $1.updated } }
         return logins.filter { item in
-            let haystack = ([item.title, item.fields["username"] ?? ""] + item.websites).joined(separator: " ")
-                .lowercased()
+            let hosts = item.websites.compactMap(ServiceMatch.host(of:))
+            let haystack = ([item.title, item.fields["username"] ?? ""] + item.websites + hosts)
+                .joined(separator: " ").lowercased()
             return words.allSatisfy { haystack.contains($0) }
         }.sorted { $0.updated > $1.updated }
     }
