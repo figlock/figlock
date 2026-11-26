@@ -78,6 +78,15 @@ public final class AppLock {
     /// What Face ID can do right now, for the unlock screen.
     public var quickUnlockStatus: QuickUnlock.Status { quick.status() }
 
+    /// Whether this iPhone can do Face ID quick unlock at all: a face or fingerprint is enrolled (ADR-0046).
+    public var quickUnlockIsAvailable: Bool { quick.isAvailable }
+
+    /// Whether the person has Face ID on, whatever state its key is in (a rule may have ended it for now).
+    public var quickUnlockIsWanted: Bool { quick.isWanted }
+
+    /// The person turned Face ID off: the key, the blob and the state all go.
+    public func turnOffFaceID() { quick.disable() }
+
     /// Whether the unlock screen has to show the Secret Key field.
     public func needsSecretKeyTyped() -> Bool {
         guard case .ready(let vaultId, _) = vault.status() else { return false }

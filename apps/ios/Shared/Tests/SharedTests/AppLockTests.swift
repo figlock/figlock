@@ -276,3 +276,19 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     try FileManager.default.createDirectory(at: devices, withIntermediateDirectories: false)
     #expect(await lock.unlock(password: "wrong-1", secretKey: nil) == .wrongCredentials(triesLeft: 2))
 }
+
+@MainActor
+@Test func turningFaceIDOffRemovesTheKeyAndKeepsThePasswordWorking() async throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let lock = try await lockWithFaceIDOn(phone)
+    #expect(lock.quickUnlockIsAvailable)
+    #expect(lock.quickUnlockIsWanted)
+
+    lock.turnOffFaceID()
+    #expect(!lock.quickUnlockIsWanted)
+    #expect(lock.quickUnlockStatus == .off)
+    #expect(!phone.chip.hasKey)
+    // Master password still unlocks.
+    #expect(await lock.unlock(password: Phone.password, secretKey: nil) == .unlocked)
+}
