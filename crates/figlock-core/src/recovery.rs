@@ -1,13 +1,13 @@
 //! The optional Recovery Key (`pairing-recovery.md` 7, `crypto.md` 4.2 and 9.3, ADR-0029): an X25519 key whose
 //! public half wraps the Vault Key in `vault.json`. Its private half is written down once, as a single
-//! `FLR1-` code or as SLIP-0039 shares, and never stored by FigLock.
+//! `FLR1-` code, and never stored by FigLock.
 
 use sha2::{Digest, Sha256};
 use zeroize::{Zeroize, Zeroizing};
 
 use crate::pairing::x25519_public;
 use crate::secret_key::{b32_encode, b32_value, confusables, squash};
-use crate::{Error, Key, Result, slip39};
+use crate::{Error, Key, Result};
 
 const CODE_PREFIX: &str = "FLR1";
 const CODE_CHARS: usize = 56;
@@ -82,17 +82,6 @@ impl RecoveryKey {
         }
         Ok(RecoveryKey::from_bytes(rk))
     }
-
-    /// Split into `count` SLIP-0039 shares of which `threshold` recover it (`2 <= threshold <= count <= 16`).
-    pub fn split(&self, threshold: u8, count: u8) -> Result<Vec<Zeroizing<String>>> {
-        slip39::split(self.0.expose(), threshold, count)
-    }
-
-    /// Recover from exactly the threshold number of shares.
-    pub fn from_shares(shares: &[&str]) -> Result<Self> {
-        let secret = slip39::combine(shares, b"")?;
-        Ok(RecoveryKey(Key::from_slice(&secret)?))
-    }
 }
 
 #[cfg(test)]
@@ -134,14 +123,5 @@ mod tests {
         let sk = crate::SecretKey::random().unwrap();
         assert!(RecoveryKey::parse(&sk.format()).is_err());
         assert!(RecoveryKey::parse("").is_err());
-    }
-
-    #[test]
-    fn shares_recover_the_same_key() {
-        let k = key();
-        let shares = k.split(2, 3).unwrap();
-        let back = RecoveryKey::from_shares(&[&shares[2], &shares[0]]).unwrap();
-        assert_eq!(back.public(), k.public());
-        assert!(RecoveryKey::from_shares(&[&shares[1]]).is_err());
     }
 }

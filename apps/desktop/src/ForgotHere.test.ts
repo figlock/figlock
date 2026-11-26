@@ -6,7 +6,6 @@ import type { RecoveryMaterial } from "./vault";
 
 /** The Unlock screen's way back in for a Mac that already has the vault (FIG-139). */
 const core = vi.hoisted(() => ({
-  forgotCardInfo: vi.fn(),
   forgotFind: vi.fn(),
   forgotPrepare: vi.fn(),
   forgotCommit: vi.fn(),
@@ -61,14 +60,7 @@ const found = {
   lastChangeMs: Date.now() - 3 * 86_400_000,
   devices: 2,
 };
-const material: RecoveryMaterial = {
-  mode: "code",
-  code: CODE,
-  cards: [],
-  threshold: 0,
-  count: 0,
-  challenge: [],
-};
+const material: RecoveryMaterial = { code: CODE };
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -117,7 +109,7 @@ test("a Recovery Key opens this Mac's own vault with no storage to pick, and a n
   await user.type(screen.getByLabelText("Recovery Key"), CODE);
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await screen.findByText("Found your vault");
-  expect(core.forgotFind).toHaveBeenCalledWith({}, [CODE], false);
+  expect(core.forgotFind).toHaveBeenCalledWith({}, CODE);
   await user.type(screen.getByLabelText("New master password"), PASSWORD);
   await user.type(screen.getByLabelText("Repeat new master password"), PASSWORD);
   await user.click(screen.getByRole("button", { name: "Continue" }));

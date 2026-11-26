@@ -1,9 +1,6 @@
-//! The printable Recovery Key (FIG-103): content of the code page and the cards, the QR round trip, and the
-//! negative cases. The PDF is generated public output, so the tests parse it instead of trusting the writer.
+//! The printable Recovery Key (FIG-103): content of the code page, the QR round trip, and the negative cases. The PDF is generated public output, so the tests parse it instead of trusting the writer.
 
-use figlock_core::{
-    KitInfo, RecoveryCards, RecoveryKey, render_recovery_kit, slip39::WORDS_FOR_256_BITS,
-};
+use figlock_core::{KitInfo, RecoveryKey, render_recovery_kit};
 
 const INFO: KitInfo = KitInfo {
     vault_name: "Personal vault",
@@ -133,7 +130,7 @@ fn well_formed(pdf: &[u8], pages: usize) {
 fn the_code_page_holds_the_code_and_a_qr_that_decodes_to_it() {
     let key = RecoveryKey::random().unwrap();
     let code = key.format();
-    let pdf = render_recovery_kit(&INFO, &RecoveryCards::Code(&code)).unwrap();
+    let pdf = render_recovery_kit(&INFO, &code).unwrap();
     well_formed(&pdf, 1);
     let s = streams(&pdf);
     assert_eq!(s.len(), 1);
@@ -160,71 +157,17 @@ fn the_code_page_holds_the_code_and_a_qr_that_decodes_to_it() {
 }
 
 #[test]
-fn each_share_gets_its_own_card_with_numbered_words() {
-    let key = RecoveryKey::random().unwrap();
-    let shares = key.split(2, 3).unwrap();
-    let refs: Vec<&str> = shares.iter().map(|s| s.as_str()).collect();
-    let pdf = render_recovery_kit(
-        &INFO,
-        &RecoveryCards::Shares {
-            shares: &refs,
-            threshold: 2,
-        },
-    )
-    .unwrap();
-    well_formed(&pdf, 3);
-    let s = streams(&pdf);
-    assert_eq!(s.len(), 3);
-    for (i, page) in s.iter().enumerate() {
-        let t = texts(page);
-        assert!(t.contains(&format!("Recovery Card {} of 3", i + 1)));
-        assert!(t.iter().any(|x| x.contains("Any 2 of the 3 cards")));
-        // The numbered words, read back column by column, are the share.
-        let mut numbered: Vec<(usize, String)> = t
-            .iter()
-            .filter_map(|x| {
-                let (n, w) = x.trim().split_once(". ")?;
-                // The numbered steps below the words have spaces in them; a word does not.
-                (!w.contains(' ')).then_some(())?;
-                Some((n.trim().parse().ok()?, w.to_owned()))
-            })
-            .collect();
-        numbered.sort();
-        assert_eq!(numbered.len(), WORDS_FOR_256_BITS);
-        let words: Vec<String> = numbered.into_iter().map(|(_, w)| w).collect();
-        assert_eq!(words.join(" "), *shares[i]);
-    }
-    // Two cards recover the key, as a person typing them from the pages would.
-    assert_eq!(
-        RecoveryKey::from_shares(&[&shares[0], &shares[2]])
-            .unwrap()
-            .public(),
-        key.public()
-    );
-}
-
-#[test]
 fn bad_inputs_are_refused() {
-    let key = RecoveryKey::random().unwrap();
-    let shares = key.split(2, 3).unwrap();
-    let refs: Vec<&str> = shares.iter().map(|s| s.as_str()).collect();
-    let cards = |shares: &[&str], threshold| {
-        render_recovery_kit(&INFO, &RecoveryCards::Shares { shares, threshold })
-    };
-    assert!(cards(&refs, 1).is_err());
-    assert!(cards(&refs, 4).is_err());
-    assert!(cards(&refs[..1], 2).is_err());
-    assert!(cards(&["not a share!", "x y"], 2).is_err());
     let bad_date = KitInfo {
         created: "13/11/2026",
         ..INFO
     };
-    assert!(render_recovery_kit(&bad_date, &RecoveryCards::Code("FLR1-AAAA")).is_err());
+    assert!(render_recovery_kit(&bad_date, "FLR1-AAAA").is_err());
     let empty_name = KitInfo {
         vault_name: "",
         ..INFO
     };
-    assert!(render_recovery_kit(&empty_name, &RecoveryCards::Code("FLR1-AAAA")).is_err());
+    assert!(render_recovery_kit(&empty_name, "FLR1-AAAA").is_err());
 }
 
 #[test]
@@ -235,7 +178,7 @@ fn hostile_labels_cannot_break_the_pdf() {
         storage: "storage",
         created: "2026-11-13",
     };
-    let pdf = render_recovery_kit(&info, &RecoveryCards::Code(&key.format())).unwrap();
+    let pdf = render_recovery_kit(&info, &key.format()).unwrap();
     well_formed(&pdf, 1);
     let t = texts(&streams(&pdf)[0]);
     assert!(t.iter().any(|x| x == "a) Tj ET (b \\ c?"));

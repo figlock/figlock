@@ -96,7 +96,7 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 | Biometric quick unlock (Touch ID, Face ID, Windows Hello, Android)           | must     |
 | Auto-lock on idle, sleep and screen lock                                     | must     |
 | Clipboard auto-clear (30 s), copy without history                            | must     |
-| Emergency Kit; optional Shamir recovery                                      | must     |
+| Emergency Kit; optional Recovery Key                                         | must     |
 | Encrypted audit log of every agent access                                    | must     |
 | Token expiry and rotation reminders                                          | should   |
 | Weak, reused and breached password report (HIBP k-anonymity)                 | should   |
@@ -165,7 +165,7 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 
 | Risk                                                   | Mitigation                                                          |
 | ------------------------------------------------------ | ------------------------------------------------------------------- |
-| User loses password and Secret Key: data gone forever  | Emergency Kit with forced "verify you saved it" step; Shamir; any paired device can re-issue access |
+| User loses password and Secret Key: data gone forever  | Emergency Kit with forced "verify you saved it" step; optional Recovery Key; any paired device can re-issue access |
 | Subtle bugs in our own protocol                        | Standard primitives, spec + test vectors, fuzzing, external audit   |
 | Web app trust (whoever serves the JS can change it)    | Open source, immutable deploys, CSP, visible build hash; push power users to extension/desktop |
 | appDataFolder deleted when user disconnects the app    | Full local copy on every device; re-upload                          |

@@ -112,9 +112,9 @@ Status column: **M** mitigated by design, **P** partly mitigated, **A** accepted
 
 | ID | Threat | Mitigation | Status | Test |
 | -- | ------ | ---------- | ------ | ---- |
-| R1 | User loses password and Secret Key | Emergency Kit with a forced "verify you saved it" step; optional Shamir recovery; any paired device can re-issue access | P | recovery flow test |
+| R1 | User loses password and Secret Key | Emergency Kit with a forced "verify you saved it" step; optional Recovery Key; any paired device can re-issue access | P | recovery flow test |
 | R2 | Emergency Kit is stolen | It holds the Secret Key but not the password; the thief still needs the password | P | n/a |
-| R3 | Shamir shares gathered by an attacker | Threshold chosen by the user; shares are useless below it; spec in FIG-18 | P | share threshold tests |
+| R3 | Recovery Key code found by an attacker | It opens the vault without the password, so the app says to keep it apart from the Emergency Kit and the password; replacing or turning it off in Settings stops the old code working (cards were removed, ADR-0045) | P | recovery flow test |
 | R4 | User exports plaintext and forgets it | Export warns and offers encrypted export first | A | UI test |
 | R5 | Accidental plaintext in logs, issues, fixtures | Non-negotiable in `AGENTS.md`; secret scanning with push protection; fixtures use generated values | P | secret-scanning CI |
 

@@ -231,7 +231,7 @@ pub struct Recovered {
 
 /// What [`Vault::recover`] is given besides this device: the stored `vault.json`, the Recovery Key and the new
 /// master password. With `new_recovery_key` the vault is sealed to that key instead, in the same write, so the
-/// cards just used stop working; the caller made it earlier so the person could save it first.
+/// code just used stops working; the caller made it earlier so the person could save it first.
 pub struct Recover<'a> {
     pub vault_json: &'a [u8],
     pub recovery_key: &'a RecoveryKey,
@@ -1307,7 +1307,7 @@ impl Vault {
     /// Enable the Recovery Key, or replace it with a new one (`crypto.md` 9.3, ADR-0029). Returns the new
     /// `vault.json` and the key to write down; this vault takes the change only if every step succeeds. The
     /// master password and Secret Key are needed because the Vault Key is not kept in memory: it is opened
-    /// from the stored wrap and sealed to the new public key. After a replacement, cards of the old key stop
+    /// from the stored wrap and sealed to the new public key. After a replacement, the code of the old key stops
     /// working for the new `vault.json` and later ones.
     pub fn set_recovery(
         &mut self,

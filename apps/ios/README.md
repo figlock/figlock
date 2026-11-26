@@ -54,7 +54,7 @@ password, new Emergency Kit, then the check of the new Secret Key. It is the des
 `Vault::recover` (`start_recovery` in `figlock-ffi`); `Onboarding.startRecovery` / `prepareRecovery` /
 `commitRecovery` hold it. Nothing is written until the kit check passes; the commit replaces `vault.json`, drops the
 kept Secret Key, Face ID's blob and any password pause, and the app then unlocks with the new credentials. The old
-Recovery Key keeps working (the phone does not make a new one). Entry by cards and recovery of a vault that is only
+Recovery Key keeps working (the phone does not make a new one). Recovery of a vault that is only
 in Drive are not on the phone yet. Debug builds accept `-figlock-seed-recovery` (a throwaway vault with a made-up
 Recovery Key, `RecoveryFixture`) for the UI test. If the Recovery Key is lost, the code step offers "Remove this
 vault from this iPhone" (with a confirmation): the same removal as Settings (`Onboarding.removeFromThisPhone`, Drive

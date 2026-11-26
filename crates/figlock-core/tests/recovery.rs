@@ -181,16 +181,6 @@ fn the_code_recovers_the_vault_with_a_new_password_and_secret_key() {
 }
 
 #[test]
-fn shares_recover_it_too() {
-    let s = setup();
-    let shares = s.rk.split(2, 3).unwrap();
-    let back = RecoveryKey::from_shares(&[&shares[0], &shares[2]]).unwrap();
-    let (_, out) = recover(&s, &back, None).unwrap();
-    assert!(unlock(&out.vault_json, NEW_PW, &out.secret_key).is_ok());
-    assert!(RecoveryKey::from_shares(&[&shares[1]]).is_err());
-}
-
-#[test]
 fn a_wrong_key_and_a_vault_without_one_recover_nothing() {
     let s = setup();
     assert!(recover(&s, &RecoveryKey::random().unwrap(), None).is_err());

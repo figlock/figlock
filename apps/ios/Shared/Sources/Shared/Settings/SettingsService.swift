@@ -166,7 +166,7 @@ public struct SettingsService: Sendable {
     }
 
     /// Turn the Recovery Key off. Removing it needs no secret of the vault, so the master password and the Secret
-    /// Key are proven against the stored `vault.json` first. Cards or codes made earlier open nothing from then on.
+    /// Key are proven against the stored `vault.json` first. Codes made earlier open nothing from then on.
     public func removeRecoveryKey(password: String, typedSecretKey: String?, session: VaultSession) async throws {
         let secretKey = try secretKeyText(typed: typedSecretKey)
         let store = try vault.openStore()

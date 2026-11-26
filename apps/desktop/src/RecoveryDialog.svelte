@@ -96,8 +96,8 @@
       <form class="flex flex-col gap-4" onsubmit={submit}>
         <p class="text-text-secondary">
           {#if mode === "off"}
-            Any code or cards you made stop working. If you forget your master password after this,
-            your data cannot be recovered. Enter your master password to confirm{askKey
+            Any code you made stops working. If you forget your master password after this, your
+            data cannot be recovered. Enter your master password to confirm{askKey
               ? ", and your Secret Key"
               : ""}.
           {:else}

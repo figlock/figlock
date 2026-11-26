@@ -9,7 +9,7 @@ use desk::cli_tool::CliToolView;
 use desk::credentials::Changed;
 use desk::devices::DeviceRow;
 use desk::drive::{DriveView, SignedOut};
-use desk::forgot::{CardInfo, Found, NewCredentials};
+use desk::forgot::{Found, NewCredentials};
 use desk::generate::{Generated, PassphraseSpec, PasswordSpec, StrengthView};
 use desk::health::{HealthReport, PwnedPasswords, RangeSource};
 use desk::items::{ItemDetail, ItemDraft, ItemForEdit, ItemSummary, Staged};
@@ -121,21 +121,16 @@ async fn save_emergency_kit_again(
     Ok(true)
 }
 
-/// Make a new Recovery Key to show: a single code, or `count` cards of which `threshold` open the vault.
+/// Make a new Recovery Key to show.
 #[tauri::command]
-async fn recovery_prepare(
-    desk: State<'_, Desk>,
-    shares: bool,
-    threshold: u8,
-    count: u8,
-) -> CmdRes<RecoveryMaterial> {
-    desk.recovery_prepare(shares, threshold, count)
+async fn recovery_prepare(desk: State<'_, Desk>) -> CmdRes<RecoveryMaterial> {
+    desk.recovery_prepare()
 }
 
 /// The forced check that the Recovery Key shown is readable.
 #[tauri::command]
-async fn recovery_check(desk: State<'_, Desk>, answers: Vec<String>) -> CmdRes<bool> {
-    desk.recovery_check(&answers)
+async fn recovery_check(desk: State<'_, Desk>, answer: String) -> CmdRes<bool> {
+    desk.recovery_check(&answer)
 }
 
 /// Ask where to save the Recovery Key pages and write them there. `false` when the person cancels.
@@ -198,22 +193,11 @@ async fn recovery_disable(
     desk.recovery_disable(&password, secret_key.as_deref())
 }
 
-/// What one Recovery Key card says: how many cards are needed, and this card's number.
+/// "I forgot my password": open the vault in `storage` with the Recovery Key code and say what was found.
+/// Stores nothing.
 #[tauri::command]
-async fn forgot_card_info(text: String) -> CmdRes<CardInfo> {
-    Desk::forgot_card_info(&text)
-}
-
-/// "I forgot my password": open the vault in `storage` with a Recovery Key (the code, or the cards) and say
-/// what was found. Stores nothing.
-#[tauri::command]
-async fn forgot_find(
-    desk: State<'_, Desk>,
-    storage: Storage,
-    answers: Vec<String>,
-    shares: bool,
-) -> CmdRes<Found> {
-    desk.forgot_find(&storage, &answers, shares)
+async fn forgot_find(desk: State<'_, Desk>, storage: Storage, code: String) -> CmdRes<Found> {
+    desk.forgot_find(&storage, &code)
 }
 
 /// Choose the new master password; makes the new Secret Key (in memory) for a new Emergency Kit. With
@@ -953,7 +937,6 @@ pub fn run() {
             save_emergency_kit_again,
             leave_vault,
             check_kit_key,
-            forgot_card_info,
             forgot_find,
             forgot_prepare,
             forgot_commit,

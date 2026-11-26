@@ -158,22 +158,15 @@ export const activity = () => invoke<void>("activity");
 /** Called when the vault locks by itself (idle, or the Mac woke from sleep). */
 export const onAutoLock = (handler: () => void) => listen("figlock://locked", handler);
 
-/** A new Recovery Key as shown once: one code, or cards of which `threshold` open the vault. */
+/** A new Recovery Key as shown once: one code. */
 export type RecoveryMaterial = {
-  mode: "code" | "shares";
-  code: string | null;
-  /** The words of each card. */
-  cards: string[][];
-  threshold: number;
-  count: number;
-  /** For cards: which word (1-based) of each card the person types back. For a code, the last two groups. */
-  challenge: number[];
+  code: string;
 };
 
-export const recoveryPrepare = (shares: boolean, threshold: number, count: number) =>
-  invoke<RecoveryMaterial>("recovery_prepare", { shares, threshold, count });
+export const recoveryPrepare = () => invoke<RecoveryMaterial>("recovery_prepare");
 /** Resolves `false` when what was typed does not match, so the key is not confirmed. */
-export const recoveryCheck = (answers: string[]) => invoke<boolean>("recovery_check", { answers });
+/** `answer` is the last two groups of the code, typed back. */
+export const recoveryCheck = (answer: string) => invoke<boolean>("recovery_check", { answer });
 /** Resolves `false` when the person cancels the save dialog. */
 export const saveRecoveryKit = () => invoke<boolean>("save_recovery_kit");
 export const recoveryCancel = () => invoke<void>("recovery_cancel");
@@ -188,15 +181,12 @@ export const recoveryEnable = (password: string, secretKey: string) =>
 export const recoveryDisable = (password: string, secretKey: string) =>
   invoke<void>("recovery_disable", { password, secretKey: secretKey || null });
 
-/** What one Recovery Key card says: how many cards open the vault, and this card's number. */
-export type CardInfo = { needed: number; number: number };
 /** What a Recovery Key opened, shown before anything is changed. */
 export type Found = { name: string; items: number; lastChangeMs: number | null; devices: number };
 
-export const forgotCardInfo = (text: string) => invoke<CardInfo>("forgot_card_info", { text });
-/** Opens the vault in `storage` with the code (`shares` false, one answer) or the cards. Stores nothing. */
-export const forgotFind = (storage: Storage, answers: string[], shares: boolean) =>
-  invoke<Found>("forgot_find", { storage, answers, shares });
+/** Opens the vault in `storage` with the Recovery Key code. Stores nothing. */
+export const forgotFind = (storage: Storage, code: string) =>
+  invoke<Found>("forgot_find", { storage, code });
 /** Chooses the new master password and makes the new Secret Key, to be saved in a new Emergency Kit. */
 export const forgotPrepare = (newPassword: string, newRecoveryKey: boolean) =>
   invoke<{ secretKey: string }>("forgot_prepare", { newPassword, newRecoveryKey });

@@ -1,6 +1,6 @@
 # ADR-0028: SLIP-0039 is implemented in figlock-core, checked against the official vectors
 
-- Status: Accepted
+- Status: Superseded by ADR-0045
 - Date: 2026-11-13
 - Decision: D28 in `docs/decisions.md`
 

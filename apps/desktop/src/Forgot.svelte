@@ -12,7 +12,6 @@
     checkKitKey,
     errorOf,
     forgotCancel,
-    forgotCardInfo,
     forgotCommit,
     forgotFind,
     forgotPrepare,
@@ -35,14 +34,8 @@
   let step = $state<Step>("key");
   const storage = new StorageChoice();
 
-  // Step 1: the Recovery Key, as a code or as cards.
-  let mode = $state<"code" | "cards">("code");
+  // Step 1: the Recovery Key code.
   let code = $state("");
-  /** The cards typed so far; the last box is the one being typed. */
-  let cards = $state<string[]>([""]);
-  /** Cards needed, known once one card has been read. */
-  let needed = $state<number | null>(null);
-  let cardError = $state<(string | undefined)[]>([]);
 
   // Step 2: what was found, and the new master password.
   let found = $state<Found | null>(null);
@@ -79,25 +72,6 @@
     void recoveryCancel().catch(() => {});
   });
 
-  const complete = $derived(
-    needed !== null && cards.filter((c) => c.trim() !== "").length >= needed,
-  );
-
-  /** Read a card once it is typed, to learn how many cards are needed and to catch a typo early. */
-  async function readCard(i: number) {
-    const text = cards[i].trim();
-    if (text === "") return;
-    try {
-      const info = await forgotCardInfo(text);
-      needed = info.needed;
-      cardError[i] = undefined;
-      // Make room for the next card, until all that are needed have been typed.
-      if (i === cards.length - 1 && cards.length < info.needed) cards = [...cards, ""];
-    } catch (e) {
-      cardError[i] = errorOf(e).message;
-    }
-  }
-
   async function find(e: Event) {
     e.preventDefault();
     error = "";
@@ -106,13 +80,11 @@
       fieldError.folder = "Choose the folder that holds your vault.";
     }
     if (!here && storage.kind === "drive" && !storage.ready) error = "Sign in to Google first.";
-    if (mode === "code" && code.trim() === "") fieldError.code = "Enter your Recovery Key.";
-    if (mode === "cards" && !complete) error = "Enter every card that is needed.";
+    if (code.trim() === "") fieldError.code = "Enter your Recovery Key.";
     if (error || fieldError.folder || fieldError.code) return;
     busy = true;
     try {
-      const answers = mode === "code" ? [code] : cards.filter((c) => c.trim() !== "");
-      found = await forgotFind(here ? {} : storage.value, answers, mode === "cards");
+      found = await forgotFind(here ? {} : storage.value, code);
       step = "found";
     } catch (e) {
       error = errorOf(e).message;
@@ -194,55 +166,14 @@
       {#if !here}
         <StoragePicker {storage} folderError={fieldError.folder} />
       {/if}
-      <fieldset class="flex flex-col gap-2">
-        <legend class="mb-1 text-(length:--text-sm) font-medium">Your Recovery Key is</legend>
-        <label class="flex items-center gap-2">
-          <input type="radio" name="forgot-mode" value="code" bind:group={mode} />
-          One code
-        </label>
-        <label class="flex items-center gap-2">
-          <input type="radio" name="forgot-mode" value="cards" bind:group={mode} />
-          Cards
-        </label>
-      </fieldset>
-      {#if mode === "code"}
-        <TextField
-          label="Recovery Key"
-          bind:value={code}
-          error={fieldError.code}
-          placeholder="FLR1-XXXX-XXXX-..."
-          mono
-          focus
-        />
-      {:else}
-        <div class="flex flex-col gap-3">
-          {#each cards as _, i (i)}
-            <div>
-              <label for="card-{i}" class="mb-1 block text-(length:--text-sm) font-medium">
-                Card {i + 1}{needed ? ` of ${needed}` : ""}
-              </label>
-              <textarea
-                id="card-{i}"
-                bind:value={cards[i]}
-                onblur={() => readCard(i)}
-                rows="3"
-                spellcheck="false"
-                autocomplete="off"
-                placeholder="Type or paste the words of one card"
-                class="w-full rounded-(--radius-sm) border border-border-strong bg-surface p-3 font-mono text-(length:--text-sm) text-text placeholder:text-text-tertiary"
-              ></textarea>
-              {#if cardError[i]}
-                <p class="mt-1 text-(length:--text-sm) text-danger" role="alert">{cardError[i]}</p>
-              {/if}
-            </div>
-          {/each}
-          {#if needed !== null}
-            <p class="text-(length:--text-sm) text-text-secondary">
-              {needed} cards are needed to open this vault.
-            </p>
-          {/if}
-        </div>
-      {/if}
+      <TextField
+        label="Recovery Key"
+        bind:value={code}
+        error={fieldError.code}
+        placeholder="FLR1-XXXX-XXXX-..."
+        mono
+        focus
+      />
       <div class="flex gap-2">
         <Button onclick={back}>Back</Button>
         <div class="flex-1"></div>
@@ -314,7 +245,7 @@
           <span>
             Make a new one (recommended)
             <span class="block text-(length:--text-xs) leading-4 text-text-tertiary">
-              The code or cards you just used stop working.
+              The code you just used stop working.
             </span>
           </span>
         </label>
