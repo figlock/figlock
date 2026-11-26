@@ -8,7 +8,9 @@
 #
 # The app follows the Cargo workspace version like the Mac app and the CLI, and the tag must be v<that version>.
 #
-# Usage: scripts/ios-version.sh <tag> <build-number>
+# Usage: scripts/ios-version.sh <tag|workspace> <build-number>
+#   `workspace` instead of a tag skips the tag check: a manual run of the workflow from a branch builds the workspace
+#   version without needing a release tag (TestFlight only; nothing public is cut).
 #   CARGO_TOML overrides the file the version is read from (the tests use it).
 set -euo pipefail
 
@@ -19,7 +21,7 @@ cargo_toml=${CARGO_TOML:-$root/Cargo.toml}
 
 version=$(awk -F'"' '/^\[workspace.package\]/ {p=1} p && /^version = / {print $2; exit}' "$cargo_toml")
 [ -n "$version" ] || { echo "could not read the workspace version from $cargo_toml" >&2; exit 1; }
-if [ "v$version" != "$tag" ]; then
+if [ "$tag" != workspace ] && [ "v$version" != "$tag" ]; then
   echo "the tag $tag does not match the workspace version $version" >&2
   exit 1
 fi

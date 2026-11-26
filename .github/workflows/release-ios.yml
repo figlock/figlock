@@ -1,7 +1,8 @@
 name: Release (iOS)
 
 # On a version tag (the same v* tag release.yml uses): build the iPhone app, sign it and upload it to App Store
-# Connect, where it shows up in TestFlight for the internal testers. Run it by hand from a tag to retry an upload.
+# Connect, where it shows up in TestFlight for the internal testers. Run it by hand to retry an upload, or from main to
+# try a build without cutting a release tag (it then builds the workspace version).
 # The app takes its version from the Cargo workspace like the Mac app (scripts/ios-version.sh), and every upload gets
 # the run number as its build number. Signing is automatic and cloud-managed through the App Store Connect API key,
 # so there is no certificate or profile to store. Setup and troubleshooting: docs/ios-release.md.
@@ -45,7 +46,10 @@ jobs:
 
       - name: Work out the version and build number
         run: |
-          scripts/ios-version.sh "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" | tee -a "$GITHUB_ENV"
+          # A tag must match the workspace version. A manual run from a branch builds the workspace version as it is.
+          ref=workspace
+          if [ "$GITHUB_REF_TYPE" = tag ]; then ref="$GITHUB_REF_NAME"; fi
+          scripts/ios-version.sh "$ref" "$GITHUB_RUN_NUMBER" | tee -a "$GITHUB_ENV"
 
       - name: Set the export compliance code
         # Apple gives a code once the first build's encryption questions are answered (docs/ios-app-store.md). With

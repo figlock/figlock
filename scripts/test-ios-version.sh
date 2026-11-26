@@ -38,6 +38,8 @@ expect_fail() { # <description> <message fragment> <version> <tag> <build>
 
 expect_ok "a release tag" $'MARKETING_VERSION=1.2.3\nCURRENT_PROJECT_VERSION=42' 1.2.3 v1.2.3 42
 expect_ok "a pre-release builds as its x.y.z" $'MARKETING_VERSION=0.6.0\nCURRENT_PROJECT_VERSION=7' 0.6.0-rc1 v0.6.0-rc1 7
+expect_ok "workspace instead of a tag" $'MARKETING_VERSION=1.2.3\nCURRENT_PROJECT_VERSION=9' 1.2.3 workspace 9
+expect_fail "workspace still needs a valid version" "no x.y.z" 1.2 workspace 9
 expect_fail "a tag that is not the workspace version" "does not match" 1.2.3 v1.2.4 42
 expect_fail "a tag without the v" "does not match" 1.2.3 1.2.3 42
 expect_fail "a version without three numbers" "no x.y.z" 1.2 v1.2 42

@@ -50,7 +50,9 @@ Never put the key or any id in git, issues, logs or screenshots.
 
 ## Cut a TestFlight build
 
-Tag as in `docs/releasing.md` (the tag must match the workspace version). Approve the `release` environment when the
+Tag as in `docs/releasing.md` (the tag must match the workspace version). To try a build without cutting a release,
+start `Release (iOS)` by hand from `main` in the Actions tab: it builds the workspace version and uploads it to
+TestFlight only, and nothing public is released. Approve the `release` environment when the
 `Release (iOS)` run asks. To retry from a tag without a new run of the Mac release, start `Release (iOS)` by hand from
 the Actions tab and pick the tag. After a few minutes, App Store Connect shows the build as processing, then it
 appears in TestFlight; open the TestFlight app on the iPhone and install it.
