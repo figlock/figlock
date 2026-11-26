@@ -90,8 +90,10 @@ struct LockScreen: View {
                         .font(FLFont.mono(FLText.md))
                         .focused($focus, equals: .secretKey)
                         .padding(FLSpace.s3)
-                        .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: FLRadius.md))
-                                    }
+                        .background(
+                            Color(uiColor: .tertiarySystemFill),
+                            in: RoundedRectangle(cornerRadius: FLRadius.md))
+                }
             }
             VStack(alignment: .leading, spacing: FLSpace.s1) {
                 Text("Master password").font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(
