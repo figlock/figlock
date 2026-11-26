@@ -375,7 +375,7 @@ rewriting it without them (it would silently drop the Recovery Key). Without the
 - Enabling, replacing or removing the Recovery Key writes a new `vault.json` (`revision` + 1) and nothing else.
   Enabling or replacing needs the master password and Secret Key, like a credential change: `VK` is not kept in
   memory, so it is opened from `wrapped_vk` and sealed to the new `rk_pub`. Removing needs neither. A new
-  `rk_pub` replaces the old one, so cards made for the old key stop working for the next `vault.json` and
+  `rk_pub` replaces the old one, so a code made for the old key stops working for the next `vault.json` and
   onwards.
 - Every rotation of `VK` (9.1) rewraps `VK'` for `rk_pub` in the same write. Changing the password or the
   Secret Key leaves both members unchanged, as `VK` does not change.
