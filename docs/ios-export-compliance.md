@@ -5,7 +5,8 @@ EAR) and Apple's App Store Connect ask for, and what to do about each. It is a r
 advice. Where a point is not settled, it is marked **Open** and needs a decision or a check by the account holder.
 
 Why this exists: the first signed TestFlight upload was rejected with "Invalid Export Compliance Code", because the app
-declares non-exempt encryption (`ITSAppUsesNonExemptEncryption` is `true`) and has no compliance code yet
+declared non-exempt encryption (`ITSAppUsesNonExemptEncryption` was `true`) and had no compliance code. The questionnaire
+in App Store Connect (section 3) then said no documents are needed, and the app now declares `false`
 (`docs/ios-app-store.md`, section 1; `docs/ios-release.md`).
 
 ## 1. What the app's cryptography is
@@ -71,19 +72,23 @@ definition of "non-standard cryptography" was not read in this draft; check that
 
 ## 3. What Apple asks
 
-- Info.plist: `ITSAppUsesNonExemptEncryption` is `true` (encryption beyond the OS). Apple's table treats "an industry
-  standard algorithm, not provided within the Apple operating system" as needing documentation, and names only a French
-  encryption declaration, required "only if you're distributing your app on the App Store in France".
-  (Apple's pages were read in part; verify against the live pages.) Apple does not name a self-classification
-  report. Proprietary algorithms would need a CCATS.
-- App Store Connect, app FigLock, App Information, App Encryption Documentation, Upload: a dialog in three steps. Step 1
-  asks for an "App Purpose" of up to 300 characters; the later steps take the documentation file.
-- Once the documentation is approved Apple shows a key value (about two business days). It goes into
-  `Info.plist` as `ITSEncryptionExportComplianceCode` so builds stop asking the questions. In CI this is the
-  repository variable `ITS_EXPORT_COMPLIANCE_CODE` (`docs/ios-release.md`).
+App Store Connect, app FigLock, App Information, App Encryption Documentation, Upload, is a dialog in three steps:
 
-**Open:** whether Apple accepts the questionnaire with no file when the app is not available in France, or still wants
-a document. The dialog will say after step 1. Do not guess: answer it and see.
+1. **App Purpose**, up to 300 characters (the text below).
+2. **Which algorithms does the app implement?** Two boxes: proprietary or not accepted by international standards
+   bodies (IEEE, IETF, ITU), and standard algorithms instead of, or in addition to, the OS's. We ticked only the second.
+3. **Available for distribution in France?** We answered No.
+
+Apple's reply to those answers: "you don't need to upload any documents. You can specify that you don't use encryption
+in the information property list (Info.plist) in your Xcode project to avoid answering encryption questions with each app
+submission." Nothing was saved on Apple's side and there is no compliance code. `Info.plist` now declares
+`ITSAppUsesNonExemptEncryption` as `false`. Apple names no self-classification report, and a French declaration only if
+the app is distributed in France (its help pages, read in part).
+
+- **France:** keep it out of the app's availability (Pricing and Availability) until the French encryption declaration
+  is filed.
+- **Not Apple's business, still ours:** this is Apple's paperwork. The US export classification and the annual report
+  in section 2 are separate duties.
 
 ### Text for "App Purpose" (under 300 characters)
 
@@ -94,18 +99,13 @@ a document. The dialog will say after step 1. Do not guess: answer it and see.
 
 ## 4. Recommended path
 
-1. Decide on France. Either leave France out of the app's availability for now (Pricing and Availability) or file the
-   French declaration before distributing there. Leaving it out is the quickest and can be reversed later.
-2. Start the App Encryption Documentation dialog in App Store Connect with the text above and see what it asks next. Add
-   a short, factual document if it asks for one (section 1 and the primitives table are written to serve as that
-   description). Do not upload a document you have not read and agree with.
-3. When Apple shows the key value, set the repository variable `ITS_EXPORT_COMPLIANCE_CODE`.
-4. Confirm the classification (5D992.c by self-classification) and the
-   reporting duty with BIS or an export counsel; the questions marked **Open** above are the list to bring.
-5. Put **1 February 2027** in the calendar: the first self-classification report (CSV, FigLock listed once) if counsel
+1. Keep France out of the app's availability until the French declaration is filed.
+2. Confirm the classification (5D992.c by self-classification) and the reporting duty with BIS or an export counsel; the
+   questions marked **Open** above are the list to bring.
+3. Put **1 February 2027** in the calendar: the first self-classification report (CSV, FigLock listed once) if counsel
    confirms the duty, covering the 2026 TestFlight builds. Keep a copy.
-6. Revisit this document when a primitive changes (`docs/spec/crypto.md` needs an ADR for that anyway), when Android
-   or other stores are added, and each January.
+4. Revisit this document when a primitive changes (`docs/spec/crypto.md` needs an ADR for that anyway), when Android
+   or other stores are added, when France is added to availability, and each January.
 
 ## 5. Sources
 

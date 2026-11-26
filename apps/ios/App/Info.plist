@@ -18,7 +18,8 @@
 	<array><string>com.figlock.ios.sync</string></array>
 	<key>UIBackgroundModes</key>
 	<array><string>fetch</string></array>
-	<key>ITSAppUsesNonExemptEncryption</key><true/>
+	<!-- App Store Connect's export questionnaire says no documents are needed for standard algorithms with no distribution in France, and to declare no non-exempt encryption here (docs/ios-export-compliance.md). The US export duties still apply and are in that document. -->
+	<key>ITSAppUsesNonExemptEncryption</key><false/>
 	<key>LSRequiresIPhoneOS</key><true/>
 	<key>UILaunchScreen</key><dict/>
 	<key>UISupportedInterfaceOrientations</key>

@@ -8,24 +8,31 @@ Never put a real vault, token, Recovery Key or personal detail in App Store Conn
 
 ## 1. Encryption export compliance
 
-`ITSAppUsesNonExemptEncryption` is `true`: FigLock encrypts user data with its own library (XChaCha20-Poly1305,
-Argon2id, HKDF, X25519, Ed25519 from RustCrypto), which goes beyond the encryption built into iOS.
+`ITSAppUsesNonExemptEncryption` is `false`. The full reasoning, the US export rules and the open points are in
+`docs/ios-export-compliance.md`; this is the short version.
 
-Answers in App Store Connect (once, on the first build; it is asked again for each build until a compliance code is set):
+FigLock encrypts user data with standard algorithms (XChaCha20-Poly1305, Argon2id, HKDF, X25519, Ed25519 from
+RustCrypto) in addition to what iOS provides, and has nothing proprietary. In App Store Connect, App Information, App
+Encryption Documentation (Upload), the dialog asks three things. The answers given:
 
-| Question | Answer |
-| --- | --- |
-| Does the app use encryption? | Yes |
-| Does it use encryption other than, or in addition to, what is in the OS? | Yes |
-| Does it qualify for an exemption under the US export rules? | Yes: standard, publicly specified algorithms only, no proprietary or non-standard cryptography, mass-market app |
-| Is it available in France? | Decide at launch. Apple may ask for documentation for France. Leaving France out of availability avoids it. |
+| Step | Question | Answer |
+| --- | --- | --- |
+| 1 | App Purpose (max 300 characters) | the text in `docs/ios-export-compliance.md`, section 3 |
+| 2 | Which algorithms does the app implement? | Only "standard encryption algorithms instead of, or in addition to, the OS's" |
+| 3 | Available for distribution in France? | No |
 
-After the first build is answered, Apple can issue an `ITSEncryptionExportComplianceCode`. Put it in `Info.plist` so
-later TestFlight builds skip the question (set it as described in `docs/ios-release.md`).
+Apple then says: "you don't need to upload any documents. You can specify that you don't use encryption in the
+information property list (Info.plist) in your Xcode project to avoid answering encryption questions with each app
+submission." That is what `Info.plist` now declares, so builds upload without a per-build question and there is no
+compliance code to store. Nothing is saved on Apple's side for this answer.
 
-Rules on exports change, and this is not legal advice. The account holder confirms the answers against Apple's
-export compliance page and the BIS rules for mass-market encryption. Open point: whether the public source repository
-needs a one-time BIS notice. We believe not for standard algorithms; confirm.
+Consequences to keep:
+- **France.** The answer is "No", so France must stay out of the app's availability (Pricing and Availability)
+  until the French encryption declaration is filed. Turn it on only after that.
+- **US export duties are separate.** Apple's answer is about Apple's documents. Whether FigLock must file the BIS
+  annual self-classification report (due 1 February) is in `docs/ios-export-compliance.md`, section 2.
+- Rules on exports change, and this is not legal advice. Open point: whether the public source repository needs a
+  one-time BIS notice. We believe not for standard algorithms; confirm.
 
 ## 2. App Privacy (nutrition label)
 
