@@ -66,16 +66,19 @@ final class CredentialListModel {
     let vault: AutofillVault
     let identifiers: [String]
     let matches: [VaultItem]
+    /// Set when no login matched and `matches` holds every login: the site the request was for.
+    let unmatchedSite: String?
     let pick: (VaultItem) -> Void
     let cancel: () -> Void
     var query = ""
 
     init(
-        vault: AutofillVault, initial: [VaultItem], identifiers: [String], pick: @escaping (VaultItem) -> Void,
-        cancel: @escaping () -> Void
+        vault: AutofillVault, initial: [VaultItem], unmatchedSite: String? = nil, identifiers: [String],
+        pick: @escaping (VaultItem) -> Void, cancel: @escaping () -> Void
     ) {
         self.vault = vault
         self.matches = initial
+        self.unmatchedSite = unmatchedSite
         self.identifiers = identifiers
         self.pick = pick
         self.cancel = cancel
@@ -92,6 +95,12 @@ struct CredentialListView: View {
 
     var body: some View {
         List {
+            if let site = model.unmatchedSite, model.query.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text(site.isEmpty ? "No saved login for this site" : "No saved login for \(site)")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("autofill-no-match")
+                    .listRowBackground(Color.clear)
+            }
             if model.visible.isEmpty {
                 ContentUnavailableView.search(text: model.query)
             }

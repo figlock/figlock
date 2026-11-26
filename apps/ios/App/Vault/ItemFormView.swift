@@ -32,7 +32,9 @@ struct ItemFormView: View {
                     if draft.usesWebsites {
                         EntryListSection(
                             title: "Websites", entries: $draft.urls, placeholder: "https://example.com",
-                            addLabel: "Add website", onAdd: { draft.addURL() })
+                            addLabel: "Add website",
+                            hint: draft.kind == .login ? "AutoFill offers this login on these sites." : nil,
+                            onAdd: { draft.addURL() })
                     }
                     if draft.usesAllowedHosts {
                         EntryListSection(
@@ -47,10 +49,7 @@ struct ItemFormView: View {
                             TextField("Notes", text: $draft.notes, axis: .vertical).lineLimit(2...8)
                         }
                     }
-                    LabeledField(label: "Tags", hint: "Separate with commas. Lowercase letters, digits, - and _.") {
-                        TextField("work, mail", text: $draft.tagsText)
-                            .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    }
+                    TagsField(draft: $draft)
                     if let message = failure ?? (draft.title.isEmpty ? nil : draft.problem) {
                         Notice(text: message, isError: true)
                     }

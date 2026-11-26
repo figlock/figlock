@@ -32,7 +32,7 @@ struct SyncSettingsView: View {
                     NavigationLink {
                         RemoteDetailView(context: context, id: row.id)
                     } label: {
-                        RemoteRow(row: row)
+                        RemoteRow(row: row, account: row.entry.kind == .drive ? context.drive.accountEmail : nil)
                     }
                 }
             } header: {
@@ -85,7 +85,10 @@ struct SyncSettingsView: View {
         .navigationTitle("Sync")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await sync.syncNow(force: true) }
-        .task { await sync.reload() }
+        .task {
+            await sync.reload()
+            await context.drive.refreshAccountEmail()
+        }
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             Task { await added(result) }
         }
@@ -137,32 +140,6 @@ struct SyncSettingsView: View {
     }
 }
 
-/// One remote in the list: name, state, and a colored badge so the problem rows stand out.
-private struct RemoteRow: View {
-    let row: SyncModel.Row
-
-    var body: some View {
-        HStack(spacing: FLSpace.s3) {
-            Image(systemName: row.entry.symbol)
-                .font(.system(size: 18, weight: .medium)).foregroundStyle(FLColor.primary)
-                .frame(width: 32, height: 32)
-                .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(row.entry.name).font(FLFont.ui(FLText.md, weight: FLWeight.medium)).foregroundStyle(FLColor.text)
-                HStack(spacing: FLSpace.s1) {
-                    Image(systemName: row.state.symbol).font(.system(size: 12))
-                    Text(row.state.title)
-                }
-                .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(row.state.tone.color)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(minHeight: FLSize.controlHeightLg)
-        .accessibilityElement(children: .combine)
-    }
-}
-
 /// One remote: its state in words, sync now, and what can be done about it.
 private struct RemoteDetailView: View {
     let context: SettingsContext
@@ -191,14 +168,17 @@ private struct RemoteDetailView: View {
         .background(FLColor.bg)
         .navigationTitle(sync.row(id: id)?.entry.name ?? "Sync")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await sync.reload() }
+        .task {
+            await sync.reload()
+            await context.drive.refreshAccountEmail()
+        }
         .onChange(of: sync.row(id: id) == nil) { _, gone in if gone { dismiss() } }
         .alert("Sign out of Google Drive?", isPresented: $confirmingSignOut) {
             Button("Cancel", role: .cancel) {}
             Button("Sign out", role: .destructive) { Task { await sync.driveSignedOut() } }
         } message: {
             Text(
-                "This iPhone stops syncing with Google Drive until you sign in again. Your vault stays on this iPhone, other places keep syncing, and the copy in Google Drive is not deleted."
+                "\(signOutAccountLine)This iPhone stops syncing with Google Drive until you sign in again. Your vault stays on this iPhone, other places keep syncing, and the copy in Google Drive is not deleted."
             )
         }
         .alert("Stop syncing with this folder?", isPresented: $confirmingRemoval) {
@@ -223,6 +203,11 @@ private struct RemoteDetailView: View {
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
             Task { await picked(result) }
         }
+    }
+
+    /// "Signed in as x. " so the confirmation names the account being left.
+    private var signOutAccountLine: String {
+        context.drive.accountEmail.map { "Signed in as \($0). " } ?? ""
     }
 
     @ViewBuilder
@@ -255,6 +240,11 @@ private struct RemoteDetailView: View {
                         FLColor.text)
                     Text(state.detail(for: row.entry)).font(FLFont.ui(FLText.base, relativeTo: .callout))
                         .foregroundStyle(FLColor.textSecondary)
+                    if row.entry.kind == .drive, let email = context.drive.accountEmail {
+                        Text(email).font(FLFont.ui(FLText.base, relativeTo: .callout))
+                            .foregroundStyle(FLColor.textSecondary).textSelection(.enabled)
+                            .accessibilityIdentifier("drive-account-email-detail")
+                    }
                 }
             }
             .padding(FLSpace.s1)

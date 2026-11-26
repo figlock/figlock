@@ -134,6 +134,11 @@ public final class AutofillVault: @unchecked Sendable {
         ServiceMatch.matches(logins, identifiers: identifiers)
     }
 
+    /// What to offer for a request: the matching logins, or every login when none match (see `ServiceMatch`).
+    public func suggestions(identifiers: [String]) -> ServiceMatch.Suggestions {
+        ServiceMatch.suggestions(logins, identifiers: identifiers)
+    }
+
     /// Logins whose title, username or website contains every word of `query` (case blind), newest first.
     public func search(_ query: String) -> [VaultItem] {
         let words = query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)

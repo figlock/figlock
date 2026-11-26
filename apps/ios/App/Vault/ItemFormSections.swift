@@ -52,6 +52,7 @@ struct EntryListSection: View {
     @Binding var entries: [DraftEntry]
     let placeholder: String
     let addLabel: String
+    var hint: String?
     let onAdd: () -> Void
 
     var body: some View {
@@ -68,6 +69,9 @@ struct EntryListSection: View {
                 .formCard()
             }
             AddButton(title: addLabel, action: onAdd)
+            if let hint {
+                Text(hint).font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
+            }
         }
     }
 }

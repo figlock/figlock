@@ -87,11 +87,12 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
     }
 
     private func showList(vault: AutofillVault, identifiers: [String]) {
-        let matches = vault.matches(identifiers: identifiers)
+        let suggestions = vault.suggestions(identifiers: identifiers)
         show(
             .list(
                 CredentialListModel(
-                    vault: vault, initial: matches, identifiers: identifiers,
+                    vault: vault, initial: suggestions.items, unmatchedSite: suggestions.unmatchedSite,
+                    identifiers: identifiers,
                     pick: { [weak self] item in Task { await self?.complete(vault: vault, itemId: item.id) } },
                     cancel: { [weak self] in self?.finish(error: .userCanceled) })))
     }

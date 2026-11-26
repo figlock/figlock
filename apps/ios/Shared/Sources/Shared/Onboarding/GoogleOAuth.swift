@@ -226,10 +226,18 @@ public struct GoogleOAuth: Sendable {
     }
 }
 
+/// The part of a Drive `about` reply that names the signed-in account.
+private struct DriveAbout: Decodable {
+    struct User: Decodable { let emailAddress: String? }
+    let user: User?
+}
+
 /// The Drive adapter's token source: keeps the refresh token in the keychain (`ThisDeviceOnly`, like the other
 /// secrets) and a short lived access token in memory.
 public final class GoogleAccessTokens: AccessTokens, @unchecked Sendable {
     static let account = "google-drive-refresh-token"
+    static let emailAccount = "google-drive-account-email"
+    static let aboutURL = URL(string: "https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)")!
 
     private let oauth: GoogleOAuth
     private let store: any SecretStore
@@ -261,7 +269,50 @@ public final class GoogleAccessTokens: AccessTokens, @unchecked Sendable {
 
     public func signOut() {
         try? store.delete(Self.account)
+        try? store.delete(Self.emailAccount)
         setCache(nil)
+    }
+
+    /// The Google account this phone is signed in with, as last learned from Drive. Kept in the keychain next to
+    /// the refresh token (`ThisDeviceOnly`), shown on the Sync screens, never logged.
+    public var accountEmail: String? {
+        guard isSignedIn, let data = (try? store.read(Self.emailAccount)) ?? nil else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Ask Drive which account the token belongs to (the `about` call works with the `drive.appdata` scope, so no
+    /// new scope is needed) and keep the answer. Returns the email, or the one kept earlier when the call fails
+    /// (offline, expired token): the address is a label, never a reason to fail anything.
+    public func refreshAccountEmail(
+        get: (@Sendable (URL, String) async throws -> (status: Int, body: Data))? = nil
+    ) async -> String? {
+        guard isSignedIn else { return nil }
+        do {
+            let token = try accessToken()
+            let (status, body) = try await (get ?? Self.authorizedGet)(Self.aboutURL, token)
+            guard status == 200, let email = Self.email(fromAbout: body) else { return accountEmail }
+            try? store.write(Self.emailAccount, Data(email.utf8))
+            return email
+        } catch {
+            return accountEmail
+        }
+    }
+
+    /// The address in a Drive `about` reply, or nil when it has none.
+    static func email(fromAbout body: Data) -> String? {
+        guard let address = (try? JSONDecoder().decode(DriveAbout.self, from: body))?.user?.emailAddress else {
+            return nil
+        }
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.contains("@") ? trimmed : nil
+    }
+
+    @Sendable
+    private static func authorizedGet(url: URL, token: String) async throws -> (status: Int, body: Data) {
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return ((response as? HTTPURLResponse)?.statusCode ?? 0, data)
     }
 
     /// Delete a kept Google grant from `store` without a client id or a running sign-in: what "remove this vault from
@@ -269,6 +320,7 @@ public final class GoogleAccessTokens: AccessTokens, @unchecked Sendable {
     /// on this phone goes; nothing in Drive is touched.
     public static func forgetGrant(in store: any SecretStore) {
         try? store.delete(account)
+        try? store.delete(emailAccount)
     }
 
     private func setCache(_ value: Cached?) {
