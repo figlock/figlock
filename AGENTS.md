@@ -27,6 +27,36 @@ the user approves with Touch ID, ideally without ever seeing it.
 - **Agents use secrets, they don't hold them.** Default to broker HTTP with host allow-lists, then env
   injection with output scrubbing. Reveal is opt-in per item and needs its own approval every time.
 
+## Working in parallel (worktrees)
+
+Several agent sessions usually work on this repo at the same time. The main checkout
+(`~/Documents/projects/figlock`) is shared ground, not a workspace.
+
+- **Never edit, switch branches in, or commit from the main checkout.** Whatever branch or uncommitted
+  change you find there belongs to someone else (a human or another session). Don't stash, reset, checkout
+  or "put it back" - if you touch it you can lose their work. Treat it as read-only.
+- **One task, one worktree.** Create it before the first edit, as a sibling directory:
+  `git worktree add ../figlock-fig<n> -b FIG-<n>-<short-slug> origin/main` (fetch first). All edits, builds,
+  tests and commits for that task happen inside it. Reuse the task's worktree on resume instead of making
+  another; `git worktree list` shows what exists.
+- **Stay in your lane.** Only change files your task needs. If you spot an unrelated problem, file a
+  Paperclip task or fix it in its own worktree and PR, so branches stay small and rarely conflict.
+- **Check what is in flight before you start.** `git worktree list` and the open PRs (`gh-axi`) show who is
+  touching which area. If another branch owns the same files, pick a different task, or coordinate through a
+  comment on its Paperclip task, rather than waiting or racing.
+- **Keep branches short-lived.** Small PRs, rebase on `origin/main` often (`git fetch && git rebase
+  origin/main`), merge as soon as green. Long branches are what create conflicts and waiting.
+- **Don't block on each other.** Never wait for another session to finish. If something you need is not on
+  `main` yet, stack your branch on theirs or work around it, and say so in the PR.
+- **Isolate build state.** Each worktree has its own build output (`target/`, DerivedData, `node_modules`).
+  Use a separate path per worktree for anything shared on disk (simulator data, ports, temp files) so runs
+  don't collide. Prefer parallel-safe commands and avoid global state changes (`cargo clean` elsewhere,
+  killing simulators you did not start).
+- **Clean up after merge.** `git worktree remove ../figlock-fig<n>` and delete the branch once the PR merges.
+  Never remove a worktree you did not create.
+- **Report surprises, not blame.** If something unexpected shows up in the main checkout, mention it in your
+  handoff comment and carry on in your worktree.
+
 ## Starting and ending a session
 
 Chat history does not carry over; Paperclip does. At the start of every session, before anything else:
