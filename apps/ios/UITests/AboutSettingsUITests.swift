@@ -17,7 +17,8 @@ final class AboutSettingsUITests: XCTestCase {
         for id in ["about-privacy", "about-terms", "about-support"] {
             XCTAssertTrue(reveal(app.descendants(matching: .any)[id], in: app), "missing \(id)")
         }
-        XCTAssertTrue(reveal(app.staticTexts["Version"], in: app), "missing Version")    }
+        XCTAssertTrue(reveal(app.staticTexts["Version"], in: app), "missing Version")
+    }
 
     /// The list is lazy, so a row below the fold only exists once it is scrolled near.
     private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> Bool {

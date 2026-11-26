@@ -40,6 +40,8 @@ Sign-in to Google goes to Google, and no data reaches us.
   first upload, add the category with reason `E174.1` and note it here.
 - Privacy policy URL: https://figlock.com/privacy/
 - Support URL: https://figlock.com/support/
+- The app also links Privacy, Terms and Support from Settings > About (guideline 5.1.1), so keep those URLs in step
+  with `AboutLink` in `apps/ios/App/Settings/SettingsView.swift`.
 
 ## 3. Review notes (paste into App Review Information)
 
