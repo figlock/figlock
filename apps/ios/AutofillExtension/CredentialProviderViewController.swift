@@ -16,7 +16,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         let local = LocalVault(container: container, access: .readOnly)
         let keeper = SecretKeyKeeper(store: KeychainSecretStore(accessGroup: nil), container: container)
         let quick = QuickUnlock(
-            container: container, chip: SecureEnclaveChip(accessGroup: nil), readsBiometricStateReliably: false)
+            container: container, chip: SecureEnclaveChip(accessGroup: nil), biometricStateIsPerProcess: true)
         return AutofillAccess(vault: local, keeper: keeper, quick: quick)
     }
 

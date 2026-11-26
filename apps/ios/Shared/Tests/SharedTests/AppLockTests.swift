@@ -276,26 +276,55 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     #expect(await lock.unlock(password: "wrong-1", secretKey: nil) == .wrongCredentials(triesLeft: 2))
 }
 
-@Test func anExtensionThatCannotReadTheFaceStateDoesNotTakeItForAChange() throws {
+/// iOS reported the extension a Face ID state of the same size as the app's but a different value (FIG-247), so the
+/// extension keeps a baseline of its own and compares with that.
+@Test func theExtensionComparesTheFaceStateWithItsOwnBaselineNotTheApps() async throws {
     let phone = try Phone.make()
     defer { phone.cleanup() }
     let key = try deriveUnlockKey(
         vaultJson: try phone.vault.openStore().get(path: "vault.json"), password: Phone.password,
         secretKey: phone.secretKey)
+    // The app turns Face ID on and saves the state it sees.
     try phone.quick.enable(key: key, vaultId: phone.vaultId, deviceId: phone.deviceKeys.deviceId())
     let boot = phone.boot
     let clock = phone.clock
     let extensionSide = QuickUnlock(
         container: phone.container, chip: phone.chip, bootSession: { boot.value }, now: { clock.date },
-        readsBiometricStateReliably: false)
+        biometricStateIsPerProcess: true)
 
-    // The system gives this process no Face ID state at all.
-    phone.chip.biometricsState = nil
+    // The extension is told something else for the same faces, as on a real phone. With no baseline yet that is
+    // not a change, and strict comparison (the app's) would call it one.
+    phone.chip.biometricsState = Data("extension-view".utf8)
     #expect(extensionSide.status() == .ready)
-    // The app can read it, so a missing state there is still a change.
     #expect(phone.quick.status() == .needsPassword(.biometricsChanged))
-    // A state that is readable and different is a change for both.
-    phone.chip.biometricsState = Data("enrolled-2".utf8)
+
+    // Its first Face ID unlock takes the baseline. It then stays ready for the same state.
+    _ = try await extensionSide.unlock(
+        vaultId: phone.vaultId, deviceId: phone.deviceKeys.deviceId(), reason: "Fill")
+    #expect(extensionSide.status() == .ready)
+    #expect(extensionSide.biometricNote().contains("extension baseline 14 bytes (same)"))
+
+    // A state that differs from the extension's own baseline is a real change, with no prompt.
+    phone.chip.biometricsState = Data("a new face".utf8)
+    let prompts = phone.chip.prompts
     #expect(extensionSide.status() == .needsPassword(.biometricsChanged))
-    #expect(extensionSide.biometricNote().contains("different"))
+    await #expect(throws: QuickUnlock.Failure.needsPassword(.biometricsChanged)) {
+        try await extensionSide.unlock(vaultId: phone.vaultId, deviceId: phone.deviceKeys.deviceId(), reason: "Fill")
+    }
+    #expect(phone.chip.prompts == prompts)
+
+    // A state the extension cannot read at all is not taken for a change either.
+    let again = try Phone.make()
+    defer { again.cleanup() }
+    let againKey = try deriveUnlockKey(
+        vaultJson: try again.vault.openStore().get(path: "vault.json"), password: Phone.password,
+        secretKey: again.secretKey)
+    try again.quick.enable(key: againKey, vaultId: again.vaultId, deviceId: again.deviceKeys.deviceId())
+    let againBoot = again.boot
+    let againClock = again.clock
+    let unreadable = QuickUnlock(
+        container: again.container, chip: again.chip, bootSession: { againBoot.value }, now: { againClock.date },
+        biometricStateIsPerProcess: true)
+    again.chip.biometricsState = nil
+    #expect(unreadable.status() == .ready)
 }

@@ -29,6 +29,9 @@ public struct QuickUnlock: Sendable {
     private struct Saved: Codable {
         var wanted: Bool
         var policy: QuickUnlockPolicy?
+        /// What the AutoFill extension itself read for the enrolled faces at its first Face ID unlock. iOS reports the
+        /// state per process, so the extension cannot compare with the one the app saved in `policy` (FIG-247).
+        var extensionBiometricState: Data?
     }
 
     private let chip: any QuickUnlockChip
@@ -36,19 +39,21 @@ public struct QuickUnlock: Sendable {
     private let blobFile: URL
     private let bootSession: @Sendable () -> String
     private let now: @Sendable () -> Date
-    private let readsBiometricStateReliably: Bool
+    private let biometricStateIsPerProcess: Bool
 
-    /// `readsBiometricStateReliably` is false for the AutoFill extension: iOS can give an extension no Face ID state,
-    /// and "cannot read" must not be taken for "the faces changed", which ended Face ID on a real phone (FIG-247).
-    /// There the saved state stands in for an unreadable one; the app, which can read it, keeps the strict check.
+    /// `biometricStateIsPerProcess` is true for the AutoFill extension. iOS gave it a Face ID state of the same size as
+    /// the app's but a different value, so comparing across the two processes always looked like "the faces changed"
+    /// and ended Face ID (FIG-247). The extension therefore keeps a baseline of its own, taken at its first Face ID
+    /// unlock, and compares with that. The app, which turns Face ID on and sees its own state, keeps the strict check
+    /// and ends Face ID itself when the faces change, which removes the key the extension would use.
     public init(
         container: VaultContainer,
         chip: any QuickUnlockChip,
         bootSession: @escaping @Sendable () -> String = BootSession.current,
         now: @escaping @Sendable () -> Date = { Date() },
-        readsBiometricStateReliably: Bool = true
+        biometricStateIsPerProcess: Bool = false
     ) {
-        self.readsBiometricStateReliably = readsBiometricStateReliably
+        self.biometricStateIsPerProcess = biometricStateIsPerProcess
         self.chip = chip
         self.stateFile = container.deviceFolder.appendingPathComponent("quick-unlock.json")
         self.blobFile = container.deviceFolder.appendingPathComponent("quick-unlock.blob")
@@ -83,27 +88,34 @@ public struct QuickUnlock: Sendable {
             return .needsPassword(saved.policy?.endedBy ?? .passwordChanged)
         }
         let decision = policy.decision(
-            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: policy))
+            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: saved, policy: policy))
         switch decision {
         case .allowed: return .ready
         case .needsPassword(let reason): return .needsPassword(reason)
         }
     }
 
-    /// What the system says about the enrolled faces now. Where that cannot be read reliably (the extension), an
-    /// unreadable state counts as unchanged.
-    private func biometricState(for policy: QuickUnlockPolicy) -> Data? {
+    /// The value handed to the policy as "the enrolled faces now". In the extension it is the policy's own saved value
+    /// while the extension's baseline holds (or there is none yet, or the state cannot be read), and a different
+    /// value once the extension sees a change against its own baseline.
+    private func biometricState(for saved: Saved, policy: QuickUnlockPolicy) -> Data? {
         let state = chip.biometricState()
-        if state == nil, !readsBiometricStateReliably { return policy.biometricState }
-        return state
+        guard biometricStateIsPerProcess else { return state }
+        guard let baseline = saved.extensionBiometricState, let state, state != baseline else {
+            return policy.biometricState
+        }
+        return (policy.biometricState ?? Data()) + Data([0])
     }
 
     /// What the Face ID check saw, for the AutoFill screen when it says Face ID changed: sizes only, never the data.
     public func biometricNote() -> String {
-        let saved = load().policy?.biometricState
+        let loaded = load()
         let now = chip.biometricState()
         let describe: (Data?) -> String = { $0.map { "\($0.count) bytes" } ?? "none" }
-        return "saved \(describe(saved)), now \(describe(now)), \(saved == now ? "same" : "different")"
+        let same: (Data?) -> String = { $0 == now ? "same" : "different" }
+        return "app saved \(describe(loaded.policy?.biometricState)) (\(same(loaded.policy?.biometricState))), "
+            + "extension baseline \(describe(loaded.extensionBiometricState)) (\(same(loaded.extensionBiometricState))), "
+            + "now \(describe(now))"
     }
 
     // MARK: Turn on, off
@@ -169,6 +181,17 @@ public struct QuickUnlock: Sendable {
         try? FileManager.default.removeItem(at: blobFile)
     }
 
+    /// `saved` with the new policy. After a Face ID unlock that worked, the extension also takes its baseline of the
+    /// enrolled faces if it has none yet (see `biometricStateIsPerProcess`).
+    private func updated(_ saved: Saved, with policy: QuickUnlockPolicy, takingBaseline: Bool) -> Saved {
+        var result = saved
+        result.policy = policy
+        if takingBaseline, biometricStateIsPerProcess, result.extensionBiometricState == nil {
+            result.extensionBiometricState = chip.biometricState()
+        }
+        return result
+    }
+
     // MARK: Unlock
 
     /// Ask for Face ID and return the unlock key. The check order is: the limits of `crypto.md` 8 first (no prompt
@@ -180,7 +203,7 @@ public struct QuickUnlock: Sendable {
             throw Failure.needsPassword(saved.policy?.endedBy ?? .passwordChanged)
         }
         let decision = policy.decision(
-            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: policy))
+            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: saved, policy: policy))
         switch decision {
         case .allowed: break
         case .needsPassword(let why):
@@ -195,18 +218,17 @@ public struct QuickUnlock: Sendable {
             let key = try openQuickUnlock(
                 blob: blob, qkPublic: qkPublic, shared: shared, vaultId: vaultId, deviceId: deviceId)
             policy.recordQuickUnlock(at: now())
-            try? save(Saved(wanted: true, policy: policy))
+            try? save(updated(saved, with: policy, takingBaseline: true))
             return key
         } catch ChipError.cancelled {
             throw Failure.cancelled
         } catch ChipError.authFailed {
             policy.recordFailure()
+            try? save(updated(saved, with: policy, takingBaseline: false))
             if policy.failedAttempts >= QuickUnlockPolicy.failureLimit {
-                try? save(Saved(wanted: true, policy: policy))
                 end(.tooManyFailures)
                 throw Failure.needsPassword(.tooManyFailures)
             }
-            try? save(Saved(wanted: true, policy: policy))
             throw Failure.notRecognised(triesLeft: QuickUnlockPolicy.failureLimit - policy.failedAttempts)
         } catch ChipError.keyMissing {
             // The system removed the key (passcode or biometrics reset), or the blob belongs to another chip.
