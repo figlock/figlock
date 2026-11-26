@@ -50,11 +50,11 @@ private func login(_ title: String, user: String, url: String, password: String 
     #expect(browser.visible.isEmpty)
 
     browser.query = ""
-    browser.filter = .token
+    browser.filter = .other
     #expect(browser.visible.map(\.title) == ["Stripe API key"])
     browser.filter = .login
     #expect(browser.visible.count == 2)
-    browser.filter = .other
+    browser.filter = .note
     #expect(browser.visible.isEmpty)
 }
 
@@ -70,7 +70,7 @@ private func login(_ title: String, user: String, url: String, password: String 
     browser.query = "fastmail"
     let all = browser.visible.map(\.id)
     #expect(Set(all).count == 2)
-    browser.filter = .token
+    browser.filter = .other
     #expect(browser.visible.count == 1)
     browser.filter = .all
     #expect(browser.visible.map(\.id) == all)
