@@ -110,7 +110,7 @@ struct ItemFormView: View {
         let stored = draft.hasStoredSecret(spec.name)
         let removed = draft.removedSecrets.contains(spec.name)
         let shown = shownSecrets.contains(spec.name)
-        LabeledField(label: spec.label) {
+        LabeledField(label: spec.label, hasTrailing: !spec.isMultiline || spec.offersGenerator) {
             Group {
                 if shown || spec.isMultiline {
                     TextField(placeholder(stored: stored, removed: removed), text: binding, axis: .vertical)

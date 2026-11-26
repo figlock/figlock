@@ -36,15 +36,17 @@ struct Screen<Content: View>: View {
 struct LabeledField<Field: View, Trailing: View>: View {
     let label: String
     var hint: String?
+    let hasTrailing: Bool
     @ViewBuilder var field: Field
     @ViewBuilder var trailing: Trailing
 
     init(
-        label: String, hint: String? = nil, @ViewBuilder field: () -> Field,
+        label: String, hint: String? = nil, hasTrailing: Bool = true, @ViewBuilder field: () -> Field,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.label = label
         self.hint = hint
+        self.hasTrailing = hasTrailing
         self.field = field()
         self.trailing = trailing()
     }
@@ -52,12 +54,12 @@ struct LabeledField<Field: View, Trailing: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: FLSpace.s1) {
             Text(label).font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(FLColor.textSecondary)
-            HStack(spacing: FLSpace.s2) {
+            HStack(spacing: hasTrailing ? FLSpace.s2 : 0) {
                 field.padding(.vertical, FLSpace.s3)
                 trailing
             }
             .padding(.leading, FLSpace.s3)
-            .padding(.trailing, Trailing.self == EmptyView.self ? FLSpace.s3 : FLSpace.s1)
+            .padding(.trailing, hasTrailing ? FLSpace.s1 : FLSpace.s3)
             .frame(minHeight: FLSize.controlHeightLg)
             .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.sm))
             .overlay(RoundedRectangle(cornerRadius: FLRadius.sm).stroke(FLColor.border))
@@ -70,7 +72,7 @@ struct LabeledField<Field: View, Trailing: View>: View {
 
 extension LabeledField where Trailing == EmptyView {
     init(label: String, hint: String? = nil, @ViewBuilder field: () -> Field) {
-        self.init(label: label, hint: hint, field: field, trailing: { EmptyView() })
+        self.init(label: label, hint: hint, hasTrailing: false, field: field, trailing: { EmptyView() })
     }
 }
 
