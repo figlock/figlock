@@ -139,7 +139,7 @@ public final class AutofillVault: @unchecked Sendable {
         ServiceMatch.suggestions(logins, identifiers: identifiers)
     }
 
-    /// Logins whose title, username or website contains every word of `query` (case blind), newest first.
+    /// Logins whose title, username, website or website host contains every word of `query` (case blind), newest first.
     public func search(_ query: String) -> [VaultItem] {
         // A pasted address ("https://github.com/x") is searched by its host, so it still finds a login saved as
         // "www.github.com".
