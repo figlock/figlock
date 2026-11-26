@@ -15,7 +15,8 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
         guard let container = try? VaultContainer.appGroup(Self.appGroup) else { return nil }
         let local = LocalVault(container: container, access: .readOnly)
         let keeper = SecretKeyKeeper(store: KeychainSecretStore(accessGroup: nil), container: container)
-        let quick = QuickUnlock(container: container, chip: SecureEnclaveChip(accessGroup: nil))
+        let quick = QuickUnlock(
+            container: container, chip: SecureEnclaveChip(accessGroup: nil), readsBiometricStateReliably: false)
         return AutofillAccess(vault: local, keeper: keeper, quick: quick)
     }
 
@@ -53,7 +54,9 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
             case .cancelled: finish(error: .userCanceled)
             case .noVault: show(.message(.openApp(why: "FigLock has no vault on this iPhone.")))
             case .needsApp(let reason):
-                show(.message(.openApp(why: reason?.endedText ?? "Face ID is off for FigLock.")))
+                var why = reason?.endedText ?? "Face ID is off for FigLock."
+                if reason == .biometricsChanged { why += " (\(access.biometricNote()).)" }
+                show(.message(.openApp(why: why)))
             case .notRecognised(let left): show(.message(.retry(left)))
             case .failed: show(.message(.failed))
             }

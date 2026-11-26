@@ -275,3 +275,27 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     try FileManager.default.createDirectory(at: devices, withIntermediateDirectories: false)
     #expect(await lock.unlock(password: "wrong-1", secretKey: nil) == .wrongCredentials(triesLeft: 2))
 }
+
+@Test func anExtensionThatCannotReadTheFaceStateDoesNotTakeItForAChange() throws {
+    let phone = try Phone.make()
+    defer { phone.cleanup() }
+    let key = try deriveUnlockKey(
+        vaultJson: try phone.vault.openStore().get(path: "vault.json"), password: Phone.password,
+        secretKey: phone.secretKey)
+    try phone.quick.enable(key: key, vaultId: phone.vaultId, deviceId: phone.deviceKeys.deviceId())
+    let boot = phone.boot
+    let clock = phone.clock
+    let extensionSide = QuickUnlock(
+        container: phone.container, chip: phone.chip, bootSession: { boot.value }, now: { clock.date },
+        readsBiometricStateReliably: false)
+
+    // The system gives this process no Face ID state at all.
+    phone.chip.biometricsState = nil
+    #expect(extensionSide.status() == .ready)
+    // The app can read it, so a missing state there is still a change.
+    #expect(phone.quick.status() == .needsPassword(.biometricsChanged))
+    // A state that is readable and different is a change for both.
+    phone.chip.biometricsState = Data("enrolled-2".utf8)
+    #expect(extensionSide.status() == .needsPassword(.biometricsChanged))
+    #expect(extensionSide.biometricNote().contains("different"))
+}
