@@ -11,6 +11,9 @@ final class DriveConnection: NSObject, ASWebAuthenticationPresentationContextPro
     private let oauth: GoogleOAuth?
     private let tokens: GoogleAccessTokens?
     private(set) var isSignedIn = false
+    /// The Google account signed in on this phone, once Drive has said which (kept in the keychain). Shown on the
+    /// Sync screens; never logged.
+    private(set) var accountEmail: String?
 
     init(store: any SecretStore) {
         let clientId = (Bundle.main.object(forInfoDictionaryKey: "FigLockGoogleClientID") as? String) ?? ""
@@ -24,6 +27,7 @@ final class DriveConnection: NSObject, ASWebAuthenticationPresentationContextPro
         }
         super.init()
         isSignedIn = tokens?.isSignedIn ?? false
+        accountEmail = tokens?.accountEmail
     }
 
     var isConfigured: Bool { oauth != nil }
@@ -42,11 +46,19 @@ final class DriveConnection: NSObject, ASWebAuthenticationPresentationContextPro
         let grant = try await Task.detached { try oauth.exchange(code: code, verifier: verifier) }.value
         try tokens.adopt(grant)
         isSignedIn = true
+        await refreshAccountEmail()
+    }
+
+    /// Learn (or re-check) which Google account this is. Quiet on failure: the label just stays as it was.
+    func refreshAccountEmail() async {
+        guard let tokens, tokens.isSignedIn else { return }
+        accountEmail = await tokens.refreshAccountEmail()
     }
 
     func signOut() {
         tokens?.signOut()
         isSignedIn = false
+        accountEmail = nil
     }
 
     /// The Drive store, fed tokens by the app. Only valid while signed in.

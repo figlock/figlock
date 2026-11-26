@@ -54,6 +54,21 @@ private func item(
     #expect(ServiceMatch.matches(items, identifiers: ["example.com"]).map(\.id) == ["exact", "sub"])
 }
 
+@Test func noMatchFallsBackToEveryLoginNewestFirstAndNamesTheSite() {
+    let logins = [
+        item("old", urls: ["https://other.org"], updated: 1),
+        item("new", urls: [], updated: 9),
+        item("note", kind: .note, urls: [], updated: 99),
+    ]
+    let none = ServiceMatch.suggestions(logins, identifiers: ["https://house.example.com/login"])
+    #expect(none.items.map(\.id) == ["new", "old"])
+    #expect(none.unmatchedSite == "house.example.com")
+    #expect(ServiceMatch.suggestions(logins, identifiers: []).unmatchedSite == "")
+    let hit = ServiceMatch.suggestions(logins, identifiers: ["other.org"])
+    #expect(hit.items.map(\.id) == ["old"])
+    #expect(hit.unmatchedSite == nil)
+}
+
 /// Wait for a write that runs in a task of its own; fails the test if it never arrives. The budget is generous
 /// because CI runs the whole suite in parallel and a starved main actor can take tens of seconds to get to it.
 private func eventually(_ condition: @Sendable () async -> Bool) async throws {

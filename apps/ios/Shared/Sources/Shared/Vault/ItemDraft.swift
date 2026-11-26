@@ -98,7 +98,8 @@ public struct ItemDraft: Equatable, Sendable {
         original = item
         title = item.fields["title"] ?? ""
         notes = item.fields["notes"] ?? ""
-        tagsText = item.tags.joined(separator: ", ")
+        // A trailing separator marks every saved tag as finished, so each shows as a chip.
+        tagsText = item.tags.map { $0 + ", " }.joined()
         for spec in Self.fields(for: item.kind) where !spec.isSecret {
             values[spec.name] = item.fields[spec.name] ?? ""
         }

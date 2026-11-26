@@ -47,4 +47,20 @@ public enum ServiceMatch {
             return $0.item.updated > $1.item.updated
         }.map(\.item)
     }
+
+    /// What AutoFill offers for a request.
+    public struct Suggestions: Sendable {
+        public let items: [VaultItem]
+        /// Set only when nothing matched and `items` is every login: the host the request was for (empty when the
+        /// system gave none), so the screen can say "No saved login for <site>" instead of an empty page.
+        public let unmatchedSite: String?
+    }
+
+    /// The matching logins, or, when none match, every login newest first with the requested site.
+    public static func suggestions(_ items: [VaultItem], identifiers: [String]) -> Suggestions {
+        let matched = matches(items, identifiers: identifiers)
+        if !matched.isEmpty { return Suggestions(items: matched, unmatchedSite: nil) }
+        let all = items.filter { $0.kind == .login && !$0.isDeleted }.sorted { $0.updated > $1.updated }
+        return Suggestions(items: all, unmatchedSite: identifiers.lazy.compactMap(host(of:)).first ?? "")
+    }
 }

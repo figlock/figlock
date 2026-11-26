@@ -169,3 +169,56 @@ private let scope = GoogleOAuthConfig.scope
     #expect(oauth.failure(from: other) == .refused)
     #expect(oauth.failure(from: plain) == nil)
 }
+
+@Test func theDriveAccountEmailIsReadKeptAndForgottenOnSignOut() async throws {
+    let secrets = MemorySecrets()
+    let tokens = GoogleAccessTokens(
+        oauth: GoogleOAuth(config: config, transport: ScriptedTransport([])), store: secrets)
+    #expect(await tokens.refreshAccountEmail { _, _ in (200, Data()) } == nil)  // not signed in
+
+    try tokens.adopt(GoogleOAuth.Grant(accessToken: "a1", refreshToken: "r1", lifetime: 3600))
+    #expect(tokens.accountEmail == nil)
+    let reply = Data(#"{"user":{"emailAddress":" ada@example.test "}}"#.utf8)
+    let seen = LockedBox<[String]>([])
+    let email = await tokens.refreshAccountEmail { url, token in
+        seen.update { $0 = [url.absoluteString, token] }
+        return (200, reply)
+    }
+    #expect(email == "ada@example.test")
+    #expect(tokens.accountEmail == "ada@example.test")
+    // The about call carries the existing drive.appdata token and asks for the user only.
+    #expect(seen.value == ["https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", "a1"])
+
+    // A failed or odd answer keeps what was learned before.
+    #expect(await tokens.refreshAccountEmail { _, _ in (500, Data()) } == "ada@example.test")
+    #expect(await tokens.refreshAccountEmail { _, _ in (200, Data(#"{"user":{}}"#.utf8)) } == "ada@example.test")
+    #expect(await tokens.refreshAccountEmail { _, _ in throw StoreFailure.Unavailable } == "ada@example.test")
+
+    tokens.signOut()
+    #expect(tokens.accountEmail == nil)
+    #expect(secrets.accounts.isEmpty)
+}
+
+@Test func forgettingTheGrantAlsoForgetsTheEmail() throws {
+    let secrets = MemorySecrets()
+    try secrets.write(GoogleAccessTokens.account, Data("r".utf8))
+    try secrets.write(GoogleAccessTokens.emailAccount, Data("ada@example.test".utf8))
+    GoogleAccessTokens.forgetGrant(in: secrets)
+    #expect(secrets.accounts.isEmpty)
+}
+
+private final class LockedBox<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return stored
+    }
+    func update(_ change: (inout Value) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        change(&stored)
+    }
+}
