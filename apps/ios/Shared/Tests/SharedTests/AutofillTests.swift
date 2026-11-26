@@ -180,7 +180,7 @@ private actor SlowOrderedStore: CredentialIdentityStoring {
 }
 
 /// A phone with logins in the vault and Face ID turned on, opened from the extension's side.
-private struct AutofillPhone {
+struct AutofillPhone {
     let phone: Phone
     let itemIds: [String]
 
