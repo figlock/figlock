@@ -12,7 +12,6 @@ final class FakeChip: QuickUnlockChip, @unchecked Sendable {
     private let lock = NSLock()
     private var key: P256.KeyAgreement.PrivateKey?
     private var behaviourValue = Behaviour.works
-    private var biometrics: Data? = Data("enrolled-1".utf8)
     private(set) var prompts = 0
 
     var behaviour: Behaviour {
@@ -22,11 +21,8 @@ final class FakeChip: QuickUnlockChip, @unchecked Sendable {
 
     var hasKey: Bool { lock.withLock { key != nil } }
 
-    /// What the system reports for the enrolled faces; changing it plays "a face was added".
-    var biometricsState: Data? {
-        get { lock.withLock { biometrics } }
-        set { lock.withLock { biometrics = newValue } }
-    }
+    /// The system ends the key when the enrolled faces change (ADR-0046); this plays "a face was added".
+    func systemEndsTheKey() { lock.withLock { key = nil } }
 
     var isAvailable: Bool { true }
 
@@ -69,8 +65,6 @@ final class FakeChip: QuickUnlockChip, @unchecked Sendable {
     }
 
     func deleteKey() throws { lock.withLock { key = nil } }
-
-    func biometricState() -> Data? { biometricsState }
 }
 
 final class MemorySecrets: SecretStore, @unchecked Sendable {

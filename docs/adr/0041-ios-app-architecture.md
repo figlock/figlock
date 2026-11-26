@@ -1,6 +1,6 @@
 # ADR-0041: iOS app architecture - app group vault, Rust sync engine, shared keychain, iPhone only
 
-- Status: Accepted
+- Status: Accepted (decision 6, keys and biometric set changes, amended by ADR-0046)
 - Date: 2026-11-22
 - Decision: D41 in `docs/decisions.md`
 - Amended by: ADR-0043 (section 4: a device has a list of remotes, not one active remote)

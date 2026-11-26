@@ -17,7 +17,7 @@ public struct QuickUnlockPolicy: Codable, Equatable, Sendable {
         case idleTooLong
         case fullUnlockTooOld
         case tooManyFailures
-        /// Face ID or Touch ID enrolments changed, or the Secure Enclave key is gone.
+        /// Face ID or Touch ID enrolments changed (the system ended the key, ADR-0046), or the key is gone.
         case biometricsChanged
         case lockedByUser
         case passwordChanged
@@ -33,8 +33,6 @@ public struct QuickUnlockPolicy: Codable, Equatable, Sendable {
     public var lastFullUnlock: Date
     public var lastUse: Date
     public var failedAttempts: Int
-    /// What the system reported for the enrolled biometrics when quick unlock was turned on, to notice a change.
-    public var biometricState: Data?
     /// Set when a rule above (or the person) ended quick unlock. It stays until a full unlock turns it on again.
     public var endedBy: Reason?
 
@@ -43,19 +41,18 @@ public struct QuickUnlockPolicy: Codable, Equatable, Sendable {
         lastFullUnlock: Date,
         lastUse: Date? = nil,
         failedAttempts: Int = 0,
-        biometricState: Data? = nil,
         endedBy: Reason? = nil
     ) {
         self.bootSession = bootSession
         self.lastFullUnlock = lastFullUnlock
         self.lastUse = lastUse ?? lastFullUnlock
         self.failedAttempts = failedAttempts
-        self.biometricState = biometricState
         self.endedBy = endedBy
     }
 
-    /// Whether quick unlock may be tried now. `currentBiometricState` is what the system reports at this moment.
-    public func decision(now: Date, bootSession current: String, currentBiometricState: Data?) -> Decision {
+    /// Whether quick unlock may be tried now. A change of the enrolled faces is not decided here: the system ends the
+    /// key itself (ADR-0046) and the unlock then finds it gone.
+    public func decision(now: Date, bootSession current: String) -> Decision {
         if let endedBy { return .needsPassword(endedBy) }
         if current != bootSession { return .needsPassword(.phoneRestarted) }
         if failedAttempts >= Self.failureLimit { return .needsPassword(.tooManyFailures) }
@@ -63,9 +60,6 @@ public struct QuickUnlockPolicy: Codable, Equatable, Sendable {
             return .needsPassword(.fullUnlockTooOld)
         }
         if now.timeIntervalSince(lastUse) >= Self.idleLimit { return .needsPassword(.idleTooLong) }
-        if let biometricState, biometricState != currentBiometricState {
-            return .needsPassword(.biometricsChanged)
-        }
         return .allowed
     }
 

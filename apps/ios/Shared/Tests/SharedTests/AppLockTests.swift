@@ -156,7 +156,8 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     defer { phone.cleanup() }
     let lock = try await lockWithFaceIDOn(phone)
 
-    phone.chip.biometricsState = Data("enrolled-2".utf8)
+    // The system ends the key itself when a face is added (ADR-0046); the unlock finds it gone and shows no prompt.
+    phone.chip.systemEndsTheKey()
     let prompts = phone.chip.prompts
     #expect(await lock.unlockWithFaceID() == .passwordNeeded(.biometricsChanged))
     #expect(phone.chip.prompts == prompts)
@@ -276,26 +277,18 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     #expect(await lock.unlock(password: "wrong-1", secretKey: nil) == .wrongCredentials(triesLeft: 2))
 }
 
-@Test func anExtensionThatCannotReadTheFaceStateDoesNotTakeItForAChange() throws {
+@MainActor
+@Test func turningFaceIDOffRemovesTheKeyAndKeepsThePasswordWorking() async throws {
     let phone = try Phone.make()
     defer { phone.cleanup() }
-    let key = try deriveUnlockKey(
-        vaultJson: try phone.vault.openStore().get(path: "vault.json"), password: Phone.password,
-        secretKey: phone.secretKey)
-    try phone.quick.enable(key: key, vaultId: phone.vaultId, deviceId: phone.deviceKeys.deviceId())
-    let boot = phone.boot
-    let clock = phone.clock
-    let extensionSide = QuickUnlock(
-        container: phone.container, chip: phone.chip, bootSession: { boot.value }, now: { clock.date },
-        readsBiometricStateReliably: false)
+    let lock = try await lockWithFaceIDOn(phone)
+    #expect(lock.quickUnlockIsAvailable)
+    #expect(lock.quickUnlockIsWanted)
 
-    // The system gives this process no Face ID state at all.
-    phone.chip.biometricsState = nil
-    #expect(extensionSide.status() == .ready)
-    // The app can read it, so a missing state there is still a change.
-    #expect(phone.quick.status() == .needsPassword(.biometricsChanged))
-    // A state that is readable and different is a change for both.
-    phone.chip.biometricsState = Data("enrolled-2".utf8)
-    #expect(extensionSide.status() == .needsPassword(.biometricsChanged))
-    #expect(extensionSide.biometricNote().contains("different"))
+    lock.turnOffFaceID()
+    #expect(!lock.quickUnlockIsWanted)
+    #expect(lock.quickUnlockStatus == .off)
+    #expect(!phone.chip.hasKey)
+    // Master password still unlocks.
+    #expect(await lock.unlock(password: Phone.password, secretKey: nil) == .unlocked)
 }

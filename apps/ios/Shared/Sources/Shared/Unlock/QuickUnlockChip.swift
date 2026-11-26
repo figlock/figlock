@@ -27,12 +27,11 @@ public protocol QuickUnlockChip: Sendable {
     /// shared secret. `reason` is the sentence in the system prompt.
     func agree(ephemeralPublic: Data, reason: String) async throws -> Data
     func deleteKey() throws
-    /// What the system says about the enrolled biometrics now, so a change can be noticed. Nil when unknown.
-    func biometricState() -> Data?
 }
 
-/// `QK` as a permanent Secure Enclave key in the shared keychain access group, bound to the passcode or biometrics
-/// of this device and never synced (`ThisDeviceOnly`, `.userPresence`). The simulator has no Secure Enclave, so
+/// `QK` as a permanent Secure Enclave key in the shared keychain access group, bound to the Face ID or Touch ID set
+/// enrolled when it was made and never synced (`ThisDeviceOnly`, `.biometryCurrentSet`, ADR-0046). The system ends
+/// the key when that set changes, in every process, so no code compares biometric states. The simulator has no Secure Enclave, so
 /// quick unlock is unavailable there and the master password is used.
 public struct SecureEnclaveChip: QuickUnlockChip {
     private let tag: Data
@@ -48,7 +47,7 @@ public struct SecureEnclaveChip: QuickUnlockChip {
             return false
         #else
             var error: NSError?
-            return LAContext().canEvaluatePolicy(.deviceOwnerAuthentication, error: &error)
+            return LAContext().canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
         #endif
     }
 
@@ -68,7 +67,8 @@ public struct SecureEnclaveChip: QuickUnlockChip {
         var accessError: Unmanaged<CFError>?
         guard
             let access = SecAccessControlCreateWithFlags(
-                nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, [.privateKeyUsage, .userPresence], &accessError)
+                nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, [.privateKeyUsage, .biometryCurrentSet], &accessError
+            )
         else { throw ChipError.failed }
         var privateAttributes = baseQuery()
         privateAttributes[kSecClass as String] = nil
@@ -159,12 +159,5 @@ public struct SecureEnclaveChip: QuickUnlockChip {
     public func deleteKey() throws {
         let status = SecItemDelete(baseQuery() as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else { throw ChipError.failed }
-    }
-
-    public func biometricState() -> Data? {
-        let context = LAContext()
-        var error: NSError?
-        _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
-        return context.evaluatedPolicyDomainState
     }
 }

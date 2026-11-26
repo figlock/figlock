@@ -5,7 +5,7 @@ import SwiftUI
 struct AutofillScreen: View {
     enum Message {
         /// Face ID cannot be used here. `why` says which rule ended it, so a wrong 'open the app' is not a mystery.
-        case openApp(why: String)
+        case openApp(why: String, then: String)
         case retry(Int)
         case failed
         case storage
@@ -21,7 +21,7 @@ struct AutofillScreen: View {
 
         var detail: String {
             switch self {
-            case .openApp(let why): "\(why) Unlock FigLock with your master password once, then try again."
+            case .openApp(let why, let then): "\(why) \(then)"
             case .retry(let left):
                 "You have \(left) more \(left == 1 ? "try" : "tries") before the master password is needed."
             case .failed: "Try again. If this stays, open FigLock."

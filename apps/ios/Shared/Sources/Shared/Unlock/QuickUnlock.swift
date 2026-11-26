@@ -36,19 +36,13 @@ public struct QuickUnlock: Sendable {
     private let blobFile: URL
     private let bootSession: @Sendable () -> String
     private let now: @Sendable () -> Date
-    private let readsBiometricStateReliably: Bool
 
-    /// `readsBiometricStateReliably` is false for the AutoFill extension: iOS can give an extension no Face ID state,
-    /// and "cannot read" must not be taken for "the faces changed", which ended Face ID on a real phone (FIG-247).
-    /// There the saved state stands in for an unreadable one; the app, which can read it, keeps the strict check.
     public init(
         container: VaultContainer,
         chip: any QuickUnlockChip,
         bootSession: @escaping @Sendable () -> String = BootSession.current,
-        now: @escaping @Sendable () -> Date = { Date() },
-        readsBiometricStateReliably: Bool = true
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
-        self.readsBiometricStateReliably = readsBiometricStateReliably
         self.chip = chip
         self.stateFile = container.deviceFolder.appendingPathComponent("quick-unlock.json")
         self.blobFile = container.deviceFolder.appendingPathComponent("quick-unlock.blob")
@@ -82,28 +76,11 @@ public struct QuickUnlock: Sendable {
         guard let policy = saved.policy, FileManager.default.fileExists(atPath: blobFile.path) else {
             return .needsPassword(saved.policy?.endedBy ?? .passwordChanged)
         }
-        let decision = policy.decision(
-            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: policy))
+        let decision = policy.decision(now: now(), bootSession: bootSession())
         switch decision {
         case .allowed: return .ready
         case .needsPassword(let reason): return .needsPassword(reason)
         }
-    }
-
-    /// What the system says about the enrolled faces now. Where that cannot be read reliably (the extension), an
-    /// unreadable state counts as unchanged.
-    private func biometricState(for policy: QuickUnlockPolicy) -> Data? {
-        let state = chip.biometricState()
-        if state == nil, !readsBiometricStateReliably { return policy.biometricState }
-        return state
-    }
-
-    /// What the Face ID check saw, for the AutoFill screen when it says Face ID changed: sizes only, never the data.
-    public func biometricNote() -> String {
-        let saved = load().policy?.biometricState
-        let now = chip.biometricState()
-        let describe: (Data?) -> String = { $0.map { "\($0.count) bytes" } ?? "none" }
-        return "saved \(describe(saved)), now \(describe(now)), \(saved == now ? "same" : "different")"
     }
 
     // MARK: Turn on, off
@@ -119,7 +96,7 @@ public struct QuickUnlock: Sendable {
             try blob.write(to: blobFile, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
             let stamp = now()
             let policy = QuickUnlockPolicy(
-                bootSession: bootSession(), lastFullUnlock: stamp, biometricState: chip.biometricState())
+                bootSession: bootSession(), lastFullUnlock: stamp)
             try save(Saved(wanted: true, policy: policy))
         } catch {
             removeKeyMaterial()
@@ -179,8 +156,7 @@ public struct QuickUnlock: Sendable {
         guard var policy = saved.policy, let blob = try? Data(contentsOf: blobFile) else {
             throw Failure.needsPassword(saved.policy?.endedBy ?? .passwordChanged)
         }
-        let decision = policy.decision(
-            now: now(), bootSession: bootSession(), currentBiometricState: biometricState(for: policy))
+        let decision = policy.decision(now: now(), bootSession: bootSession())
         switch decision {
         case .allowed: break
         case .needsPassword(let why):
@@ -201,12 +177,11 @@ public struct QuickUnlock: Sendable {
             throw Failure.cancelled
         } catch ChipError.authFailed {
             policy.recordFailure()
+            try? save(Saved(wanted: true, policy: policy))
             if policy.failedAttempts >= QuickUnlockPolicy.failureLimit {
-                try? save(Saved(wanted: true, policy: policy))
                 end(.tooManyFailures)
                 throw Failure.needsPassword(.tooManyFailures)
             }
-            try? save(Saved(wanted: true, policy: policy))
             throw Failure.notRecognised(triesLeft: QuickUnlockPolicy.failureLimit - policy.failedAttempts)
         } catch ChipError.keyMissing {
             // The system removed the key (passcode or biometrics reset), or the blob belongs to another chip.

@@ -32,6 +32,12 @@ struct SettingsView: View {
                         ).title)
                 }
                 NavigationLink {
+                    FaceIDView(context: context)
+                } label: {
+                    SettingsRow(symbol: "faceid", title: "Face ID", value: FaceIDView.summary(context.lock))
+                }
+                .accessibilityIdentifier("settings-face-id")
+                NavigationLink {
                     EmergencyKitView(context: context)
                 } label: {
                     SettingsRow(symbol: "key", title: "Emergency Kit")
