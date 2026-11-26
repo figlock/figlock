@@ -1,9 +1,9 @@
 //! Keeping the local vault matched to Google Drive, as the window sees it (ADR-0026).
 //!
 //! Sync works on ciphertext only, so it runs whether the vault is locked or not. A background thread calls
-//! [`Desk::sync_tick`] every second; it syncs every 15 seconds, soon after a local save, and backs off when
-//! something fails. What the person needs to act on (sign in again, confirm an upload) stops the retries until
-//! they do.
+//! [`Desk::sync_tick`] whenever it wakes (at the next deadline or on a save, ADR-0047); it syncs every 15
+//! seconds, at once after a local save, and backs off when something fails. What the person needs to
+//! act on (sign in again, confirm an upload) stops the retries until they do.
 
 use std::collections::BTreeMap;
 use std::time::{Duration, Instant};
@@ -530,7 +530,7 @@ impl Desk {
         changed
     }
 
-    /// Called every second with the sync tick: while unlocked, looks for local changes every `INTERVAL`, with
+    /// Called with the sync tick, each time the sync thread wakes: while unlocked, looks for local changes every `INTERVAL`, with
     /// or without Drive, like the broker does. Returns true when the list changed.
     pub fn local_tick(&self) -> bool {
         let due = {
