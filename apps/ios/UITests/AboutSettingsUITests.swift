@@ -1,10 +1,10 @@
 import XCTest
 
-/// FIG-241: Settings > About lists the Privacy, Terms and Help links and the version (App Store guideline 5.1.1),
+/// FIG-241: Settings > About lists the Privacy, Terms and Support links and the version (App Store guideline 5.1.1),
 /// against the made-up demo vault.
 @MainActor
 final class AboutSettingsUITests: XCTestCase {
-    func testSettingsShowsPrivacyTermsHelpAndVersion() {
+    func testSettingsShowsPrivacyTermsSupportAndVersion() {
         let app = XCUIApplication()
         app.launchArguments = ["-figlock-seed-demo", "-figlock-unlock-demo"]
         app.launch()
@@ -14,7 +14,7 @@ final class AboutSettingsUITests: XCTestCase {
         settings.tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 10))
 
-        for id in ["about-privacy", "about-terms", "about-help"] {
+        for id in ["about-privacy", "about-terms", "about-support"] {
             XCTAssertTrue(reveal(app.descendants(matching: .any)[id], in: app), "missing \(id)")
         }
         XCTAssertTrue(reveal(app.staticTexts["Version"], in: app), "missing Version")    }

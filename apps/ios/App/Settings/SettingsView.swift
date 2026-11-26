@@ -262,7 +262,7 @@ struct AboutLink: Identifiable {
     static let all: [AboutLink] = [
         AboutLink(id: "privacy", title: "Privacy", symbol: "hand.raised", url: page("privacy")),
         AboutLink(id: "terms", title: "Terms", symbol: "doc.text", url: page("terms")),
-        AboutLink(id: "help", title: "Help", symbol: "questionmark.circle", url: page("faq")),
+        AboutLink(id: "support", title: "Support", symbol: "lifepreserver", url: page("support")),
     ]
 
     private static func page(_ path: String) -> URL {
