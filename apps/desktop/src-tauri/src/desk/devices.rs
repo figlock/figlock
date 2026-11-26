@@ -187,7 +187,7 @@ impl Desk {
             ));
         }
         inner.cache = None;
-        inner.dirty = true;
+        inner.mark_dirty();
         drop(inner);
         if new_password.is_some() {
             // The quick unlock key opened the old credentials; it must not outlive them.

@@ -913,17 +913,19 @@ pub fn run() {
                     }
                 }
             });
-            // Keeps the local vault matched to Drive, locked or not: it only moves ciphertext.
+            // Keeps the local vault matched to its remotes, locked or not: it only moves ciphertext. It sleeps
+            // until a place is due or a save wakes it, so a save goes out at once and an idle app stays idle
+            // (FIG-261).
             let handle = app.handle().clone();
             std::thread::spawn(move || {
                 loop {
-                    std::thread::sleep(Duration::from_secs(1));
                     let desk = tauri::Manager::state::<Desk>(&handle);
                     // Both run: a sync that pulled, and another process (the CLI) that wrote locally.
                     let synced = desk.sync_tick();
                     if desk.local_tick() || synced {
                         let _ = handle.emit(SYNCED_EVENT, ());
                     }
+                    desk.wait_for_sync_work();
                 }
             });
             Ok(())

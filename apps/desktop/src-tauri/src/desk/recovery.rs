@@ -285,7 +285,7 @@ impl Desk {
         }
         inner.recovery = None;
         inner.cache = None;
-        inner.dirty = true;
+        inner.mark_dirty();
         drop(guard);
         self.run_sync(false);
         Ok(())

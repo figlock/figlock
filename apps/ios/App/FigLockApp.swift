@@ -26,6 +26,8 @@ struct FigLockApp: App {
                         environment.lock.appDidEnterBackground()
                         environment.sync.stopForeground()
                         BackgroundSync.schedule()
+                        // A save made just before leaving still reaches the remotes.
+                        Task { await environment.sync.finishPushes() }
                     case .active:
                         environment.lock.appWillEnterForeground()
                         environment.sync.startForeground()

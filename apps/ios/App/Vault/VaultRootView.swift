@@ -48,7 +48,9 @@ struct VaultRootView: View {
                     lastSyncMs: {
                         FileSyncState.settledMs(
                             container: container, remotes: RemoteList(container: container).entries())
-                    })
+                    },
+                    // Every save goes to the remotes now, not at the next turn of the 15 second loop (FIG-261).
+                    didWrite: { [sync] in sync.noteLocalWrite() })
             }
             browser = loading
         }

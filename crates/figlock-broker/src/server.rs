@@ -207,6 +207,16 @@ fn connection(stream: UnixStream, who: peer::PeerId, d: &dyn Dispatch, stop: &At
     }
 }
 
+/// Sleep until a client connects, or half a second passes so the loop still notices that the broker is done.
+/// The old 50 ms nap woke the daemon twenty times a second for as long as it ran (FIG-261).
+fn wait_for_client(listener: &UnixListener) {
+    use nix::poll::{PollFd, PollFlags, PollTimeout, poll};
+    use std::os::fd::AsFd;
+    let mut fds = [PollFd::new(listener.as_fd(), PollFlags::POLLIN)];
+    // An error (a signal) just means the loop looks again.
+    let _ = poll(&mut fds, PollTimeout::from(500u16));
+}
+
 /// Serve until a client locks the broker. Each connection gets a thread; at most [`MAX_CONNECTIONS`].
 pub fn serve<D: Dispatch + 'static>(listener: &UnixListener, broker: &Arc<D>) -> Res<()> {
     listener.set_nonblocking(true)?;
@@ -217,7 +227,7 @@ pub fn serve<D: Dispatch + 'static>(listener: &UnixListener, broker: &Arc<D>) ->
         let stream = match listener.accept() {
             Ok((s, _)) => s,
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
-                std::thread::sleep(Duration::from_millis(50));
+                wait_for_client(listener);
                 continue;
             }
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
