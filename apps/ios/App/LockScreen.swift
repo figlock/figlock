@@ -23,27 +23,31 @@ struct LockScreen: View {
     private var showPasswordFields: Bool { showPassword || !faceIDReady || pausedUntil != nil }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: FLSpace.s6) {
-                header
-                VStack(spacing: FLSpace.s4) {
-                    if let message { Notice(text: message.text, isError: message.isError) }
-                    if faceIDReady { faceIDButton }
-                    if showPasswordFields {
-                        passwordFields
-                    } else {
-                        Button("Use password") {
-                            showPassword = true
-                            focus = .password
+        GeometryReader { proxy in
+            ScrollView {
+                VStack(spacing: FLSpace.s6) {
+                    Spacer(minLength: FLSpace.s8)
+                    header
+                    Spacer(minLength: FLSpace.s6)
+                    VStack(spacing: FLSpace.s3) {
+                        if let message { Notice(text: message.text, isError: message.isError) }
+                        if faceIDReady { faceIDButton }
+                        if showPasswordFields { passwordFields }
+                        if !showPasswordFields {
+                            Button("Use password") {
+                                showPassword = true
+                                focus = .password
+                            }
+                            .buttonStyle(PlainActionStyle())
                         }
-                        .buttonStyle(PlainActionStyle())
+                        Button("Forgot password?") { forgot = true }
+                            .buttonStyle(PlainActionStyle())
                     }
-                    Button("Forgot password?") { forgot = true }
-                        .buttonStyle(PlainActionStyle())
                 }
+                .padding(.horizontal, FLSpace.s4)
+                .padding(.bottom, FLSpace.s4)
+                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
             }
-            .padding(.horizontal, FLSpace.s4)
-            .padding(.top, FLSpace.s8 * 2)
         }
         .scrollDismissesKeyboard(.interactively)
         .background(FLColor.bg.ignoresSafeArea())
