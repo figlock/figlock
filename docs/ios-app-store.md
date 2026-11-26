@@ -2,7 +2,7 @@
 
 What goes into App Store Connect for the FigLock iPhone app, and why. The code side is the privacy manifests
 (`apps/ios/App/PrivacyInfo.xcprivacy`, `apps/ios/AutofillExtension/PrivacyInfo.xcprivacy`), `ITSAppUsesNonExemptEncryption`
-in `apps/ios/App/Info.plist`, and the pages on figlock.com. The release workflow that uploads builds is FIG-175.
+in `apps/ios/App/Info.plist`, and the pages on figlock.com. The release workflow that uploads builds is described in `docs/ios-release.md`.
 
 Never put a real vault, token, Recovery Key or personal detail in App Store Connect, review notes or screenshots.
 
@@ -21,7 +21,7 @@ Answers in App Store Connect (once, on the first build; it is asked again for ea
 | Is it available in France? | Decide at launch. Apple may ask for documentation for France. Leaving France out of availability avoids it. |
 
 After the first build is answered, Apple can issue an `ITSEncryptionExportComplianceCode`. Put it in `Info.plist` so
-later TestFlight builds skip the question (FIG-175 adds the key to the build once the code exists).
+later TestFlight builds skip the question (set it as described in `docs/ios-release.md`).
 
 Rules on exports change, and this is not legal advice. The account holder confirms the answers against Apple's
 export compliance page and the BIS rules for mass-market encryption. Open point: whether the public source repository
@@ -96,7 +96,7 @@ simulator in dark mode.
 ## 5. Checklist for the account holder (App Store Connect)
 
 1. Register the bundle ids `com.figlock.ios` and `com.figlock.ios.autofill`, the App Group
-   `group.com.figlock.ios` and the keychain group (FIG-175 finishes this with signing).
+   `group.com.figlock.ios` and the keychain group (cloud-managed signing in `docs/ios-release.md` does the rest).
 2. Create the app record: name, primary language, bundle id, SKU, category (Utilities or Productivity).
 3. Fill in the App Privacy answers from section 2, the privacy policy and support URLs.
 4. Answer export compliance from section 1.
