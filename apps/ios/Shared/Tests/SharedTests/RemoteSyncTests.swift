@@ -310,3 +310,18 @@ private actor OrderLog {
         try FolderRemote.checkCanHold(vaultId: vaultId, in: CoordinatedFolderStore(root: foreign))
     }
 }
+
+@Test func theSyncStatusLineShowsOnlyWhatIsTrueNow() {
+    typealias Line = SyncStatusLine
+    #expect(Line.resolve(phases: [], isSyncing: true, justSynced: true) == nil, "no remote, nothing to report")
+    #expect(Line.resolve(phases: [.synced], isSyncing: false, justSynced: false) == nil, "nothing, so no space")
+    #expect(Line.resolve(phases: [.idle], isSyncing: false, justSynced: false) == nil)
+    #expect(Line.resolve(phases: [.synced], isSyncing: false, justSynced: true) == .synced)
+    #expect(Line.resolve(phases: [.synced], isSyncing: true, justSynced: false) == .syncing)
+    #expect(Line.resolve(phases: [.syncing], isSyncing: false, justSynced: false) == .syncing)
+    #expect(Line.resolve(phases: [.offline], isSyncing: false, justSynced: false) == .offline, "offline stays")
+    #expect(Line.resolve(phases: [.waitingForDownload], isSyncing: false, justSynced: false) == .offline)
+    #expect(Line.resolve(phases: [.synced, .offline], isSyncing: true, justSynced: true) == .offline)
+    #expect(Line.resolve(phases: [.offline, .signInNeeded], isSyncing: true, justSynced: true) == .attention)
+    #expect(Line.syncedVisibleSeconds == 3)
+}

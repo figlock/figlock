@@ -14,6 +14,7 @@ struct FigLockApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(environment: environment)
+                .preferredColorScheme(environment.appearance.colorScheme)
                 .overlay {
                     // The app switcher takes its snapshot while the app is inactive, and a screen recording or
                     // mirror shows everything: cover both (DESIGN.md 8).

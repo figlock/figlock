@@ -17,6 +17,7 @@ final class AppEnvironment {
     let drive: DriveConnection
     let sync: SyncModel
     let settings: SettingsContext
+    let appearance: AppearanceModel
     /// Set when the App Group container cannot be reached; the app then shows this instead of working elsewhere.
     let startupError: String?
 
@@ -50,9 +51,11 @@ final class AppEnvironment {
             quick: quick,
             deviceName: UIDevice.current.name,
             autoLockAfter: deviceSettings.autoLock.seconds)
+        appearance = AppearanceModel(settings: deviceSettings)
         settings = SettingsContext(
             lock: lock, service: SettingsService(vault: vault, keeper: keeper), settings: deviceSettings,
-            onboarding: onboarding, drive: drive, sync: sync)
+            onboarding: onboarding, drive: drive, sync: sync,
+            appearance: appearance)
         #if DEBUG
             DebugSeed.freshIfRequested(self)
             DebugSeed.seedIfRequested(self)

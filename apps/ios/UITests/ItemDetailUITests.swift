@@ -31,7 +31,7 @@ final class ItemDetailUITests: XCTestCase {
 
     // FIG-202: searching and then opening an item leaves no keyboard behind.
     func testKeyboardIsGoneAfterOpeningItemFromSearch() {
-        let search = app.searchFields.firstMatch
+        let search = app.textFields["vault-search"]
         XCTAssertTrue(search.waitForExistence(timeout: 15))
         search.tap()
         search.typeText("fast")
