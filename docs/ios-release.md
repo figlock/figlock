@@ -59,11 +59,13 @@ appears in TestFlight; open the TestFlight app on the iPhone and install it.
 
 ## Export compliance
 
-The app declares `ITSAppUsesNonExemptEncryption` as `true` (`docs/ios-app-store.md`, section 1), so App Store Connect
-asks the encryption questions for a build until it has a compliance code. After the first build is answered, Apple
-shows a code. Store it as a repository variable named `ITS_EXPORT_COMPLIANCE_CODE` (Settings, Secrets and variables,
-Actions, Variables; it is an identifier, not a secret). The workflow then writes it into `Info.plist` as
-`ITSEncryptionExportComplianceCode` and later builds skip the question.
+The app declares `ITSAppUsesNonExemptEncryption` as `false`, as App Store Connect's export questionnaire advises for
+standard algorithms with no distribution in France (`docs/ios-app-store.md`, section 1), so a TestFlight build needs no
+per-build encryption answer and there is no compliance code to store. Keep France out of the app's availability.
+
+If Apple ever issues an `ITSEncryptionExportComplianceCode` (for example after documentation is accepted), set it as a
+repository variable named `ITS_EXPORT_COMPLIANCE_CODE` (Settings, Secrets and variables, Actions, Variables; it is an
+identifier, not a secret). The workflow writes it into `Info.plist` when the variable is set.
 
 ## Checking a build on the phone
 
@@ -82,5 +84,5 @@ Actions, Variables; it is an identifier, not a secret). The workflow then writes
 | `Communication with Apple failed` or `No profiles for ...` | The API key's role is too low, or the app record does not exist yet |
 | `You already have a distribution certificate` or a certificate limit | Delete an unused distribution certificate in the developer account; cloud-managed ones are reused |
 | Upload refused as a duplicate build | A run was re-run with the same number; start a new run |
-| Build stuck on "Missing compliance" in TestFlight | Answer the encryption questions in App Store Connect, then set `ITS_EXPORT_COMPLIANCE_CODE` |
+| Build stuck on "Missing compliance" in TestFlight | Answer the encryption questions in App Store Connect once for that build; check `ITSAppUsesNonExemptEncryption` is `false` in the build |
 | `ITMS-91053` missing API declaration | Add the category to both `PrivacyInfo.xcprivacy` files (`docs/ios-app-store.md`, section 2) |
