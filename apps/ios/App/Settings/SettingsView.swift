@@ -71,6 +71,24 @@ struct SettingsView: View {
             }
             .listRowBackground(FLColor.surface)
 
+            Section("About") {
+                ForEach(AboutLink.all) { link in
+                    Link(destination: link.url) {
+                        HStack {
+                            SettingsRow(symbol: link.symbol, title: link.title)
+                            Image(systemName: "arrow.up.right")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(FLColor.textSecondary)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .accessibilityIdentifier("about-\(link.id)")
+                    .accessibilityHint("Opens in Safari")
+                }
+                SettingsRow(symbol: "info.circle", title: "Version", value: AboutLink.versionText)
+            }
+            .listRowBackground(FLColor.surface)
+
             Section {
                 Button {
                     context.lock.lock()
@@ -230,5 +248,31 @@ struct AutoLockView: View {
         } catch {
             failed = true
         }
+    }
+}
+
+/// A page on figlock.com the About section links to. App Store guideline 5.1.1 wants the privacy policy reachable
+/// inside the app as well as in the store listing.
+struct AboutLink: Identifiable {
+    let id: String
+    let title: String
+    let symbol: String
+    let url: URL
+
+    static let all: [AboutLink] = [
+        AboutLink(id: "privacy", title: "Privacy", symbol: "hand.raised", url: page("privacy")),
+        AboutLink(id: "terms", title: "Terms", symbol: "doc.text", url: page("terms")),
+        AboutLink(id: "help", title: "Help", symbol: "questionmark.circle", url: page("faq")),
+    ]
+
+    private static func page(_ path: String) -> URL {
+        URL(string: "https://figlock.com/\(path)/")!
+    }
+
+    static var versionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
     }
 }
