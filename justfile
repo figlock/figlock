@@ -40,6 +40,7 @@ design-check:
 # Tests for the release scripts (needs minisign): a good release passes and each broken one fails.
 release-scripts-test:
     scripts/test-release-scripts.sh
+    scripts/test-ios-version.sh
 
 # Everything CI runs: lint, tests, the design token check, the vector drift check and the release script tests.
 check: lint test design-check vectors-check release-scripts-test

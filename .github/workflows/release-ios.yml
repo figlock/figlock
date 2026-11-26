@@ -1,0 +1,136 @@
+name: Release (iOS)
+
+# On a version tag (the same v* tag release.yml uses): build the iPhone app, sign it and upload it to App Store
+# Connect, where it shows up in TestFlight for the internal testers. Run it by hand from a tag to retry an upload.
+# The app takes its version from the Cargo workspace like the Mac app (scripts/ios-version.sh), and every upload gets
+# the run number as its build number. Signing is automatic and cloud-managed through the App Store Connect API key,
+# so there is no certificate or profile to store. Setup and troubleshooting: docs/ios-release.md.
+#
+# This never publishes anything to the App Store: a build waits in TestFlight until someone submits it (FIG-55).
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  testflight:
+    runs-on: macos-26
+    environment: release
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check signing secrets are set
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for v in ASC_KEY ASC_KEY_ID ASC_ISSUER_ID APPLE_TEAM_ID; do
+            if [ -z "${!v}" ]; then
+              echo "::error::secret $v is not set, see docs/ios-release.md"
+              exit 1
+            fi
+          done
+
+      - name: Work out the version and build number
+        run: |
+          scripts/ios-version.sh "$GITHUB_REF_NAME" "$GITHUB_RUN_NUMBER" | tee -a "$GITHUB_ENV"
+
+      - name: Set the export compliance code
+        # Apple gives a code once the first build's encryption questions are answered (docs/ios-app-store.md). With
+        # it in the Info.plist, later builds skip the question. Without it, answer in App Store Connect per build.
+        env:
+          ITS_EXPORT_COMPLIANCE_CODE: ${{ vars.ITS_EXPORT_COMPLIANCE_CODE }}
+        run: |
+          if [ -n "$ITS_EXPORT_COMPLIANCE_CODE" ]; then
+            /usr/libexec/PlistBuddy -c "Add :ITSEncryptionExportComplianceCode string $ITS_EXPORT_COMPLIANCE_CODE" apps/ios/App/Info.plist
+          else
+            echo "::notice::no ITS_EXPORT_COMPLIANCE_CODE variable, the encryption question is answered in App Store Connect"
+          fi
+
+      - name: Build the Rust library and generate the project
+        run: |
+          just ios-xcframework
+          just ios-project
+
+      - name: Write the App Store Connect API key
+        env:
+          ASC_KEY: ${{ secrets.ASC_KEY }}
+        run: |
+          umask 077
+          printf '%s' "$ASC_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd apps/ios
+          xcodebuild archive -project FigLock.xcodeproj -scheme FigLock \
+            -destination 'generic/platform=iOS' -archivePath build/FigLock.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="$MARKETING_VERSION" CURRENT_PROJECT_VERSION="$CURRENT_PROJECT_VERSION"
+
+      - name: Check the archive carries the release version
+        run: |
+          app=apps/ios/build/FigLock.xcarchive/Products/Applications/FigLock.app
+          built=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$app/Info.plist")
+          build=$(/usr/bin/plutil -extract CFBundleVersion raw -o - "$app/Info.plist")
+          if [ "$built" != "$MARKETING_VERSION" ] || [ "$build" != "$CURRENT_PROJECT_VERSION" ]; then
+            echo "::error::the archive is $built ($build), expected $MARKETING_VERSION ($CURRENT_PROJECT_VERSION)"
+            exit 1
+          fi
+          codesign --verify --strict --deep --verbose=2 "$app"
+          test -d "$app/PlugIns/AutofillExtension.appex"
+
+      - name: Sign for distribution and upload to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cd apps/ios
+          cat > build/ExportOptions.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath build/FigLock.xcarchive \
+            -exportOptionsPlist build/ExportOptions.plist -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: Keep the archive's debug symbols
+        uses: actions/upload-artifact@v7
+        with:
+          name: figlock-ios-dsyms
+          path: apps/ios/build/FigLock.xcarchive/dSYMs
+          if-no-files-found: warn
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

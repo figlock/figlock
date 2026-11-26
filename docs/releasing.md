@@ -35,6 +35,12 @@ build secret fails the first step of that job. The desktop app takes its version
 (`tauri.conf.json` deliberately has none), and the macOS job fails if the built app is not that version
 (`scripts/check-app-version.sh`) or if the CLI inside it reports a different one (`scripts/verify-macos-app.sh`).
 
+## The iPhone app
+
+The same tag also runs `release-ios.yml`, which builds the iPhone app and uploads it to TestFlight. It is separate from
+the jobs above: it publishes nothing, so a failure there does not hold up the Mac and CLI release. Setup, the version
+rules and troubleshooting are in `docs/ios-release.md`.
+
 ## What the verification checks
 
 `scripts/verify-release.sh <asset-dir> <tag>` fails the run, leaving the draft in place, unless:
