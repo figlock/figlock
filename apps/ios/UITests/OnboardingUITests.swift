@@ -37,4 +37,23 @@ final class OnboardingUITests: XCTestCase {
             app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"Copied\"")).firstMatch
                 .waitForExistence(timeout: 5))
     }
+
+    // FIG-254: the two password boxes on step 1 are the same height, though one has a show/hide button.
+    func testPasswordBoxesAreTheSameHeight() {
+        let create = app.buttons.matching(NSPredicate(format: "label BEGINSWITH \"Create a new vault\"")).firstMatch
+        XCTAssertTrue(create.waitForExistence(timeout: 15))
+        create.tap()
+        let password = app.secureTextFields.element(boundBy: 0)
+        XCTAssertTrue(password.waitForExistence(timeout: 15))
+        let eye = app.buttons["Show master password"]
+        XCTAssertTrue(eye.exists)
+        XCTAssertEqual(eye.frame.height, 44, accuracy: 1)
+        // The box is what lies between its label and the hint under it (4pt and 16pt of spacing): 44pt tall, as
+        // tall as the confirm box, not 44pt of button plus the field's own padding.
+        let label = app.staticTexts["Master password"]
+        let hint = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Use at least'")).firstMatch
+        XCTAssertTrue(label.exists && hint.exists)
+        let box = hint.frame.minY - label.frame.maxY - 4 - 16
+        XCTAssertLessThanOrEqual(box, 46, "the master password box is \(box)pt tall")
+    }
 }

@@ -97,6 +97,15 @@ public final class VaultEditor {
         }
     }
 
+    /// Restore every item in `ids` in one commit, so "Recover all" is one write and one sync.
+    public func restoreAll(ids: [String]) async throws {
+        guard !ids.isEmpty else { return }
+        _ = try await perform { session, stamp in
+            for id in ids { try session.restoreItem(itemId: id, nowMs: stamp) }
+            return ids
+        }
+    }
+
     /// Run the edits, commit them as one op file and store it. A failure at any step leaves the session as it was.
     private func perform(_ work: (VaultSession, UInt64) throws -> [String]) async throws -> [String] {
         let session = browser.session
