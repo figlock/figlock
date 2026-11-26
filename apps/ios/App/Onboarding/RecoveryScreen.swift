@@ -30,7 +30,7 @@ struct RecoveryScreen: View {
                         FLColor.text
                     )
                     .accessibilityAddTraits(.isHeader)
-                Text("The vault on this iPhone was removed, so FigLock is paused. Choose how to continue.")
+                Text("Choose how to continue.")
                     .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.textSecondary).multilineTextAlignment(.center)
                 if let errorText { Notice(text: errorText, isError: true) }
                 if busy { ProgressView() }
@@ -55,7 +55,7 @@ struct RecoveryScreen: View {
                 Button("Remove this vault from this iPhone") { confirming = .remove }
                     .buttonStyle(PlainActionStyle()).disabled(busy)
                 Text(
-                    "Restore downloads the copy in Google Drive or in the iCloud Drive folder you pick. Create starts empty with a new Secret Key. Nothing in either is deleted."
+                    "Restore downloads your synced copy. Create starts empty."
                 )
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             }
@@ -95,11 +95,11 @@ struct RecoveryScreen: View {
     private var message: String {
         switch confirming {
         case .restore:
-            "FigLock downloads the vault from Google Drive to this iPhone. Changes made here since the last sync won't be kept."
+            "Downloads the vault from Google Drive. Unsynced changes here are lost."
         case .startOver:
-            "It starts empty with a new Secret Key. The old keys on this iPhone are forgotten. The copy in Google Drive stays."
+            "Starts empty with a new Secret Key. Your Drive copy stays."
         case .remove:
-            "This forgets the vault, its keys and Face ID on this iPhone. The copy in Google Drive and your Emergency Kit are not touched."
+            "Removes the vault, its keys and Face ID from this iPhone. Your synced copy stays."
         case nil: ""
         }
     }

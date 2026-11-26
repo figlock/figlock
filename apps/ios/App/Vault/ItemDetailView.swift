@@ -19,34 +19,38 @@ struct ItemDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: FLSpace.s5) {
-                header
-                if item.isDeleted { RestoreBar(item: item) }
-                UnsyncedNote(itemId: item.id)
-                if !item.detailRows.isEmpty || !item.textSecretFields.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(Array(item.detailRows.enumerated()), id: \.offset) { index, row in
-                            PlainRow(label: row.label, value: row.value, copier: copier, key: item.id + "row\(index)")
-                            Divider().padding(.leading, FLSpace.s4)
-                        }
-                        ForEach(item.textSecretFields, id: \.self) { field in
-                            SecretRow(item: item, field: field, reveal: reveal, copier: copier)
-                            if field != item.textSecretFields.last { Divider().padding(.leading, FLSpace.s4) }
-                        }
-                    }
-                    .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.md))
-                }
-                FilesSection(item: item, session: session)
-                if !item.tags.isEmpty {
-                    Text("Tags: " + item.tags.joined(separator: ", "))
-                        .font(FLFont.ui(FLText.base, relativeTo: .callout)).foregroundStyle(FLColor.textSecondary)
-                }
-                Text("Edited " + item.updated.formatted(.relative(presentation: .named)))
-                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
+        List {
+            if item.isDeleted {
+                RestoreBar(item: item).listRowBackground(Color.clear).listRowInsets(EdgeInsets())
             }
-            .padding(FLSpace.s4)
+            UnsyncedNote(itemId: item.id).listRowBackground(Color.clear)
+            if !item.detailRows.isEmpty || !item.textSecretFields.isEmpty {
+                Section {
+                    ForEach(Array(item.detailRows.enumerated()), id: \.offset) { index, row in
+                        PlainRow(label: row.label, value: row.value, copier: copier, key: item.id + "row\(index)")
+                    }
+                    ForEach(item.textSecretFields, id: \.self) { field in
+                        SecretRow(item: item, field: field, reveal: reveal, copier: copier)
+                    }
+                }
+                .listRowBackground(FLColor.surface)
+            }
+            if !item.files.isEmpty {
+                FilesSection(item: item, session: session)
+                    .listRowBackground(Color.clear).listRowInsets(EdgeInsets())
+            }
+            if !item.tags.isEmpty {
+                Section {
+                    Text(item.tags.joined(separator: ", "))
+                        .font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.text)
+                } header: {
+                    Text("Tags")
+                }
+                .listRowBackground(FLColor.surface)
+            }
         }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
         .background(FLColor.bg)
         .navigationTitle(item.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -57,18 +61,15 @@ struct ItemDetailView: View {
             if phase != .active { reveal.hideForScenePhase(isBackground: phase == .background) }
         }
     }
+}
 
-    private var header: some View {
-        HStack(spacing: FLSpace.s4) {
-            TypeTile(kind: item.kind, size: 56)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title).font(FLFont.ui(FLText.xl2, weight: FLWeight.bold, relativeTo: .title2))
-                    .foregroundStyle(FLColor.text).accessibilityAddTraits(.isHeader)
-                Text(item.kind.displayName).font(FLFont.ui(FLText.base, relativeTo: .callout))
-                    .foregroundStyle(FLColor.textSecondary)
-            }
-        }
-        .accessibilityElement(children: .combine)
+/// The small "Copied" mark a row shows for a moment after it was tapped.
+private struct CopiedMark: View {
+    var body: some View {
+        Label("Copied", systemImage: "checkmark")
+            .font(FLFont.ui(FLText.sm, weight: FLWeight.medium, relativeTo: .footnote))
+            .foregroundStyle(FLColor.success)
+            .transition(.opacity)
     }
 }
 
@@ -79,23 +80,22 @@ private struct PlainRow: View {
     let key: String
 
     var body: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(FLFont.ui(FLText.sm, weight: FLWeight.medium, relativeTo: .footnote))
-                    .foregroundStyle(FLColor.textSecondary)
-                Text(value).font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.text).textSelection(.enabled)
+                Text(label).font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textSecondary)
+                Text(value).font(FLFont.ui(FLText.md)).foregroundStyle(FLColor.text)
             }
             Spacer(minLength: FLSpace.s2)
-            Button {
-                copier.copy(value, key: key)
-            } label: {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            .buttonStyle(PillStyle())
-            .accessibilityLabel("Copy \(label.lowercased())")
+            if copier.copiedKey == key { CopiedMark() }
         }
-        .padding(FLSpace.s4)
-        .accessibilityElement(children: .contain)
+        .frame(minHeight: FLSize.controlHeightLg)
+        .contentShape(Rectangle())
+        .onTapGesture { copier.copy(value, key: key) }
+        .animation(.easeOut(duration: 0.15), value: copier.copiedKey)
+        .sensoryFeedback(.success, trigger: copier.copiedKey) { _, new in new == key }
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Copies \(label.lowercased())")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -110,65 +110,46 @@ private struct SecretRow: View {
     private var copyKey: String { item.id + field }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: FLSpace.s2) {
-            Text(label).font(FLFont.ui(FLText.sm, weight: FLWeight.medium, relativeTo: .footnote))
-                .foregroundStyle(FLColor.textSecondary)
-            Group {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textSecondary)
                 if let shown {
-                    Text(shown).font(FLFont.mono(FLText.md)).textSelection(.enabled)
+                    Text(shown).font(FLFont.mono(FLText.md)).foregroundStyle(FLColor.text)
                 } else {
                     // Fixed-length dots, so the length of the secret is not leaked.
-                    Text("••••••••••••").font(FLFont.mono(FLText.md))
+                    Text("••••••••••••").font(FLFont.mono(FLText.md)).foregroundStyle(FLColor.text)
                         .accessibilityLabel("\(label) hidden")
                 }
-            }
-            .foregroundStyle(FLColor.text)
-            HStack(spacing: FLSpace.s2) {
-                Button {
-                    if shown != nil {
-                        reveal.hide(field)
-                    } else {
-                        Task { await reveal.show(field, label: label.lowercased()) }
-                    }
-                } label: {
-                    Label(shown != nil ? "Hide" : "Show", systemImage: shown != nil ? "eye.slash" : "eye")
+                if reveal.failed.contains(field) {
+                    Text("Could not read this field.")
+                        .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.danger)
                 }
-                .buttonStyle(PillStyle())
-                .accessibilityLabel("\(shown != nil ? "Hide" : "Show") \(label.lowercased())")
-                Button {
-                    if let value = reveal.valueForCopy(field) { copier.copy(value, key: copyKey) }
-                } label: {
-                    Label("Copy", systemImage: "doc.on.doc")
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if let value = reveal.valueForCopy(field) { copier.copy(value, key: copyKey) }
+            }
+            Spacer(minLength: FLSpace.s2)
+            if copier.copiedKey == copyKey { CopiedMark() }
+            Button {
+                if shown != nil {
+                    reveal.hide(field)
+                } else {
+                    Task { await reveal.show(field, label: label.lowercased()) }
                 }
-                .buttonStyle(PillStyle())
-                .accessibilityLabel("Copy \(label.lowercased()), clears from the clipboard in 30 seconds")
+            } label: {
+                Image(systemName: shown != nil ? "eye.slash" : "eye").foregroundStyle(FLColor.primary)
             }
-            if copier.copiedKey == copyKey {
-                Text("Copied. The clipboard clears in 30 s")
-                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.success)
-            } else if shown != nil {
-                Text("Hides again in 10 s")
-                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
-            }
-            if reveal.failed.contains(field) {
-                Text("FigLock could not read this field.")
-                    .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.danger)
-            }
+            .buttonStyle(.borderless)
+            .flMinTouchTarget()
+            .accessibilityLabel("\(shown != nil ? "Hide" : "Show") \(label.lowercased())")
         }
-        .padding(FLSpace.s4)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: FLSize.controlHeightLg)
+        .animation(.easeOut(duration: 0.15), value: copier.copiedKey)
+        .sensoryFeedback(.success, trigger: copier.copiedKey) { _, new in new == copyKey }
         .accessibilityElement(children: .contain)
-    }
-}
-
-private struct PillStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(FLFont.ui(FLText.base, weight: FLWeight.semibold, relativeTo: .callout))
-            .foregroundStyle(FLColor.primary)
-            .padding(.horizontal, FLSpace.s3)
-            .frame(minHeight: FLSize.controlHeightLg)
-            .background(FLColor.primarySubtle, in: Capsule())
-            .opacity(configuration.isPressed ? 0.7 : 1)
+        .accessibilityAction(named: "Copy \(label.lowercased())") {
+            if let value = reveal.valueForCopy(field) { copier.copy(value, key: copyKey) }
+        }
     }
 }

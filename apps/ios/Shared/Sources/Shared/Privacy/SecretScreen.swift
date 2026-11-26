@@ -101,16 +101,19 @@ public final class CaptureMonitor {
     }
 }
 
-/// A plain cover that replaces the app's content in the app switcher and while the screen is captured.
+/// A cover with the FigLock logo that replaces the app's content in the app switcher and while the screen is captured.
 public struct PrivacyCover: View {
     public init() {}
 
     public var body: some View {
         ZStack {
             FLColor.bg.ignoresSafeArea()
-            Image(systemName: "lock.fill")
-                .font(.system(size: 44, weight: .semibold))
-                .foregroundStyle(FLColor.textTertiary)
+            // The FigLock logo from the app's asset catalog (the main bundle); only the app shows this cover.
+            Image("FigLockLogo", bundle: .main)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 88, height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 88 * 228 / 1024, style: .continuous))
                 .accessibilityHidden(true)
         }
     }

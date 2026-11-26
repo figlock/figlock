@@ -155,7 +155,7 @@ struct DraftFilesSection: View {
             }
             AddButton(title: "Add file from Files") { showPicker = true }
                 .disabled(draft.files.count >= ItemDraft.maxFiles)
-            Text("Up to \(ItemDraft.maxFiles) files, 768 KB each. Keys and certificates fit; large files do not.")
+            Text("Up to \(ItemDraft.maxFiles) files, 768 KB each.")
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
         }
     }

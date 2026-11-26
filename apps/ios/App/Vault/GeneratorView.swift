@@ -89,7 +89,7 @@ struct GeneratorView: View {
                 .disabled(value.isEmpty)
             }
             if copier.copiedKey == "generator" {
-                Text("Copied. The clipboard clears in 30 s")
+                Text("Copied")
                     .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.success)
             }
         }

@@ -10,7 +10,7 @@ public final class VaultBrowser {
     public enum Filter: String, CaseIterable, Identifiable, Sendable {
         case all
         case login
-        case token
+        case note
         case other
 
         public var id: String { rawValue }
@@ -19,7 +19,7 @@ public final class VaultBrowser {
             switch self {
             case .all: "All"
             case .login: "Logins"
-            case .token: "API tokens"
+            case .note: "Notes"
             case .other: "Other"
             }
         }
@@ -28,8 +28,8 @@ public final class VaultBrowser {
             switch self {
             case .all: true
             case .login: kind == .login
-            case .token: kind == .token
-            case .other: kind != .login && kind != .token
+            case .note: kind == .note
+            case .other: kind != .login && kind != .note
             }
         }
     }

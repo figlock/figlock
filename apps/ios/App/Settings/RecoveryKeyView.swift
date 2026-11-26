@@ -162,13 +162,13 @@ struct RecoveryKeyView: View {
                 SettingsRow(
                     symbol: model.hasKey ? "checkmark.shield" : "shield.slash", title: model.hasKey ? "On" : "Off",
                     detail: model.hasKey
-                        ? "A Recovery Key can open this vault if you forget your master password or lose your Secret Key."
-                        : "Without one, a forgotten master password cannot be recovered.")
+                        ? "Opens your vault if you forget your master password."
+                        : "Without one, a forgotten master password can't be recovered.")
             } header: {
                 Text("Recovery Key").textCase(nil)
             } footer: {
                 Text(
-                    "FigLock does not keep your Recovery Key and cannot show it again. If you lost it, replace it with a new one."
+                    "FigLock can't show it again. If you lost it, make a new one."
                 )
             }
             .listRowBackground(FLColor.surface)

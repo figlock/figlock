@@ -29,7 +29,7 @@ struct EmergencyKitView: View {
                     .foregroundStyle(FLColor.textSecondary)
                 }
             } header: {
-                Text("You need your Secret Key, with your master password, to add a new device.").textCase(nil)
+                Text("Needed, with your master password, to add a device.").textCase(nil)
             } footer: {
                 if reveal.isKept { Text("It stays hidden until you choose Show. Showing it needs Face ID.") }
             }
@@ -58,7 +58,7 @@ struct EmergencyKitView: View {
                     Text("Emergency Kit")
                 } footer: {
                     Text(
-                        "Anyone with your kit and your master password can open your vault. Keep the kit printed or offline, and not in this vault."
+                        "Keep it printed or offline, not in this vault."
                     )
                 }
                 .listRowBackground(Color.clear)

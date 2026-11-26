@@ -53,8 +53,8 @@ struct SetUpRecoveryKeySheet: View {
         Section {
             Text(
                 model.hasKey
-                    ? "This is your new Recovery Key. It replaces the old one, which stops working once you finish."
-                    : "This is your Recovery Key. It opens your vault if you forget your master password."
+                    ? "Your new Recovery Key. The old one stops working when you finish."
+                    : "Your Recovery Key. It opens your vault if you forget your master password."
             )
             .font(FLFont.ui(FLText.base, relativeTo: .callout))
             Text(model.code)
@@ -67,7 +67,7 @@ struct SetUpRecoveryKeySheet: View {
             Text("Step 1 of 2: save it").textCase(nil)
         } footer: {
             Text(
-                "FigLock shows it only now and does not keep it. Store it printed or offline, away from this iPhone and not in this vault. Anyone with it can open your vault."
+                "Shown once. Store it offline, not in this vault. Anyone with it can open your vault."
             )
         }
         .listRowBackground(FLColor.surface)
@@ -112,7 +112,7 @@ struct SetUpRecoveryKeySheet: View {
             Text("Step 2 of 2: check it").textCase(nil)
         } footer: {
             Text(
-                "Open what you saved and type the last two groups of the Recovery Key, the eight characters after the last but one dash. The vault changes only after this check."
+                "Type the last two groups of your Recovery Key."
             )
         }
         .listRowBackground(FLColor.surface)

@@ -87,9 +87,9 @@ struct DevicesView: View {
                     }
                 }
             } header: {
-                Text("These devices can open your vault. Revoke any you no longer use.").textCase(nil)
+                Text("Devices that can open your vault.").textCase(nil)
             } footer: {
-                Text("To add a device, open FigLock on it and choose Join my vault by pairing.")
+                Text("To add a device, choose Join my vault by pairing on it.")
             }
             .listRowBackground(FLColor.surface)
 
@@ -203,7 +203,7 @@ struct DeviceDetailView: View {
                             .tint(FLColor.danger)
                         }
                     } footer: {
-                        Text("A new name shows on this iPhone only. Other devices keep the name they know.")
+                        Text("The new name shows on this iPhone only.")
                     }
                     .listRowBackground(FLColor.surface)
                 }
@@ -214,7 +214,7 @@ struct DeviceDetailView: View {
                     Button("Cancel", role: .cancel) {}
                     Button("Save") { model.rename(id, to: newName) }
                 } message: {
-                    Text("A device needs a name so you can tell it apart. Leave it empty to use the original name.")
+                    Text("Leave empty to use the original name.")
                 }
                 .sheet(isPresented: $revoking) {
                     RevokeSheet(model: model, row: row)

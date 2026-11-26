@@ -1,6 +1,6 @@
 import XCTest
 
-/// FIG-229: "I forgot my password or Secret Key" on the lock screen, against the throwaway Recovery Key fixture
+/// FIG-229: "Forgot password?" on the lock screen, against the throwaway Recovery Key fixture
 /// (`-figlock-seed-recovery`). Every value here is made up.
 @MainActor
 final class ForgotPasswordUITests: XCTestCase {
@@ -18,7 +18,7 @@ final class ForgotPasswordUITests: XCTestCase {
     }
 
     private func openForgot() {
-        let link = app.buttons["I forgot my password or Secret Key"]
+        let link = app.buttons["Forgot password?"]
         XCTAssertTrue(link.waitForExistence(timeout: 20))
         link.tap()
         XCTAssertTrue(app.staticTexts["Enter your Recovery Key"].waitForExistence(timeout: 10))
@@ -66,8 +66,8 @@ final class ForgotPasswordUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
         field.typeText(Self.oldPassword)
-        app.buttons["Unlock with master password"].tap()
-        XCTAssertTrue(app.buttons["I forgot my password or Secret Key"].waitForNonExistence(timeout: 60))
+        app.buttons["Unlock"].tap()
+        XCTAssertTrue(app.buttons["Forgot password?"].waitForNonExistence(timeout: 60))
     }
 
     func testALostRecoveryKeyCanRemoveTheVaultAfterConfirmingAndLandsOnSetup() {
@@ -85,7 +85,7 @@ final class ForgotPasswordUITests: XCTestCase {
         alert.buttons["Remove vault"].tap()
         let create = app.buttons.matching(NSPredicate(format: "label BEGINSWITH \"Create a new vault\"")).firstMatch
         XCTAssertTrue(create.waitForExistence(timeout: 30), "the vault setup screen shows")
-        XCTAssertFalse(app.buttons["I forgot my password or Secret Key"].exists)
+        XCTAssertFalse(app.buttons["Forgot password?"].exists)
     }
 
     func testRecoveringSetsANewPasswordAndOldOneStopsWorking() {
@@ -116,7 +116,7 @@ final class ForgotPasswordUITests: XCTestCase {
         field.clearAndTypeText(groups)
         app.buttons["Change master password and Secret Key"].tap()
         // The vault opens with the new credentials: the sheet closes and the vault list shows.
-        XCTAssertTrue(app.buttons["I forgot my password or Secret Key"].waitForNonExistence(timeout: 60))
+        XCTAssertTrue(app.buttons["Forgot password?"].waitForNonExistence(timeout: 60))
     }
 }
 

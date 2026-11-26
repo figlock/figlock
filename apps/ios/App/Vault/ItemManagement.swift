@@ -22,7 +22,7 @@ struct ItemManagementToolbar: ViewModifier {
     func body(content: Content) -> some View {
         content
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
                             showGenerator = true
@@ -95,7 +95,7 @@ struct DeletedItemsView: View {
                             FLFont.ui(FLText.lg, weight: FLWeight.semibold, relativeTo: .headline)
                         )
                         .foregroundStyle(FLColor.text)
-                        Text("Items you delete stay here, so you can bring them back.")
+                        Text("Deleted items appear here.")
                             .font(FLFont.ui(FLText.base, relativeTo: .callout)).foregroundStyle(FLColor.textSecondary)
                             .multilineTextAlignment(.center)
                     }
@@ -186,7 +186,7 @@ struct ItemActions: ViewModifier {
             .confirmationDialog("Delete \(item.title)?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) { Task { await delete() } }
             } message: {
-                Text("It moves to Recently deleted, where you can restore it.")
+                Text("You can restore it from Recently deleted.")
             }
             .alert(
                 "Could not delete", isPresented: Binding(get: { failure != nil }, set: { if !$0 { failure = nil } })
