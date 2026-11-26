@@ -6,8 +6,6 @@
                                    and re-verify every vector including the negative cases
 
 All "random" inputs are derived from fixed labels (see `fill`), so output is byte-for-byte reproducible.
-The SLIP-0039 shares (slip39.json) use real randomness in the library, so they are generated once and then
-only verified, never regenerated.
 """
 from __future__ import annotations
 
@@ -1042,54 +1040,9 @@ def check_primitives() -> None:
     assert r.open_(key, env, ad) == pt
 
 
-def slip39():
-    import shamir_mnemonic as sm
-    path = HERE / "slip39.json"
-    rk_priv = fill("rk-priv", 32)
-    if path.exists():
-        return json.loads(path.read_text())
-    cases = []
-    for name, (m, n) in (("2-of-3", (2, 3)), ("3-of-5", (3, 5))):
-        groups = sm.generate_mnemonics(1, [(m, n)], rk_priv, b"")
-        shares = groups[0]
-        cases.append({"name": name, "spec": "pairing-recovery.md 7.2",
-                      "inputs": {"master_secret": x(rk_priv), "threshold": m, "share_count": n, "passphrase": ""},
-                      "shares": shares, "expected": x(rk_priv)})
-    return {"format": "figlock-vectors-1", "generator": "docs/spec/vectors/generate.py",
-            "title": "SLIP-0039 shares of the Recovery Key (generated once; verify only)",
-            "note": "Official SLIP-0039 vectors are run by the Rust implementation in addition to these.",
-            "cases": cases}
-
-
-def verify_slip39(doc: dict) -> None:
-    import shamir_mnemonic as sm
-    for c in doc["cases"]:
-        m, n = c["inputs"]["threshold"], c["inputs"]["share_count"]
-        shares = c["shares"]
-        assert len(shares) == n and all(len(s.split()) == 33 for s in shares)
-        for combo in itertools.combinations(shares, m):
-            assert sm.combine_mnemonics(list(combo), b"").hex() == c["expected"]
-        # below threshold must fail
-        try:
-            sm.combine_mnemonics(shares[: m - 1], b"")
-            raise AssertionError("below-threshold recovery must fail")
-        except sm.MnemonicError:
-            pass
-        # a corrupted word must fail the built-in checksum
-        words = shares[0].split()
-        words[3] = "academic" if words[3] != "academic" else "acid"
-        try:
-            sm.combine_mnemonics([" ".join(words)] + shares[1:m], b"")
-            raise AssertionError("corrupted share must fail")
-        except sm.MnemonicError:
-            pass
-
-
 def main() -> int:
     check = "--check" in sys.argv
     rendered = {name: render(fn()) for name, fn in FILES.items()}
-    slip = slip39()
-    rendered["slip39.json"] = json.dumps(slip, indent=2) + "\n"
     failures = 0
     for name, text in rendered.items():
         path = HERE / name
@@ -1111,8 +1064,7 @@ def main() -> int:
                 except Exception as e:  # noqa: BLE001
                     print(f"FAIL {name}: {c['name']}: {type(e).__name__}: {e}")
                     failures += 1
-        verify_slip39(json.loads((HERE / "slip39.json").read_text()))
-        total = sum(len(json.loads((HERE / n).read_text())["cases"]) for n in [*FILES, "slip39.json"])
+        total = sum(len(json.loads((HERE / n).read_text())["cases"]) for n in FILES)
         print(f"{total} cases checked, {failures} failures")
     return 1 if failures else 0
 

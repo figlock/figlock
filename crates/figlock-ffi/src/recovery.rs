@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use figlock_core::{
-    DeviceKeys, KitInfo, Recover, Recovered, RecoveryCards, RecoveryKey, SecretKey, Vault,
-    render_kit, render_recovery_kit, verify_kit_groups,
+    DeviceKeys, KitInfo, Recover, Recovered, RecoveryKey, SecretKey, Vault, render_kit,
+    render_recovery_kit, verify_kit_groups,
 };
 use zeroize::Zeroizing;
 
@@ -223,8 +223,7 @@ impl RecoveryDraft {
             created: &created,
         };
         let code = self.key.format();
-        let pdf = render_recovery_kit(&info, &RecoveryCards::Code(&code))
-            .map_err(|_| FigLockError::InvalidInput)?;
+        let pdf = render_recovery_kit(&info, &code).map_err(|_| FigLockError::InvalidInput)?;
         Ok(pdf.to_vec())
     }
 }

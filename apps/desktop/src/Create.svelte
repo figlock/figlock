@@ -237,7 +237,7 @@
         {:else}
           <p class="text-text-secondary">
             FigLock has no server, so nobody can reset your master password for you. A Recovery Key
-            is a code, or cards you can give to people you trust, that lets you set a new password.
+            is a code that lets you set a new password.
           </p>
           <Button variant="primary" onclick={() => (adding = true)}>Add a Recovery Key</Button>
           <div class="flex flex-col gap-3 rounded-(--radius-md) border border-border p-4">

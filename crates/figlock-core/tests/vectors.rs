@@ -1,7 +1,7 @@
 //! Runs every vector in `docs/spec/vectors/` against figlock-core (FIG-24).
 //!
 //! Positive cases must reproduce the expected bytes exactly; `"expected": "reject"` cases must fail with the
-//! single generic error. Files for later tasks (HLC, merge, reader state machine, SLIP-0039) are only checked
+//! single generic error. Files for later tasks (HLC, merge, reader state machine) are only checked
 //! for presence here.
 
 use figlock_core as fc;
@@ -733,7 +733,7 @@ fn audit() {
 
 #[test]
 fn files_for_later_tasks_are_present() {
-    for f in ["hlc.json", "merge.json", "sync-reader.json", "slip39.json"] {
+    for f in ["hlc.json", "merge.json", "sync-reader.json"] {
         assert!(!load(f).is_empty(), "{f}");
     }
 }

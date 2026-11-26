@@ -25,16 +25,15 @@ struct Fixture {
     password: String,
     secret_key: String,
     code: Option<String>,
-    cards: Vec<String>,
     secret_item: String,
 }
 
-fn fixture(d: &Desk, how: Option<(bool, u8, u8)>) -> Fixture {
-    fixture_with(d, how, true)
+fn fixture(d: &Desk, with_key: bool) -> Fixture {
+    fixture_with(d, with_key, true)
 }
 
 /// `fresh_install`: the device's own setup is gone afterwards, as on a Mac that never had the vault.
-fn fixture_with(d: &Desk, how: Option<(bool, u8, u8)>, fresh_install: bool) -> Fixture {
+fn fixture_with(d: &Desk, with_key: bool, fresh_install: bool) -> Fixture {
     let pw = password();
     let key = created_key(d, &pw);
     let groups: Vec<&str> = key.split('-').collect();
@@ -42,36 +41,16 @@ fn fixture_with(d: &Desk, how: Option<(bool, u8, u8)>, fresh_install: bool) -> F
         d.check_kit_key(&groups[groups.len() - 2..].join("-"))
             .unwrap()
     );
-    let (mut code, mut cards) = (None, Vec::new());
-    match how {
-        None => d.recovery_skip(true).unwrap(),
-        Some((shares, m, n)) => {
-            let material = d.recovery_prepare(shares, m, n).unwrap();
-            let answers: Vec<String> = if shares {
-                cards = material.cards.iter().map(|c| c.join(" ")).collect();
-                material
-                    .challenge
-                    .iter()
-                    .enumerate()
-                    .map(|(i, p)| material.cards[i][p - 1].clone())
-                    .collect()
-            } else {
-                code = material.code.clone();
-                let c = material.code.as_ref().unwrap();
-                vec![
-                    c.split('-')
-                        .rev()
-                        .take(2)
-                        .collect::<Vec<_>>()
-                        .into_iter()
-                        .rev()
-                        .collect::<Vec<_>>()
-                        .join("-"),
-                ]
-            };
-            assert!(d.recovery_check(&answers).unwrap());
-            d.recovery_use_draft().unwrap();
-        }
+    let mut code = None;
+    if with_key {
+        let material = d.recovery_prepare().unwrap();
+        let c = material.code;
+        let tail: Vec<&str> = c.split('-').collect();
+        assert!(d.recovery_check(&tail[tail.len() - 2..].join("-")).unwrap());
+        d.recovery_use_draft().unwrap();
+        code = Some(c);
+    } else {
+        d.recovery_skip(true).unwrap();
     }
     d.finish_create(false).unwrap();
     let secret_item = password();
@@ -98,7 +77,6 @@ fn fixture_with(d: &Desk, how: Option<(bool, u8, u8)>, fresh_install: bool) -> F
         password: pw,
         secret_key: key,
         code,
-        cards,
         secret_item,
     }
 }
@@ -124,22 +102,19 @@ fn the_code_gets_back_into_the_vault_with_a_new_password_and_secret_key() {
 #[ignore = "runs as a child of the test above"]
 fn code_inner() {
     let d = desk();
-    let f = fixture(&d, Some((false, 0, 0)));
+    let f = fixture(&d, true);
     let code = f.code.clone().unwrap();
     let folder = folder(&vault_dir());
 
     // A wrong or malformed key finds nothing and stores nothing.
     let before = stored();
     assert_eq!(
-        code_of(
-            d.forgot_find(&folder, &["not a code".to_owned()], false)
-                .unwrap_err()
-        ),
+        code_of(d.forgot_find(&folder, "not a code").unwrap_err()),
         "bad_recovery_key"
     );
     let other = RecoveryKey::random().unwrap().format().to_string();
     assert_eq!(
-        code_of(d.forgot_find(&folder, &[other], false).unwrap_err()),
+        code_of(d.forgot_find(&folder, &other).unwrap_err()),
         "recovery_failed"
     );
     assert_eq!(
@@ -148,9 +123,7 @@ fn code_inner() {
     );
 
     // The right one shows what it found: the item, the one device, a last change.
-    let found = d
-        .forgot_find(&folder, &[code.to_lowercase()], false)
-        .unwrap();
+    let found = d.forgot_find(&folder, &code.to_lowercase()).unwrap();
     assert_eq!(found.name, "Personal");
     assert_eq!(found.items, 1);
     assert_eq!(found.devices, 1);
@@ -212,7 +185,7 @@ fn code_inner() {
     // And the old code opens the vault again, since it was not replaced.
     d.lock();
     figlock_session::config::forget();
-    assert!(d.forgot_find(&folder, &[code], false).is_ok());
+    assert!(d.forgot_find(&folder, &code).is_ok());
 }
 
 #[test]
@@ -224,25 +197,21 @@ fn a_new_recovery_key_replaces_the_one_just_used() {
 #[ignore = "runs as a child of the test above"]
 fn rotate_inner() {
     let d = desk();
-    let f = fixture(&d, Some((false, 0, 0)));
+    let f = fixture(&d, true);
     let old = f.code.clone().unwrap();
     let folder = folder(&vault_dir());
-    d.forgot_find(&folder, std::slice::from_ref(&old), false)
-        .unwrap();
+    d.forgot_find(&folder, &old).unwrap();
 
     // A new key must be shown and confirmed before it can be used.
     let new_pw = password();
-    let material = d.recovery_prepare(false, 0, 0).unwrap();
+    let material = d.recovery_prepare().unwrap();
     assert_eq!(
         code_of(d.forgot_prepare(&new_pw, true).unwrap_err()),
         "recovery_not_confirmed"
     );
-    let c = material.code.clone().unwrap();
+    let c = material.code.clone();
     let tail: Vec<&str> = c.split('-').collect();
-    assert!(
-        d.recovery_check(&[tail[tail.len() - 2..].join("-")])
-            .unwrap()
-    );
+    assert!(d.recovery_check(&tail[tail.len() - 2..].join("-")).unwrap());
     let new = d.forgot_prepare(&new_pw, true).unwrap();
     let groups: Vec<&str> = new.secret_key.split('-').collect();
     assert!(
@@ -255,44 +224,10 @@ fn rotate_inner() {
     d.lock();
     figlock_session::config::forget();
     assert_eq!(
-        code_of(d.forgot_find(&folder, &[old], false).unwrap_err()),
+        code_of(d.forgot_find(&folder, &old).unwrap_err()),
         "recovery_failed"
     );
-    assert!(d.forgot_find(&folder, &[c], false).is_ok());
-}
-
-#[test]
-fn cards_say_how_many_are_needed_and_exactly_that_many_open_the_vault() {
-    scenario("cards_inner");
-}
-
-#[test]
-#[ignore = "runs as a child of the test above"]
-fn cards_inner() {
-    let d = desk();
-    let f = fixture(&d, Some((true, 2, 3)));
-    let folder = folder(&vault_dir());
-    for (i, card) in f.cards.iter().enumerate() {
-        let info = Desk::forgot_card_info(card).unwrap();
-        assert_eq!(
-            (info.needed, usize::from(info.number)),
-            (2, info.number as usize)
-        );
-        assert!(info.number >= 1 && usize::from(info.number) <= 3, "{i}");
-    }
-    assert_eq!(
-        code_of(Desk::forgot_card_info("not a card").unwrap_err()),
-        "bad_card"
-    );
-    // One card is not enough, and neither are two cards from different places in the set mixed with a typo.
-    assert_eq!(
-        code_of(d.forgot_find(&folder, &f.cards[..1], true).unwrap_err()),
-        "bad_recovery_key"
-    );
-    let found = d
-        .forgot_find(&folder, &[f.cards[2].clone(), f.cards[0].clone()], true)
-        .unwrap();
-    assert_eq!(found.items, 1);
+    assert!(d.forgot_find(&folder, &c).is_ok());
 }
 
 #[test]
@@ -304,13 +239,10 @@ fn a_vault_without_a_recovery_key_says_so() {
 #[ignore = "runs as a child of the test above"]
 fn none_inner() {
     let d = desk();
-    fixture(&d, None);
+    fixture(&d, false);
     let code = RecoveryKey::random().unwrap().format().to_string();
     assert_eq!(
-        code_of(
-            d.forgot_find(&folder(&vault_dir()), &[code], false)
-                .unwrap_err()
-        ),
+        code_of(d.forgot_find(&folder(&vault_dir()), &code).unwrap_err()),
         "no_recovery"
     );
 }
@@ -324,11 +256,10 @@ fn backing_out_changes_nothing() {
 #[ignore = "runs as a child of the test above"]
 fn cancel_inner() {
     let d = desk();
-    let f = fixture(&d, Some((false, 0, 0)));
+    let f = fixture(&d, true);
     let folder = folder(&vault_dir());
     let before = stored();
-    d.forgot_find(&folder, &[f.code.clone().unwrap()], false)
-        .unwrap();
+    d.forgot_find(&folder, &f.code.clone().unwrap()).unwrap();
     d.forgot_prepare(&password(), false).unwrap();
     d.forgot_cancel();
     assert_eq!(
@@ -350,7 +281,7 @@ fn a_set_up_mac_that_forgot_its_password_gets_back_in_with_the_recovery_key() {
 fn initialised_inner() {
     // The Unlock screen (FIG-139): this Mac keeps its setup and its vault; only the password is forgotten.
     let d = desk();
-    let f = fixture_with(&d, Some((false, 0, 0)), false);
+    let f = fixture_with(&d, true, false);
     assert_eq!(d.state().unwrap().phase, "locked");
     // The window sends no storage; the vault is the one this Mac is set up with, even if it asks for another.
     let elsewhere = Storage {
@@ -360,12 +291,10 @@ fn initialised_inner() {
     };
     let other = RecoveryKey::random().unwrap().format().to_string();
     assert_eq!(
-        code_of(d.forgot_find(&elsewhere, &[other], false).unwrap_err()),
+        code_of(d.forgot_find(&elsewhere, &other).unwrap_err()),
         "recovery_failed"
     );
-    let found = d
-        .forgot_find(&elsewhere, &[f.code.clone().unwrap()], false)
-        .unwrap();
+    let found = d.forgot_find(&elsewhere, &f.code.clone().unwrap()).unwrap();
     assert_eq!(found.items, 1);
     assert_eq!(found.devices, 0, "this Mac is not another device");
     let new_pw = password();
@@ -394,10 +323,10 @@ fn a_failed_write_leaves_the_device_as_it_was_and_the_attempt_can_be_retried() {
 fn failed_write_inner() {
     use std::os::unix::fs::PermissionsExt;
     let d = desk();
-    let f = fixture(&d, Some((false, 0, 0)));
+    let f = fixture(&d, true);
     let code = f.code.clone().unwrap();
     let folder = folder(&vault_dir());
-    d.forgot_find(&folder, &[code], false).unwrap();
+    d.forgot_find(&folder, &code).unwrap();
     let new = d.forgot_prepare(&password(), false).unwrap();
     let groups: Vec<&str> = new.secret_key.split('-').collect();
     assert!(

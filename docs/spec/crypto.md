@@ -77,7 +77,7 @@ No other primitive may be used without an ADR and new test vectors.
 | Item key `IK` | 256 bit | per item, random | inside the vault, wrapped by `VK` |
 | Device signing key | Ed25519 | per device | device keystore only; never leaves the device |
 | Device agreement key | X25519 | per device | device keystore only |
-| Recovery Key `RK` (optional) | X25519 pair | on request | `rk_pub` in `vault.json`; `rk_priv` printed or split with SLIP-0039, never stored (`pairing-recovery.md` 7) |
+| Recovery Key `RK` (optional) | X25519 pair | on request | `rk_pub` in `vault.json`; `rk_priv` printed as the `FLR1-` code, never stored (`pairing-recovery.md` 7) |
 
 ### 4.1 Secret Key format
 
@@ -105,8 +105,8 @@ text  = "FLR1-" + groups of 4 characters of base32(rk_priv || check), joined by 
 
 Parsers behave as for the Secret Key (4.1): lower case, dashes and spaces ignored, `I` and `L` read as `1` and `O`
 as `0` after the `FLR1` prefix is matched. A wrong check MUST be reported as "typo in Recovery Key". A Secret Key
-(`FL1-`) is never accepted as a Recovery Key. The same 32 bytes are what SLIP-0039 splits
-(`pairing-recovery.md` 7.2); a code and a set of shares are two ways to write down one `rk_priv`.
+(`FL1-`) is never accepted as a Recovery Key. The code is the only way `rk_priv` is
+written down (`pairing-recovery.md` 7; SLIP-0039 shares were removed in ADR-0045).
 
 ## 5. Key derivation
 

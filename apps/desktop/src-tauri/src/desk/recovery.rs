@@ -1,9 +1,9 @@
-//! The optional Recovery Key (`pairing-recovery.md` 7, FIG-103): made and shown once, as a code or as Shamir
-//! cards, checked by a forced re-entry, and only then written into `vault.json`. During setup the choice is
+//! The optional Recovery Key (`pairing-recovery.md` 7, FIG-103): made and shown once as a code, checked by a
+//! forced re-entry, and only then written into `vault.json`. During setup the choice is
 //! required: add one, or acknowledge that a forgotten password cannot be recovered. Later, Settings can set up,
 //! replace or turn it off. The key is held here only between "show" and "saved"; FigLock never stores it.
 
-use figlock_core::{KitInfo, RecoveryCards, RecoveryKey, SecretKey, Vault, render_recovery_kit};
+use figlock_core::{KitInfo, RecoveryKey, SecretKey, Vault, render_recovery_kit};
 use figlock_session::session::now_ms;
 use serde::Serialize;
 use zeroize::Zeroizing;
@@ -14,10 +14,6 @@ use super::{CmdError, CmdRes, Desk, KeyFrom, nothing_to_do, parse_secret_key};
 /// The Recovery Key being shown and checked. Not `Debug`: it holds the key.
 pub(super) struct Draft {
     key: RecoveryKey,
-    /// Shamir cards and their threshold, or `None` for the single code.
-    cards: Option<(Vec<Zeroizing<String>>, u8)>,
-    /// For each card, the word the person is asked to type back (1-based); empty for a code.
-    challenge: Vec<usize>,
     confirmed: bool,
 }
 
@@ -45,30 +41,12 @@ pub(super) enum Choice {
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RecoveryMaterial {
-    /// `code` or `shares`.
-    pub mode: &'static str,
-    pub code: Option<String>,
-    /// The words of each card.
-    pub cards: Vec<Vec<String>>,
-    pub threshold: u8,
-    pub count: u8,
-    /// For shares: which word of each card (1-based) the person types back to prove the cards are readable.
-    /// For a code the person types the last two groups.
-    pub challenge: Vec<usize>,
+    /// The `FLR1-` code. The person types its last two groups back to prove it is readable.
+    pub code: String,
 }
 
 fn locked() -> CmdError {
     CmdError::new("locked", "The vault is locked. Unlock it to continue.")
-}
-
-fn random_word_positions(n: usize, words: usize) -> CmdRes<Vec<usize>> {
-    let mut bytes = vec![0u8; n * 2];
-    getrandom::fill(&mut bytes)
-        .map_err(|_| CmdError::new("failed", "Could not get randomness from the system."))?;
-    Ok(bytes
-        .chunks(2)
-        .map(|b| usize::from(u16::from_le_bytes([b[0], b[1]])) % words + 1)
-        .collect())
 }
 
 /// The last two groups of `code`, squashed the way a typed answer is.
@@ -89,14 +67,9 @@ fn squash_typed(text: &str) -> String {
 }
 
 impl Desk {
-    /// Make a new Recovery Key, as one code or as `count` cards of which `threshold` open the vault, and keep
-    /// it as the draft to show and confirm. Nothing is written to the vault yet. Replaces an earlier draft.
-    pub fn recovery_prepare(
-        &self,
-        shares: bool,
-        threshold: u8,
-        count: u8,
-    ) -> CmdRes<RecoveryMaterial> {
+    /// Make a new Recovery Key and keep it as the draft to show and confirm. Nothing is written to the vault yet.
+    /// Replaces an earlier draft.
+    pub fn recovery_prepare(&self) -> CmdRes<RecoveryMaterial> {
         let mut inner = self.inner();
         let setup_open =
             inner.creating.as_ref().is_some_and(|c| c.key_confirmed) || inner.recovering.is_some();
@@ -105,84 +78,26 @@ impl Desk {
         }
         let key = RecoveryKey::random()
             .map_err(|_| CmdError::new("failed", "Could not get randomness from the system."))?;
-        let (material, draft) = if shares {
-            if !(2..=16).contains(&count) || threshold < 2 || threshold > count {
-                return Err(CmdError::new(
-                    "bad_split",
-                    "Choose 2 to 16 cards, and a threshold of at least 2 that is not more than the number of cards.",
-                ));
-            }
-            let cards = key
-                .split(threshold, count)
-                .map_err(|_| CmdError::new("failed", "Could not split the Recovery Key."))?;
-            let words: Vec<Vec<String>> = cards
-                .iter()
-                .map(|c| c.split(' ').map(str::to_owned).collect())
-                .collect();
-            let challenge = random_word_positions(cards.len(), words[0].len())?;
-            (
-                RecoveryMaterial {
-                    mode: "shares",
-                    code: None,
-                    cards: words,
-                    threshold,
-                    count,
-                    challenge: challenge.clone(),
-                },
-                Draft {
-                    key,
-                    cards: Some((cards, threshold)),
-                    challenge,
-                    confirmed: false,
-                },
-            )
-        } else {
-            (
-                RecoveryMaterial {
-                    mode: "code",
-                    code: Some(key.format().to_string()),
-                    cards: Vec::new(),
-                    threshold: 0,
-                    count: 0,
-                    challenge: Vec::new(),
-                },
-                Draft {
-                    key,
-                    cards: None,
-                    challenge: Vec::new(),
-                    confirmed: false,
-                },
-            )
+        let material = RecoveryMaterial {
+            code: key.format().to_string(),
         };
-        inner.recovery = Some(draft);
+        inner.recovery = Some(Draft {
+            key,
+            confirmed: false,
+        });
         Ok(material)
     }
 
-    /// The forced check that what was shown is readable: for a code, its last two groups; for cards, the asked
-    /// word of each card, in card order.
-    pub fn recovery_check(&self, answers: &[String]) -> CmdRes<bool> {
+    /// The forced check that what was shown is readable: the last two groups of the code.
+    pub fn recovery_check(&self, answer: &str) -> CmdRes<bool> {
         let mut inner = self.inner();
         let draft = inner.recovery.as_mut().ok_or_else(nothing_to_do)?;
-        let ok = match &draft.cards {
-            None => {
-                answers.len() == 1
-                    && squash_typed(&answers[0]) == squash_typed(&tail_of(&draft.key.format()))
-            }
-            Some((cards, _)) => {
-                answers.len() == cards.len()
-                    && cards.iter().zip(&draft.challenge).zip(answers).all(
-                        |((card, pos), typed)| {
-                            card.split(' ').nth(pos - 1)
-                                == Some(typed.trim().to_lowercase().as_str())
-                        },
-                    )
-            }
-        };
+        let ok = squash_typed(answer) == squash_typed(&tail_of(&draft.key.format()));
         draft.confirmed |= ok;
         Ok(ok)
     }
 
-    /// The printable Recovery Key (a page for the code, a card per page for shares).
+    /// The printable Recovery Key: a page with the code and its QR.
     pub fn recovery_kit(&self) -> CmdRes<Zeroizing<Vec<u8>>> {
         let inner = self.inner();
         let draft = inner.recovery.as_ref().ok_or_else(nothing_to_do)?;
@@ -198,19 +113,7 @@ impl Desk {
             created: &super::civil_date(now_ms()),
         };
         let code = draft.key.format();
-        let refs: Vec<&str> = draft
-            .cards
-            .iter()
-            .flat_map(|(c, _)| c.iter().map(|s| s.as_str()))
-            .collect();
-        let cards = match &draft.cards {
-            None => RecoveryCards::Code(&code),
-            Some((_, threshold)) => RecoveryCards::Shares {
-                shares: &refs,
-                threshold: *threshold,
-            },
-        };
-        render_recovery_kit(&info, &cards)
+        render_recovery_kit(&info, &code)
             .map_err(|_| CmdError::new("failed", "Could not make the Recovery Key pages."))
     }
 
@@ -315,7 +218,7 @@ impl Desk {
     }
 
     /// Settings: turn the Recovery Key off. The master password confirms it, with the Secret Key kept here or
-    /// typed; cards made earlier open nothing from the next `vault.json`.
+    /// typed; a code made earlier opens nothing from the next `vault.json`.
     pub fn recovery_disable(&self, password: &str, secret_key: Option<&str>) -> CmdRes<()> {
         let vault_json = {
             let inner = self.inner();

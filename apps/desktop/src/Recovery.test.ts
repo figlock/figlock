@@ -70,23 +70,7 @@ import Workspace from "./Workspace.svelte";
 const KEY = "FL1-ABCD-EFGH-JKMN-PQRS-TVWX-YZ23-4567-89AB";
 const CODE = "FLR1-5EV5-92S1-ZY3E-13NH-6AWA-FE6K-ZBQ1-VK55-EA1P-MHKR-J3GY-ZTAF-1V86-DRWY";
 
-const code: RecoveryMaterial = {
-  mode: "code",
-  code: CODE,
-  cards: [],
-  threshold: 0,
-  count: 0,
-  challenge: [],
-};
-const words = (n: number) => Array.from({ length: 33 }, (_, i) => `w${n}x${i + 1}`);
-const shares: RecoveryMaterial = {
-  mode: "shares",
-  code: null,
-  cards: [words(1), words(2), words(3)],
-  threshold: 2,
-  count: 3,
-  challenge: [4, 9, 20],
-};
+const code: RecoveryMaterial = { code: CODE };
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -175,7 +159,7 @@ test("a Recovery Key code is shown, checked by typing its end back, and then the
   const user = await toRecoveryStep();
   await user.click(screen.getByRole("button", { name: "Add a Recovery Key" }));
   await user.click(screen.getByRole("button", { name: "Make Recovery Key" }));
-  expect(core.recoveryPrepare).toHaveBeenCalledWith(false, 2, 3);
+  expect(core.recoveryPrepare).toHaveBeenCalledWith();
   expect((await screen.findByTestId("recovery-code")).textContent?.trim()).toBe(CODE);
   await user.click(screen.getByRole("button", { name: "Save as PDF" }));
   expect(core.saveRecoveryKit).toHaveBeenCalledTimes(1);
@@ -194,33 +178,10 @@ test("a Recovery Key code is shown, checked by typing its end back, and then the
   await user.type(field, "drwy-zt1f");
   await user.click(screen.getByRole("button", { name: "Confirm" }));
   await waitFor(() => expect(core.recoveryUseDraft).toHaveBeenCalledTimes(1));
-  expect(core.recoveryCheck).toHaveBeenLastCalledWith(["drwy-zt1f"]);
+  expect(core.recoveryCheck).toHaveBeenLastCalledWith("drwy-zt1f");
   await user.click(await screen.findByRole("button", { name: "Create vault" }));
   await waitFor(() => expect(core.finishCreate).toHaveBeenCalledTimes(1));
   expect(core.recoverySkip).not.toHaveBeenCalled();
-});
-
-test("cards show every word and ask for one word from each", async () => {
-  core.recoveryPrepare.mockResolvedValue(shares);
-  const user = await toRecoveryStep();
-  await user.click(screen.getByRole("button", { name: "Add a Recovery Key" }));
-  await user.click(screen.getByRole("radio", { name: /Cards/ }));
-  await user.click(screen.getByRole("button", { name: "Make Recovery Key" }));
-  expect(core.recoveryPrepare).toHaveBeenCalledWith(true, 2, 3);
-  const cards = await screen.findAllByTestId("recovery-card");
-  expect(cards).toHaveLength(3);
-  expect(within(cards[1]).getByText("Card 2 of 3")).toBeTruthy();
-  expect(within(cards[1]).getByText("w2x33")).toBeTruthy();
-  await user.click(screen.getByRole("button", { name: "I have saved it" }));
-  // Which word of which card is asked for comes from the app core.
-  const asked = ["Card 1, word 4", "Card 2, word 9", "Card 3, word 20"];
-  for (const [i, label] of asked.entries()) {
-    await user.type(screen.getByLabelText(label), `w${i + 1}x${[4, 9, 20][i]}`);
-  }
-  core.recoveryCheck.mockResolvedValue(true);
-  await user.click(screen.getByRole("button", { name: "Confirm" }));
-  await waitFor(() => expect(core.recoveryUseDraft).toHaveBeenCalled());
-  expect(core.recoveryCheck).toHaveBeenCalledWith(["w1x4", "w2x9", "w3x20"]);
 });
 
 test("an empty answer is not sent to be checked", async () => {
@@ -230,7 +191,7 @@ test("an empty answer is not sent to be checked", async () => {
   await user.click(screen.getByRole("button", { name: "Make Recovery Key" }));
   await user.click(await screen.findByRole("button", { name: "I have saved it" }));
   await user.click(screen.getByRole("button", { name: "Confirm" }));
-  expect(await screen.findByText("Fill in every box.")).toBeTruthy();
+  expect(await screen.findByText("Fill in the box.")).toBeTruthy();
   expect(core.recoveryCheck).not.toHaveBeenCalled();
 });
 
@@ -304,7 +265,7 @@ test("turning it off warns, asks for the master password and then says so", asyn
   const user = await toSettings(true);
   await user.click(screen.getByRole("button", { name: "Turn off" }));
   const dialog = await screen.findByRole("dialog");
-  expect(within(dialog).getByText(/Any code or cards you made stop working/)).toBeTruthy();
+  expect(within(dialog).getByText(/Any code you made stops working/)).toBeTruthy();
   await user.type(within(dialog).getByLabelText("Master password"), "correct horse 42");
   core.vaultState.mockResolvedValue({
     phase: "unlocked",

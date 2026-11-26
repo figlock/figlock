@@ -6,7 +6,6 @@ import type { RecoveryMaterial } from "./vault";
 
 /** A stand-in for the app core's "I forgot my password" commands. */
 const core = vi.hoisted(() => ({
-  forgotCardInfo: vi.fn(),
   forgotFind: vi.fn(),
   forgotPrepare: vi.fn(),
   forgotCommit: vi.fn(),
@@ -57,14 +56,7 @@ const found = {
   lastChangeMs: Date.now() - 3 * 86_400_000,
   devices: 2,
 };
-const material: RecoveryMaterial = {
-  mode: "code",
-  code: CODE,
-  cards: [],
-  threshold: 0,
-  count: 0,
-  challenge: [],
-};
+const material: RecoveryMaterial = { code: CODE };
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -106,7 +98,7 @@ async function newPassword(user: ReturnType<typeof userEvent.setup>) {
 test("a code opens the vault, shows what was found and asks for a new password", async () => {
   const user = await toForgot();
   await openWithCode(user);
-  expect(core.forgotFind).toHaveBeenCalledWith({ path: "/Users/test/Vault" }, [CODE], false);
+  expect(core.forgotFind).toHaveBeenCalledWith({ path: "/Users/test/Vault" }, CODE);
   const summary = screen.getByTestId("found").textContent ?? "";
   expect(summary).toContain("Personal");
   expect(summary).toContain("12 items");
@@ -163,47 +155,6 @@ test("a new Recovery Key is shown and confirmed before it is used", async () => 
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await screen.findByText("Save your new Secret Key");
   expect(core.forgotPrepare).toHaveBeenCalledWith(PASSWORD, true);
-});
-
-test("cards are read as they are typed: how many are needed, a typo, and then all of them", async () => {
-  core.forgotCardInfo.mockImplementation((text: string) =>
-    text.startsWith("bad")
-      ? Promise.reject({ code: "bad_card", message: "This card has a typo or is incomplete." })
-      : Promise.resolve({ needed: 2, number: text.startsWith("one") ? 1 : 2 }),
-  );
-  const user = await toForgot();
-  await user.click(screen.getByRole("radio", { name: "Cards" }));
-  const first = screen.getByLabelText("Card 1");
-  await user.type(first, "bad words here");
-  await user.tab();
-  expect(await screen.findByText("This card has a typo or is incomplete.")).toBeTruthy();
-
-  await user.clear(first);
-  await user.type(first, "one two three");
-  await user.tab();
-  // Learning that two are needed makes room for the second.
-  expect(await screen.findByText("2 cards are needed to open this vault.")).toBeTruthy();
-  const second = await screen.findByLabelText("Card 2 of 2");
-  await user.type(second, "two cards words");
-  await user.tab();
-  await user.click(screen.getByRole("button", { name: "Continue" }));
-  await screen.findByText("Found your vault");
-  expect(core.forgotFind).toHaveBeenCalledWith(
-    { path: "/Users/test/Vault" },
-    ["one two three", "two cards words"],
-    true,
-  );
-});
-
-test("one card of two is not enough to try", async () => {
-  core.forgotCardInfo.mockResolvedValue({ needed: 2, number: 1 });
-  const user = await toForgot();
-  await user.click(screen.getByRole("radio", { name: "Cards" }));
-  await user.type(screen.getByLabelText("Card 1"), "one two three");
-  await user.tab();
-  await user.click(screen.getByRole("button", { name: "Continue" }));
-  expect(await screen.findByText("Enter every card that is needed.")).toBeTruthy();
-  expect(core.forgotFind).not.toHaveBeenCalled();
 });
 
 test("a key that does not open the vault is explained and the person can try again", async () => {

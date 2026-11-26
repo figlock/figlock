@@ -59,7 +59,7 @@
 <section aria-labelledby="recovery-title" class="grid gap-3">
   <h3 id="recovery-title" class="font-semibold">Recovery Key</h3>
   <p class="text-text-secondary">
-    A code, or cards for people you trust, that lets you set a new master password if you forget it.
+    A code that lets you set a new master password if you forget it.
   </p>
   {#if error}<Alert>{error}</Alert>{/if}
   {#if done}<Alert tone="info">{done}</Alert>{/if}
@@ -74,7 +74,7 @@
       {:else if enabled}
         <p class="font-medium">On <Badge tone="success">Protected</Badge></p>
         <p class="text-(length:--text-sm) text-text-secondary">
-          Setting up a new one makes the old code or cards stop working.
+          Setting up a new one makes the old code stop working.
         </p>
       {:else}
         <p class="font-medium">Off</p>

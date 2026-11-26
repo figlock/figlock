@@ -1,9 +1,9 @@
 //! "I forgot my password" on a fresh install (`pairing-recovery.md` 7.3, FIG-103): find the vault, open it with
-//! a Recovery Key (the code, or the needed cards), choose a new master password, get a new Secret Key and a new
+//! the Recovery Key code, choose a new master password, get a new Secret Key and a new
 //! Emergency Kit, and optionally a new Recovery Key. Nothing is written to storage or to this device until the
 //! new Emergency Kit was confirmed, so an abandoned attempt changes nothing and the Recovery Key still works.
 
-use figlock_core::{DeviceKeys, Recover, Recovered, RecoveryKey, Vault, slip39};
+use figlock_core::{DeviceKeys, Recover, Recovered, RecoveryKey, Vault};
 use figlock_session::config::{self, Config, Place};
 use figlock_session::session::{Session, now_ms};
 use serde::Serialize;
@@ -52,16 +52,6 @@ impl Recovering {
     }
 }
 
-/// What a card says about its set.
-#[derive(Serialize, Debug, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct CardInfo {
-    /// How many cards open the vault.
-    pub needed: u8,
-    /// This card's number.
-    pub number: u8,
-}
-
 /// What the Recovery Key opened, to be shown before the person commits to anything.
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -92,39 +82,15 @@ fn this_device() -> CmdRes<DeviceKeys> {
 fn bad_key() -> CmdError {
     CmdError::new(
         "bad_recovery_key",
-        "That is not a valid Recovery Key. Check the code, or that every card is complete and from the same set.",
+        "That is not a valid Recovery Key. Check the code.",
     )
 }
 
 impl Desk {
-    /// What a card says: how many cards are needed. Lets the window say how many more to enter.
-    pub fn forgot_card_info(text: &str) -> CmdRes<CardInfo> {
-        let info = slip39::info(text).map_err(|_| {
-            CmdError::new(
-                "bad_card",
-                "This card has a typo or is incomplete. Check every word.",
-            )
-        })?;
-        Ok(CardInfo {
-            needed: info.member_threshold,
-            number: info.number,
-        })
-    }
-
-    /// Open the vault in `storage` with a Recovery Key: `answers` is the one code, or the words of each card.
-    /// Nothing is stored; this proves the key and shows what it found.
-    pub fn forgot_find(
-        &self,
-        storage: &Storage,
-        answers: &[String],
-        shares: bool,
-    ) -> CmdRes<Found> {
-        let key = if shares {
-            let refs: Vec<&str> = answers.iter().map(String::as_str).collect();
-            RecoveryKey::from_shares(&refs).map_err(|_| bad_key())?
-        } else {
-            RecoveryKey::parse(answers.first().map_or("", String::as_str)).map_err(|_| bad_key())?
-        };
+    /// Open the vault in `storage` with the Recovery Key `code`. Nothing is stored; this proves the key and
+    /// shows what it found.
+    pub fn forgot_find(&self, storage: &Storage, code: &str) -> CmdRes<Found> {
+        let key = RecoveryKey::parse(code).map_err(|_| bad_key())?;
         // A Mac that already has a vault (the Unlock screen, FIG-139) forgets the password of that vault only:
         // the place is the one it is set up with, whatever the window sends.
         let place = if config::is_initialised()? {
@@ -176,7 +142,7 @@ impl Desk {
         .map_err(|_| {
             CmdError::new(
                 "recovery_failed",
-                "This Recovery Key does not open that vault. Check the code or cards, and that you picked the right storage.",
+                "This Recovery Key does not open that vault. Check the code, and that you picked the right storage.",
             )
         })?;
         let preview = Session::preview(vault, &place)?;

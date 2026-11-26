@@ -1,7 +1,7 @@
 # FigLock pairing and recovery specification
 
 Status: draft v1 (FIG-18). Defines how a new device joins a vault, what the Emergency Kit contains, every
-supported recovery path and the optional Recovery Key with Shamir split, and how a device is revoked.
+supported recovery path and the optional Recovery Key, and how a device is revoked.
 Keys and primitives are in `crypto.md`; storage layout and sync in `sync.md`.
 
 The words MUST, SHOULD and MAY are used as in RFC 2119.
@@ -247,7 +247,7 @@ same step; a password change and a revocation leave both alone.
 The app shows these cases in plain words in the setup flow ("What happens if I forget my password?") so
 the user decides about the Recovery Key knowingly.
 
-## 7. Recovery Key and Shamir split (optional)
+## 7. Recovery Key (optional)
 
 For users who cannot accept R3 and R5. It is off by default and offered during setup and in Settings.
 
@@ -262,41 +262,32 @@ For users who cannot accept R3 and R5. It is off by default and offered during s
 - Because wrapping needs only the public half, any unlocked device can rewrap `VK` for `RK` when `VK`
   rotates (`crypto.md` 9.1) without knowing `rk_priv`. This resolves the open question in `crypto.md`: `RK`
   wraps `VK`, not `AUK`, and survives password changes.
-- `rk_priv` (32 bytes) is shown once and never stored by FigLock. It is presented in one of two forms:
-  a single code (`FLR1-` + Crockford base32 with a check, like the Secret Key; the exact format is `crypto.md`
-  4.2) or a Shamir split. The `vault.json` members are in `crypto.md` 9.3.
+- `rk_priv` (32 bytes) is shown once and never stored by FigLock. It is written down as a single code (`FLR1-` +
+  Crockford base32 with a check, like the Secret Key; the exact format is `crypto.md` 4.2) on a one page PDF with a
+  QR code. The `vault.json` members are in `crypto.md` 9.3.
 
-### 7.2 Shamir split
+### 7.2 Removed: Shamir split
 
-Shares use **SLIP-0039** (Shamir's secret sharing for mnemonic codes, with its published test vectors),
-not a custom scheme.
-
-- The secret is `rk_priv` (256 bit). One group, threshold `M` of `N`, with `2 <= M <= N <= 16`. Default
-  2 of 3. Passphrase empty (the shares are not protected by a second factor in v1).
-- Each share is a 33-word mnemonic with a built-in checksum, printed on its own card with the vault name,
-  share number, threshold and a warning. Cards carry no other secrets.
-- FigLock never stores shares and never sees them again after display. A "verify" step has the user re-enter
-  one word chosen at random from each card before the setup finishes, so unreadable cards are caught.
-- Fewer than `M` shares reveal nothing about `rk_priv` (information-theoretic, property of the scheme).
+An earlier version split `rk_priv` into SLIP-0039 cards. That was removed (ADR-0045, FIG-242): SLIP-0039 is not
+published by a standards body, and no FigLock feature on the phone used it. FIG-243 looks for a standards-based way
+to give several people recovery. This number is kept so references to 7.3 and 7.4 stay valid.
 
 ### 7.3 Using the Recovery Key
 
 1. User chooses "I forgot my password" on a fresh install, selects the storage and "Use Recovery Key".
-2. They type the single code, or `M` shares. The app reconstructs `rk_priv` and opens `wrapped_vk_rk`.
+2. They type the code. The app reads `rk_priv` from it and opens `wrapped_vk_rk`.
 3. It derives the authority key, shows what it found (vault name, number of items, last change), and asks
    for a **new master password**. A new Secret Key is generated, `AUK` derived, `VK` rewrapped, `vault.json`
    re-signed, and the old Secret Key is invalidated. A new Emergency Kit is produced and verified.
-4. It offers to rotate `RK` (new key pair, new shares) because the old ones were just used on a device the
+4. It offers to rotate `RK` (new key pair, new code) because the old ones were just used on a device the
    user may not fully trust; this is the default.
 5. It recommends revoking all other devices and re-pairing them, since whoever held the old credentials may
    still hold them.
 
 ### 7.4 Risks stated to the user
 
-- Anyone who gathers `M` shares (or has the single code) can open the vault without the password. Shares
-  should be held by different people or places. Shamir does not protect against a holder who loses a share
-  and a thief who finds it, only against too few being gathered.
-- Losing more than `N - M + 1` shares loses recovery, not the vault.
+- Anyone who has the code can open the vault without the password. It should be kept apart from the Emergency Kit
+  and from the password, in a place only the owner can reach.
 - The Recovery Key does not replace a good Emergency Kit; it covers the case where the password is lost.
 
 ## 8. Failure and abuse handling
@@ -318,16 +309,13 @@ not a custom scheme.
 2. Emergency Kit content check (no master password, correct Secret Key encoding); verify step accepts and
    rejects the right and wrong groups.
 3. `seal_to` round trip; rewrap of `VK` for `rk_pub` after rotation without `rk_priv`.
-4. SLIP-0039: the official vectors for every `M`-of-`N` accepted and rejected combination used by FigLock,
-   plus 2-of-3 and 3-of-5 round trips of a real `rk_priv`.
-5. Recovery R1, R2, R6 end to end in a test harness with two simulated devices; R3 and R5 fail with the
+4. Recovery R1, R2, R6 end to end in a test harness with two simulated devices; R3 and R5 fail with the
    documented error and no partial state.
-6. Revocation: revoked device cannot open files of the new epoch; kept data stays readable by others.
+5. Revocation: revoked device cannot open files of the new epoch; kept data stays readable by others.
 
 ## 10. Open questions
 
-- A passphrase on Shamir shares (SLIP-39 supports one). Default empty in v1; decide after usability tests.
 - Whether the invite should also carry the storage account hint (for example the Drive account name) so `N`
   can warn on a mismatch. Left out of v1 to keep the invite minimal.
-- A "heir" or time-delayed recovery for the death of the owner is out of scope; Shamir cards cover it by
-  hand for now.
+- A "heir" or time-delayed recovery for the death of the owner is out of scope. Giving several people a share of
+  recovery is FIG-243.
