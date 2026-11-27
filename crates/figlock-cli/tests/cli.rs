@@ -238,6 +238,83 @@ fn restore_finds_a_trashed_item_by_title() {
 }
 
 #[test]
+fn find_deleted_lists_only_the_trash_with_the_deleted_date() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    e.add_login("Mail", &[]);
+    e.ok(&["edit", "bank", "--delete"]);
+
+    let trash = e.ok(&["find", "--deleted"]);
+    assert!(trash.contains("Bank") && !trash.contains("Mail"), "{trash}");
+    assert!(
+        trash.contains("login") && trash.contains("deleted 20"),
+        "{trash}"
+    );
+    assert!(e.ok(&["find", "--deleted", "bank"]).contains("Bank"));
+    assert!(
+        !e.ok(&["find", "--deleted", "--type", "note"])
+            .contains("Bank")
+    );
+
+    // The normal listing keeps hiding the trash.
+    let live = e.ok(&["find"]);
+    assert!(live.contains("Mail") && !live.contains("Bank"), "{live}");
+    assert!(!e.ok(&["find", "bank"]).contains("Bank"));
+
+    let json: Value = serde_json::from_str(&e.ok(&["--json", "find", "--deleted"])).unwrap();
+    assert_eq!(json.as_array().unwrap().len(), 1);
+    assert_eq!(json[0]["title"], "Bank");
+    assert_eq!(json[0]["deleted"], true);
+    assert!(json[0]["deleted_ms"].as_u64().unwrap() > 0);
+}
+
+#[test]
+fn find_deleted_with_an_empty_trash_says_so() {
+    let e = Env::init();
+    e.add_login("Mail", &[]);
+    let out = e.run(&["find", "--deleted"]);
+    assert!(out.status.success());
+    assert!(text(&out.stdout).is_empty());
+    assert!(text(&out.stderr).contains("nothing in the trash matches"));
+}
+
+#[test]
+fn restore_by_id_prefix_from_find_deleted_and_asks_for_more_when_ambiguous() {
+    let e = Env::init();
+    e.add_login("Bank Savings", &[]);
+    e.add_login("Bank Current", &[]);
+    e.add_login("Mail", &[]);
+    e.ok(&["edit", "savings", "--delete"]);
+    e.ok(&["edit", "current", "--delete"]);
+
+    let ambiguous = e.run(&["edit", "bank", "--restore"]);
+    assert!(!ambiguous.status.success());
+    let err = text(&ambiguous.stderr);
+    assert!(
+        err.contains("several items match") && err.contains("Bank Savings"),
+        "{err}"
+    );
+    assert!(err.contains("Bank Current"), "{err}");
+    // Nothing was restored by the failed attempt.
+    assert!(!e.ok(&["find", "bank"]).contains("Bank"));
+
+    // The short id printed by `find --deleted` restores exactly that item.
+    let listing = e.ok(&["find", "--deleted", "current"]);
+    let short = listing.split_whitespace().next().unwrap().to_owned();
+    e.ok(&["edit", &short, "--restore"]);
+    let live = e.ok(&["find", "bank"]);
+    assert!(
+        live.contains("Bank Current") && !live.contains("Bank Savings"),
+        "{live}"
+    );
+
+    // Nothing found points at the trash listing.
+    let miss = e.run(&["edit", "nonexistent", "--restore"]);
+    assert!(!miss.status.success());
+    assert!(text(&miss.stderr).contains("find --deleted"));
+}
+
+#[test]
 fn every_command_appends_a_chained_op_file() {
     let e = Env::init();
     e.add_login("One", &[]);
