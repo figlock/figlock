@@ -193,7 +193,7 @@ fn settings_inner() {
     d.recovery_skip(true).unwrap();
     assert!(!d.finish_create(false).unwrap().recovery_enabled);
 
-    // A draft must be confirmed first; the credentials are the master password and the Secret Key.
+    // A draft must be confirmed first; the credentials are the password and the Secret Key.
     let first = d.recovery_prepare().unwrap();
     assert_eq!(
         code_of(d.recovery_enable(&pw, Some(&key)).unwrap_err()),

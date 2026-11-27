@@ -17,7 +17,7 @@ use crate::device::DeviceKeysHandle;
 use crate::error::{FigLockError, Result, parse_id};
 use crate::session::{UnlockOutcome, VaultSession};
 
-/// The Account Unlock Key of one vault, held in Rust. It comes from the master password and Secret Key
+/// The Account Unlock Key of one vault, held in Rust. It comes from the password and Secret Key
 /// ([`derive_unlock_key`]) or from a quick unlock blob ([`open_quick_unlock`]), and it can open the vault
 /// ([`unlock_vault_with_key`]) or be sealed for the next quick unlock ([`UnlockKey::seal_for_quick_unlock`]).
 #[derive(uniffi::Object)]
@@ -44,7 +44,7 @@ impl UnlockKey {
     }
 }
 
-/// Derive the unlock key from the master password and Secret Key text (`FL1-...`). A wrong password, a wrong
+/// Derive the unlock key from the password and Secret Key text (`FL1-...`). A wrong password, a wrong
 /// Secret Key and a tampered file are not told apart here: the wrong ones fail later, at
 /// [`unlock_vault_with_key`], with the same `Failed`.
 #[uniffi::export]

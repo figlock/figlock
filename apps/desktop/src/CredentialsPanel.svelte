@@ -52,7 +52,7 @@
     if (changed.secretKey) newKey = changed.secretKey;
     else
       done =
-        "Your master password is changed. Your other devices will ask for the new password the next time they unlock.";
+        "Your password is changed. Your other devices will ask for the new password the next time they unlock.";
     return changed;
   }
 </script>
@@ -64,7 +64,7 @@
   </p>
   {#if done}<Alert tone="info">{done}</Alert>{/if}
   <div class="flex flex-wrap gap-2">
-    <Button onclick={() => start("password")}>Change master password</Button>
+    <Button onclick={() => start("password")}>Change password</Button>
     <Button onclick={() => start("key")}>Rotate Secret Key</Button>
   </div>
 </section>

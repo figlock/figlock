@@ -2,22 +2,22 @@ import { expect, test } from "@playwright/test";
 import { GITHUB, KEY, PASSWORD, expectAccessible, openApp } from "./core";
 
 test.describe("unlock", () => {
-  test("a wrong master password is refused in words, then the right one opens the vault", async ({
+  test("a wrong password is refused in words, then the right one opens the vault", async ({
     page,
   }) => {
     await openApp(page, { phase: "locked", items: [GITHUB] });
     await expect(page.getByRole("heading", { name: "Unlock your vault" })).toBeVisible();
 
-    await page.getByLabel("Master password").fill("not it at all");
+    await page.getByLabel("Password").fill("not it at all");
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("alert")).toContainText(
       "That password did not open the vault. Check it and try again.",
     );
     // A wrong password is not a reason to ask for the Secret Key (ADR-0034).
     await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
-    await expect(page.getByLabel("Master password")).toBeFocused();
+    await expect(page.getByLabel("Password")).toBeFocused();
 
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("button", { name: /^GitHub/ })).toBeVisible();
   });
@@ -34,7 +34,7 @@ test.describe("unlock", () => {
           "FigLock could not use the key saved on this Mac. If a Mac prompt asked for permission, choose Allow, then try again.",
       };
     });
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("alert")).toContainText(
       "FigLock could not use the key saved on this Mac. If a Mac prompt asked for permission, choose Allow, then try again.",
@@ -49,7 +49,7 @@ test.describe("unlock", () => {
   test("an empty form says what is missing and does not call the app core", async ({ page }) => {
     await openApp(page, { phase: "locked" });
     await page.getByRole("button", { name: "Unlock" }).click();
-    await expect(page.getByText("Enter your master password.")).toBeVisible();
+    await expect(page.getByText("Enter your password.")).toBeVisible();
     expect(await page.evaluate(() => (window as any).__core.calls)).not.toContain("unlock");
   });
 

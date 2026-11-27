@@ -182,7 +182,7 @@ impl Desk {
     }
 
     /// Settings: write the confirmed draft into the vault, replacing any Recovery Key it has. Asks for the
-    /// master password and the Secret Key (kept here, or typed) because the vault key is rewrapped.
+    /// password and the Secret Key (kept here, or typed) because the vault key is rewrapped.
     pub fn recovery_enable(&self, password: &str, secret_key: Option<&str>) -> CmdRes<()> {
         {
             let inner = self.inner();
@@ -217,7 +217,7 @@ impl Desk {
         self.write_recovery(guard, &change.vault_json)
     }
 
-    /// Settings: turn the Recovery Key off. The master password confirms it, with the Secret Key kept here or
+    /// Settings: turn the Recovery Key off. The password confirms it, with the Secret Key kept here or
     /// typed; a code made earlier opens nothing from the next `vault.json`.
     pub fn recovery_disable(&self, password: &str, secret_key: Option<&str>) -> CmdRes<()> {
         let vault_json = {

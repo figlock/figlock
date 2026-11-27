@@ -19,7 +19,7 @@ pub const DEFAULT_AUTOLOCK: Duration = Duration::from_secs(5 * 60);
 /// The times Settings offers for the auto-lock, in seconds: 1, 2, 5, 10, 15 and 30 minutes and 1 hour. There is
 /// no "never".
 pub const AUTOLOCK_CHOICES: [u64; 7] = [60, 120, 300, 600, 900, 1800, 3600];
-/// The shortest master password a new vault accepts; the Secret Key carries the rest of the strength.
+/// The shortest password a new vault accepts; the Secret Key carries the rest of the strength.
 pub const MIN_PASSWORD_CHARS: usize = 8;
 /// How long a copied field stays on the clipboard before it is cleared.
 pub const CLIPBOARD_CLEAR: Duration = Duration::from_secs(30);
@@ -125,7 +125,7 @@ pub struct VaultState {
     pub quick_unlock: bool,
     /// This Mac can ask for Touch ID or the device password.
     pub touch_available: bool,
-    /// This device keeps the Secret Key, so unlocking asks for the master password only (ADR-0027).
+    /// This device keeps the Secret Key, so unlocking asks for the password only (ADR-0027).
     pub secret_key_kept: bool,
     /// The Secret Key was changed on another device (`sk_gen` in `vault.json` is higher than the kept key's):
     /// the unlock screen asks for the new one up front, and an open window shows a banner (ADR-0034).
@@ -327,9 +327,9 @@ fn what_to_type() -> &'static str {
         .zip(figlock_session::session::peek_vault_id().ok())
         .is_some_and(|(keys, vault)| keys.has(&vault));
     if kept {
-        "your master password"
+        "your password"
     } else {
-        "your master password and Secret Key"
+        "your password and Secret Key"
     }
 }
 
@@ -339,7 +339,7 @@ fn what_to_type() -> &'static str {
 pub(super) enum KeyFrom {
     /// The person typed it: a failure is a mismatch of the pair they typed.
     Typed,
-    /// This unlocked session holds it and the person was never asked for it: a failure is the master
+    /// This unlocked session holds it and the person was never asked for it: a failure is the
     /// password, and the message must not blame a key nobody was asked for.
     Held,
     /// This device keeps it (Touch ID released it): a failure cannot be told from a stale key, so ask for it.
@@ -349,14 +349,14 @@ pub(super) enum KeyFrom {
 fn wrong_password() -> CmdError {
     CmdError::new(
         "wrong_credentials",
-        "That master password does not match this vault. Check it and try again.",
+        "That password does not match this vault. Check it and try again.",
     )
 }
 
 fn wrong_credentials() -> CmdError {
     CmdError::new(
         "wrong_credentials",
-        "That master password and Secret Key do not match this vault. Check both and try again. Your Secret Key is in your Emergency Kit.",
+        "That password and Secret Key do not match this vault. Check both and try again. Your Secret Key is in your Emergency Kit.",
     )
 }
 
@@ -584,7 +584,7 @@ impl Desk {
         if password.chars().count() < MIN_PASSWORD_CHARS {
             return Err(CmdError::new(
                 "weak_password",
-                "Use at least 8 characters for the master password.",
+                "Use at least 8 characters for the password.",
             ));
         }
         let place = storage_place(storage, true)?;
@@ -728,7 +728,7 @@ impl Desk {
 
     // ---- open an existing vault on this device ----
 
-    /// Open a vault that already exists in `storage` with the master password and Secret Key, on a device that
+    /// Open a vault that already exists in `storage` with the password and Secret Key, on a device that
     /// has not been set up (the recovery path of `pairing-recovery.md` 3.5).
     pub fn open_existing(
         &self,
@@ -819,14 +819,11 @@ impl Desk {
 
     // ---- unlock and lock ----
 
-    /// Unlock with the master password, and the Secret Key unless this device keeps it. `secret_key` blank
+    /// Unlock with the password, and the Secret Key unless this device keeps it. `secret_key` blank
     /// means "use the one kept here"; if that does not open the vault the answer is `needs_secret_key`.
     pub fn unlock(&self, password: &str, secret_key: Option<&str>) -> CmdRes<VaultState> {
         if password.is_empty() {
-            return Err(CmdError::new(
-                "empty_password",
-                "Enter your master password.",
-            ));
+            return Err(CmdError::new("empty_password", "Enter your password."));
         }
         let key = match secret_key.map(str::trim).filter(|k| !k.is_empty()) {
             Some(text) => Some(parse_secret_key(text)?),
@@ -865,7 +862,7 @@ impl Desk {
                         |r| {
                             format!(
                                 "{}. Type {}.",
-                                capitalise(&r.replace("; enter the master password", "")),
+                                capitalise(&r.replace("; enter the password", "")),
                                 what_to_type()
                             )
                         },

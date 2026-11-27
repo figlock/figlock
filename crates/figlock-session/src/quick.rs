@@ -1,5 +1,5 @@
 //! Quick unlock (`docs/spec/crypto.md` 8): after one full unlock the Account Unlock Key is kept in the
-//! platform keystore, and later commands ask for Touch ID or the device password instead of the master
+//! platform keystore, and later commands ask for Touch ID or the device password instead of the
 //! password and Secret Key.
 //!
 //! The key lives only in the keystore; `quick-unlock.json` in the FigLock home holds the policy state (when
@@ -66,7 +66,7 @@ pub trait Backend {
     fn get_key_quiet(&self, vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
         self.get_key(vault)
     }
-    /// Changes on every reboot, so a restart asks for the master password again.
+    /// Changes on every reboot, so a restart asks for the password again.
     fn boot_id(&self) -> String;
     /// How the kept key is protected, for `quick-unlock status`: `None` when nothing is kept.
     fn protection(&self, _vault: &str) -> Option<&'static str> {
@@ -74,7 +74,7 @@ pub trait Backend {
     }
 }
 
-/// Why a command still needs the master password.
+/// Why a command still needs the password.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Fallback {
     /// Quick unlock is not turned on for this vault, or was never filled.
@@ -233,7 +233,7 @@ impl<B: Backend> Quick<B> {
         }
     }
 
-    /// Like `fetch`, but a keystore failure is a warning and a fall back to the master password, since
+    /// Like `fetch`, but a keystore failure is a warning and a fall back to the password, since
     /// quick unlock is only a convenience.
     pub fn fetch_or_full(&self, vault: &str, now: u64, ui: &dyn Ui) -> Fetch {
         self.fetch(vault, now).unwrap_or_else(|e| {
@@ -268,7 +268,7 @@ impl<B: Backend> Quick<B> {
         }
     }
 
-    /// Whether [`fetch`](Self::fetch) would ask for Touch ID right now instead of falling back to the master
+    /// Whether [`fetch`](Self::fetch) would ask for Touch ID right now instead of falling back to the
     /// password. Reads state only: it shows no prompt and changes nothing, so a program that cannot type a
     /// password can decide whether to try (ADR-0040).
     pub fn usable(&self, vault: &str, now: u64) -> bool {

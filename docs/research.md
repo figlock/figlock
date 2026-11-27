@@ -45,7 +45,7 @@ whitepaper (client-side merge sync); secsync, MindooDB, Automerge paper.
 
 ## 3. Crypto
 
-- Two-secret key derivation: Argon2id(master password) combined with HKDF(128-bit Secret Key) gives the
+- Two-secret key derivation: Argon2id(password) combined with HKDF(128-bit Secret Key) gives the
   Account Unlock Key, which unwraps the Vault Key, which wraps per-item keys. A stolen cloud account plus
   a weak password still can't be brute-forced (same model as 1Password).
 - Primitives: XChaCha20-Poly1305, X25519, Ed25519, `zeroize` on secret buffers.

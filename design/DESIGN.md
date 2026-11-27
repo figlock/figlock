@@ -27,6 +27,9 @@ The logo, wordmark and app icons live in `design/logo/` (section 7.1).
 - Use the product's own terms consistently: **vault**, **item**, **Secret Key**, **Emergency Kit**,
   **device**, **agent**, **grant** (an approval for an agent), **broker**. Do not say "account", "login" for
   the whole product, or "password" when the item is a token.
+- The secret that opens the vault is the **password**, never "master password". Its pair is the **Secret Key**.
+  Where an item's own password is in the same sentence or screen, say **vault password** for the first and
+  "the item's password" for the second, so a reader can tell them apart.
 - Sample content in design files is always made up: `Cloudflare`, `ghp_EXAMPLEexampleEXAMPLE...`. Never real
   data (AGENTS.md).
 

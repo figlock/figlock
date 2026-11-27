@@ -250,7 +250,7 @@ final class OnboardingModel {
         lock.vaultDidChange()
         switch outcome {
         case .unlocked: clearSecrets()
-        case .wrongCredentials: errorText = "That master password or Secret Key isn't right. Check them and try again."
+        case .wrongCredentials: errorText = "That password or Secret Key isn't right. Check them and try again."
         default: errorText = "FigLock could not open the vault. Try again."
         }
     }
@@ -306,7 +306,7 @@ final class OnboardingModel {
         switch failure {
         case .invalidCode: "That code is not valid, has expired, or belongs to a different vault."
         case .alreadyAnswered: "Someone already answered that code. Ask for a new one on your other device."
-        case .joinFailed: "Could not join. The master password may be wrong, or the answer is not valid."
+        case .joinFailed: "Could not join. The password may be wrong, or the answer is not valid."
         case .signIn: "Google Drive refused the sign-in. Sign in again."
         case .damaged: "The vault file is damaged."
         case .alreadyHasVault: "This iPhone already has a vault."

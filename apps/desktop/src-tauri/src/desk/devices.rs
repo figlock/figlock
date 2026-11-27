@@ -1,5 +1,5 @@
 //! The device list and revoking a device (ADR-0018, ADR-0022 amendment). Revoking rotates the vault key, so
-//! it asks for the master password and Secret Key again instead of trusting an open session. What crosses to
+//! it asks for the password and Secret Key again instead of trusting an open session. What crosses to
 //! the window is names, fingerprints and dates, never keys.
 
 use figlock_core::{CredentialChange, DeviceId, DeviceInfo, SecretKey};
@@ -106,7 +106,7 @@ impl Desk {
         Ok(rows)
     }
 
-    /// Stop `device` from opening anything written from now on. `new_password` also changes the master
+    /// Stop `device` from opening anything written from now on. `new_password` also changes the
     /// password in the same write, which is what to do when the device may have been compromised. Needs the
     /// credentials again: the vault key is rewrapped under them.
     pub fn revoke_device(
@@ -126,7 +126,7 @@ impl Desk {
         {
             return Err(CmdError::new(
                 "weak_password",
-                "Use at least 8 characters for the new master password.",
+                "Use at least 8 characters for the new password.",
             ));
         }
         // Other devices may have changed the vault since the last sync; a revocation built on a stale view

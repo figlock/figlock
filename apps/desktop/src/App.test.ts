@@ -79,8 +79,8 @@ test("create asks for a folder and matching passwords before it goes on", async 
   await user.click(await screen.findByRole("button", { name: "Create a vault" }));
   expect(await screen.findByDisplayValue("/Users/test/FigLock")).toBeTruthy();
 
-  await user.type(screen.getByLabelText("Master password"), "short");
-  await user.type(screen.getByLabelText("Repeat master password"), "short");
+  await user.type(screen.getByLabelText("Password"), "short");
+  await user.type(screen.getByLabelText("Repeat password"), "short");
   await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByText("Use at least 8 characters.")).toBeTruthy();
 });
@@ -89,7 +89,7 @@ test("a locked vault shows the unlock form and checks the Secret Key is complete
   state.current = { ...state.current, phase: "locked" };
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "correct horse");
+  await user.type(await screen.findByLabelText("Password"), "correct horse");
   await user.click(screen.getByRole("button", { name: "Unlock" }));
   expect(await screen.findByText(/This Secret Key looks incomplete/)).toBeTruthy();
   expect(state.unlock).not.toHaveBeenCalled();
@@ -100,11 +100,11 @@ test("a pasted Secret Key fills every group, and a wrong password shows the erro
   state.current = { ...state.current, phase: "locked" };
   state.unlock.mockRejectedValue({
     code: "wrong_credentials",
-    message: "That master password and Secret Key do not match this vault.",
+    message: "That password and Secret Key do not match this vault.",
   });
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "wrong password");
+  await user.type(await screen.findByLabelText("Password"), "wrong password");
   await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   const groups = KEY.split("-").slice(1);
@@ -119,12 +119,12 @@ test("a pasted Secret Key fills every group, and a wrong password shows the erro
   expect(state.unlock).toHaveBeenCalledWith("wrong password", KEY);
 });
 
-test("a Mac that keeps the Secret Key asks for the master password only", async () => {
+test("a Mac that keeps the Secret Key asks for the password only", async () => {
   state.current = { ...state.current, phase: "locked", secretKeyKept: true };
   state.unlock.mockResolvedValue({ ...state.current, phase: "unlocked" });
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "correct horse battery 42");
+  await user.type(await screen.findByLabelText("Password"), "correct horse battery 42");
   expect(screen.queryByLabelText("Secret Key group 1 of 8")).toBeNull();
   expect(screen.getByText(/keeps your Secret Key/)).toBeTruthy();
   await user.click(screen.getByRole("button", { name: "Unlock" }));
@@ -137,12 +137,11 @@ test("when the kept key does not open the vault the Secret Key is asked for, and
   state.current = { ...state.current, phase: "locked", secretKeyKept: true };
   state.unlock.mockRejectedValueOnce({
     code: "needs_secret_key",
-    message:
-      "That did not open the vault. If your master password is right, the Secret Key was changed.",
+    message: "That did not open the vault. If your password is right, the Secret Key was changed.",
   });
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "correct horse battery 42");
+  await user.type(await screen.findByLabelText("Password"), "correct horse battery 42");
   await user.click(screen.getByRole("button", { name: "Unlock" }));
   expect(await screen.findByText(/the Secret Key was changed/)).toBeTruthy();
   await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
@@ -162,7 +161,7 @@ test("a wrong password never shows the Secret Key fields", async () => {
   });
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "not the password");
+  await user.type(await screen.findByLabelText("Password"), "not the password");
   await user.click(screen.getByRole("button", { name: "Unlock" }));
   expect(await screen.findByText(/That password did not open the vault/)).toBeTruthy();
   expect(screen.queryByLabelText("Secret Key group 1 of 8")).toBeNull();
@@ -176,7 +175,7 @@ test("a Secret Key changed on another device is said up front and asked for befo
   render(App);
   expect(await screen.findByText(/Your Secret Key was changed on another device/)).toBeTruthy();
   expect(screen.getByLabelText("Secret Key group 1 of 8")).toBeTruthy();
-  await user.type(screen.getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(screen.getByLabelText("Password"), "correct horse battery 42");
   await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   await user.click(screen.getByRole("button", { name: "Unlock" }));
@@ -187,7 +186,7 @@ test("My Secret Key changed opens the key fields by hand", async () => {
   state.current = { ...state.current, phase: "locked", secretKeyKept: true, secretKeyStale: false };
   const user = userEvent.setup();
   render(App);
-  await screen.findByLabelText("Master password");
+  await screen.findByLabelText("Password");
   expect(screen.queryByLabelText("Secret Key group 1 of 8")).toBeNull();
   await user.click(screen.getByRole("button", { name: "My Secret Key changed" }));
   expect(screen.getByLabelText("Secret Key group 1 of 8")).toBeTruthy();
@@ -197,18 +196,18 @@ test("Touch ID is only offered when quick unlock is on, and its failure asks for
   state.current = { ...state.current, phase: "locked" };
   const user = userEvent.setup();
   const { unmount } = render(App);
-  await screen.findByLabelText("Master password");
+  await screen.findByLabelText("Password");
   expect(screen.queryByRole("button", { name: "Use Touch ID" })).toBeNull();
   unmount();
 
   state.current = { ...state.current, quickUnlock: true };
   state.quickUnlock.mockRejectedValue({
     code: "quick_unavailable",
-    message: "Touch ID did not unlock the vault. Type your master password and Secret Key.",
+    message: "Touch ID did not unlock the vault. Type your password and Secret Key.",
   });
   render(App);
   await user.click(await screen.findByRole("button", { name: "Use Touch ID" }));
-  expect(await screen.findByText(/Type your master password and Secret Key/)).toBeTruthy();
+  expect(await screen.findByText(/Type your password and Secret Key/)).toBeTruthy();
 });
 
 test("unlocking moves to the vault and locking comes back to the unlock form", async () => {
@@ -219,7 +218,7 @@ test("unlocking moves to the vault and locking comes back to the unlock form", a
   });
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "correct horse");
+  await user.type(await screen.findByLabelText("Password"), "correct horse");
   await user.click(screen.getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   await user.click(screen.getByRole("button", { name: "Unlock" }));
@@ -252,7 +251,7 @@ test("unlocking with a rotation's kit step unfinished shows it again until it is
   state.endRotation.mockResolvedValue(undefined);
   const user = userEvent.setup();
   render(App);
-  await user.type(await screen.findByLabelText("Master password"), "correct horse");
+  await user.type(await screen.findByLabelText("Password"), "correct horse");
   await user.click(screen.getByRole("button", { name: "Unlock" }));
   const dialog = await screen.findByRole("dialog", { name: "Save your new Secret Key" });
   expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();

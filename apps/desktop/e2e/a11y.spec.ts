@@ -25,7 +25,7 @@ test.describe("accessibility (axe, WCAG 2.2 AA)", () => {
   test("unlock, with an error showing", async ({ page }) => {
     await openApp(page, { phase: "locked" });
     await expectAccessible(page);
-    await page.getByLabel("Master password").fill("wrong");
+    await page.getByLabel("Password").fill("wrong");
     await page.getByRole("button", { name: "Unlock" }).click();
     await page.getByRole("alert").waitFor();
     await expectAccessible(page);

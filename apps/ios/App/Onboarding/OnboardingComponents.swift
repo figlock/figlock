@@ -92,7 +92,7 @@ struct FaceIDToggle: View {
             Toggle(isOn: $model.faceID) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Unlock with Face ID").font(FLFont.ui(FLText.md, weight: FLWeight.medium))
-                    Text("Skip typing your master password.")
+                    Text("Skip typing your password.")
                         .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textSecondary)
                 }
             }

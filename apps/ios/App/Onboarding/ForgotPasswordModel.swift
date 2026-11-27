@@ -138,7 +138,7 @@ final class ForgotPasswordModel {
         case .recoveryFailed:
             "This Recovery Key does not open the vault on this iPhone. Check the code, and that it is the key of this vault."
         case .noRecoveryKey:
-            "This vault has no Recovery Key, so it cannot be opened this way. Use your Emergency Kit and master password, or a device that is already set up."
+            "This vault has no Recovery Key, so it cannot be opened this way. Use your Emergency Kit and password, or a device that is already set up."
         default: "Something went wrong. Try again."
         }
     }

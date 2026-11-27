@@ -110,8 +110,8 @@ test("a Recovery Key opens this Mac's own vault with no storage to pick, and a n
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await screen.findByText("Found your vault");
   expect(core.forgotFind).toHaveBeenCalledWith({}, CODE);
-  await user.type(screen.getByLabelText("New master password"), PASSWORD);
-  await user.type(screen.getByLabelText("Repeat new master password"), PASSWORD);
+  await user.type(screen.getByLabelText("New password"), PASSWORD);
+  await user.type(screen.getByLabelText("Repeat new password"), PASSWORD);
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await screen.findByText("Make a new Recovery Key?");
 });

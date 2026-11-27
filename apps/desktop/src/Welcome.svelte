@@ -26,7 +26,7 @@
     </button>
   </div>
   <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
-    FigLock has no account and no server. Your vault is one encrypted folder that only your master
-    password and Secret Key can open.
+    FigLock has no account and no server. Your vault is one encrypted folder that only your password
+    and Secret Key can open.
   </p>
 </Shell>

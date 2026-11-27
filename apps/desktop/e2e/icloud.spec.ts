@@ -137,8 +137,8 @@ test.describe("iCloud Drive sync", () => {
     await expect(page.getByRole("checkbox", { name: /Sync with iCloud Drive/ })).toBeVisible();
     await page.getByRole("checkbox", { name: /Sync with iCloud Drive/ }).check();
     await expect(page.getByTestId("icloud-panel")).toContainText("There is nothing to sign in to");
-    await page.getByLabel("Master password", { exact: true }).fill("correct horse battery 42");
-    await page.getByLabel("Repeat master password").fill("correct horse battery 42");
+    await page.getByLabel("Password", { exact: true }).fill("correct horse battery 42");
+    await page.getByLabel("Repeat password").fill("correct horse battery 42");
     await page.getByRole("button", { name: "Continue" }).click();
     const sent = await page.evaluate(() => (window as any).__core.lastCreate);
     expect(sent).toMatchObject({ icloud: true, drive: false });

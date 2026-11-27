@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
-const PW: &str = "unit-test-master-password";
+const PW: &str = "unit-test-password";
 const SECRET: &str = "Zq9-broker-test-secret-9";
 
 struct Env {
@@ -382,10 +382,10 @@ fn a_password_change_made_while_the_broker_runs_locks_it() {
     assert!(env.ok(&["broker", "status"]).contains("unlocked"));
 
     // Another command on this machine (it could as well be another device whose change a sync brought in)
-    // changes the master password. The running broker holds the old vault, so it must not keep serving it.
+    // changes the password. The running broker holds the old vault, so it must not keep serving it.
     let mut change = env.command(&["password", "change"], PW, Some(&env.secret_key));
     change
-        .env("FIGLOCK_NEW_PASSWORD", "another-test-master-password")
+        .env("FIGLOCK_NEW_PASSWORD", "another-test-password")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

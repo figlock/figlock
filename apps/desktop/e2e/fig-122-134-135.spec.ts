@@ -94,14 +94,14 @@ test.describe("save the Emergency Kit again (FIG-134)", () => {
     const dialog = page.getByRole("dialog", { name: "Save your Emergency Kit" });
     await expectAccessible(page);
 
-    await dialog.getByLabel("Master password").fill("not it at all");
+    await dialog.getByLabel("Password").fill("not it at all");
     await dialog.getByLabel("Secret Key group 1 of 8").click();
     await page.keyboard.insertText(KEY);
     await dialog.getByRole("button", { name: "Save kit" }).click();
     await expect(dialog.getByRole("alert")).toContainText("do not match this vault");
     expect(await page.evaluate(() => (window as any).__core.kitsSaved.length)).toBe(0);
 
-    await dialog.getByLabel("Master password").fill(PASSWORD);
+    await dialog.getByLabel("Password").fill(PASSWORD);
     await dialog.getByRole("button", { name: "Save kit" }).click();
     await expect(page.getByTestId("kit-saved")).toBeVisible();
     expect(await page.evaluate(() => (window as any).__core.kitsSaved)).toEqual([KEY]);

@@ -14,7 +14,7 @@ public struct SecretStoreError: Error, Equatable, Sendable {
 
 /// Items in the keychain access group shared with the AutoFill extension. They are `ThisDeviceOnly` and never
 /// `kSecAttrSynchronizable`, so they cannot reach iCloud Keychain or another phone through a backup. They carry no
-/// access control, so reading one never shows a Face ID prompt: a master password unlock stays prompt-free
+/// access control, so reading one never shows a Face ID prompt: a password unlock stays prompt-free
 /// (ADR-0037), and the hardware-bound step is `QK` alone.
 public struct KeychainSecretStore: SecretStore {
     private let service: String

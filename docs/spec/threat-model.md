@@ -11,7 +11,7 @@ repo (testing philosophy in `AGENTS.md`).
 | - | ----- | -------------- |
 | A1 | Secret values: passwords, API tokens, SSH keys, `.env` bundles, TOTP seeds | direct account and infrastructure access |
 | A2 | Item metadata: titles, URLs, usernames, tags, notes | reveals accounts, habits and what to attack |
-| A3 | Master password and Secret Key | root of the key hierarchy |
+| A3 | Password and Secret Key | root of the key hierarchy |
 | A4 | Vault Key and derived keys, device private keys | unlock everything, or forge writes |
 | A5 | Vault integrity and availability | a silent change or loss of a password is damage |
 | A6 | The agent audit log | the user's record of what agents did |
@@ -55,7 +55,7 @@ Status column: **M** mitigated by design, **P** partly mitigated, **A** accepted
 | ID | Threat | Mitigation | Status | Test |
 | -- | ------ | ---------- | ------ | ---- |
 | S1 | Provider reads vault contents | Everything encrypted with keys the provider never sees; names, titles and URLs are inside ciphertext | M | storage fixture contains no plaintext titles or URLs |
-| S2 | Provider or thief brute-forces the master password | 128-bit Secret Key in the derivation; Argon2id with floor and default parameters | M | wrong-key and KDF floor vectors |
+| S2 | Provider or thief brute-forces the password | 128-bit Secret Key in the derivation; Argon2id with floor and default parameters | M | wrong-key and KDF floor vectors |
 | S3 | Storage attacker forges or edits ops | Ed25519 signatures by device keys; device records signed by the authority key | M | tampered op rejected; unsigned device rejected |
 | S4 | Storage attacker alters KDF parameters or `min_format_version` | `vault.json` signed after unlock; parameters in the `VK` wrap AAD; floor and ceiling enforced | M | altered-parameter vector |
 | S5 | Rollback: serve an older version of a device's log or a snapshot | per-device sequence numbers, gap detection, snapshot high-water marks (sync spec) | P | rollback and gap tests (FIG-17) |
@@ -74,7 +74,7 @@ Status column: **M** mitigated by design, **P** partly mitigated, **A** accepted
 | D4 | Memory scraping after lock | Zeroize on drop; keys dropped on lock; `mlock` where available; no core dumps in the daemon | P | zeroization tests, no keys in logs |
 | D5 | Swap or crash dumps contain secrets | `mlock`, no dumps, and short exposure windows; cannot be guaranteed on every OS | P | none (documented) |
 | D6 | Malware as the user on an unlocked device | Not defended. It can read the unlocked process, the clipboard and the screen | A | none |
-| D7 | Keylogger captures the master password | Not defended; quick unlock reduces how often it is typed; Secret Key limits what the password alone gives | A | none |
+| D7 | Keylogger captures the password | Not defended; quick unlock reduces how often it is typed; Secret Key limits what the password alone gives | A | none |
 | D8 | Lost or revoked device keeps old data | Revocation rotates `VK` so nothing new is readable; past data stays readable | P | revoked device cannot open new epoch |
 | D9 | Another local user reads vault files | Files are ciphertext; the broker socket is mode 0600 and checks the peer uid | M | socket permission and wrong-uid tests |
 

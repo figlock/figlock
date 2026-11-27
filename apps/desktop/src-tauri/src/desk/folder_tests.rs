@@ -74,7 +74,7 @@ fn locating_the_moved_folder_brings_the_vault_back_inner() {
 
     folder::locate(elsewhere.to_str().unwrap()).unwrap();
     assert!(d.state().unwrap().folder_missing.is_none());
-    // The same device, the same vault: the old master password and Secret Key still open it.
+    // The same device, the same vault: the old password and Secret Key still open it.
     assert_eq!(d.unlock(&pw, Some(&key)).unwrap().phase, "unlocked");
 }
 

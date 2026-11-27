@@ -1,5 +1,5 @@
 //! "I forgot my password" on a fresh install (`pairing-recovery.md` 7.3, FIG-103): find the vault, open it with
-//! the Recovery Key code, choose a new master password, get a new Secret Key and a new
+//! the Recovery Key code, choose a new password, get a new Secret Key and a new
 //! Emergency Kit, and optionally a new Recovery Key. Nothing is written to storage or to this device until the
 //! new Emergency Kit was confirmed, so an abandoned attempt changes nothing and the Recovery Key still works.
 
@@ -112,7 +112,7 @@ impl Desk {
             Ok(false) => {
                 return Err(CmdError::new(
                     "no_recovery",
-                    "That vault has no Recovery Key, so it cannot be opened this way. Use your Emergency Kit and master password, or a device that is already set up.",
+                    "That vault has no Recovery Key, so it cannot be opened this way. Use your Emergency Kit and password, or a device that is already set up.",
                 ));
             }
             Err(_) => return Err(Fail::new("That vault could not be read.").into()),
@@ -161,7 +161,7 @@ impl Desk {
         })
     }
 
-    /// Choose the new master password and make the new Secret Key, in memory. With `new_recovery_key` the
+    /// Choose the new password and make the new Secret Key, in memory. With `new_recovery_key` the
     /// confirmed draft (made with `recovery_prepare`) replaces the Recovery Key that was just used. The person
     /// then saves the new Emergency Kit and confirms it before `forgot_commit` writes anything.
     pub fn forgot_prepare(
@@ -172,7 +172,7 @@ impl Desk {
         if new_password.chars().count() < MIN_PASSWORD_CHARS {
             return Err(CmdError::new(
                 "weak_password",
-                "Use at least 8 characters for the master password.",
+                "Use at least 8 characters for the password.",
             ));
         }
         let mut guard = self.inner();

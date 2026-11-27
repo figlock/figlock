@@ -1,4 +1,4 @@
-//! Changing the master password and rotating the Secret Key, against a real folder (see `tests.rs`).
+//! Changing the password and rotating the Secret Key, against a real folder (see `tests.rs`).
 
 use super::device_tests::unlocked;
 use super::tests::{code_of, desk, password, scenario_in};
@@ -28,7 +28,7 @@ fn a_locked_vault_cannot_change_credentials() {
 }
 
 #[test]
-fn a_new_master_password_replaces_the_old_one_and_the_key_stays() {
+fn a_new_password_replaces_the_old_one_and_the_key_stays() {
     scenario("change_password_inner");
 }
 

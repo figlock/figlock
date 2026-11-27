@@ -47,7 +47,7 @@ impl Desk {
 
     /// The Emergency Kit PDF made now (FIG-134), to be written where the person chooses. With a key kept on this
     /// Mac it asks for the same Touch ID or device password as showing the key. With none kept, `typed` (the
-    /// master password and the Secret Key from the old kit) is checked against the vault first. Nothing is made
+    /// password and the Secret Key from the old kit) is checked against the vault first. Nothing is made
     /// without one of the two, and nothing is cached: the caller writes the bytes and drops them.
     pub fn kit_again(&self, typed: Option<(&str, &str)>) -> CmdRes<Zeroizing<Vec<u8>>> {
         if self.inner().session.is_none() {
@@ -76,7 +76,7 @@ impl Desk {
     }
 
     /// Keep the Secret Key another device just made, in a window that is already open (ADR-0034). It asks for the
-    /// master password too, because the key can only be checked against the vault with it, and the open session
+    /// password too, because the key can only be checked against the vault with it, and the open session
     /// keeps working: it holds the Vault Key, which a Secret Key rotation does not change.
     pub fn update_secret_key(&self, password: &str, secret_key: &str) -> CmdRes<VaultState> {
         if self.inner().session.is_none() {
@@ -106,7 +106,7 @@ impl Desk {
     }
 
     /// Keep the Secret Key on this Mac again. The open session already holds the key it unlocked with, so then
-    /// nothing is typed; otherwise the master password and Secret Key are asked for once and checked.
+    /// nothing is typed; otherwise the password and Secret Key are asked for once and checked.
     pub fn keep_secret_key(&self, password: &str, secret_key: &str) -> CmdRes<VaultState> {
         if self.inner().session.is_none() {
             return Err(locked());

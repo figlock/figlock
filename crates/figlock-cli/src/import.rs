@@ -2,7 +2,7 @@
 //!
 //! Parsing is `figlock_core::parse_import` (pure, bounded, errors never quote the file). This module only reads
 //! the file, shows what was found, and writes the items. `--dry-run` stops after the summary and never asks for
-//! the master password.
+//! the password.
 
 use crate::prompt;
 use std::fs::File;

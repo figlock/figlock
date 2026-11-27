@@ -168,7 +168,7 @@ impl Desk {
     }
 
     /// Approve the request. A typed Secret Key, or the one the session holds (ADR-0030), must open the vault
-    /// together with the master password. With neither, Touch ID (or the device password) releases the Secret
+    /// together with the password. With neither, Touch ID (or the device password) releases the Secret
     /// Key this device keeps.
     pub fn add_device_approve(
         &self,

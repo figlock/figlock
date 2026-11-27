@@ -167,7 +167,7 @@ pub(crate) fn offer_quick_unlock(
         let quick = quick::system()?;
         let ask = || {
             prompt::confirm_default_yes(
-                "Unlock this device with Touch ID instead of your master password?",
+                "Unlock this device with Touch ID instead of your password?",
             )
         };
         Ok(quick.offer_at_init(choice, interactive, ask, vault, auk, now_ms() / 1000))

@@ -19,7 +19,7 @@ public struct Onboarding: Sendable {
         case invalidCode
         /// Someone already answered that invite (the request file exists).
         case alreadyAnswered
-        /// The trusted device refused, or the answer is not valid, or the master password is wrong.
+        /// The trusted device refused, or the answer is not valid, or the password is wrong.
         case joinFailed
         case offline
         /// iCloud lists the vault but has not downloaded it yet. Not missing: try again shortly.
@@ -118,7 +118,7 @@ public struct Onboarding: Sendable {
         }
     }
 
-    /// Make a vault from a new master password. Argon2id at the real cost takes a moment, so this runs off the
+    /// Make a vault from a new password. Argon2id at the real cost takes a moment, so this runs off the
     /// main thread. Nothing is stored.
     public func startCreation(password: String, deviceName: String) async throws -> PendingVault {
         guard case .noVault = vault.status() else { throw Failure.alreadyHasVault }
@@ -263,7 +263,7 @@ public struct Onboarding: Sendable {
 
     /// Download the vault in `remote` into this phone. A new phone gets fresh device keys; a phone that already
     /// has keys for this vault (a restore after the folder went missing) keeps them, so its record in the vault
-    /// still matches. The person then unlocks with the master password and the Secret Key; the unlock adds this
+    /// still matches. The person then unlocks with the password and the Secret Key; the unlock adds this
     /// device's record when the vault has none.
     public func openFromRemote(_ remote: any BlobStoreFfi, entry: RemoteEntry = .drive) async throws {
         guard let found = try inspect(remote: remote) else { throw Failure.noVaultInStorage }

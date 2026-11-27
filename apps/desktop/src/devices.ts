@@ -16,7 +16,7 @@ export type Device = {
 
 export const listDevices = () => invoke<Device[]>("devices");
 
-/** `newPassword` also changes the master password in the same step, for a device that may be compromised. */
+/** `newPassword` also changes the password in the same step, for a device that may be compromised. */
 /** A blank `secretKey` means "use the one this Mac keeps"; `needs_secret_key` says there is none to use. */
 export const revokeDevice = (
   device: string,
@@ -53,7 +53,7 @@ export const addDeviceStart = () => invoke<Invite>("add_device_start");
 export const addDeviceStatus = () => invoke<PairingStatus>("add_device_status");
 /**
  * Approves the new device. With no `secretKey`, Touch ID releases the Secret Key this Mac keeps; otherwise the
- * master password and the typed key must open the vault.
+ * password and the typed key must open the vault.
  */
 export const addDeviceApprove = (password: string, secretKey: string) =>
   invoke<Device[]>("add_device_approve", {

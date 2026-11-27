@@ -113,13 +113,13 @@
     error = "";
     fieldError = {};
     if (askKey) {
-      if (!password) fieldError.password = "Enter your master password.";
+      if (!password) fieldError.password = "Enter your password.";
       if (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0)) {
         fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
       }
       if (Object.keys(fieldError).length > 0) return;
     } else if (askPassword && !password) {
-      fieldError.password = "Enter your master password.";
+      fieldError.password = "Enter your password.";
       return;
     }
     busy = true;
@@ -136,7 +136,7 @@
         typeKey = true;
         error =
           keyKept && touchOn
-            ? "Touch ID did not release the Secret Key. Enter your master password and Secret Key to approve."
+            ? "Touch ID did not release the Secret Key. Enter your password and Secret Key to approve."
             : err.message;
       } else if (err.code === "bad_secret_key") fieldError.key = err.message;
       else if (err.code === "wrong_credentials") error = err.message;
@@ -186,7 +186,7 @@
         {#if error}<Alert>{error}</Alert>{/if}
         {#if askKey}
           <TextField
-            label="Master password"
+            label="Password"
             type="password"
             bind:value={password}
             error={fieldError.password}
@@ -196,10 +196,10 @@
           <SecretKeyField bind:value={secretKey} error={fieldError.key} disabled={busy} />
         {:else if askPassword}
           <p class="text-text-secondary">
-            Approving sends your Secret Key to the new device. It still needs your master password.
+            Approving sends your Secret Key to the new device. It still needs your password.
           </p>
           <TextField
-            label="Master password"
+            label="Password"
             type="password"
             bind:value={password}
             error={fieldError.password}
@@ -210,10 +210,9 @@
           <p class="text-text-secondary">
             {#if touchOn}
               Approving asks for Touch ID, then sends your Secret Key to the new device. It still
-              needs your master password.
+              needs your password.
             {:else}
-              Approving sends your Secret Key to the new device. It still needs your master
-              password.
+              Approving sends your Secret Key to the new device. It still needs your password.
             {/if}
           </p>
         {/if}

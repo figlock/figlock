@@ -8,8 +8,8 @@
   <span>
     Unlock this Mac with Touch ID
     <span class="block text-(length:--text-xs) text-text-tertiary">
-      Open FigLock with your fingerprint instead of typing your master password. This Mac keeps your
-      Secret Key either way, so the master password is all you ever type.
+      Open FigLock with your fingerprint instead of typing your password. This Mac keeps your Secret
+      Key either way, so the password is all you ever type.
     </span>
   </span>
 </label>

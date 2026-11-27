@@ -33,7 +33,7 @@ final class ForgotPasswordUITests: XCTestCase {
     }
 
     private func typeNewPassword() {
-        XCTAssertTrue(app.staticTexts["Choose a new master password"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["Choose a new password"].waitForExistence(timeout: 30))
         // The lock screen's own field is still there behind the sheet, so take the sheet's two.
         let fields = Array(app.secureTextFields.allElementsBoundByIndex.suffix(2))
         XCTAssertEqual(fields.count, 2)
@@ -61,7 +61,7 @@ final class ForgotPasswordUITests: XCTestCase {
             .firstMatch.waitForExistence(timeout: 30))
         XCTAssertTrue(app.staticTexts["Enter your Recovery Key"].exists, "still on step 1")
         app.buttons["Cancel"].tap()
-        // The old master password still opens the vault: unchanged.
+        // The old password still opens the vault: unchanged.
         let field = app.secureTextFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 10))
         field.tap()
@@ -109,12 +109,12 @@ final class ForgotPasswordUITests: XCTestCase {
         let field = app.textFields.firstMatch
         field.tap()
         field.typeText("AAAA-AAAA")
-        app.buttons["Change master password and Secret Key"].tap()
+        app.buttons["Change password and Secret Key"].tap()
         XCTAssertTrue(
             app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"doesn't match\"")).firstMatch
                 .waitForExistence(timeout: 5))
         field.clearAndTypeText(groups)
-        app.buttons["Change master password and Secret Key"].tap()
+        app.buttons["Change password and Secret Key"].tap()
         // The vault opens with the new credentials: the sheet closes and the vault list shows.
         XCTAssertTrue(app.buttons["Forgot password?"].waitForNonExistence(timeout: 60))
     }

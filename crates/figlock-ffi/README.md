@@ -31,7 +31,7 @@ and run the generator against it the same way. The `bindgen` feature stays off f
 
 `invite_path(code, vault_json)` says where to read the `.inv`; `start_join(code, inv, device, name, now_ms)`
 returns the request file to store and a `JoinHandle`. Show `handle.fingerprint()` (the trusted device shows
-the same one), poll for `response_path()` and `record_path()`, then `handle.finish(...)` with the typed master
+the same one), poll for `response_path()` and `record_path()`, then `handle.finish(...)` with the typed
 password gives the unlocked session and the Secret Key text for the Keychain. A wrong code, a bad or expired
 invite, a tampered answer and a wrong password all fail with the same `Failed`. The trusted side (creating an
 invite, approving) is not exported yet; it comes with the iOS approve flow.

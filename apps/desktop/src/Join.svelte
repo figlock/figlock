@@ -83,7 +83,7 @@
     error = "";
     fieldError = {};
     if (!password) {
-      fieldError.password = "Enter your master password.";
+      fieldError.password = "Enter your password.";
       return;
     }
     busy = true;
@@ -142,11 +142,11 @@
     </div>
   </Shell>
 {:else}
-  <Shell title="Approved" subtitle="Enter your master password to finish adding this Mac.">
+  <Shell title="Approved" subtitle="Enter your password to finish adding this Mac.">
     <form class="flex flex-col gap-4" onsubmit={finish}>
       {#if error}<Alert>{error}</Alert>{/if}
       <TextField
-        label="Master password"
+        label="Password"
         type="password"
         bind:value={password}
         error={fieldError.password}

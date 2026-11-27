@@ -1,8 +1,8 @@
 //! Touch ID unlock from Settings (FIG-141): turn it off, or on again, for a vault that is already open.
 //!
 //! Turning it off drops the quick unlock key and its policy state and nothing else: the Secret Key stays kept
-//! on this Mac in the login keychain (ADR-0034, ADR-0037), so the master password is still all that is typed.
-//! Turning it on needs the master password, because the quick unlock key is derived from it.
+//! on this Mac in the login keychain (ADR-0034, ADR-0037), so the password is still all that is typed.
+//! Turning it on needs the password, because the quick unlock key is derived from it.
 
 use figlock_core::Vault;
 use figlock_session::quick;
@@ -15,7 +15,7 @@ fn locked() -> CmdError {
 }
 
 impl Desk {
-    /// Stop unlocking with Touch ID. The Unlock screen then shows the master password only.
+    /// Stop unlocking with Touch ID. The Unlock screen then shows the password only.
     pub fn turn_touch_id_off(&self) -> CmdRes<VaultState> {
         if self.inner().session.is_none() {
             return Err(locked());
@@ -24,17 +24,14 @@ impl Desk {
         self.state()
     }
 
-    /// Unlock with Touch ID from now on. The master password confirms it; the Secret Key comes from the one
+    /// Unlock with Touch ID from now on. The password confirms it; the Secret Key comes from the one
     /// typed, held by this window or kept on this Mac, and is asked for only when none of them exists.
     pub fn turn_touch_id_on(&self, password: &str, secret_key: &str) -> CmdRes<VaultState> {
         if self.inner().session.is_none() {
             return Err(locked());
         }
         if password.is_empty() {
-            return Err(CmdError::new(
-                "empty_password",
-                "Enter your master password.",
-            ));
+            return Err(CmdError::new("empty_password", "Enter your password."));
         }
         let q = quick::system()?;
         if !q.available() {

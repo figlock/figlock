@@ -216,14 +216,14 @@ test("a Mac that keeps no key makes the kit from the password and key typed, che
   expect(core.saveKit).not.toHaveBeenCalled();
 
   // An incomplete key never reaches the app core.
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse");
   await user.click(within(dialog).getByRole("button", { name: "Save kit" }));
   expect(await within(dialog).findByText(/looks incomplete/)).toBeTruthy();
   expect(core.saveKit).not.toHaveBeenCalled();
 
   core.saveKit.mockRejectedValueOnce({
     code: "wrong_credentials",
-    message: "That master password and Secret Key do not match this vault.",
+    message: "That password and Secret Key do not match this vault.",
   });
   await user.click(within(dialog).getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
@@ -285,7 +285,7 @@ test("turning Touch ID on in Settings updates the Secret Key line at once", asyn
   const user = await toSettings();
   expect((await screen.findByTestId("key-where")).textContent).not.toContain("Touch ID");
   await user.click(await screen.findByRole("button", { name: "Turn on Touch ID" }));
-  await user.type(screen.getByLabelText("Master password"), "pw");
+  await user.type(screen.getByLabelText("Password"), "pw");
   await user.click(screen.getByRole("button", { name: "Turn on" }));
   await waitFor(() =>
     expect(screen.getByTestId("key-where").textContent).toContain("asks for Touch ID"),

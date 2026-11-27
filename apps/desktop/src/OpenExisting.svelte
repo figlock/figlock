@@ -26,7 +26,7 @@
       fieldError.folder = "Choose the folder that holds your vault.";
     }
     if (storage.kind === "drive" && !storage.ready) error = "Sign in to Google first.";
-    if (!password) fieldError.password = "Enter your master password.";
+    if (!password) fieldError.password = "Enter your password.";
     if (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0)) {
       fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
@@ -46,13 +46,13 @@
 
 <Shell
   title="Open your vault"
-  subtitle="Pick where it is kept, then enter your master password and Secret Key."
+  subtitle="Pick where it is kept, then enter your password and Secret Key."
 >
   <form class="flex flex-col gap-4" onsubmit={submit}>
     {#if error}<Alert>{error}</Alert>{/if}
     <StoragePicker {storage} folderError={fieldError.folder} />
     <TextField
-      label="Master password"
+      label="Password"
       type="password"
       bind:value={password}
       error={fieldError.password}

@@ -84,19 +84,19 @@ async function toSettings() {
 
 test("changing the password needs the current one and a matching new one", async () => {
   const user = await toSettings();
-  await user.click(screen.getByRole("button", { name: "Change master password" }));
+  await user.click(screen.getByRole("button", { name: "Change password" }));
   const dialog = screen.getByRole("dialog");
   // This Mac keeps the Secret Key, so only passwords are asked for.
   expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
-  await user.type(within(dialog).getByLabelText("Current master password"), PASSWORD);
-  await user.type(within(dialog).getByLabelText("New master password"), "brand new password 7");
-  await user.type(within(dialog).getByLabelText("Repeat new master password"), "something else 1");
+  await user.type(within(dialog).getByLabelText("Current password"), PASSWORD);
+  await user.type(within(dialog).getByLabelText("New password"), "brand new password 7");
+  await user.type(within(dialog).getByLabelText("Repeat new password"), "something else 1");
   await user.click(within(dialog).getByRole("button", { name: "Change password" }));
   expect(await screen.findByText("The two passwords do not match.")).toBeTruthy();
   expect(core.changeCredentials).not.toHaveBeenCalled();
 
   core.changeCredentials.mockResolvedValue({ secretKey: null });
-  const repeat = within(dialog).getByLabelText("Repeat new master password");
+  const repeat = within(dialog).getByLabelText("Repeat new password");
   await user.clear(repeat);
   await user.type(repeat, "brand new password 7");
   await user.click(within(dialog).getByRole("button", { name: "Change password" }));
@@ -108,24 +108,21 @@ test("changing the password needs the current one and a matching new one", async
       false,
     ),
   );
-  expect(await screen.findByText(/master password is changed/)).toBeTruthy();
+  expect(await screen.findByText(/password is changed/)).toBeTruthy();
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 
 test("a wrong current password stays in the dialog", async () => {
   const user = await toSettings();
-  await user.click(screen.getByRole("button", { name: "Change master password" }));
+  await user.click(screen.getByRole("button", { name: "Change password" }));
   const dialog = screen.getByRole("dialog");
   core.changeCredentials.mockRejectedValue({
     code: "wrong_credentials",
-    message: "That master password and Secret Key do not match this vault.",
+    message: "That password and Secret Key do not match this vault.",
   });
-  await user.type(within(dialog).getByLabelText("Current master password"), PASSWORD);
-  await user.type(within(dialog).getByLabelText("New master password"), "brand new password 7");
-  await user.type(
-    within(dialog).getByLabelText("Repeat new master password"),
-    "brand new password 7",
-  );
+  await user.type(within(dialog).getByLabelText("Current password"), PASSWORD);
+  await user.type(within(dialog).getByLabelText("New password"), "brand new password 7");
+  await user.type(within(dialog).getByLabelText("Repeat new password"), "brand new password 7");
   await user.click(within(dialog).getByRole("button", { name: "Change password" }));
   expect(await screen.findByText(/do not match this vault/)).toBeTruthy();
   expect(screen.getByRole("dialog")).toBeTruthy();
@@ -136,7 +133,7 @@ test("rotating the key shows the new key and cannot be closed until it is confir
   await user.click(screen.getByRole("button", { name: "Rotate Secret Key" }));
   let dialog = screen.getByRole("dialog");
   core.changeCredentials.mockResolvedValue({ secretKey: NEW_KEY });
-  await user.type(within(dialog).getByLabelText("Current master password"), PASSWORD);
+  await user.type(within(dialog).getByLabelText("Current password"), PASSWORD);
   await user.click(within(dialog).getByRole("button", { name: "Rotate key" }));
   await waitFor(() =>
     expect(core.changeCredentials).toHaveBeenCalledWith(PASSWORD, "", null, true),
@@ -174,7 +171,7 @@ test("a Mac that does not keep the key asks for it, and the old key is never sho
   const user = await toSettings();
   await user.click(screen.getByRole("button", { name: "Rotate Secret Key" }));
   const dialog = screen.getByRole("dialog");
-  await user.type(within(dialog).getByLabelText("Current master password"), PASSWORD);
+  await user.type(within(dialog).getByLabelText("Current password"), PASSWORD);
   await user.click(within(dialog).getByRole("button", { name: "Rotate key" }));
   expect(await screen.findByText(/looks incomplete/)).toBeTruthy();
   expect(core.changeCredentials).not.toHaveBeenCalled();
@@ -190,16 +187,13 @@ test("a Mac that does not keep the key asks for it, and the old key is never sho
 
 test("a refusal because settings changed elsewhere locks the vault and relocks", async () => {
   const user = await toSettings();
-  await user.click(screen.getByRole("button", { name: "Change master password" }));
+  await user.click(screen.getByRole("button", { name: "Change password" }));
   const dialog = screen.getByRole("dialog");
   const message = "Another device changed this vault. Lock and unlock, then try again.";
   core.changeCredentials.mockRejectedValue({ code: "needs_unlock", message });
-  await user.type(within(dialog).getByLabelText("Current master password"), PASSWORD);
-  await user.type(within(dialog).getByLabelText("New master password"), "brand new password 7");
-  await user.type(
-    within(dialog).getByLabelText("Repeat new master password"),
-    "brand new password 7",
-  );
+  await user.type(within(dialog).getByLabelText("Current password"), PASSWORD);
+  await user.type(within(dialog).getByLabelText("New password"), "brand new password 7");
+  await user.type(within(dialog).getByLabelText("Repeat new password"), "brand new password 7");
   await user.click(within(dialog).getByRole("button", { name: "Change password" }));
   await waitFor(() => expect(user.onlocked).toHaveBeenCalledWith(message));
   expect(core.lock).toHaveBeenCalledTimes(1);

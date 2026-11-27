@@ -359,7 +359,7 @@ impl JoinAttempt {
         format!("devices/{}.json", hexs(&self.device.device_id))
     }
 
-    /// Open the `.resp`, check it is for this device, and unlock with the typed master password. The device
+    /// Open the `.resp`, check it is for this device, and unlock with the typed password. The device
     /// record read from storage must verify against the authority key derived from the unlocked vault; a
     /// vault that would have to create a fresh record for this device is refused (`pairing-recovery.md` 3.4).
     pub fn finish(

@@ -9,7 +9,7 @@ use std::process::{Command, Output, Stdio};
 use serde_json::Value;
 use tempfile::TempDir;
 
-const PW: &str = "unit-test-master-password";
+const PW: &str = "unit-test-password";
 
 fn text(b: &[u8]) -> String {
     String::from_utf8_lossy(b).into_owned()

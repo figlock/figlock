@@ -44,7 +44,7 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!password) fieldError.password = "Enter your master password.";
+    if (!password) fieldError.password = "Enter your password.";
     if (
       askKey &&
       (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0))
@@ -95,7 +95,7 @@
       </Alert>
     {/if}
     <TextField
-      label="Master password"
+      label="Password"
       type={shown ? "text" : "password"}
       bind:value={password}
       error={fieldError.password}
@@ -117,7 +117,7 @@
       />
     {:else}
       <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
-        This Mac keeps your Secret Key, so you only need your master password.
+        This Mac keeps your Secret Key, so you only need your password.
         <button
           type="button"
           class="underline underline-offset-2 hover:text-text"

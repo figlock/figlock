@@ -29,7 +29,7 @@ struct EmergencyKitView: View {
                     .foregroundStyle(FLColor.textSecondary)
                 }
             } header: {
-                Text("Needed, with your master password, to add a device.").textCase(nil)
+                Text("Needed, with your password, to add a device.").textCase(nil)
             } footer: {
                 if reveal.isKept { Text("It stays hidden until you choose Show. Showing it needs Face ID.") }
             }

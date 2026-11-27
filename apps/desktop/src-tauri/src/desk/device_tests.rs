@@ -234,7 +234,7 @@ fn held_key_inner() {
     let state = d.state().unwrap();
     assert!(state.secret_key_held && !state.secret_key_kept);
 
-    // A wrong master password with a held key is a plain mismatch, not a request for the key.
+    // A wrong password with a held key is a plain mismatch, not a request for the key.
     let phone = add_device(&d, &key, "Phone");
     assert_eq!(
         code_of(

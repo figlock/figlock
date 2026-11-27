@@ -31,13 +31,13 @@ const IDLE_LOCK: Duration = Duration::from_secs(30 * 60);
 const IDLE_CHECK: Duration = Duration::from_secs(10);
 
 /// What a broker started for an agent has instead of a keyboard: it can use quick unlock, and it can never ask
-/// for the master password.
+/// for the password.
 struct NoPrompt;
 
 impl Ui for NoPrompt {
     fn password(&self) -> Res<Zeroizing<String>> {
         Err(Fail::new(
-            "a background broker cannot ask for the master password; open FigLock and unlock it, or run `figlock broker start` in a terminal",
+            "a background broker cannot ask for the password; open FigLock and unlock it, or run `figlock broker start` in a terminal",
         ))
     }
 

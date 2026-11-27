@@ -263,17 +263,11 @@
       if (core.keyOptedOut && !secretKey)
         return fail("needs_secret_key", "This Mac does not have your Secret Key.");
       if (core.keyOptedOut && secretKey !== KEY)
-        return fail(
-          "wrong_credentials",
-          "That master password and Secret Key do not match this vault.",
-        );
+        return fail("wrong_credentials", "That password and Secret Key do not match this vault.");
       if (core.secretKeyStale) {
         if (!secretKey) return fail("needs_secret_key", "This Mac does not have your Secret Key.");
         if (secretKey !== NEW_KEY)
-          return fail(
-            "wrong_credentials",
-            "That master password and Secret Key do not match this vault.",
-          );
+          return fail("wrong_credentials", "That password and Secret Key do not match this vault.");
         core.secretKeyStale = false;
       }
       core.phase = "unlocked";
@@ -290,16 +284,13 @@
           "Type your Secret Key from your Emergency Kit to continue.",
         );
       if (secretKey && (password !== PASSWORD || secretKey !== KEY))
-        return fail(
-          "wrong_credentials",
-          "That master password and Secret Key do not match this vault.",
-        );
+        return fail("wrong_credentials", "That password and Secret Key do not match this vault.");
       core.keyOptedOut = false;
       return state();
     },
     quick_unlock: () => {
       if (!core.quickUnlock)
-        return fail("quick_unavailable", "Touch ID is off. Type your master password.");
+        return fail("quick_unavailable", "Touch ID is off. Type your password.");
       core.phase = "unlocked";
       return state();
     },
@@ -314,19 +305,13 @@
           "Type your Secret Key from your Emergency Kit to continue.",
         );
       if (password !== PASSWORD || (core.keyNotKept && secretKey !== KEY))
-        return fail(
-          "wrong_credentials",
-          "That master password and Secret Key do not match this vault.",
-        );
+        return fail("wrong_credentials", "That password and Secret Key do not match this vault.");
       core.quickUnlock = true;
       return state();
     },
     update_secret_key: ({ password, secretKey }) => {
       if (password !== PASSWORD || secretKey !== NEW_KEY)
-        return fail(
-          "wrong_credentials",
-          "That master password and Secret Key do not match this vault.",
-        );
+        return fail("wrong_credentials", "That password and Secret Key do not match this vault.");
       core.secretKeyStale = false;
       return state();
     },
@@ -531,10 +516,7 @@
         if (!password || !secretKey)
           return fail("no_secret_key", "This Mac is not keeping your Secret Key.");
         if (password !== PASSWORD || secretKey !== KEY)
-          return fail(
-            "wrong_credentials",
-            "That master password and Secret Key do not match this vault.",
-          );
+          return fail("wrong_credentials", "That password and Secret Key do not match this vault.");
       }
       if (core.kitDialogCancelled) return false;
       core.kitsSaved.push(secretKey ?? KEY);

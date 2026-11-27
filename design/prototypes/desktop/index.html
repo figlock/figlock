@@ -447,7 +447,7 @@ dialog.sheet { margin: 0 auto auto; max-width: 540px; border-top: 0; border-radi
     </div>
     <div id="ulError" class="alert" role="alert" hidden></div>
     <div>
-      <label class="label" for="ulPw">Master password <span class="req" aria-hidden="true">*</span></label>
+      <label class="label" for="ulPw">Password <span class="req" aria-hidden="true">*</span></label>
       <div class="field-wrap">
         <input class="input" id="ulPw" type="password" autocomplete="off" spellcheck="false" aria-describedby="ulPwErr">
         <button type="button" class="btn" id="ulShow" data-act="ulShow" aria-pressed="false">Show</button>
@@ -820,7 +820,7 @@ function renderUnlock() {
   $('#ulPw').disabled = busy; $('#ulShow').disabled = busy; $$('#ulKey .kb').forEach(i => (i.disabled = busy));
   $('#ulNote').innerHTML = `${icon('clock', 'i14')}<span>FigLock locks itself after ${S.autolock === 60 ? '1 hour' : S.autolock + (S.autolock === 1 ? ' minute' : ' minutes')} without activity.</span>`;
   const e = $('#ulError');
-  if (S.unlock === 'error') { e.hidden = false; e.innerHTML = `<span class="alert-ic">${icon('circle-alert', 'i18')}</span><span>That master password and Secret Key do not match this vault. Check both and try again. Your Secret Key is in your Emergency Kit.</span>`; }
+  if (S.unlock === 'error') { e.hidden = false; e.innerHTML = `<span class="alert-ic">${icon('circle-alert', 'i18')}</span><span>That password and Secret Key do not match this vault. Check both and try again. Your Secret Key is in your Emergency Kit.</span>`; }
   else e.hidden = true;
 }
 function fieldErr(id, msg, inputSel) {
@@ -831,7 +831,7 @@ function fieldErr(id, msg, inputSel) {
 const KEY_MSG = 'This Secret Key looks incomplete. It has six groups of letters and numbers.';
 function validateUnlock() {
   const pw = $('#ulPw').value, ok = keyOk(readKey());
-  fieldErr('#ulPw', pw ? '' : 'Enter your master password.');
+  fieldErr('#ulPw', pw ? '' : 'Enter your password.');
   fieldErr('#ulKey', ok ? '' : KEY_MSG, '#ulKey .kb');
   return !!pw && ok;
 }
@@ -1274,7 +1274,7 @@ function pageHealth() {
 function pageDevices() {
   return `<div class="ihead"><div class="od-field"><h1 id="pageH" tabindex="-1">Devices</h1><span class="cap">Devices that can unlock this vault. Revoke any device you no longer use.</span></div></div>
   <div class="group">${S.devices.map(x => `<div class="srow"><span class="tile">${icon(x.kind, 'i18')}</span><div class="od-field"><span class="srow-t" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span>${esc(x.name)}</span>${x.here ? `<span class="badge primary">${icon('check', 'i12')}This device</span>` : ''}</span><span class="cap">${esc(x.os)}, last seen ${esc(x.here ? 'now' : x.seen)}</span>${x.stale ? `<span class="cap c-warning" style="display:flex;gap:4px;align-items:center">${icon('clock', 'i12')}Not seen in over a month. Revoke it if you no longer use it.</span>` : ''}</div>${x.here ? '' : `<button type="button" class="btn btn-danger-quiet" data-act="revokeDev" data-id="${x.id}" aria-label="Revoke ${esc(x.name)}">Revoke</button>`}</div>`).join('')}</div>
-  <p class="gfoot">To add a device, sign in on it with your master password and Secret Key. You can find the Secret Key in your Emergency Kit.</p>`;
+  <p class="gfoot">To add a device, sign in on it with your password and Secret Key. You can find the Secret Key in your Emergency Kit.</p>`;
 }
 function pageKit() {
   const st = S.secret['kit:key'] || {}, shown = st.revealUntil > Date.now(), parts = SECRET_KEY.split('-');
@@ -1287,8 +1287,8 @@ function pageKit() {
       <div class="od-row" style="--od-gap:8px;margin-top:12px"><button type="button" class="btn" data-act="reveal" data-key="kit:key" aria-label="${shown ? 'Hide' : 'Show'} Secret Key">${icon(shown ? 'eye-off' : 'eye')}${shown ? 'Hide' : 'Show'}</button><button type="button" class="btn" data-act="copy" data-key="kit:key" aria-label="Copy Secret Key">${icon('copy')}Copy</button></div>
       <div data-st="kit:key">${timersHTML('kit:key')}</div>
     </div>
-    <div class="od-stack" style="--od-gap:4px"><span class="lrow-title">Master password</span><span class="sec">Write it on this sheet by hand. FigLock never prints it.</span></div>
-    <div class="alert" style="background:var(--warning-subtle)"><span class="c-warning">${icon('triangle-alert', 'i18')}</span><span>Anyone with this sheet and your master password can open your vault. Store it somewhere safe, away from your devices.</span></div>
+    <div class="od-stack" style="--od-gap:4px"><span class="lrow-title">Password</span><span class="sec">Write it on this sheet by hand. FigLock never prints it.</span></div>
+    <div class="alert" style="background:var(--warning-subtle)"><span class="c-warning">${icon('triangle-alert', 'i18')}</span><span>Anyone with this sheet and your password can open your vault. Store it somewhere safe, away from your devices.</span></div>
   </div>
   <div class="actions"><button type="button" class="btn btn-primary" data-act="kitSave">${icon('download')}Save Emergency Kit as PDF</button></div>`;
 }
@@ -1305,7 +1305,7 @@ function pageSettings() {
     </div></section>
   <section aria-labelledby="stUnlock"><h2 class="gtitle" id="stUnlock">Unlocking</h2>
     <div class="group">
-      <div class="srow"><span class="od-field"><span class="srow-t">Quick unlock with Touch ID</span><span class="cap">Unlock this vault with your fingerprint. You still need your master password after a restart.</span></span>${sw('touchSw', 'touch', S.touchId, 'Quick unlock with Touch ID')}</div>
+      <div class="srow"><span class="od-field"><span class="srow-t">Quick unlock with Touch ID</span><span class="cap">Unlock this vault with your fingerprint. You still need your password after a restart.</span></span>${sw('touchSw', 'touch', S.touchId, 'Quick unlock with Touch ID')}</div>
       <div class="srow"><span class="od-field"><label class="srow-t" for="autolock">Auto-lock timeout</label><span class="cap">FigLock locks after this much time without activity.</span></span><select class="select" id="autolock" data-in="autolock">${[[1, '1 minute'], [5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour']].map(([v, l]) => `<option value="${v}" ${S.autolock === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
     </div></section>
   <section aria-labelledby="stView"><h2 class="gtitle" id="stView">Appearance</h2>
@@ -1448,14 +1448,14 @@ const A = {
   toggleOffline: () => { S.sync = S.sync === 'offline' ? 'synced' : 'offline'; if (S.sync === 'synced') S.syncedAt = 'just now'; renderSync(); if (cur().p === 'settings') render(); toast(S.sync === 'offline' ? 'Working offline. Changes stay on this device.' : 'Back online', S.sync === 'offline' ? 'cloud-off' : 'cloud'); },
   importStub: () => toast('Choose a CSV or JSON file to import. Nothing leaves this device.', 'upload'),
   storage: t => { S.storage = t.dataset.k; render(); const b = $(`#page [data-act="storage"][data-k="${S.storage}"]`); if (b) b.focus(); bumpSync(); toast(`Vault storage is now ${S.storage === 'drive' ? 'Google Drive' : 'Local folder'}`); },
-  touchSw: () => { S.touchId = !S.touchId; render(); const b = $('#page [data-act="touchSw"]'); if (b) b.focus(); toast(S.touchId ? 'Touch ID is on for quick unlock' : 'Touch ID is off. You will type your master password to unlock.', 'fingerprint'); },
+  touchSw: () => { S.touchId = !S.touchId; render(); const b = $('#page [data-act="touchSw"]'); if (b) b.focus(); toast(S.touchId ? 'Touch ID is on for quick unlock' : 'Touch ID is off. You will type your password to unlock.', 'fingerprint'); },
   theme: t => { S.theme = t.dataset.k; applyTheme(); render(); const b = $(`#page [data-act="theme"][data-k="${S.theme}"]`); if (b) b.focus(); },
   kitSave: () => toast('Emergency Kit saved to your Downloads folder', 'download'),
   revokeDev: t => {
     const d = S.devices.find(x => x.id === t.dataset.id);
     confirmDlg({
       title: `Revoke ${d.name}?`, label: `Revoke ${d.name}`,
-      body: `${d.name} loses access to this vault right away. To come back, it must sign in again with your master password and Secret Key.`,
+      body: `${d.name} loses access to this vault right away. To come back, it must sign in again with your password and Secret Key.`,
       onOk: () => { S.devices = S.devices.filter(x => x.id !== d.id); render(); toast(`Revoked ${d.name}`, 'laptop'); const h = $('#pageH'); if (h) h.focus(); }
     });
   },
@@ -1555,7 +1555,7 @@ document.addEventListener('paste', e => {
   if (parts && parts.length === 6) { e.preventDefault(); $$('#ulKey .kb').forEach((i, k) => (i.value = parts[k].slice(0, KEY_LENS[k]))); fieldErr('#ulKey', '', '#ulKey .kb'); }
 });
 document.addEventListener('focusout', e => {
-  if (e.target.id === 'ulPw') fieldErr('#ulPw', e.target.value ? '' : 'Enter your master password.');
+  if (e.target.id === 'ulPw') fieldErr('#ulPw', e.target.value ? '' : 'Enter your password.');
   if (e.target.classList && e.target.classList.contains('kb') && !(e.relatedTarget && e.relatedTarget.classList && e.relatedTarget.classList.contains('kb'))) fieldErr('#ulKey', keyOk(readKey()) ? '' : KEY_MSG, '#ulKey .kb');
 });
 document.addEventListener('keydown', e => {

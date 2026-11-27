@@ -143,7 +143,7 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     #expect(await lock.unlockWithFaceID() == .passwordNeeded(.tooManyFailures))
     #expect(phone.chip.prompts == prompts)
 
-    // The master password still works, and turns Face ID back on.
+    // The password still works, and turns Face ID back on.
     #expect(await lock.unlock(password: Phone.password, secretKey: nil) == .unlocked)
     #expect(lock.quickUnlockStatus == .ready)
     lock.lock()
@@ -289,6 +289,6 @@ private func lockWithFaceIDOn(_ phone: Phone) async throws -> AppLock {
     #expect(!lock.quickUnlockIsWanted)
     #expect(lock.quickUnlockStatus == .off)
     #expect(!phone.chip.hasKey)
-    // Master password still unlocks.
+    // Password still unlocks.
     #expect(await lock.unlock(password: Phone.password, secretKey: nil) == .unlocked)
 }

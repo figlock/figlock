@@ -1,6 +1,6 @@
 //! The printable Recovery Key: one page with the single `FLR1-` code and its QR (`pairing-recovery.md` 7, FIG-103).
 //! Pure like the Emergency Kit: it returns bytes and the caller decides where they go; nothing here writes a file,
-//! reads the clock or logs. The page holds the key and nothing else secret: no master password, no Secret Key.
+//! reads the clock or logs. The page holds the key and nothing else secret: no password, no Secret Key.
 
 use qrcode::{Color, EcLevel, QrCode};
 use zeroize::Zeroizing;
@@ -17,12 +17,12 @@ const CODE_STEPS: [&str; 4] = [
     "1. Install FigLock on any device and choose \"I forgot my password\".",
     "2. Choose the same storage as before and sign in to it.",
     "3. Type this key, or scan the QR code.",
-    "4. Choose a new master password. FigLock makes a new Secret Key and a new Emergency Kit.",
+    "4. Choose a new password. FigLock makes a new Secret Key and a new Emergency Kit.",
 ];
 
 const CODE_NOTICES: [&str; 4] = [
-    "Anyone who holds this key can open your vault without your master password.",
-    "Keep it apart from your Emergency Kit and from your master password.",
+    "Anyone who holds this key can open your vault without your password.",
+    "Keep it apart from your Emergency Kit and from your password.",
     "FigLock cannot recover this key. If you make a new one, this one stops working.",
     "Using it is a good moment to make a new Recovery Key and revoke devices you do not trust.",
 ];
@@ -100,12 +100,7 @@ fn code_page(info: &KitInfo, name: &str, storage: &str, code: &str) -> Result<Ze
     y = top - side - 4.0 * QR_MODULE - 18.0;
 
     belongs(&mut p, &mut y, name, storage, info.created);
-    lines(
-        &mut p,
-        &mut y,
-        "If you forget your master password",
-        &CODE_STEPS,
-    );
+    lines(&mut p, &mut y, "If you forget your password", &CODE_STEPS);
     lines(&mut p, &mut y, "Read this", &CODE_NOTICES);
     if y < MARGIN - 14.0 {
         return Err(Error);

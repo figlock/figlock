@@ -12,9 +12,9 @@ final class LockScreenUITests: XCTestCase {
         app.launch()
     }
 
-    // FIG-216: a rejected master password does not stay in the field.
+    // FIG-216: a rejected password does not stay in the field.
     // FIG-219: one tap on Unlock is enough while the keyboard is up.
-    func testWrongMasterPasswordIsClearedAfterOneTapOnUnlock() {
+    func testWrongPasswordIsClearedAfterOneTapOnUnlock() {
         let field = app.secureTextFields.firstMatch
         XCTAssertTrue(field.waitForExistence(timeout: 15))
         field.tap()

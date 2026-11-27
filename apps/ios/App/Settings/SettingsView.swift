@@ -131,7 +131,7 @@ struct SettingsView: View {
             Button("Remove vault", role: .destructive) { remove() }
         } message: {
             Text(
-                "This removes the vault, its keys and Face ID from this iPhone. Your synced copies are not deleted. To add it again you need your Secret Key and master password."
+                "This removes the vault, its keys and Face ID from this iPhone. Your synced copies are not deleted. To add it again you need your Secret Key and password."
             )
         }
         .alert("Could not remove the vault", isPresented: $removalFailed) {

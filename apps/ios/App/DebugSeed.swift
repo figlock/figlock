@@ -4,7 +4,7 @@
     import SwiftUI
 
     /// Debug builds only: `-figlock-seed-demo` makes a vault with made-up values and cheap Argon2id settings on
-    /// first launch, so the unlock screen can be run and tested before onboarding exists. The master password is
+    /// first launch, so the unlock screen can be run and tested before onboarding exists. The password is
     /// `demo-password-1`. Nothing here is a real secret and none of it is compiled into a release build.
     enum DebugSeed {
         static let password = "demo-password-1"

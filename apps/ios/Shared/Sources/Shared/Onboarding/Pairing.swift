@@ -40,7 +40,7 @@ extension Onboarding {
             return true
         }
 
-        /// Open the answer with the master password and store the vault on this phone. The Secret Key that came in
+        /// Open the answer with the password and store the vault on this phone. The Secret Key that came in
         /// the answer is kept through `SecretKeyKeeper.keep`, which honors the ADR-0038 opt-out.
         public func finish(password: String) async throws {
             let handle = handle

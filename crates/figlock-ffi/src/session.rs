@@ -168,7 +168,7 @@ impl VaultSession {
         })
     }
 
-    /// Revoke another device (`pairing-recovery.md` 4). Needs the master password and Secret Key, which are
+    /// Revoke another device (`pairing-recovery.md` 4). Needs the password and Secret Key, which are
     /// checked against the vault; a wrong pair, an unknown or already revoked device, this device itself and
     /// pending edits (commit first) all fail with `Failed` and change nothing. On success this session is at
     /// the new epoch and the returned files are what the caller stores.
@@ -387,7 +387,7 @@ pub struct UnlockOutcome {
     pub new_device_record: Option<Vec<u8>>,
 }
 
-/// Unlock with the master password and Secret Key text (`FL1-...`). `vault_json` and `device_records` are the
+/// Unlock with the password and Secret Key text (`FL1-...`). `vault_json` and `device_records` are the
 /// stored files. A wrong password, a wrong Secret Key and a tampered file all give the same `Failed`.
 #[uniffi::export]
 pub fn unlock_vault(

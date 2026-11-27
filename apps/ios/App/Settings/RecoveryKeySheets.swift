@@ -2,7 +2,7 @@ import FigLockFFI
 import Shared
 import SwiftUI
 
-/// The master password, and the Secret Key when this iPhone does not keep it, for a change to the Recovery Key.
+/// The password, and the Secret Key when this iPhone does not keep it, for a change to the Recovery Key.
 struct CredentialsSection: View {
     let model: RecoveryKeyModel
 
@@ -10,7 +10,7 @@ struct CredentialsSection: View {
         @Bindable var model = model
         Section("Confirm it is you") {
             // No `.password` content type: it makes iOS offer "Save Password?" when the sheet closes, over the list.
-            SecureField("Master password", text: $model.password)
+            SecureField("Password", text: $model.password)
             if model.needsSecretKey {
                 TextField("Secret Key (FL1-...)", text: $model.secretKey)
                     .textInputAutocapitalization(.characters)
@@ -21,7 +21,7 @@ struct CredentialsSection: View {
     }
 }
 
-/// Two steps: show the new code and let the person save it, then check it, ask for the master password (and the
+/// Two steps: show the new code and let the person save it, then check it, ask for the password (and the
 /// Secret Key when this iPhone does not keep it) and write it into the vault.
 struct SetUpRecoveryKeySheet: View {
     let model: RecoveryKeyModel
@@ -54,7 +54,7 @@ struct SetUpRecoveryKeySheet: View {
             Text(
                 model.hasKey
                     ? "Your new Recovery Key. The old one stops working when you finish."
-                    : "Your Recovery Key. It opens your vault if you forget your master password."
+                    : "Your Recovery Key. It opens your vault if you forget your password."
             )
             .font(FLFont.ui(FLText.base, relativeTo: .callout))
             Text(model.code)
@@ -143,7 +143,7 @@ struct SetUpRecoveryKeySheet: View {
     }
 }
 
-/// Turning it off asks for the master password (and the Secret Key when this iPhone does not keep it): it is a
+/// Turning it off asks for the password (and the Secret Key when this iPhone does not keep it): it is a
 /// downgrade, and removing the key needs no secret of the vault, so the vault checks the credentials first.
 struct RemoveRecoveryKeySheet: View {
     let model: RecoveryKeyModel
@@ -155,7 +155,7 @@ struct RemoveRecoveryKeySheet: View {
             Form {
                 Section {
                     Text(
-                        "Without a Recovery Key, a forgotten master password cannot be recovered. The Recovery Key you saved opens nothing from now on."
+                        "Without a Recovery Key, a forgotten password cannot be recovered. The Recovery Key you saved opens nothing from now on."
                     )
                     .font(FLFont.ui(FLText.base, relativeTo: .callout))
                 }

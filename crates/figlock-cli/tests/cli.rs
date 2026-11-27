@@ -10,7 +10,7 @@ use std::process::{Command, Output, Stdio};
 use serde_json::Value;
 use tempfile::TempDir;
 
-const PW: &str = "unit-test-master-password";
+const PW: &str = "unit-test-password";
 const SECRET: &str = "Zq9-test-secret-value-1";
 
 struct Env {

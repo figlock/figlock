@@ -21,7 +21,7 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
     await page.getByRole("button", { name: "Lock", exact: true }).click();
     await expect(page.getByLabel("Secret Key group 1 of 8")).toBeVisible();
     await expect(page.getByText("You stopped keeping it on this Mac")).toBeVisible();
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await typeKey(page);
     await page.getByRole("button", { name: "Unlock" }).click();
     await page.getByRole("button", { name: "Settings" }).click();
@@ -35,7 +35,7 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
 
     await page.getByRole("button", { name: "Lock", exact: true }).click();
     await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("button", { name: /^GitHub/ })).toBeVisible();
   });
@@ -49,11 +49,11 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
     await expect(
       page.getByRole("heading", { name: "Keep your Secret Key on this Mac" }),
     ).toBeVisible();
-    await page.getByLabel("Master password").fill("wrong wrong wrong");
+    await page.getByLabel("Password", { exact: true }).fill("wrong wrong wrong");
     await typeKey(page);
     await page.getByRole("button", { name: "Keep it", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("do not match");
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
     await page.getByRole("button", { name: "Keep it", exact: true }).click();
     await expect(page.getByTestId("key-where")).toBeVisible();
   });

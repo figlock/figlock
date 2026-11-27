@@ -5,9 +5,9 @@
   import { errorOf } from "./vault";
 
   type Props = {
-    /** What this dialog changes: the master password, or the Secret Key. */
+    /** What this dialog changes: the password, or the Secret Key. */
     mode: "password" | "key";
-    /** This Mac keeps the Secret Key, so only the master password is asked for. */
+    /** This Mac keeps the Secret Key, so only the password is asked for. */
     keyKept: boolean;
     /** Resolves when the change is stored; a rejection is shown in the dialog. */
     onchange: (password: string, secretKey: string, newPassword: string | null) => Promise<Changed>;
@@ -37,7 +37,7 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!password) fieldError.password = "Enter your current master password.";
+    if (!password) fieldError.password = "Enter your current password.";
     if (
       askKey &&
       (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0))
@@ -77,7 +77,7 @@
   <form class="flex flex-col gap-4 p-6" onsubmit={submit}>
     <div class="flex flex-col gap-2">
       <h2 id={titleId} class="text-(length:--text-md) leading-6 font-semibold">
-        {mode === "password" ? "Change master password" : "Rotate Secret Key"}
+        {mode === "password" ? "Change password" : "Rotate Secret Key"}
       </h2>
       <p class="text-text-secondary">
         {#if mode === "password"}
@@ -87,12 +87,12 @@
           FigLock makes a new Secret Key and the old one stops working. You then save a new
           Emergency Kit, and your other devices ask for the new key the next time they unlock.
         {/if}
-        Enter your current master password{askKey ? " and Secret Key" : ""} to confirm.
+        Enter your current password{askKey ? " and Secret Key" : ""} to confirm.
       </p>
     </div>
     {#if error}<Alert>{error}</Alert>{/if}
     <TextField
-      label="Current master password"
+      label="Current password"
       type="password"
       bind:value={password}
       error={fieldError.password}
@@ -104,7 +104,7 @@
     {/if}
     {#if mode === "password"}
       <TextField
-        label="New master password"
+        label="New password"
         type="password"
         autocomplete="new-password"
         bind:value={newPassword}
@@ -113,7 +113,7 @@
         disabled={busy}
       />
       <TextField
-        label="Repeat new master password"
+        label="Repeat new password"
         type="password"
         autocomplete="new-password"
         bind:value={repeat}

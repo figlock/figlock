@@ -1,7 +1,7 @@
 import Shared
 import SwiftUI
 
-/// The unlock screen (`design/prototypes/ios`, "unlock"): Face ID first, the master password as the fallback.
+/// The unlock screen (`design/prototypes/ios`, "unlock"): Face ID first, the password as the fallback.
 struct LockScreen: View {
     let lock: AppLock
     let environment: AppEnvironment
@@ -96,7 +96,7 @@ struct LockScreen: View {
                 }
             }
             VStack(alignment: .leading, spacing: FLSpace.s1) {
-                Text("Master password").font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(
+                Text("Password").font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(
                     FLColor.textSecondary)
                 HStack {
                     Group {
@@ -118,7 +118,7 @@ struct LockScreen: View {
                         Image(systemName: revealPassword ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
                     }
                     .flMinTouchTarget()
-                    .accessibilityLabel(revealPassword ? "Hide master password" : "Show master password")
+                    .accessibilityLabel(revealPassword ? "Hide password" : "Show password")
                 }
                 .padding(.horizontal, FLSpace.s3)
                 .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: FLRadius.md))
@@ -147,7 +147,7 @@ struct LockScreen: View {
         switch lock.lastOutcome {
         case .wrongCredentials(let left):
             let tries = left.map { " \($0) \($0 == 1 ? "try" : "tries") left." } ?? ""
-            return Message(text: "That master password isn't right." + tries, isError: true)
+            return Message(text: "That password isn't right." + tries, isError: true)
         case .secretKeyNeeded:
             return Message(text: "Enter your Secret Key to continue.", isError: true)
         case .faceIDNotRecognised(let left):
@@ -168,12 +168,12 @@ struct LockScreen: View {
 
     private static func reasonText(_ reason: QuickUnlockPolicy.Reason) -> String {
         switch reason {
-        case .phoneRestarted: "Enter your master password after a restart."
-        case .idleTooLong: "Enter your master password to unlock."
-        case .fullUnlockTooOld: "Enter your master password to keep using Face ID."
-        case .tooManyFailures: "Face ID failed too often. Enter your master password."
-        case .biometricsChanged: "Face ID changed. Enter your master password."
-        case .lockedByUser, .passwordChanged: "Enter your master password to unlock."
+        case .phoneRestarted: "Enter your password after a restart."
+        case .idleTooLong: "Enter your password to unlock."
+        case .fullUnlockTooOld: "Enter your password to keep using Face ID."
+        case .tooManyFailures: "Face ID failed too often. Enter your password."
+        case .biometricsChanged: "Face ID changed. Enter your password."
+        case .lockedByUser, .passwordChanged: "Enter your password to unlock."
         }
     }
 

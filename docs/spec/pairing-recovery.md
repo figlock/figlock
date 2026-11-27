@@ -10,7 +10,7 @@ The words MUST, SHOULD and MAY are used as in RFC 2119.
 
 - With no server, **nobody can reset a forgotten password for the user**, not us, not the storage provider.
   Recovery is therefore designed in, and the product says plainly which losses are recoverable.
-- A device that holds the master password and the Secret Key is authorised by definition; pairing is a
+- A device that holds the password and the Secret Key is authorised by definition; pairing is a
   convenience that moves the Secret Key to a new device without typing it, not a gate that grants keys.
 - Recovery paths are few, each is tested end to end, and each ends with the old credentials invalidated.
 
@@ -29,7 +29,7 @@ The words MUST, SHOULD and MAY are used as in RFC 2119.
 ### 3.1 What `N` needs
 
 To open the vault `N` needs three things: access to the storage (the same Google Drive account, folder or
-sync service), the master password (typed by the user), and the Secret Key. Pairing delivers the third.
+sync service), the password (typed by the user), and the Secret Key. Pairing delivers the third.
 Alternatively the user types the Secret Key from the Emergency Kit and skips pairing (section 3.5).
 
 ### 3.2 Flow (online, with a trusted device)
@@ -57,7 +57,7 @@ T (unlocked)                         storage                         N (new)
    T deletes .inv, later .req/.resp
                                                                   4. N reads .resp, opens it, gets
                                                                      the Secret Key and device record.
-                                                                     User types the master password.
+                                                                     User types the password.
                                                                      N derives AUK, unwraps VK,
                                                                      verifies the device record.
                                                                      N stores keys, deletes the files.
@@ -100,8 +100,8 @@ Properties:
   for the same reason, and `N` simply fails to open the response.
 - `s` is shown only on `T`'s screen and in the QR, never stored in the vault or logs, and is 100 bits, so
   guessing it online or offline against the files is infeasible in the 10-minute lifetime.
-- The `.resp` contains the Secret Key but not the master password and not `VK`. Stealing it needs `K_resp`.
-- The master password is still required on `N`. A thief who intercepted everything still lacks the password.
+- The `.resp` contains the Secret Key but not the password and not `VK`. Stealing it needs `K_resp`.
+- The password is still required on `N`. A thief who intercepted everything still lacks the password.
 
 ### 3.4 Rules
 
@@ -110,7 +110,7 @@ Properties:
   so a second request for the same invite is refused. Only one invite can be open at a time per device.
   `N` refuses an `.inv` whose `invite_id` does not match the one it derives from `s` and `vault_id`, or
   whose `expires_at` has passed.
-- `T` MUST require a biometric or master password confirmation before approving, and show the requesting
+- `T` MUST require a biometric or password confirmation before approving, and show the requesting
   device's name, platform and key fingerprint. Approval never happens automatically.
 - Anyone can write files to `inbox/` (the storage allows it), so every file there is untrusted until it
   opens under the right key. Malformed, expired or unrelated files are deleted by `T` and ignored, and
@@ -121,7 +121,7 @@ Properties:
 
 ### 3.5 Pairing without a trusted device
 
-If no trusted device is available, the user types the master password and the Secret Key from the
+If no trusted device is available, the user types the password and the Secret Key from the
 Emergency Kit on `N`. `N` derives `AUK` and unwraps `VK`, derives the authority key, creates its own device
 record and signs it (any holder of `VK` can). The user is told the vault now has a new device and sees it
 in the device list on the next sync, from where it can be revoked.
@@ -148,9 +148,9 @@ in the device list on the next sync, from where it can be revoked.
    Revoking the device itself is refused. On unlock a record that is revoked or does not verify against the
    current authority key is skipped, never trusted, and does not fail the unlock.
 4. Every other device is asked for a full unlock on its next sync, because its quick-unlock `AUK` wrap is
-   still valid but it needs the new wrapped `VK`; the master password is not changed unless the user chose
+   still valid but it needs the new wrapped `VK`; the password is not changed unless the user chose
    so. It is recommended after losing a device.
-5. If the lost device may have been unlocked, the user SHOULD also change the master password and rotate the
+5. If the lost device may have been unlocked, the user SHOULD also change the password and rotate the
    Secret Key (`crypto.md` 9). The UI offers this in the same flow.
 6. **What the revoked device sees (FIG-135).** A device that opens, unlocks or syncs and finds its own device
    id in the signed `revoked` list (`crypto.md` 9.2) is removed. It MUST stop writing: every change it could
@@ -191,10 +191,10 @@ Contents:
 - The Secret Key in the display format of `crypto.md` 4.1, in the mono font with groups, plus a QR code of
   the same string.
 - The vault name, the storage in use (for example "Google Drive, account name") and the date the kit was made ("Kit made", not
-  when the vault was), so the user knows what the kit belongs to and which copy is the newest. No master password, no `VK`, no other key.
-- Plain-language steps: install FigLock, choose the storage, sign in, type the master password, type or scan
+  when the vault was), so the user knows what the kit belongs to and which copy is the newest. No password, no `VK`, no other key.
+- Plain-language steps: install FigLock, choose the storage, sign in, type the password, type or scan
   the Secret Key.
-- A blank line labelled "Master password (optional, write it elsewhere)" with a warning against storing it
+- A blank line labelled "Password (optional, write it elsewhere)" with a warning against storing it
   with the kit.
 - A clear sentence that anyone with the kit and the password can open the vault, and that FigLock cannot
   recover a lost password or Secret Key unless a Recovery Key was set up.
@@ -211,7 +211,7 @@ Forced verification (MUST, vault creation and each new kit):
 `figlock secret-key kit <path>`. Both read the kept Secret Key behind the same gate as Show Secret Key (Touch
 ID or the device password, or none when quick unlock is off, ADR-0037),
 render the PDF in memory and write it only to the path the person picks, owner-only and never over an existing
-file without `--force`. A device that keeps no key makes it only from the master password and Secret Key typed
+file without `--force`. A device that keeps no key makes it only from the password and Secret Key typed
 and checked against the vault; the CLI refuses and says so. A kit saved again holds the same Secret Key as the
 original while the key has not rotated; after a rotation only the new kit is valid (step 3 above), and an old
 one stays only as clutter. Nothing about it is uploaded, logged or cached, and the buffer is zeroized.
@@ -223,11 +223,11 @@ except by explicit user action, and the clipboard clears after 30 seconds.
 
 | # | Situation | Recoverable? | How |
 | - | --------- | ------------ | --- |
-| R1 | Forgot the master password, a paired device is unlocked or has quick unlock | Yes | On `T`: Settings > Change master password. The user proves presence with biometrics; `T` rewraps `VK` under a new `AUK` (`crypto.md` 9). No data re-encrypted. Optionally rotate the Secret Key and make a new kit. |
-| R2 | Forgot the master password, no usable device, has the Emergency Kit, Recovery Key set up | Yes | Use `RK` (section 7): recover `VK`, set a new master password and Secret Key, publish a new kit |
-| R3 | Forgot the master password, no usable device, no Recovery Key | **No** | The `VK` is only wrapped under `AUK`; without the password it cannot be derived. The app says this at setup and in the kit. |
-| R4 | Lost the Secret Key, knows the master password, has a paired device | Yes | On `T`: show the Secret Key (biometrics), or rotate it and make a new kit |
-| R9 | The Secret Key was rotated on another device (`sk_gen` in `vault.json` is higher than the kept key's, `crypto.md` 9.4) | Yes | The unlock screen says so before anything is typed and asks for the new key (from that device's Emergency Kit or Show Secret Key); one entry is kept and not asked again. A running app shows a banner with Update now, the CLI says it on the next command and in `figlock sync status`. A wrong master password never asks for the Secret Key. |
+| R1 | Forgot the password, a paired device is unlocked or has quick unlock | Yes | On `T`: Settings > Change password. The user proves presence with biometrics; `T` rewraps `VK` under a new `AUK` (`crypto.md` 9). No data re-encrypted. Optionally rotate the Secret Key and make a new kit. |
+| R2 | Forgot the password, no usable device, has the Emergency Kit, Recovery Key set up | Yes | Use `RK` (section 7): recover `VK`, set a new password and Secret Key, publish a new kit |
+| R3 | Forgot the password, no usable device, no Recovery Key | **No** | The `VK` is only wrapped under `AUK`; without the password it cannot be derived. The app says this at setup and in the kit. |
+| R4 | Lost the Secret Key, knows the password, has a paired device | Yes | On `T`: show the Secret Key (biometrics), or rotate it and make a new kit |
+| R9 | The Secret Key was rotated on another device (`sk_gen` in `vault.json` is higher than the kept key's, `crypto.md` 9.4) | Yes | The unlock screen says so before anything is typed and asks for the new key (from that device's Emergency Kit or Show Secret Key); one entry is kept and not asked again. A running app shows a banner with Update now, the CLI says it on the next command and in `figlock sync status`. A wrong password never asks for the Secret Key. |
 | R5 | Lost the Secret Key, knows the password, no device, no Recovery Key | **No** | Same reason as R3 |
 | R6 | Lost every device, has password and Emergency Kit | Yes | Install FigLock on a new device, sign in to the storage, type the password and the Secret Key (section 3.5), and optionally revoke the lost ones |
 | R7 | Storage account lost or wiped | Yes, if any device is left | Any device re-uploads its local copy (`sync.md` 8, rollback); with no device and no copy it is lost |
@@ -277,7 +277,7 @@ to give several people recovery. This number is kept so references to 7.3 and 7.
 1. User chooses "I forgot my password" on a fresh install, selects the storage and "Use Recovery Key".
 2. They type the code. The app reads `rk_priv` from it and opens `wrapped_vk_rk`.
 3. It derives the authority key, shows what it found (vault name, number of items, last change), and asks
-   for a **new master password**. A new Secret Key is generated, `AUK` derived, `VK` rewrapped, `vault.json`
+   for a **new password**. A new Secret Key is generated, `AUK` derived, `VK` rewrapped, `vault.json`
    re-signed, and the old Secret Key is invalidated. A new Emergency Kit is produced and verified.
 4. It offers to rotate `RK` (new key pair, new code) because the old ones were just used on a device the
    user may not fully trust; this is the default.
@@ -306,7 +306,7 @@ to give several people recovery. This number is kept so references to 7.3 and 7.
 
 1. Invite: `invite_id`, `K_req`, `K_resp` from fixed `s`, `Et`, `En`; request and response seal/open; wrong
    `s` fails; swapped `Et_pub` fails; expired and reused invite refused.
-2. Emergency Kit content check (no master password, correct Secret Key encoding); verify step accepts and
+2. Emergency Kit content check (no password, correct Secret Key encoding); verify step accepts and
    rejects the right and wrong groups.
 3. `seal_to` round trip; rewrap of `VK` for `rk_pub` after rotation without `rk_priv`.
 4. Recovery R1, R2, R6 end to end in a test harness with two simulated devices; R3 and R5 fail with the

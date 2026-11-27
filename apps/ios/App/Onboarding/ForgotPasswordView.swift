@@ -2,7 +2,7 @@ import Shared
 import SwiftUI
 
 /// The sheet behind "I forgot my password or Secret Key" (`design/prototypes/ios`, unlock). The desktop's Forgot
-/// flow with the Recovery Key as a code: key, new master password, new Emergency Kit, check.
+/// flow with the Recovery Key as a code: key, new password, new Emergency Kit, check.
 struct ForgotPasswordView: View {
     @State private var model: ForgotPasswordModel
     @State private var confirmingRemoval = false
@@ -43,7 +43,7 @@ struct ForgotPasswordView: View {
             Button("Remove vault", role: .destructive) { removeVault() }
         } message: {
             Text(
-                "This removes the vault, its keys and Face ID from this iPhone. Your synced copies are not deleted. To add it again you need your Secret Key and master password."
+                "This removes the vault, its keys and Face ID from this iPhone. Your synced copies are not deleted. To add it again you need your Secret Key and password."
             )
         }
         .alert("Could not remove the vault", isPresented: $removalFailed) {
@@ -106,10 +106,10 @@ struct ForgotPasswordView: View {
 
     private var passwordStep: some View {
         Screen(
-            title: "Choose a new master password", step: "Step 2 of 4",
-            subtitle: "Choose a new master password."
+            title: "Choose a new password", step: "Step 2 of 4",
+            subtitle: "Choose a new password."
         ) {
-            LabeledField(label: "New master password") {
+            LabeledField(label: "New password") {
                 SecureField("", text: $model.password).textContentType(.newPassword)
             }
             Text(
@@ -120,7 +120,7 @@ struct ForgotPasswordView: View {
             .foregroundStyle(
                 VaultPasswordRule.isLongEnough(model.password)
                     ? FLColor.success : model.password.isEmpty ? FLColor.textTertiary : FLColor.danger)
-            LabeledField(label: "Confirm new master password") {
+            LabeledField(label: "Confirm new password") {
                 SecureField("", text: $model.confirmation).textContentType(.newPassword)
             }
             if !model.confirmation.isEmpty, !model.passwordsMatch {
@@ -173,7 +173,7 @@ struct ForgotPasswordView: View {
             #endif
             notice()
             Busy(label: "Changing your vault", busy: model.busy)
-            Button("Change master password and Secret Key") {
+            Button("Change password and Secret Key") {
                 Task { if await model.finish() { dismiss() } }
             }
             .buttonStyle(PrimaryActionStyle()).disabled(model.verification.count < 8 || model.busy)

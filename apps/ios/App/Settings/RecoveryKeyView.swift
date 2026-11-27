@@ -97,7 +97,7 @@ final class RecoveryKeyModel {
             try await work()
         } catch let failure as SettingsService.Failure {
             switch failure {
-            case .wrongCredentials: errorText = "That master password or Secret Key is not right."
+            case .wrongCredentials: errorText = "That password or Secret Key is not right."
             case .secretKeyNeeded: errorText = "Type your Secret Key. It starts with FL1-."
             case .changeUncertain:
                 // The vault took the change but the write failed: lock, so the next unlock reads what is stored.
@@ -162,8 +162,8 @@ struct RecoveryKeyView: View {
                 SettingsRow(
                     symbol: model.hasKey ? "checkmark.shield" : "shield.slash", title: model.hasKey ? "On" : "Off",
                     detail: model.hasKey
-                        ? "Opens your vault if you forget your master password."
-                        : "Without one, a forgotten master password can't be recovered.")
+                        ? "Opens your vault if you forget your password."
+                        : "Without one, a forgotten password can't be recovered.")
             } header: {
                 Text("Recovery Key").textCase(nil)
             } footer: {

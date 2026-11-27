@@ -98,9 +98,8 @@
   <form class="flex flex-col gap-4" onsubmit={make}>
     {#if error}<Alert>{error}</Alert>{/if}
     <p class="text-text-secondary">
-      If you forget your master password, a Recovery Key opens the vault so you can set a new one.
-      Anyone who holds it can open your vault, so keep it apart from your master password and your
-      Emergency Kit.
+      If you forget your password, a Recovery Key opens the vault so you can set a new one. Anyone
+      who holds it can open your vault, so keep it apart from your password and your Emergency Kit.
     </p>
     <div class="flex gap-2">
       <Button onclick={onback}>{backLabel}</Button>
@@ -115,7 +114,7 @@
     {#if error}<Alert>{error}</Alert>{/if}
     <Alert tone="warning">
       FigLock shows this only once and does not keep it. Anyone who has this code can open your
-      vault without your master password.
+      vault without your password.
     </Alert>
     <p
       class="rounded-(--radius-sm) bg-surface-sunken p-4 font-mono text-(length:--text-md) leading-7 break-words"

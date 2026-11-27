@@ -1162,9 +1162,9 @@ function faceHtml(o) {
   const st = o.state;
   const glyph = st === 'ok' ? ic('check', 36) : st === 'fail' ? ic('warn', 36) : ic('fingerprint', 36);
   const title = st === 'ok' ? 'Face ID recognized' : st === 'fail' ? 'Face ID did not recognize you' : 'Face ID';
-  const msg = st === 'fail' ? 'Try again or use your master password.' : st === 'ok' ? 'Done.' : o.reason;
+  const msg = st === 'fail' ? 'Try again or use your password.' : st === 'ok' ? 'Done.' : o.reason;
   const btns = st === 'fail'
-    ? `<button type="button" class="bold" data-act="fid-retry" data-fk="fid-retry">Try Face ID again</button><button type="button" data-act="fid-pw" data-fk="fid-pw">Use master password</button><button type="button" data-act="fid-cancel" data-fk="fid-cancel">Cancel</button>`
+    ? `<button type="button" class="bold" data-act="fid-retry" data-fk="fid-retry">Try Face ID again</button><button type="button" data-act="fid-pw" data-fk="fid-pw">Use password</button><button type="button" data-act="fid-cancel" data-fk="fid-cancel">Cancel</button>`
     : st === 'ok' ? '' : `<button type="button" data-act="fid-cancel" data-fk="fid-cancel">Cancel</button>`;
   return `<div class="scrim"></div><div class="alert faceid ${st === 'scan' ? 'scanning' : ''}" role="alertdialog" aria-modal="true" aria-labelledby="ov-title" aria-describedby="ov-desc"><div class="alert-body"><div class="fid-glyph ${st === 'ok' ? 'ok' : st === 'fail' ? 'bad' : ''}">${glyph}</div><h2 id="ov-title">${title}</h2><p id="ov-desc">${esc(msg)}</p></div>${btns ? `<div class="alert-btns">${btns}</div>` : ''}</div>`;
 }
@@ -1214,7 +1214,7 @@ ACT['fid-cancel'] = () => { const o = S.ov[S.ov.length - 1]; dismissOv(o); if (o
 ACT['fid-retry'] = () => { const o = S.ov[S.ov.length - 1]; o.start(); };
 ACT['fid-pw'] = () => {
   const o = S.ov[S.ov.length - 1]; dismissOv(o);
-  openOv({ type: 'alert', title: 'Enter master password', msg: 'Face ID did not work, so FigLock needs your master password for this.', extra: `<div class="fld"><label class="label" for="mp">Master password</label><input class="input" id="mp" type="password" autocomplete="off" data-autofocus aria-describedby="mp-err"><p id="mp-err" class="errmsg" role="alert" hidden>${ic('warn', 16)}<span>That master password isn't right. Check it and try again.</span></p></div>`,
+  openOv({ type: 'alert', title: 'Enter password', msg: 'Face ID did not work, so FigLock needs your password for this.', extra: `<div class="fld"><label class="label" for="mp">Password</label><input class="input" id="mp" type="password" autocomplete="off" data-autofocus aria-describedby="mp-err"><p id="mp-err" class="errmsg" role="alert" hidden>${ic('warn', 16)}<span>That password isn't right. Check it and try again.</span></p></div>`,
     buttons: [{ label: 'Cancel', run: () => { if (o.cancel) o.cancel(); } }, { label: 'Continue', style: 'bold', keep: true, run: (a) => { const v = $('#mp').value; if (v === SAMPLE_PW) { dismissOv(a); o.ok(); } else { $('#mp-err').hidden = false; $('#mp').classList.add('err'); } } }] });
 };
 
@@ -1262,7 +1262,7 @@ SCREENS.onboarding = {
   render: () => frame(nav({}), `<div class="hero">${logo(72)}<h1 class="lt" style="margin-top:12px">Welcome to FigLock</h1><p class="sub">Passwords, API tokens and files in a vault that only you can open.</p></div>
     <div class="stack" style="margin-top:8px">
       ${choice('phone', 'Join my vault by pairing', 'Pair this iPhone with a device that already has your vault.', 'ob-pair')}
-      ${choice('plus', 'Create a new vault', 'Start fresh with a master password and a Secret Key.', 'ob-create')}
+      ${choice('plus', 'Create a new vault', 'Start fresh with a password and a Secret Key.', 'ob-create')}
       ${choice('cloud', 'Open my vault from Google Drive', 'Sign in to Google Drive and pick the vault you saved there.', 'ob-drive')}
     </div><p class="gfoot" style="margin-top:16px;padding:0">You can change where your vault syncs later in Settings.</p>`)
 };
@@ -1274,7 +1274,7 @@ SCREENS['drive-open'] = {
     <div class="group"><div class="cell" style="cursor:default"><span class="tile">${ic('lock', 22)}</span><span class="grow"><span class="t b">Mira's vault</span><span class="s">Last changed yesterday at 6:48 PM</span></span></div></div>
     <div class="stack4" style="margin-top:24px">
       <div class="fld"><label class="label" for="dk">Secret Key</label><input class="input mono" id="dk" autocomplete="off" autocapitalize="characters" spellcheck="false" value="FL1-ABCD-EFGH-JKLM-NPQR-STUV" aria-describedby="dk-h"><p class="hint" id="dk-h">From your Emergency Kit. Needed once on each new device.</p></div>
-      <div class="fld"><label class="label" for="dm">Master password</label><input class="input" id="dm" type="password" autocomplete="off" value="${SAMPLE_PW}"></div>
+      <div class="fld"><label class="label" for="dm">Password</label><input class="input" id="dm" type="password" autocomplete="off" value="${SAMPLE_PW}"></div>
     </div>`, { foot: `<button type="button" class="btn" data-act="drive-open-go" data-fk="drive-open-go">Open vault</button>` })
 };
 ACT['drive-open-go'] = () => { S.sync = 'syncing'; reset('list'); startSync(); };
@@ -1310,11 +1310,11 @@ ACT['pair-again'] = () => { S.pair = { tab: 'scan', code: '', err: '', hold: fal
 SCREENS['pair-done'] = {
   render: () => frame(nav({ title: 'Paired', left: '' }), `<div class="hero center" style="padding-top:32px"><span class="tile xl ok">${ic('shield', 38)}</span><h1 class="lt2">This iPhone is paired</h1><p class="sub">Studio Mac approved “Mira's iPhone”. Your vault is syncing now.</p></div>
     <div class="group"><div class="fld" style="padding:12px 16px"><label class="label" for="dn">Device name</label><input class="input" id="dn" value="Mira's iPhone" aria-describedby="dn-h"><p class="hint" id="dn-h">Shown in the device list on your other devices.</p></div>
-    <div class="cell" style="cursor:default"><span class="grow"><span class="t">Unlock with Face ID</span><span class="s">Use your face instead of typing the master password.</span></span>${sw(S.settings.faceid, 'set-face', 'Unlock with Face ID')}</div></div>`, { foot: `<button type="button" class="btn" data-act="pair-finish" data-fk="pair-finish">Open my vault</button>` })
+    <div class="cell" style="cursor:default"><span class="grow"><span class="t">Unlock with Face ID</span><span class="s">Use your face instead of typing the password.</span></span>${sw(S.settings.faceid, 'set-face', 'Unlock with Face ID')}</div></div>`, { foot: `<button type="button" class="btn" data-act="pair-finish" data-fk="pair-finish">Open my vault</button>` })
 };
 ACT['pair-finish'] = () => { S.sync = 'syncing'; reset('list'); startSync(); };
 ACT['set-face'] = () => {
-  if (S.settings.faceid) alertDlg('Turn off Face ID?', 'You will use your master password to unlock FigLock on this iPhone.', [cancelBtn, { label: 'Turn off', style: 'destructive', run: () => { S.settings.faceid = false; render(); } }]);
+  if (S.settings.faceid) alertDlg('Turn off Face ID?', 'You will use your password to unlock FigLock on this iPhone.', [cancelBtn, { label: 'Turn off', style: 'destructive', run: () => { S.settings.faceid = false; render(); } }]);
   else faceId('Turn on Face ID for FigLock', () => { S.settings.faceid = true; render(); });
 };
 
@@ -1326,14 +1326,14 @@ function strength(p) {
 }
 const strengthHtml = (p) => { const s = strength(p); return s ? `<div class="meter ${s[1]}" aria-hidden="true"><span></span><span></span><span></span></div><div class="mtxt i-${s[2]}">${ic(s[1] === 'strong' ? 'okc' : 'warn', 16)}<span>${s[0]}${s[1] === 'weak' ? ': use at least 12 characters' : ''}</span></div>` : ''; };
 SCREENS['create-pw'] = {
-  render: () => frame(nav({ back: 'Welcome', title: 'Create vault', always: true }), `<p class="step">Step 1 of 4</p><h1 class="lt2">Choose a master password</h1><p class="sub" style="margin-top:8px">It unlocks your vault. FigLock can't reset it, so pick something long that you can remember.</p>
-    <div class="stack4"><div class="fld"><label class="label" for="cp1">Master password <span class="req">(required)</span></label><div class="pwrow"><input class="input" id="cp1" type="password" data-bind="create.pw" autocomplete="new-password" value="${esc(S.create.pw)}" aria-describedby="cp1-s"><button type="button" class="iconbtn" data-act="cp-eye" data-fk="cp-eye" aria-label="Show master password" aria-pressed="false">${ic('eye', 22)}</button></div><div id="cp1-s" class="stack" style="gap:6px">${strengthHtml(S.create.pw)}</div></div>
-    <div class="fld"><label class="label" for="cp2">Confirm master password <span class="req">(required)</span></label><input class="input" id="cp2" type="password" data-bind="create.pw2" autocomplete="new-password" value="${esc(S.create.pw2)}" aria-describedby="cp2-e"><div id="cp2-e">${S.create.pwErr ? errmsg('cp2-err', S.create.pwErr) : ''}</div></div></div>`,
+  render: () => frame(nav({ back: 'Welcome', title: 'Create vault', always: true }), `<p class="step">Step 1 of 4</p><h1 class="lt2">Choose a password</h1><p class="sub" style="margin-top:8px">It unlocks your vault. FigLock can't reset it, so pick something long that you can remember.</p>
+    <div class="stack4"><div class="fld"><label class="label" for="cp1">Password <span class="req">(required)</span></label><div class="pwrow"><input class="input" id="cp1" type="password" data-bind="create.pw" autocomplete="new-password" value="${esc(S.create.pw)}" aria-describedby="cp1-s"><button type="button" class="iconbtn" data-act="cp-eye" data-fk="cp-eye" aria-label="Show password" aria-pressed="false">${ic('eye', 22)}</button></div><div id="cp1-s" class="stack" style="gap:6px">${strengthHtml(S.create.pw)}</div></div>
+    <div class="fld"><label class="label" for="cp2">Confirm password <span class="req">(required)</span></label><input class="input" id="cp2" type="password" data-bind="create.pw2" autocomplete="new-password" value="${esc(S.create.pw2)}" aria-describedby="cp2-e"><div id="cp2-e">${S.create.pwErr ? errmsg('cp2-err', S.create.pwErr) : ''}</div></div></div>`,
     { foot: `<button type="button" class="btn" id="cp-go" data-act="cp-go" data-fk="cp-go"${S.create.pw.length >= 12 ? '' : ' disabled'}>Continue</button>` }),
   onInput: (el) => { if (el.id === 'cp1') { $('#cp1-s').innerHTML = strengthHtml(S.create.pw); $('#cp-go').disabled = S.create.pw.length < 12; } S.create.pwErr = ''; $('#cp2-e').innerHTML = ''; $('#cp2').classList.remove('err'); },
   onBlur: (el) => { if (el.id === 'cp2' && S.create.pw2 && S.create.pw2 !== S.create.pw) { S.create.pwErr = "The two passwords don't match. Type the same password in both fields."; $('#cp2-e').innerHTML = errmsg('cp2-err', S.create.pwErr); el.classList.add('err'); } }
 };
-ACT['cp-eye'] = (el) => { const on = el.getAttribute('aria-pressed') !== 'true'; el.setAttribute('aria-pressed', on); el.setAttribute('aria-label', on ? 'Hide master password' : 'Show master password'); $('#cp1').type = on ? 'text' : 'password'; $('#cp2').type = on ? 'text' : 'password'; el.innerHTML = ic(on ? 'eyeOff' : 'eye', 22); };
+ACT['cp-eye'] = (el) => { const on = el.getAttribute('aria-pressed') !== 'true'; el.setAttribute('aria-pressed', on); el.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); $('#cp1').type = on ? 'text' : 'password'; $('#cp2').type = on ? 'text' : 'password'; el.innerHTML = ic(on ? 'eyeOff' : 'eye', 22); };
 ACT['cp-go'] = () => {
   if (S.create.pw2 !== S.create.pw) { S.create.pwErr = "The two passwords don't match. Type the same password in both fields."; render(); $('#cp2').classList.add('err'); $('#cp2').focus(); return; }
   S.create.keyShown = false; push('create-key');
@@ -1341,7 +1341,7 @@ ACT['cp-go'] = () => {
 SCREENS['create-key'] = {
   render: () => {
     const shown = S.create.keyShown;
-    return frame(nav({ back: 'Password', title: 'Secret Key', always: true }), `<p class="step">Step 2 of 4</p><h1 class="lt2">Your Secret Key</h1><p class="sub" style="margin-top:8px">With your master password, it protects your vault. You need both to add a new device.</p>
+    return frame(nav({ back: 'Password', title: 'Secret Key', always: true }), `<p class="step">Step 2 of 4</p><h1 class="lt2">Your Secret Key</h1><p class="sub" style="margin-top:8px">With your password, it protects your vault. You need both to add a new device.</p>
       <div class="notice warn" style="margin-bottom:16px">${ic('warn', 20)}<div><b>Keep this safe, it is shown only once.</b><br>FigLock can't recover it for you.</div></div>
       <div class="keybox" aria-label="Secret Key">${shown ? KEY.map((g) => `<span>${g}</span>`).join('') : '<span class="sr-only">Hidden</span>' + KEY.map((g) => `<span aria-hidden="true">${'•'.repeat(g.length)}</span>`).join('')}</div>
       <div class="sf-actions" style="margin-top:12px"><button type="button" class="btn-sm" data-act="ck-show" data-fk="ck-show" aria-pressed="${shown}">${ic(shown ? 'eyeOff' : 'eye', 18)}<span>${shown ? 'Hide' : 'Show'} Secret Key</span></button></div>
@@ -1352,7 +1352,7 @@ ACT['ck-show'] = () => { S.create.keyShown = !S.create.keyShown; render(); };
 ACT['ck-go'] = () => { S.create.keyShown = false; push('create-kit'); };
 SCREENS['create-kit'] = {
   render: () => frame(nav({ back: 'Secret Key', title: 'Emergency Kit', always: true }), `<p class="step">Step 3 of 4</p><h1 class="lt2">Save your Emergency Kit</h1><p class="sub" style="margin-top:8px">A one page PDF with your Secret Key. Store it printed or offline, away from this iPhone.</p>
-    <div class="kit"><div class="kh">${logo(32)}<span>FigLock Emergency Kit</span></div><div class="kr"><b>Vault</b><span>Mira's vault</span></div><div class="kr"><b>Email</b><span>${ME}</span></div><div class="kr"><b>Secret Key</b><span class="mono" aria-label="Secret Key, included in the file">${'•'.repeat(28)}</span></div><div class="kr"><b>Master password</b><span class="hint">Write it in by hand. FigLock never prints it.</span></div></div>
+    <div class="kit"><div class="kh">${logo(32)}<span>FigLock Emergency Kit</span></div><div class="kr"><b>Vault</b><span>Mira's vault</span></div><div class="kr"><b>Email</b><span>${ME}</span></div><div class="kr"><b>Secret Key</b><span class="mono" aria-label="Secret Key, included in the file">${'•'.repeat(28)}</span></div><div class="kr"><b>Password</b><span class="hint">Write it in by hand. FigLock never prints it.</span></div></div>
     ${S.create.kitSaved ? `<div class="notice ok" style="margin-top:16px">${ic('okc', 20)}<div><b>Saved as FigLock Emergency Kit.pdf</b><br>You can save it again from Settings.</div></div>` : ''}`,
     { foot: S.create.kitSaved ? `<button type="button" class="btn" data-act="kit-go" data-fk="kit-go">I saved it, continue</button><button type="button" class="btn secondary" data-act="kit-save" data-fk="kit-save">Save again</button>` : `<button type="button" class="btn" data-act="kit-save" data-fk="kit-save">${ic('share', 20)}Save Emergency Kit</button>` })
 };
@@ -1380,20 +1380,20 @@ SCREENS.unlock = {
       <div class="stack4" style="margin-top:28px">
         ${locked ? `<div class="notice bad">${ic('lock', 20)}<div><b>Password entry is paused.</b><br>Too many wrong passwords. You can try again at 9:46 AM. Face ID still works.</div></div>` : ''}
         <button type="button" class="btn" data-act="un-face" data-fk="un-face">${ic('fingerprint', 22)}Unlock with Face ID</button>
-        ${u.pw || u.err || locked ? `<div class="fld"><label class="label" for="up">Master password</label><div class="pwrow"><input class="input${u.err ? ' err' : ''}" id="up" type="password" autocomplete="current-password" data-bind="unlock.val" aria-describedby="up-e"${locked ? ' disabled' : ''}><button type="button" class="iconbtn" data-act="un-eye" data-fk="un-eye" aria-label="Show master password" aria-pressed="false"${locked ? ' disabled' : ''}>${ic('eye', 22)}</button></div><div id="up-e">${u.err && !locked ? errmsg('up-err', u.err) : ''}</div></div>
-          <button type="button" class="btn secondary" data-act="un-pw" data-fk="un-pw"${locked ? ' disabled' : ''}>Unlock with master password</button>` : `<button type="button" class="btn plain" data-act="un-showpw" data-fk="un-showpw">Use master password</button>`}
+        ${u.pw || u.err || locked ? `<div class="fld"><label class="label" for="up">Password</label><div class="pwrow"><input class="input${u.err ? ' err' : ''}" id="up" type="password" autocomplete="current-password" data-bind="unlock.val" aria-describedby="up-e"${locked ? ' disabled' : ''}><button type="button" class="iconbtn" data-act="un-eye" data-fk="un-eye" aria-label="Show password" aria-pressed="false"${locked ? ' disabled' : ''}>${ic('eye', 22)}</button></div><div id="up-e">${u.err && !locked ? errmsg('up-err', u.err) : ''}</div></div>
+          <button type="button" class="btn secondary" data-act="un-pw" data-fk="un-pw"${locked ? ' disabled' : ''}>Unlock with password</button>` : `<button type="button" class="btn plain" data-act="un-showpw" data-fk="un-showpw">Use password</button>`}
         ${locked ? `<button type="button" class="btn plain" data-act="un-remove" data-fk="un-remove">Forgot it? Remove this vault from this iPhone</button>` : ''}
       </div>`)
   }
 };
 ACT['un-face'] = () => faceId('Unlock FigLock', () => { S.unlock = { fails: 0, pw: false, err: '' }; reset('list'); });
 ACT['un-showpw'] = () => { S.unlock.pw = true; render(); $('#up').focus(); };
-ACT['un-eye'] = (el) => { const on = el.getAttribute('aria-pressed') !== 'true'; el.setAttribute('aria-pressed', on); el.setAttribute('aria-label', on ? 'Hide master password' : 'Show master password'); $('#up').type = on ? 'text' : 'password'; el.innerHTML = ic(on ? 'eyeOff' : 'eye', 22); };
+ACT['un-eye'] = (el) => { const on = el.getAttribute('aria-pressed') !== 'true'; el.setAttribute('aria-pressed', on); el.setAttribute('aria-label', on ? 'Hide password' : 'Show password'); $('#up').type = on ? 'text' : 'password'; el.innerHTML = ic(on ? 'eyeOff' : 'eye', 22); };
 ACT['un-pw'] = () => {
   const v = $('#up').value;
   if (v === SAMPLE_PW) { S.unlock = { fails: 0, pw: false, err: '' }; reset('list'); return; }
   S.unlock.fails++; S.unlock.pw = true;
-  S.unlock.err = S.unlock.fails >= 3 ? '' : `That master password isn't right. Check it and try again. ${3 - S.unlock.fails} ${3 - S.unlock.fails === 1 ? 'try' : 'tries'} left before FigLock pauses password entry.`;
+  S.unlock.err = S.unlock.fails >= 3 ? '' : `That password isn't right. Check it and try again. ${3 - S.unlock.fails} ${3 - S.unlock.fails === 1 ? 'try' : 'tries'} left before FigLock pauses password entry.`;
   render(); if (S.unlock.fails < 3) $('#up').focus();
 };
 ACT['un-remove'] = () => ACT['remove-vault']();
@@ -1675,7 +1675,7 @@ SCREENS.settings = {
     <div class="group"><button type="button" class="cell danger" data-act="remove-vault" data-fk="remove-vault">${ic('out', 20, 'i-bad')}<span class="grow"><span class="t">Remove this vault from this iPhone</span><span class="s">Your items stay on your other devices.</span></span></button></div></div>`, { tab: 'settings' })
 };
 ACT['lock-now'] = () => reset('unlock');
-ACT['remove-vault'] = () => alertDlg(`Remove “${S.vaultName}” from this iPhone?`, "Your items stay in your sync folder and on your other devices. To add the vault again you'll need your Secret Key and master password.", [cancelBtn, { label: 'Remove vault', style: 'destructive', run: () => { const f = freshState(); Object.keys(f).forEach((k) => { S[k] = f[k]; }); reset('onboarding'); toast('Vault removed from this iPhone'); } }]);
+ACT['remove-vault'] = () => alertDlg(`Remove “${S.vaultName}” from this iPhone?`, "Your items stay in your sync folder and on your other devices. To add the vault again you'll need your Secret Key and password.", [cancelBtn, { label: 'Remove vault', style: 'destructive', run: () => { const f = freshState(); Object.keys(f).forEach((k) => { S[k] = f[k]; }); reset('onboarding'); toast('Vault removed from this iPhone'); } }]);
 SCREENS.autolock = {
   tab: 'settings',
   render: () => frame(nav({ back: 'Settings', title: 'Auto-lock' }), `<h1 class="lt2" style="margin:8px 0 8px">Auto-lock</h1><p class="sub">FigLock locks after you leave it for this long. It also locks when your iPhone locks.</p>
@@ -1703,10 +1703,10 @@ ACT['rn-save'] = () => { const o = S.ov[S.ov.length - 1]; if (!o.val.trim()) { $
 ACT['dev-revoke'] = (el, id) => closeOv(() => { const d = S.devices.find((x) => x.id === id); alertDlg(`Revoke “${d.name}”?`, `${d.name} will lose access to ${S.vaultName} the next time it syncs. Items already on it can't be erased remotely.`, [cancelBtn, { label: `Revoke ${d.name}`, style: 'destructive', run: () => { S.devices = S.devices.filter((x) => x.id !== id); render(); toast(`${d.name} revoked`); } }]); });
 SCREENS['secret-key'] = {
   tab: 'settings',
-  render: () => frame(nav({ back: 'Settings', title: 'Secret Key', always: true }), `<h1 class="lt2" style="margin:8px 0 8px">Secret Key and Emergency Kit</h1><p class="sub">You need your Secret Key, with your master password, to add a new device.</p>
+  render: () => frame(nav({ back: 'Settings', title: 'Secret Key', always: true }), `<h1 class="lt2" style="margin:8px 0 8px">Secret Key and Emergency Kit</h1><p class="sub">You need your Secret Key, with your password, to add a new device.</p>
     <div class="group">${secretField('seckey', 'Secret Key')}</div><p class="gfoot">It stays hidden until you choose Show. Showing it needs Face ID.</p>
     <p class="ghead">Emergency Kit</p><div class="group"><div class="cell" style="cursor:default"><span class="tile ok">${ic('shield', 20)}</span><span class="grow"><span class="t">Saved to Files</span><span class="s">Saved on Nov 12, 2026</span></span></div><div style="padding:8px 16px 12px"><button type="button" class="btn secondary" data-act="kit-save" data-fk="kit-save2">${ic('share', 20)}Save a new copy</button></div></div>
-    <p class="gfoot">Anyone with your kit and your master password can open your vault. Keep the kit printed or offline.</p>`, { tab: 'settings' })
+    <p class="gfoot">Anyone with your kit and your password can open your vault. Keep the kit printed or offline.</p>`, { tab: 'settings' })
 };
 SCREENS.about = {
   tab: 'settings',
@@ -1903,24 +1903,24 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) { S.r
 const PRESETS = [];
 const A = (group, id, label, hint, go) => PRESETS.push({ group, id, label, hint, go });
 const stack = (...entries) => { S.stack = entries.map((e) => (typeof e === 'string' ? { id: e } : e)); S.ov = []; render(); };
-const WRONG = (n) => `That master password isn't right. Check it and try again. ${n} ${n === 1 ? 'try' : 'tries'} left before FigLock pauses password entry.`;
+const WRONG = (n) => `That password isn't right. Check it and try again. ${n} ${n === 1 ? 'try' : 'tries'} left before FigLock pauses password entry.`;
 const G1 = '1 Onboarding', G2 = '2 Pairing', G3 = '3 Create vault', G4 = '4 Unlock', G5 = '5 Vault list and search', G6 = '6 Item detail', G7 = '7 Edit, generator, delete', G8 = '8 Settings', G9 = '9 Sync setup and errors', G10 = '10 Agent approval', G11 = '11 AutoFill', G12 = '12 App switcher';
 A(G1, 'onboarding', 'Welcome and three choices', 'Tap a choice to follow that path.', () => stack('onboarding'));
-A(G1, 'drive-open', 'Open vault from Google Drive', 'Secret Key and master password are prefilled with sample values.', () => { S.driveIn = true; stack('onboarding', 'drive-open'); });
+A(G1, 'drive-open', 'Open vault from Google Drive', 'Secret Key and password are prefilled with sample values.', () => { S.driveIn = true; stack('onboarding', 'drive-open'); });
 A(G2, 'pair-scan', 'Scan the pairing code', 'Tap the viewfinder to simulate a scan.', () => stack('onboarding', 'pair-scan'));
 A(G2, 'pair-enter', 'Enter the pairing code', 'Type a 6 character code such as K7M2QX. It auto-formats.', () => { S.pair.tab = 'enter'; stack('onboarding', 'pair-scan'); });
 A(G2, 'pair-enter-error', 'Enter code: too short', 'Error appears on blur and says how to fix it.', () => { S.pair.tab = 'enter'; S.pair.code = 'K7M'; S.pair.err = 'That code is too short. It has six letters and numbers, like K7M-2QX.'; stack('onboarding', 'pair-scan'); });
 A(G2, 'pair-wait', 'Waiting for approval', 'Normally moves on by itself after a few seconds. Held here for review.', () => { S.pair.hold = true; stack('onboarding', 'pair-scan', 'pair-wait'); });
 A(G2, 'pair-declined', 'Pairing declined', 'The other device chose Deny.', () => { S.pair.declined = true; stack('onboarding', 'pair-scan', 'pair-wait'); });
 A(G2, 'pair-done', 'Paired: success', 'Face ID can be switched on here.', () => stack('pair-done'));
-A(G3, 'create-pw', 'Master password', 'Needs 12 or more characters. Type different text in the two fields to see the mismatch error.', () => stack('onboarding', 'create-pw'));
+A(G3, 'create-pw', 'Password', 'Needs 12 or more characters. Type different text in the two fields to see the mismatch error.', () => stack('onboarding', 'create-pw'));
 A(G3, 'create-key', 'Secret Key, shown once', 'Hidden until you choose Show.', () => stack('onboarding', 'create-pw', 'create-key'));
 A(G3, 'create-kit', 'Save Emergency Kit', 'Save to Files, Print or AirDrop all mark it saved.', () => stack('onboarding', 'create-pw', 'create-key', 'create-kit'));
 A(G3, 'create-kit-saved', 'Emergency Kit saved', '', () => { S.create.kitSaved = true; stack('onboarding', 'create-pw', 'create-key', 'create-kit'); });
 A(G3, 'create-verify', 'Verify: re-enter last group', 'The last group of the sample Secret Key is STUV.', () => stack('onboarding', 'create-pw', 'create-key', 'create-kit', 'create-verify'));
 A(G3, 'create-verify-error', 'Verify: wrong group', '', () => { S.create.verify = 'ABCD'; S.create.err = "That doesn't match the last group of your Secret Key. Check your saved Emergency Kit and try again."; stack('onboarding', 'create-pw', 'create-key', 'create-kit', 'create-verify'); });
 A(G4, 'unlock', 'Face ID primary', 'Tap Unlock with Face ID. Use the Face ID result control to see a failure.', () => stack('unlock'));
-A(G4, 'unlock-pw', 'Master password fallback', 'The sample master password is sample-vault-pass.', () => { S.unlock.pw = true; stack('unlock'); });
+A(G4, 'unlock-pw', 'Password fallback', 'The sample password is sample-vault-pass.', () => { S.unlock.pw = true; stack('unlock'); });
 A(G4, 'unlock-wrong', 'Wrong password error', 'Type anything but the sample password.', () => { S.unlock = { fails: 1, pw: true, err: WRONG(2) }; stack('unlock'); });
 A(G4, 'unlock-locked', 'Locked out after failures', 'Password entry is paused. Face ID still works.', () => { S.unlock = { fails: 3, pw: true, err: '' }; stack('unlock'); });
 A(G5, 'list', 'Vault list, synced', 'Pull down for search. Swipe a row left, or press and hold or right click it, for actions.', () => stack('list'));

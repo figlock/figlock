@@ -57,7 +57,7 @@ test("turning it on asks for the password only when the key is on hand", async (
   render(TouchIdPanel);
   await user.click(await screen.findByRole("button", { name: "Turn on Touch ID" }));
   expect(screen.queryByLabelText(/Secret Key group 1/)).toBeNull();
-  await user.type(screen.getByLabelText("Master password"), "pw");
+  await user.type(screen.getByLabelText("Password"), "pw");
   await user.click(screen.getByRole("button", { name: "Turn on" }));
   await waitFor(() => expect(core.turnTouchIdOn).toHaveBeenCalledWith("pw", ""));
   expect(await screen.findByRole("button", { name: "Turn off Touch ID" })).toBeTruthy();

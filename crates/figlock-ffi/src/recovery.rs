@@ -1,5 +1,5 @@
 //! "I forgot my password" (`pairing-recovery.md` 7.3, ADR-0029): open the vault with a Recovery Key, choose a new
-//! master password and get a new Secret Key. The same `Vault::recover` the desktop uses; nothing is stored here.
+//! password and get a new Secret Key. The same `Vault::recover` the desktop uses; nothing is stored here.
 //! The caller stores the returned files only after the new Emergency Kit was saved and confirmed.
 
 use std::sync::Arc;
@@ -105,7 +105,7 @@ impl RecoveredVault {
 
 #[uniffi::export]
 impl RecoveryAttempt {
-    /// Choose the new master password and make the new Secret Key. The old Recovery Key keeps working (no new
+    /// Choose the new password and make the new Secret Key. The old Recovery Key keeps working (no new
     /// one is made on the phone). `Failed` when the key no longer opens the vault.
     pub fn prepare(&self, new_password: String, now_ms: u64) -> Result<Arc<RecoveredVault>> {
         let new_password = Zeroizing::new(new_password);
@@ -235,7 +235,7 @@ impl VaultSession {
         self.with_vault(|v| Ok(v.has_recovery()))
     }
 
-    /// Turn the Recovery Key on, or replace it with `draft` (ADR-0029). The master password and Secret Key are
+    /// Turn the Recovery Key on, or replace it with `draft` (ADR-0029). The password and Secret Key are
     /// checked by opening the Vault Key; a wrong pair is `Failed`, a malformed Secret Key `InvalidInput`, and
     /// nothing changes. Returns the new `vault.json` for the caller to store.
     pub fn set_recovery_key(
@@ -254,7 +254,7 @@ impl VaultSession {
     }
 
     /// Turn the Recovery Key off. Removing it needs no credentials of the vault, so this is a downgrade the
-    /// master password and Secret Key are proven for first, against the stored `vault_json`. `Failed` for a
+    /// password and Secret Key are proven for first, against the stored `vault_json`. `Failed` for a
     /// wrong pair or a vault with no Recovery Key. Returns the new `vault.json` for the caller to store.
     pub fn clear_recovery_key(
         &self,

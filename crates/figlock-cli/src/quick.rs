@@ -66,7 +66,7 @@ pub fn status(json: bool) -> Res<()> {
         (false, _) => "Quick unlock is off.",
         (true, true) => "Quick unlock is on and the vault can be opened with Touch ID.",
         (true, false) => {
-            "Quick unlock is on, but the vault is locked: the next command asks for the master password."
+            "Quick unlock is on, but the vault is locked: the next command asks for the password."
         }
     };
     say(json, msg, on, kept, protection)
@@ -78,7 +78,7 @@ pub fn lock(json: bool) -> Res<()> {
     if json {
         println!("{}", json!({ "locked": true }));
     } else {
-        println!("Locked. The next command asks for the master password.");
+        println!("Locked. The next command asks for the password.");
     }
     Ok(())
 }

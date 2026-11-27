@@ -90,7 +90,7 @@ async function toDevices() {
 
 async function fill(user: ReturnType<typeof userEvent.setup>) {
   const dialog = screen.getByRole("dialog");
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse battery 42");
   await user.click(within(dialog).getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   return dialog;
@@ -129,7 +129,7 @@ test("a wrong password stays in the dialog so the person can try again", async (
   await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
   core.revokeDevice.mockRejectedValue({
     code: "wrong_credentials",
-    message: "That master password and Secret Key do not match this vault.",
+    message: "That password and Secret Key do not match this vault.",
   });
   const dialog = await fill(user);
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
@@ -142,14 +142,14 @@ test("a compromised device also sets a new password, which must match", async ()
   await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
   const dialog = await fill(user);
   await user.click(within(dialog).getByRole("checkbox"));
-  await user.type(within(dialog).getByLabelText("New master password"), "brand new password 7");
-  await user.type(within(dialog).getByLabelText("Repeat new master password"), "something else 1");
+  await user.type(within(dialog).getByLabelText("New password"), "brand new password 7");
+  await user.type(within(dialog).getByLabelText("Repeat new password"), "something else 1");
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
   expect(await screen.findByText("The two passwords do not match.")).toBeTruthy();
   expect(core.revokeDevice).not.toHaveBeenCalled();
 
   core.revokeDevice.mockResolvedValue([mac, { ...phone, name: null, revoked: true }]);
-  const repeat = within(dialog).getByLabelText("Repeat new master password");
+  const repeat = within(dialog).getByLabelText("Repeat new password");
   await user.clear(repeat);
   await user.type(repeat, "brand new password 7");
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
@@ -161,7 +161,7 @@ test("a compromised device also sets a new password, which must match", async ()
       "brand new password 7",
     ),
   );
-  expect(await screen.findByText(/master password is changed/)).toBeTruthy();
+  expect(await screen.findByText(/password is changed/)).toBeTruthy();
 });
 
 test("a refusal because settings changed elsewhere locks the vault and relocks", async () => {
@@ -175,21 +175,21 @@ test("a refusal because settings changed elsewhere locks the vault and relocks",
   expect(core.lock).toHaveBeenCalledTimes(1);
 });
 
-test("a Mac that keeps the Secret Key revokes with the master password only", async () => {
+test("a Mac that keeps the Secret Key revokes with the password only", async () => {
   core.vaultState.mockResolvedValue({ secretKeyKept: true, secretKeyProtection: "secure-enclave" });
   const user = await toDevices();
   await user.click(screen.getByRole("button", { name: "Revoke Phone" }));
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
   core.revokeDevice.mockResolvedValue([mac, { ...phone, name: null, revoked: true }]);
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse battery 42");
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
   await waitFor(() =>
     expect(core.revokeDevice).toHaveBeenCalledWith("bb", "correct horse battery 42", "", null),
   );
 });
 
-test("a session that holds the Secret Key revokes with the master password only, with no key field", async () => {
+test("a session that holds the Secret Key revokes with the password only, with no key field", async () => {
   core.vaultState.mockResolvedValue({
     secretKeyKept: false,
     secretKeyHeld: true,
@@ -200,7 +200,7 @@ test("a session that holds the Secret Key revokes with the master password only,
   const dialog = screen.getByRole("dialog");
   expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
   core.revokeDevice.mockResolvedValue([mac, { ...phone, name: null, revoked: true }]);
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse battery 42");
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
   await waitFor(() =>
     expect(core.revokeDevice).toHaveBeenCalledWith("bb", "correct horse battery 42", "", null),
@@ -216,7 +216,7 @@ test("when the kept key is not enough the dialog asks for it", async () => {
     code: "needs_secret_key",
     message: "Type your Secret Key from your Emergency Kit to revoke a device.",
   });
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse battery 42");
   await user.click(within(dialog).getByRole("button", { name: "Revoke device" }));
   expect(await screen.findByText(/Type your Secret Key from your Emergency Kit/)).toBeTruthy();
   expect(within(dialog).getByLabelText("Secret Key group 1 of 8")).toBeTruthy();
