@@ -31,7 +31,7 @@ fn already_set_up() -> Fail {
     Fail::new("this device already has a vault set up")
 }
 
-fn place_for(a: &WhereArgs) -> Res<Place> {
+pub(crate) fn place_for(a: &WhereArgs) -> Res<Place> {
     let local = match &a.store {
         Some(path) => path.clone(),
         None => config::default_local_dir()?,

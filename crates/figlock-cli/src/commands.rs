@@ -70,7 +70,33 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
         _ => quick::InitChoice::Ask,
     };
     let password = prompt::new_password()?;
-    let (vault, created) = Vault::create(&password, &a.device_name, params, now_ms())?;
+    let (mut vault, created) = Vault::create(&password, &a.device_name, params, now_ms())?;
+    // The Recovery Key is made and checked before anything is written, so a vault is never left behind a code
+    // nobody saved (`pairing-recovery.md` 7).
+    let interactive = !json && std::io::stdin().is_terminal() && std::io::stderr().is_terminal();
+    let want_recovery = match (a.recovery_key, a.no_recovery_key) {
+        (true, _) => true,
+        (_, true) => false,
+        _ if interactive => prompt::confirm_default_yes(
+            "Make a Recovery Key? It is the only way back in if you forget your password. [Y/n] ",
+        )?,
+        _ => false,
+    };
+    let mut vault_json = created.vault_json.clone();
+    let mut recovery_code = None;
+    if want_recovery {
+        let key = figlock_core::RecoveryKey::random()
+            .map_err(|_| Fail::new("could not get randomness"))?;
+        let code = key.format();
+        if interactive {
+            println!("Recovery Key: {}", code.as_str());
+            crate::recovery::confirm_saved(&code, "Recovery Key", false)?;
+        }
+        vault_json = vault
+            .set_recovery_with(&key, &password, &created.secret_key)?
+            .vault_json;
+        recovery_code = Some(code);
+    }
     let cfg = Config {
         place,
         device_name: a.device_name,
@@ -79,12 +105,10 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
     config::save(&cfg, vault.device_keys())?;
     let device_path = format!("devices/{}.json", hex::encode(vault.device_id()));
     let mut created_paths: Vec<&str> = Vec::new();
-    let written = store
-        .put_new("vault.json", &created.vault_json)
-        .and_then(|()| {
-            created_paths.push("vault.json");
-            store.put_new(&device_path, &created.device_record)
-        });
+    let written = store.put_new("vault.json", &vault_json).and_then(|()| {
+        created_paths.push("vault.json");
+        store.put_new(&device_path, &created.device_record)
+    });
     if let Err(e) = written {
         config::forget();
         for path in created_paths {
@@ -98,6 +122,7 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
             "vault_id": hex::encode(vault.vault_id()),
             "device_id": hex::encode(vault.device_id()),
             "secret_key": secret_key.as_str(),
+            "recovery_key": recovery_code.as_ref().map(|c| c.as_str()),
         }))?;
     } else {
         println!("Vault created in {}", cfg.place.local.display());
@@ -113,6 +138,18 @@ pub fn init(a: InitArgs, json: bool) -> Res<()> {
             }
         }
         println!("Secret Key: {}", secret_key.as_str());
+        if let Some(code) = recovery_code.as_ref().filter(|_| !interactive) {
+            println!("Recovery Key: {}", code.as_str());
+        }
+    }
+    if recovery_code.is_some() {
+        eprintln!(
+            "Write the Recovery Key down too, apart from your Secret Key and password. Anyone with it can open the vault; with it `figlock forgot` resets a forgotten password."
+        );
+    } else {
+        eprintln!(
+            "There is no Recovery Key, so a forgotten password cannot be recovered. `figlock recovery-key enable` makes one."
+        );
     }
     eprintln!(
         "Write the Secret Key down now. It is shown once and cannot be reset. This device keeps it for you; \
