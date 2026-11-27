@@ -291,7 +291,7 @@
             Type your Secret Key from your Emergency Kit once. Your password confirms it is the
             right one. After that this Mac keeps it and the password is all you type.
           {:else}
-            This Mac is not keeping your Secret Key, so type it from your old kit. Your master
+            This Mac is not keeping your Secret Key, so type it from your old kit. Your
             password confirms it is the right one. The kit is made on this Mac and saved only where
             you choose.
           {/if}

@@ -339,7 +339,7 @@ fn what_to_type() -> &'static str {
 pub(super) enum KeyFrom {
     /// The person typed it: a failure is a mismatch of the pair they typed.
     Typed,
-    /// This unlocked session holds it and the person was never asked for it: a failure is the master
+    /// This unlocked session holds it and the person was never asked for it: a failure is the
     /// password, and the message must not blame a key nobody was asked for.
     Held,
     /// This device keeps it (Touch ID released it): a failure cannot be told from a stale key, so ask for it.

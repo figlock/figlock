@@ -106,7 +106,7 @@ impl Desk {
         Ok(rows)
     }
 
-    /// Stop `device` from opening anything written from now on. `new_password` also changes the master
+    /// Stop `device` from opening anything written from now on. `new_password` also changes the
     /// password in the same write, which is what to do when the device may have been compromised. Needs the
     /// credentials again: the vault key is rewrapped under them.
     pub fn revoke_device(

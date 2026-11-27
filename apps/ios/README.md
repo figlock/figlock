@@ -50,7 +50,7 @@ simulator. The views are in `App/Vault`.
 
 ## Forgot password
 
-The lock screen's "I forgot my password or Secret Key" opens `ForgotPasswordView`: Recovery Key code, new master
+The lock screen's "I forgot my password or Secret Key" opens `ForgotPasswordView`: Recovery Key code, new
 password, new Emergency Kit, then the check of the new Secret Key. It is the desktop's Forgot flow over the same Rust
 `Vault::recover` (`start_recovery` in `figlock-ffi`); `Onboarding.startRecovery` / `prepareRecovery` /
 `commitRecovery` hold it. Nothing is written until the kit check passes; the commit replaces `vault.json`, drops the

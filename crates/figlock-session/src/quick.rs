@@ -1,5 +1,5 @@
 //! Quick unlock (`docs/spec/crypto.md` 8): after one full unlock the Account Unlock Key is kept in the
-//! platform keystore, and later commands ask for Touch ID or the device password instead of the master
+//! platform keystore, and later commands ask for Touch ID or the device password instead of the
 //! password and Secret Key.
 //!
 //! The key lives only in the keystore; `quick-unlock.json` in the FigLock home holds the policy state (when
@@ -268,7 +268,7 @@ impl<B: Backend> Quick<B> {
         }
     }
 
-    /// Whether [`fetch`](Self::fetch) would ask for Touch ID right now instead of falling back to the master
+    /// Whether [`fetch`](Self::fetch) would ask for Touch ID right now instead of falling back to the
     /// password. Reads state only: it shows no prompt and changes nothing, so a program that cannot type a
     /// password can decide whether to try (ADR-0040).
     pub fn usable(&self, vault: &str, now: u64) -> bool {

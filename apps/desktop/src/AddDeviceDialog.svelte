@@ -212,7 +212,7 @@
               Approving asks for Touch ID, then sends your Secret Key to the new device. It still
               needs your password.
             {:else}
-              Approving sends your Secret Key to the new device. It still needs your master
+              Approving sends your Secret Key to the new device. It still needs your
               password.
             {/if}
           </p>

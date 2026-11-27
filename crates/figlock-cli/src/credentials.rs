@@ -114,7 +114,7 @@ pub fn secret_key_show(json: bool) -> Res<()> {
     let vault = peek_vault_id()?;
     if !keys.has(&vault) {
         return Err(Fail::new(
-            "no Secret Key is kept on this device yet. It is kept the next time you unlock with the master \
+            "no Secret Key is kept on this device yet. It is kept the next time you unlock with the \
              password and Secret Key, or find it on your Emergency Kit",
         ));
     }
