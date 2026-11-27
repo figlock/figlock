@@ -24,11 +24,11 @@ final class AboutSettingsUITests: XCTestCase {
             XCTAssertTrue(app.descendants(matching: .any)[id].exists, "missing \(id)")
         }
 
-        // The page opens in the in-app browser (Safari's own view with a close button), and closing returns to About.
+        // The page opens in the in-app browser and actually renders (a blank view had no text), then Done returns to About.
         app.descendants(matching: .any)["about-privacy"].tap()
-        let close = app.buttons.matching(NSPredicate(format: "label IN {'Close', 'Done'}")).firstMatch
-        XCTAssertTrue(close.waitForExistence(timeout: 15), "the in-app browser did not open")
-        close.tap()
+        let heading = app.webViews.staticTexts["Privacy"].firstMatch
+        XCTAssertTrue(heading.waitForExistence(timeout: 30), "the privacy page did not render in the in-app browser")
+        app.buttons["about-browser-done"].tap()
         XCTAssertTrue(app.navigationBars["About FigLock"].waitForExistence(timeout: 10))
     }
 
