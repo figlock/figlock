@@ -105,7 +105,8 @@ private struct InAppBrowser: View {
                     .accessibilityIdentifier("about-webview")
                 if model.failed {
                     VStack(spacing: FLSpace.s3) {
-                        Text("This page did not load").font(FLFont.ui(FLText.lg, weight: FLWeight.semibold, relativeTo: .headline))
+                        Text("This page did not load")
+                            .font(FLFont.ui(FLText.lg, weight: FLWeight.semibold, relativeTo: .headline))
                             .foregroundStyle(FLColor.text)
                         Text("Check your connection, or open it in Safari.")
                             .font(FLFont.ui(FLRowText.subtitle, relativeTo: .subheadline))
