@@ -32,9 +32,12 @@ final class TagChipsUITests: XCTestCase {
         openEditor()
         let input = tagsInput()
         input.tap()
-        input.typeText("zz-work, mail ")
-        XCTAssertTrue(app.otherElements["tag-chip-zz-work"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.otherElements["tag-chip-mail"].exists)
+        // One tag at a time: the field rewrites its text after each separator, and keys typed while that
+        // is in flight can be lost on a slow runner (FIG-284).
+        input.typeText("zz-work,")
+        XCTAssertTrue(app.otherElements["tag-chip-zz-work"].waitForExistence(timeout: 10))
+        input.typeText("mail ")
+        XCTAssertTrue(app.otherElements["tag-chip-mail"].waitForExistence(timeout: 10))
         let emptied = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == 'Add tag'"), object: input)
         XCTAssertEqual(
