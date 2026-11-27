@@ -97,7 +97,7 @@ Ops:
 | op | request members | success members |
 | --- | --- | --- |
 | `hello` | none | `version`, `locked` |
-| `status` | none | `locked`, `grants` (count), `audit_seq`, `audit_head` (hex) |
+| `status` | none | `locked`, `grants` (count), `audit_seq`, `audit_head` (hex), `idle_timeout_secs` and `idle_left_secs` (numbers, or null when there is no idle timeout or the broker is locked) |
 | `grant.request` | `scope`, `mode`, `ttl`, optional `label`, `reason` | `grant` (3.1) |
 | `grant.list` | none | `grants`: list of grant summaries (no tokens) |
 | `grant.revoke` | `grant` (id) | none |
@@ -329,11 +329,19 @@ headers first). It exits 22 on a status of 400 or more with `--fail`.
 verifies and prints the log with the same redaction as the log itself). All accept `--json`.
 `broker start --background` is what `figlock http` and `figlock run` start when no broker answers and quick unlock
 is valid (ADR-0040): it unlocks with quick unlock only and never asks for a password, refuses to start when this
-Mac cannot show a Touch ID prompt and there is no terminal, runs detached with its error output in
-`<run dir>/broker.log`, and locks itself (`broker.lock`, reason `idle`) after 30 minutes with no request and no live
-grant. With no broker and no valid quick unlock, `http` and `run` stop at once with exit code 69
+Mac cannot show a Touch ID prompt and there is no terminal, and runs detached with its error output in
+`<run dir>/broker.log`. With no broker and no valid quick unlock, `http` and `run` stop at once with exit code 69
 (`EX_UNAVAILABLE`) and a line that says to open FigLock and unlock it or run `figlock broker start`; a broker
 that answers `locked` gives the same exit code.
+
+Every broker, foreground or background, locks itself (`broker.lock`, reason `idle`) after an idle timeout
+(ADR-0050): 30 minutes by default, set with `broker start --idle-timeout <minutes>` or the
+`FIGLOCK_BROKER_IDLE_MINUTES` environment variable (which a background broker inherits), `0` for never. The clock
+restarts only for approved activity: a grant the person approved, and a request carrying a live grant's token that
+succeeds. `status`, `hello`, malformed, denied or unauthorised requests do not restart it, and a live grant does
+not count by itself, so locking can end a grant before its own time limit. On macOS the broker also locks
+(`broker.lock`, reason `sleep`) when the Mac is about to sleep, the display sleeps, the screen locks or the user
+session switches away. `figlock broker status` shows the time left.
 
 `broker start` has a hidden `--deny-all` that never asks anyone and denies every request; it exists for tests
 and scripts, can only reduce access, and is also the behaviour when no terminal is available.

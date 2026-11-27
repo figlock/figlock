@@ -57,6 +57,9 @@ pub trait Dispatch: Send + Sync {
     fn handle(&self, peer: &peer::PeerId, line: &str, alive: &dyn Fn() -> bool) -> Reply;
     /// Whether the accept loop should end.
     fn finished(&self) -> bool;
+    /// Called every time the accept loop wakes (at least twice a second), for what a broker does on a clock,
+    /// such as the idle lock.
+    fn tick(&self) {}
     /// Whether a reply that says `exit` ends the accept loop.
     fn exit_ends_serving(&self) -> bool {
         true
@@ -72,6 +75,11 @@ impl Dispatch for Broker {
     }
     fn finished(&self) -> bool {
         self.is_locked()
+    }
+    fn tick(&self) {
+        // Sleep and screen-lock events reach a daemon through this thread's run loop (see `power::pump`).
+        figlock_biometric::power::pump();
+        self.lock_if_idle();
     }
 }
 
@@ -224,6 +232,7 @@ pub fn serve<D: Dispatch + 'static>(listener: &UnixListener, broker: &Arc<D>) ->
     let active = Arc::new(AtomicUsize::new(0));
     // The broker can lock itself (a revocation arrived), which ends the loop too.
     while !stop.load(Ordering::SeqCst) && !broker.finished() {
+        broker.tick();
         let stream = match listener.accept() {
             Ok((s, _)) => s,
             Err(e) if e.kind() == io::ErrorKind::WouldBlock => {

@@ -9,6 +9,24 @@ pub fn watch_sleep(on_event: impl Fn() + Send + Sync + 'static) {
     imp::watch(on_event);
 }
 
+/// Serve the notifications [`watch_sleep`] asked for, for a program that has no event loop of its own (the CLI
+/// broker). The system delivers them on the main thread's run loop, so a program that registers there calls
+/// this regularly from the same thread; it returns at once when nothing is waiting. Apps with a loop never call it.
+#[cfg(target_os = "macos")]
+#[allow(unsafe_code, reason = "reads a Core Foundation constant")]
+pub fn pump() {
+    use core_foundation::runloop::{CFRunLoop, kCFRunLoopDefaultMode};
+    // SAFETY: `kCFRunLoopDefaultMode` is a framework constant, valid for the life of the process.
+    let _ = CFRunLoop::run_in_mode(
+        unsafe { kCFRunLoopDefaultMode },
+        std::time::Duration::ZERO,
+        false,
+    );
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn pump() {}
+
 #[cfg(not(target_os = "macos"))]
 pub fn watch_sleep(_on_event: impl Fn() + Send + Sync + 'static) {}
 

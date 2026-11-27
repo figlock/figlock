@@ -25,10 +25,10 @@ fn print_json(v: &Value) -> Res<()> {
     Ok(())
 }
 
-/// A background broker locks itself after this long with no request and no live grant (ADR-0040).
-const IDLE_LOCK: Duration = Duration::from_secs(30 * 60);
-/// How often the idle check looks.
-const IDLE_CHECK: Duration = Duration::from_secs(10);
+/// A broker locks itself after this many minutes without an approved request, unless told otherwise.
+const DEFAULT_IDLE_MINUTES: u64 = 30;
+/// Sets the idle timeout for a broker that `figlock http` or `figlock run` starts in the background.
+const IDLE_ENV: &str = "FIGLOCK_BROKER_IDLE_MINUTES";
 
 /// What a broker started for an agent has instead of a keyboard: it can use quick unlock, and it can never ask
 /// for the password.
@@ -56,9 +56,21 @@ impl Ui for NoPrompt {
     }
 }
 
-/// Unlock the vault once, then serve until someone runs `figlock broker lock`. In the background, only with
-/// quick unlock, only if something can ask for approval, and until it has been idle for 30 minutes.
-pub fn start(deny_all: bool, background: bool) -> Res<()> {
+/// Unlock the vault once, then serve until someone runs `figlock broker lock`, the idle timeout passes with no
+/// approved request (FIG-291), or the Mac sleeps or its screen locks. In the background, only with quick unlock
+/// and only if something can ask for approval.
+pub fn start(deny_all: bool, background: bool, idle_minutes: Option<u64>) -> Res<()> {
+    let idle_minutes = match idle_minutes {
+        Some(m) => m,
+        None => match std::env::var(IDLE_ENV) {
+            Ok(v) => v.trim().parse().map_err(|_| {
+                Fail::new(format!(
+                    "{IDLE_ENV} must be a whole number of minutes, 0 for never"
+                ))
+            })?,
+            Err(_) => DEFAULT_IDLE_MINUTES,
+        },
+    };
     // A broker nobody can approve for is refused before anything is unlocked, so Touch ID is not spent on it.
     let biometric = BiometricApprover::open();
     if background && !deny_all && biometric.is_none() {
@@ -104,20 +116,28 @@ pub fn start(deny_all: bool, background: bool) -> Res<()> {
     .map_err(|_| Fail::new("could not write to the audit log"))?;
     eprintln!("broker listening on {}", socket.display());
     let broker = Arc::new(broker);
-    syncer::spawn(broker.clone());
-    if background {
-        let watched = broker.clone();
-        std::thread::spawn(move || {
-            while !watched.is_locked() {
-                std::thread::sleep(IDLE_CHECK);
-                if watched.idle_for().is_some_and(|d| d >= IDLE_LOCK) {
-                    eprintln!("nobody used the broker for 30 minutes, so it locked");
-                    watched.end("idle");
-                    return;
-                }
-            }
-        });
+    let chosen = (idle_minutes > 0).then(|| Duration::from_secs(idle_minutes.saturating_mul(60)));
+    // `FIGLOCK_BROKER_IDLE_SECS` can only shorten the timeout, for tests (like `FIGLOCK_AUTOLOCK_SECS`).
+    let shortened = std::env::var("FIGLOCK_BROKER_IDLE_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .filter(|d| chosen.is_some_and(|c| *d < c));
+    if let Some(limit) = shortened.or(chosen) {
+        broker.set_idle_limit(Some(limit));
+        eprintln!(
+            "it locks after {} without an approved request",
+            span(limit.as_secs())
+        );
+    } else {
+        eprintln!(
+            "warning: the idle timeout is off, so it stays unlocked until `figlock broker lock`"
+        );
     }
+    syncer::spawn(broker.clone());
+    // The Mac going to sleep or locking its screen ends the broker at once, with the grants (ADR-0030).
+    let sleeping = broker.clone();
+    figlock_biometric::power::watch_sleep(move || sleeping.end("sleep"));
     let served = server::serve(&listener, &broker);
     drop(listener);
     let _ = fs::remove_file(&socket);
@@ -134,8 +154,16 @@ pub fn status(json_out: bool) -> Res<()> {
     if json_out {
         return print_json(&r);
     }
+    let idle = match (
+        r["idle_timeout_secs"].as_u64(),
+        r["idle_left_secs"].as_u64(),
+    ) {
+        (None, _) => "no idle timeout".to_owned(),
+        (Some(_), Some(left)) => format!("locks in {} if unused", span(left)),
+        (Some(limit), None) => format!("idle timeout {}", span(limit)),
+    };
     println!(
-        "{}, {} grant(s), audit record {} (head {})",
+        "{}, {} grant(s), {idle}, audit record {} (head {})",
         if r["locked"] == true {
             "locked"
         } else {
@@ -150,6 +178,15 @@ pub fn status(json_out: bool) -> Res<()> {
             .unwrap_or(""),
     );
     Ok(())
+}
+
+/// `1h 5m`, `12m 3s` or `45s`: how long is left, for people.
+fn span(secs: u64) -> String {
+    match (secs / 3600, secs % 3600 / 60, secs % 60) {
+        (0, 0, s) => format!("{s}s"),
+        (0, m, s) => format!("{m}m {s}s"),
+        (h, m, _) => format!("{h}h {m}m"),
+    }
 }
 
 pub fn grants(json_out: bool) -> Res<()> {
@@ -265,7 +302,15 @@ pub fn show_audit(tail: Option<usize>, json_out: bool) -> Res<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::when;
+    use super::{span, when};
+
+    #[test]
+    fn time_left_reads_naturally() {
+        assert_eq!(span(45), "45s");
+        assert_eq!(span(723), "12m 3s");
+        assert_eq!(span(3900), "1h 5m");
+        assert_eq!(span(0), "0s");
+    }
 
     #[test]
     fn dates_are_formatted_in_utc() {

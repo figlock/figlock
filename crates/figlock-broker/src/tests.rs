@@ -2747,40 +2747,105 @@ fn another_program_is_not_slowed_by_a_denial_it_had_no_part_in() {
     assert_eq!(other_pid["ok"], true, "{other_pid}");
 }
 
-// ---- FIG-151: a background broker locks itself when nobody is using it ----
+// ---- FIG-151, FIG-291: a broker locks itself when nobody approved anything for a while ----
+
+const IDLE: Duration = Duration::from_secs(30 * 60);
 
 #[test]
-fn a_broker_is_idle_only_while_it_has_no_requests_and_no_live_grant() {
+fn without_an_idle_limit_the_broker_never_locks_for_idleness() {
     let fx = fixture();
-    assert_eq!(fx.broker.idle_for(), Some(Duration::ZERO));
-    fx.env.advance(Duration::from_secs(60));
-    assert_eq!(fx.broker.idle_for(), Some(Duration::from_secs(60)));
-    // A request starts the count again.
-    let _ = fx.send(&agent(1), json!({"v":1,"id":"s","op":"status"}));
-    assert_eq!(fx.broker.idle_for(), Some(Duration::ZERO));
-    // A live grant is never idle, however long it lasts.
-    let _ = fx.approver_will_allow_then(&agent(2), "github", "http", "15m");
-    fx.env.advance(Duration::from_secs(600));
-    assert_eq!(fx.broker.idle_for(), None);
-    // Once it has ended, the count starts from the last time it was seen alive. The watcher looks every few
-    // seconds, so the first idle reading is at most that long.
-    let mut first = None;
-    for _ in 0..200 {
-        fx.env.advance(Duration::from_secs(10));
-        if let Some(idle) = fx.broker.idle_for() {
-            first = Some(idle);
-            break;
-        }
-    }
-    assert!(
-        first.is_some_and(|d| d <= Duration::from_secs(10)),
-        "{first:?}"
-    );
-    fx.env.advance(Duration::from_secs(120));
+    assert_eq!(fx.broker.idle_left(), None);
+    fx.env.advance(Duration::from_secs(10 * 24 * 3600));
+    assert!(!fx.broker.lock_if_idle());
+    assert!(!fx.broker.is_locked());
+}
+
+#[test]
+fn the_idle_limit_counts_down_and_locks_with_a_recorded_reason() {
+    let fx = fixture();
+    fx.broker.set_idle_limit(Some(IDLE));
+    assert_eq!(fx.broker.idle_left(), Some(IDLE));
+    fx.env.advance(Duration::from_secs(20 * 60));
+    assert_eq!(fx.broker.idle_left(), Some(Duration::from_secs(10 * 60)));
+    assert!(!fx.broker.lock_if_idle());
+    fx.env.advance(Duration::from_secs(10 * 60 - 1));
+    assert!(!fx.broker.lock_if_idle());
+    fx.env.advance(Duration::from_secs(1));
+    assert!(fx.broker.lock_if_idle());
+    assert!(fx.broker.is_locked());
+    assert_eq!(fx.broker.idle_left(), None);
+    let lock = fx.events().into_iter().last().unwrap();
     assert_eq!(
-        fx.broker.idle_for(),
-        Some(first.unwrap() + Duration::from_secs(120))
+        (lock.0.as_str(), lock.1["reason"].as_str()),
+        ("broker.lock", Some("idle"))
     );
+}
+
+#[test]
+fn status_shows_the_limit_and_the_time_left() {
+    let fx = fixture();
+    let s = fx.send(&agent(1), json!({"v":1,"id":"s","op":"status"}));
+    assert!(
+        s["idle_timeout_secs"].is_null() && s["idle_left_secs"].is_null(),
+        "{s}"
+    );
+    fx.broker.set_idle_limit(Some(IDLE));
+    fx.env.advance(Duration::from_secs(5 * 60));
+    let s = fx.send(&agent(1), json!({"v":1,"id":"s","op":"status"}));
+    assert_eq!(s["idle_timeout_secs"], 1800, "{s}");
+    assert_eq!(s["idle_left_secs"], 1500, "{s}");
+}
+
+#[test]
+fn an_idle_lock_ends_every_grant_and_the_vault() {
+    let fx = fixture();
+    fx.broker.set_idle_limit(Some(IDLE));
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.github), "run", "until-lock");
+    assert_eq!(fx.broker.grant_count(), 1);
+    // A grant nobody uses does not keep the broker open, however long it is meant to last.
+    fx.env.advance(IDLE);
+    assert!(fx.broker.lock_if_idle());
+    assert_eq!(fx.broker.grant_count(), 0);
+    let r = run_env(&fx, &p, &token, &fx.github, Value::Null);
+    assert_eq!(Fx::code(&r), "locked", "{r}");
+}
+
+#[test]
+fn only_approved_requests_extend_the_idle_timer() {
+    let fx = fixture();
+    fx.broker.set_idle_limit(Some(IDLE));
+    let left_after = |fx: &Fx| {
+        fx.env.advance(Duration::from_secs(60));
+        fx.broker.idle_left().unwrap()
+    };
+    let start = fx.broker.idle_left().unwrap();
+
+    // Things anyone on the socket can send do not count: status, hello, malformed lines, an unknown token.
+    let _ = fx.send(&agent(9), json!({"v":1,"id":"s","op":"status"}));
+    let _ = fx.send(&agent(9), json!({"v":1,"id":"h","op":"hello"}));
+    let _ = fx.broker.handle_line(&agent(9), "not json");
+    let bad = run_env(&fx, &agent(9), "nope", &fx.github, Value::Null);
+    assert_ne!(bad["ok"], true);
+    assert_eq!(left_after(&fx), start - Duration::from_secs(60));
+
+    // A request the person turned down does not count either.
+    fx.approver.will(&[Decision::Deny]);
+    let denied = fx.request(&agent(9), item_scope(&fx.github), "run", "once");
+    assert_eq!(Fx::code(&denied), "denied");
+    assert_eq!(left_after(&fx), start - Duration::from_secs(120));
+
+    // An approved one does.
+    let p = peer(4242);
+    let token = fx.grant(&p, item_scope(&fx.github), "run", "until-lock");
+    assert_eq!(fx.broker.idle_left(), Some(IDLE));
+
+    // So does using that grant.
+    fx.env.advance(Duration::from_secs(600));
+    assert_eq!(fx.broker.idle_left(), Some(Duration::from_secs(1200)));
+    let used = run_env(&fx, &p, &token, &fx.github, Value::Null);
+    assert_eq!(used["ok"], true, "{used}");
+    assert_eq!(fx.broker.idle_left(), Some(IDLE));
 }
 
 #[test]
