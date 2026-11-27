@@ -571,6 +571,10 @@ pub struct FindArgs {
     /// Show at most this many matches.
     #[arg(long, default_value_t = 20)]
     pub limit: usize,
+    /// Look in the trash instead: list deleted items and when they were deleted. Restore one with
+    /// `figlock edit <id or words> --restore`.
+    #[arg(long)]
+    pub deleted: bool,
 }
 
 #[derive(Args)]

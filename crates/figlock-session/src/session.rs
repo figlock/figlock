@@ -819,7 +819,7 @@ impl Session {
         let found = index.search(reference, now_ms(), 5);
         match found.as_slice() {
             [] if trashed => Err(Fail::new(
-                "no trashed item matches; to restore by id, give the id prefix from figlock export --include-deleted",
+                "no trashed item matches; to restore by id, see what is in the trash with figlock find --deleted",
             )),
             [] => Err(Fail::new("no item matches")),
             [one] => self.take(one.id),

@@ -326,11 +326,18 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
 pub fn find(a: FindArgs, json: bool) -> Res<()> {
     crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
-    let mut items = s.items(false);
+    let mut items = s.items(a.deleted);
+    if a.deleted {
+        items.retain(|i| i.deleted);
+    }
     if let Some(t) = a.item_type {
         items.retain(|i| i.item_type == t);
     }
-    let index = Index::build(items.iter());
+    let index = if a.deleted {
+        Index::build_trashed(items.iter())
+    } else {
+        Index::build(items.iter())
+    };
     let hits = index.search(&a.query.join(" "), now_ms(), a.limit);
     let found: Vec<&ItemView> = hits
         .iter()
@@ -338,14 +345,39 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
         .collect();
     if json {
         print_json(&Value::Array(
-            found.iter().map(|i| summary_json(i)).collect(),
+            found
+                .iter()
+                .map(|i| {
+                    let mut v = summary_json(i);
+                    if a.deleted {
+                        v["deleted"] = json!(true);
+                        v["deleted_ms"] = json!(i.updated.wall);
+                    }
+                    v
+                })
+                .collect(),
         ))
     } else {
         for i in &found {
-            println!("{}", summary_line(i));
+            if a.deleted {
+                println!(
+                    "{}  deleted {}",
+                    summary_line(i),
+                    session::civil_date(i.updated.wall)
+                );
+            } else {
+                println!("{}", summary_line(i));
+            }
         }
         if found.is_empty() {
-            eprintln!("no matches");
+            eprintln!(
+                "{}",
+                if a.deleted {
+                    "nothing in the trash matches"
+                } else {
+                    "no matches"
+                }
+            );
         }
         Ok(())
     }
