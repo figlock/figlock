@@ -52,15 +52,13 @@
     done =
       was === "off"
         ? "The Recovery Key is turned off."
-        : "The Recovery Key is set up. Keep it apart from your master password.";
+        : "The Recovery Key is set up. Keep it apart from your password.";
   }
 </script>
 
 <section aria-labelledby="recovery-title" class="grid gap-3">
   <h3 id="recovery-title" class="font-semibold">Recovery Key</h3>
-  <p class="text-text-secondary">
-    A code that lets you set a new master password if you forget it.
-  </p>
+  <p class="text-text-secondary">A code that lets you set a new password if you forget it.</p>
   {#if error}<Alert>{error}</Alert>{/if}
   {#if done}<Alert tone="info">{done}</Alert>{/if}
   <div class="flex items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3">
@@ -79,7 +77,7 @@
       {:else}
         <p class="font-medium">Off</p>
         <p class="text-(length:--text-sm) text-text-secondary">
-          If you forget your master password, your data cannot be recovered.
+          If you forget your password, your data cannot be recovered.
         </p>
       {/if}
     </div>

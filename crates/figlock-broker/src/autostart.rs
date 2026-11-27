@@ -155,14 +155,14 @@ mod tests {
         let socket = dir.path().join("b.sock");
         let log = dir.path().join("b.log");
         let e = start_with(
-            sh("echo 'first line' >&2; echo 'error: a background broker cannot ask for the master password' >&2; exit 3"),
+            sh("echo 'first line' >&2; echo 'error: a background broker cannot ask for the password' >&2; exit 3"),
             &socket,
             &log,
             Duration::from_secs(10),
         )
         .unwrap_err();
         assert_eq!(e.1, FailKind::Unavailable);
-        assert!(e.0.contains("cannot ask for the master password"), "{e}");
+        assert!(e.0.contains("cannot ask for the password"), "{e}");
         assert!(e.0.contains("figlock broker start"), "{e}");
         assert!(!e.0.contains("first line"));
     }

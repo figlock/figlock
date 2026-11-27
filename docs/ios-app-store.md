@@ -58,7 +58,7 @@ Sign-in is not required: FigLock has no accounts. Leave "Sign-in required" off a
 > No demo account is needed. To review it:
 >
 > 1. Open the app and choose "Create a new vault".
-> 2. Choose any master password (for example a long made-up phrase) and continue.
+> 2. Choose any password (for example a long made-up phrase) and continue.
 > 3. Step 2 shows a Secret Key. Step 3 offers the Emergency Kit PDF through the share sheet: Save to Files or
 >    close the sheet. Step 4 asks for the last two groups of the Secret Key (eight characters) shown on step 2.
 > 4. The vault opens. Use the plus button to add a login, an API token or a note. Tap an item to see it. Copy

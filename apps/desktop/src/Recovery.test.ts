@@ -125,8 +125,8 @@ async function toRecoveryStep() {
   render(App);
   await user.click(await screen.findByRole("button", { name: "Create a vault" }));
   await screen.findByDisplayValue("/Users/test/FigLock");
-  await user.type(screen.getByLabelText("Master password"), "correct horse battery 42");
-  await user.type(screen.getByLabelText("Repeat master password"), "correct horse battery 42");
+  await user.type(screen.getByLabelText("Password"), "correct horse battery 42");
+  await user.type(screen.getByLabelText("Repeat password"), "correct horse battery 42");
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await user.type(await screen.findByLabelText("Confirm you saved it"), "89AB-4567");
   await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -222,8 +222,8 @@ test("Settings shows when there is no Recovery Key and sets one up with the cred
   await user.click(await within(dialog).findByRole("button", { name: "I have saved it" }));
   await user.type(within(dialog).getByLabelText("Last two groups"), "drwy-zt1f");
   await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
-  // This Mac keeps the Secret Key, so only the master password is asked for.
-  await user.type(await within(dialog).findByLabelText("Master password"), "correct horse 42");
+  // This Mac keeps the Secret Key, so only the password is asked for.
+  await user.type(await within(dialog).findByLabelText("Password"), "correct horse 42");
   expect(within(dialog).queryByLabelText("Secret Key group 1 of 8")).toBeNull();
   core.vaultState.mockResolvedValue({
     phase: "unlocked",
@@ -242,7 +242,7 @@ test("a Mac that keeps no Secret Key asks for it, and a wrong pair stays in the 
   core.recoveryCheck.mockResolvedValue(true);
   core.recoveryEnable.mockRejectedValue({
     code: "wrong_credentials",
-    message: "That master password and Secret Key do not match this vault.",
+    message: "That password and Secret Key do not match this vault.",
   });
   const user = await toSettings(false, false);
   await user.click(screen.getByRole("button", { name: "Set up" }));
@@ -251,7 +251,7 @@ test("a Mac that keeps no Secret Key asks for it, and a wrong pair stays in the 
   await user.click(await within(dialog).findByRole("button", { name: "I have saved it" }));
   await user.type(within(dialog).getByLabelText("Last two groups"), "drwy-zt1f");
   await user.click(within(dialog).getByRole("button", { name: "Confirm" }));
-  await user.type(await within(dialog).findByLabelText("Master password"), "wrong password");
+  await user.type(await within(dialog).findByLabelText("Password"), "wrong password");
   await user.click(within(dialog).getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   await user.click(within(dialog).getByRole("button", { name: "Save Recovery Key" }));
@@ -260,13 +260,13 @@ test("a Mac that keeps no Secret Key asks for it, and a wrong pair stays in the 
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
 
-test("turning it off warns, asks for the master password and then says so", async () => {
+test("turning it off warns, asks for the password and then says so", async () => {
   core.recoveryDisable.mockResolvedValue(undefined);
   const user = await toSettings(true);
   await user.click(screen.getByRole("button", { name: "Turn off" }));
   const dialog = await screen.findByRole("dialog");
   expect(within(dialog).getByText(/Any code you made stops working/)).toBeTruthy();
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse 42");
   core.vaultState.mockResolvedValue({
     phase: "unlocked",
     secretKeyKept: true,

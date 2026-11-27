@@ -137,7 +137,7 @@
 </script>
 
 {#if step === "form"}
-  <Shell title="Create your vault" subtitle="Choose where it lives and a master password.">
+  <Shell title="Create your vault" subtitle="Choose where it lives and a password.">
     <form class="flex flex-col gap-4" onsubmit={next}>
       {#if error}<Alert>{error}</Alert>{/if}
       <StoragePicker
@@ -145,7 +145,7 @@
         folderHelp="Only encrypted files are kept here, in a folder on this Mac. Use the options below to sync it to iCloud Drive or Google Drive."
       />
       <TextField
-        label="Master password"
+        label="Password"
         type="password"
         bind:value={password}
         error={fieldError.password}
@@ -154,7 +154,7 @@
         focus
       />
       <TextField
-        label="Repeat master password"
+        label="Repeat password"
         type="password"
         bind:value={again}
         error={fieldError.again}
@@ -172,13 +172,13 @@
 {:else if step === "key"}
   <Shell
     title="Save your Secret Key"
-    subtitle="You need it, with your master password, to open this vault on a new device."
+    subtitle="You need it, with your password, to open this vault on a new device."
   >
     <form class="flex flex-col gap-4" onsubmit={toRecovery}>
       {#if error}<Alert>{error}</Alert>{/if}
       <Alert tone="warning">
         FigLock cannot recover this key. Keep your Emergency Kit somewhere safe, apart from your
-        master password.
+        password.
       </Alert>
       <div class="rounded-(--radius-sm) bg-surface-sunken p-4">
         <p
@@ -215,7 +215,7 @@
 {:else}
   <Shell
     title="Add a Recovery Key?"
-    subtitle="This is how you get back in if you forget your master password."
+    subtitle="This is how you get back in if you forget your password."
   >
     {#if adding}
       <RecoverySetup onconfirmed={useKey} onback={() => (adding = false)} backLabel="Not now" />
@@ -236,8 +236,8 @@
           </div>
         {:else}
           <p class="text-text-secondary">
-            FigLock has no server, so nobody can reset your master password for you. A Recovery Key
-            is a code that lets you set a new password.
+            FigLock has no server, so nobody can reset your password for you. A Recovery Key is a
+            code that lets you set a new password.
           </p>
           <Button variant="primary" onclick={() => (adding = true)}>Add a Recovery Key</Button>
           <div class="flex flex-col gap-3 rounded-(--radius-md) border border-border p-4">
@@ -245,8 +245,8 @@
             <label class="flex items-start gap-2">
               <input type="checkbox" bind:checked={acknowledged} class="mt-1" />
               <span>
-                I understand that if I forget my master password and have no Recovery Key, my data
-                cannot be recovered.
+                I understand that if I forget my password and have no Recovery Key, my data cannot
+                be recovered.
               </span>
             </label>
             <div>

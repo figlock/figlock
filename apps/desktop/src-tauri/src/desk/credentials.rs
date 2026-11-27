@@ -1,5 +1,5 @@
-//! Changing the master password and rotating the Secret Key without revoking a device (ADR-0022, ADR-0027).
-//! Both rewrap the same vault key under new credentials, so they ask for the master password and Secret Key
+//! Changing the password and rotating the Secret Key without revoking a device (ADR-0022, ADR-0027).
+//! Both rewrap the same vault key under new credentials, so they ask for the password and Secret Key
 //! again instead of trusting an open session. A rotation keeps the new key here until the person has saved the
 //! new Emergency Kit; other devices find out at their next unlock (`settings_changed`) and ask for the new key.
 
@@ -24,7 +24,7 @@ fn locked() -> CmdError {
 }
 
 impl Desk {
-    /// Set a new master password, a new Secret Key, or both. `secret_key` is blank when this device keeps it.
+    /// Set a new password, a new Secret Key, or both. `secret_key` is blank when this device keeps it.
     /// A rotation leaves the new key to be confirmed with `check_kit_key` and cleared by `end_rotation`.
     pub fn change_credentials(
         &self,
@@ -44,7 +44,7 @@ impl Desk {
         {
             return Err(CmdError::new(
                 "weak_password",
-                "Use at least 8 characters for the new master password.",
+                "Use at least 8 characters for the new password.",
             ));
         }
         let (secret_key, from) = self.credentials_key(secret_key, "change your credentials")?;

@@ -4,7 +4,7 @@ import Observation
 
 /// The lock of the app: whether the vault is open, and every way of opening it (ADR-0041 decision 6).
 ///
-/// Opening is the master password (with the Secret Key when this phone does not keep it) or Face ID through
+/// Opening is the password (with the Secret Key when this phone does not keep it) or Face ID through
 /// `QuickUnlock`. Locking drops the session, so the keys are gone from memory, when the person asks, when the app
 /// has been in the background longer than the auto-lock time, or when the app starts.
 @MainActor
@@ -18,7 +18,7 @@ public final class AppLock {
     /// What the unlock screen shows after a try.
     public enum Outcome: Equatable, Sendable {
         case unlocked
-        /// Wrong master password or Secret Key. One message for both, so the screen cannot tell them apart.
+        /// Wrong password or Secret Key. One message for both, so the screen cannot tell them apart.
         case wrongCredentials(triesLeft: Int?)
         /// Password entry is paused until this time. Face ID still works when it is on.
         case paused(until: Date)
@@ -155,7 +155,7 @@ public final class AppLock {
         return Stored(vaultId: vaultId, vaultJson: vaultJson, deviceRecords: records, deviceKeys: keys)
     }
 
-    /// Unlock with the master password. `secretKey` is the typed text, or nil to use the kept one.
+    /// Unlock with the password. `secretKey` is the typed text, or nil to use the kept one.
     @discardableResult
     public func unlock(password: String, secretKey typed: String?) async -> Outcome {
         let attemptTime = now()

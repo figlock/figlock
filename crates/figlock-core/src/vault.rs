@@ -230,7 +230,7 @@ pub struct Recovered {
 }
 
 /// What [`Vault::recover`] is given besides this device: the stored `vault.json`, the Recovery Key and the new
-/// master password. With `new_recovery_key` the vault is sealed to that key instead, in the same write, so the
+/// password. With `new_recovery_key` the vault is sealed to that key instead, in the same write, so the
 /// code just used stops working; the caller made it earlier so the person could save it first.
 pub struct Recover<'a> {
     pub vault_json: &'a [u8],
@@ -665,7 +665,7 @@ impl Vault {
         ))
     }
 
-    /// Unlock with the master password and Secret Key. `device` is this device's keys; if it has no record
+    /// Unlock with the password and Secret Key. `device` is this device's keys; if it has no record
     /// among `known_records`, a signed record is created for it (`pairing-recovery.md` 3.5) and returned.
     pub fn unlock(
         vault_json: &[u8],
@@ -680,7 +680,7 @@ impl Vault {
         Self::unlock_with_key(vault_json, &auk, device, device_name, known_records, now_ms)
     }
 
-    /// The Account Unlock Key for this `vault.json`, from the master password and Secret Key. A device keeps
+    /// The Account Unlock Key for this `vault.json`, from the password and Secret Key. A device keeps
     /// it only for quick unlock (`crypto.md` 8), sealed by a platform key.
     pub fn unlock_key(vault_json: &[u8], password: &str, secret_key: &SecretKey) -> Result<Key> {
         let (body, _) = split_signature(vault_json)?;
@@ -998,7 +998,7 @@ impl Vault {
 
     /// Revoke `target` (`pairing-recovery.md` 4, `crypto.md` 9.1). Rotates `VK` to the next epoch, lists the
     /// device as revoked, re-signs the remaining device records, rewraps every item key and builds a
-    /// snapshot under the new epoch. Needs the master password and Secret Key to rewrap `VK`; they are
+    /// snapshot under the new epoch. Needs the password and Secret Key to rewrap `VK`; they are
     /// checked against the current wrapped `VK` first. This vault moves to the new epoch only if every step
     /// succeeds. Commit pending changes first, and load all current device records first: a device without
     /// a record here would lose its record in the rotation.
@@ -1196,7 +1196,7 @@ impl Vault {
         })
     }
 
-    /// Change the master password, rotate the Secret Key, or both (`crypto.md` 9). The current credentials
+    /// Change the password, rotate the Secret Key, or both (`crypto.md` 9). The current credentials
     /// are checked against the wrapped `VK` first. A fresh salt and (when `rotate_secret_key`) a fresh
     /// Secret Key give a new `AUK`, and `VK` is rewrapped under it: nothing is re-encrypted and the epoch
     /// does not change. The replacement `vault.json` is signed with the same authority key, one `revision`
@@ -1306,7 +1306,7 @@ impl Vault {
 
     /// Enable the Recovery Key, or replace it with a new one (`crypto.md` 9.3, ADR-0029). Returns the new
     /// `vault.json` and the key to write down; this vault takes the change only if every step succeeds. The
-    /// master password and Secret Key are needed because the Vault Key is not kept in memory: it is opened
+    /// password and Secret Key are needed because the Vault Key is not kept in memory: it is opened
     /// from the stored wrap and sealed to the new public key. After a replacement, the code of the old key stops
     /// working for the new `vault.json` and later ones.
     pub fn set_recovery(
@@ -1393,10 +1393,10 @@ impl Vault {
         )
     }
 
-    /// Use the Recovery Key after the master password is lost (`pairing-recovery.md` 7.3). Opens the Vault Key
+    /// Use the Recovery Key after the password is lost (`pairing-recovery.md` 7.3). Opens the Vault Key
     /// from `wrapped_vk_rk`, checks it exactly as an unlock does (authority key derived from it, signature),
     /// then writes a new `vault.json` in one go: a fresh salt and a fresh Secret Key wrapped under the new
-    /// master password, with a new Recovery Key when one is given. Every wrong key, a vault without
+    /// password, with a new Recovery Key when one is given. Every wrong key, a vault without
     /// a Recovery Key and a tampered `vault.json` are the one generic error.
     ///
     /// Other devices are not revoked: whoever held the old credentials can still open an old copy of

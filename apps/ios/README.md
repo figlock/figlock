@@ -32,7 +32,7 @@ shared keychain group, `.biometryCurrentSet`, `ThisDeviceOnly`, ADR-0046); the w
 guesses. `SecretKeyKeeper` keeps the Secret Key and the device keys in the keychain (`ThisDeviceOnly`, never
 synced) and remembers the ADR-0038 choice to stop keeping the key. `AppLock` ties them together for the app.
 The simulator has no Secure Enclave, so Face ID is off there. Debug builds accept `-figlock-seed-demo` to create a
-made-up vault (master password `demo-password-1`) so the unlock screen can be run before onboarding exists (it also
+made-up vault (password `demo-password-1`) so the unlock screen can be run before onboarding exists (it also
 clears any saved password pause, so a run that tripped it does not affect the next), and
 `-figlock-unlock-demo` also unlocks it so the vault screens can be looked at in a simulator. `-figlock-fresh`
 removes any vault from the phone first, so a UI test starts at onboarding.
@@ -92,7 +92,7 @@ SwiftUI screens are in `App/Onboarding` and `App/Onboarding/RecoveryScreen.swift
 vault list). `DeviceSettings` keeps this phone's auto-lock time (5 minutes by default, no "never"), the appearance
 (System, Light or Dark; System by default, applied app-wide with `preferredColorScheme`) and device
 nicknames in the device folder. `SettingsService` revokes a device (`VaultSession.revokeDevice` in the Rust core,
-ADR-0018: needs the master password and the Secret Key, which the vault checks; the new files are written snapshot,
+ADR-0018: needs the password and the Secret Key, which the vault checks; the new files are written snapshot,
 records, `vault.json` last, then pushed when this phone is signed in to Drive), renders the Emergency Kit again from
 the kept Secret Key (`SecretKeyReveal`: Face ID or passcode first, the key masks after 10 s), and deletes the Drive
 copy only after the typed phrase of ADR-0035. Signing out of Google and removing the vault from this phone never
@@ -102,7 +102,7 @@ re-signing its record outside a key rotation, which `sync.md` does not allow and
 Settings > Recovery Key (ADR-0029, the same rules as the desktop) shows whether the vault has one, turns it on or
 replaces it, and turns it off. `SettingsService.setRecoveryKey` takes a `RecoveryDraft` (`new_recovery_draft` in
 `figlock-ffi`: the code is made in memory, shown once, with a one page PDF to save, and checked by typing its last two
-groups) and, after the master password and the Secret Key (kept or typed) were checked by the vault
+groups) and, after the password and the Secret Key (kept or typed) were checked by the vault
 (`VaultSession.setRecoveryKey`), writes the new `vault.json` and syncs it. Replacing makes the old code open nothing
 from the new `vault.json` on. `removeRecoveryKey` proves the same credentials against the stored `vault.json` first,
 because dropping the key needs no secret of the vault. A wrong password or Secret Key changes nothing; if the write

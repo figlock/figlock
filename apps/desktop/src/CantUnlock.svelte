@@ -37,15 +37,15 @@
     {#if error}<Alert>{error}</Alert>{/if}
 
     <section class="flex flex-col gap-2" aria-labelledby="cu-password">
-      <h2 id="cu-password" class="font-semibold">I forgot my master password</h2>
+      <h2 id="cu-password" class="font-semibold">I forgot my password</h2>
       <ul class="flex list-disc flex-col gap-1 pl-5 text-(length:--text-sm) text-text-secondary">
         <li>
           <strong class="font-medium text-text">Another device is unlocked</strong> (or opens with Touch
-          ID): change the master password there, in Settings, then unlock here with the new one.
+          ID): change the password there, in Settings, then unlock here with the new one.
         </li>
         <li>
           <strong class="font-medium text-text">You have a Recovery Key</strong>: use it to choose a
-          new master password. The Secret Key and Emergency Kit are made again.
+          new password. The Secret Key and Emergency Kit are made again.
         </li>
         <li>
           <strong class="font-medium text-text">Neither:</strong> the vault cannot be opened. FigLock
@@ -76,7 +76,7 @@
 {#if confirming}
   <ConfirmDialog
     title="Remove this vault from this Mac?"
-    body="This Mac forgets the vault. Nothing is deleted from the folder or Google Drive, and you can open the vault again later with your Emergency Kit and master password."
+    body="This Mac forgets the vault. Nothing is deleted from the folder or Google Drive, and you can open the vault again later with your Emergency Kit and password."
     confirm="Remove from this Mac"
     danger
     onconfirm={remove}

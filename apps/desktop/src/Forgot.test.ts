@@ -89,8 +89,8 @@ async function openWithCode(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function newPassword(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText("New master password"), PASSWORD);
-  await user.type(screen.getByLabelText("Repeat new master password"), PASSWORD);
+  await user.type(screen.getByLabelText("New password"), PASSWORD);
+  await user.type(screen.getByLabelText("Repeat new password"), PASSWORD);
   await user.click(screen.getByRole("button", { name: "Continue" }));
   await screen.findByText("Make a new Recovery Key?");
 }
@@ -106,8 +106,8 @@ test("a code opens the vault, shows what was found and asks for a new password",
   expect(summary).toContain("2 other devices");
 
   // Mismatched and short passwords go nowhere.
-  await user.type(screen.getByLabelText("New master password"), "short");
-  await user.type(screen.getByLabelText("Repeat new master password"), "short");
+  await user.type(screen.getByLabelText("New password"), "short");
+  await user.type(screen.getByLabelText("Repeat new password"), "short");
   await user.click(screen.getByRole("button", { name: "Continue" }));
   expect(await screen.findByText("Use at least 8 characters.")).toBeTruthy();
   expect(core.forgotPrepare).not.toHaveBeenCalled();

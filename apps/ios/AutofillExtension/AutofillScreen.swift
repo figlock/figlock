@@ -23,7 +23,7 @@ struct AutofillScreen: View {
             switch self {
             case .openApp(let why, let then): "\(why) \(then)"
             case .retry(let left):
-                "You have \(left) more \(left == 1 ? "try" : "tries") before the master password is needed."
+                "You have \(left) more \(left == 1 ? "try" : "tries") before the password is needed."
             case .failed: "Try again. If this stays, open FigLock."
             case .storage: "Open FigLock, or reinstall it if this stays."
             }

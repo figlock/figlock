@@ -52,8 +52,8 @@ async function toCreate() {
 
 async function fillPasswords(user: ReturnType<typeof userEvent.setup>) {
   const pw = "correct horse battery 42";
-  await user.type(screen.getByLabelText("Master password"), pw);
-  await user.type(screen.getByLabelText("Repeat master password"), pw);
+  await user.type(screen.getByLabelText("Password"), pw);
+  await user.type(screen.getByLabelText("Repeat password"), pw);
 }
 
 test("a folder is the default and is sent without Drive", async () => {
@@ -151,7 +151,7 @@ test("opening an existing vault can use Google Drive too", async () => {
   render(App);
   await user.click(await screen.findByRole("button", { name: "Open an existing vault" }));
   await user.click(await screen.findByRole("radio", { name: /Google Drive/ }));
-  await user.type(screen.getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(screen.getByLabelText("Password"), "correct horse battery 42");
   await user.type(screen.getAllByLabelText(/Secret Key group 1/)[0], KEY);
   await user.click(screen.getByRole("button", { name: "Open vault" }));
   await waitFor(() => expect(core.openExisting).toHaveBeenCalledTimes(1));

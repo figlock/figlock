@@ -88,7 +88,7 @@ async fn save_emergency_kit(app: AppHandle, desk: State<'_, Desk>) -> CmdRes<boo
     Ok(true)
 }
 
-/// Make the Emergency Kit again from the Secret Key kept on this Mac (or the one typed, with the master password,
+/// Make the Emergency Kit again from the Secret Key kept on this Mac (or the one typed, with the password,
 /// when none is kept) and ask where to save it. Reading the kept key asks for Touch ID or the device password
 /// first. `false` when the person cancels the save dialog; nothing is written then (FIG-134).
 #[tauri::command]
@@ -200,7 +200,7 @@ async fn forgot_find(desk: State<'_, Desk>, storage: Storage, code: String) -> C
     desk.forgot_find(&storage, &code)
 }
 
-/// Choose the new master password; makes the new Secret Key (in memory) for a new Emergency Kit. With
+/// Choose the new password; makes the new Secret Key (in memory) for a new Emergency Kit. With
 /// `new_recovery_key` the confirmed new Recovery Key replaces the one just used.
 #[tauri::command]
 async fn forgot_prepare(
@@ -421,7 +421,7 @@ async fn devices(desk: State<'_, Desk>) -> CmdRes<Vec<DeviceRow>> {
     desk.devices()
 }
 
-/// Revoke a device. `new_password` also changes the master password in the same write.
+/// Revoke a device. `new_password` also changes the password in the same write.
 #[tauri::command]
 async fn revoke_device(
     app: AppHandle,
@@ -452,7 +452,7 @@ async fn revoke_device(
     Ok(rows)
 }
 
-/// Change the master password, rotate the Secret Key, or both. A rotation returns the new key for the kit.
+/// Change the password, rotate the Secret Key, or both. A rotation returns the new key for the kit.
 /// Open an invite for a new device: its code and QR. Replaces any invite already open.
 #[tauri::command]
 async fn add_device_start(desk: State<'_, Desk>) -> CmdRes<InviteView> {
@@ -594,7 +594,7 @@ async fn turn_touch_id_off(desk: State<'_, Desk>) -> CmdRes<VaultState> {
     desk.turn_touch_id_off()
 }
 
-/// Unlock this vault with Touch ID from now on; the master password confirms it.
+/// Unlock this vault with Touch ID from now on; the password confirms it.
 #[tauri::command]
 async fn turn_touch_id_on(
     desk: State<'_, Desk>,

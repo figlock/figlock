@@ -12,7 +12,7 @@ export type VaultState = {
   quickUnlock: boolean;
   /** This Mac can ask for Touch ID. */
   touchAvailable: boolean;
-  /** This Mac keeps the Secret Key, so unlocking asks for the master password only (ADR-0027). */
+  /** This Mac keeps the Secret Key, so unlocking asks for the password only (ADR-0027). */
   secretKeyKept: boolean;
   /** The Secret Key was changed on another device, so the one this Mac keeps opens nothing (ADR-0034). */
   secretKeyStale: boolean;
@@ -103,7 +103,7 @@ export const createVault = (storage: Storage, password: string) =>
 export const saveEmergencyKit = () => invoke<boolean>("save_emergency_kit");
 /**
  * Save the Emergency Kit again, made now from the Secret Key this Mac keeps (Touch ID or the device password
- * first). When none is kept, pass the master password and the Secret Key typed from the old kit. Resolves
+ * first). When none is kept, pass the password and the Secret Key typed from the old kit. Resolves
  * `false` when the person cancels the save dialog (FIG-134).
  */
 export const saveEmergencyKitAgain = (password?: string, secretKey?: string) =>
@@ -137,7 +137,7 @@ export const unlock = (password: string, secretKey?: string) =>
   invoke<VaultState>("unlock", { password, secretKey: secretKey || null });
 /** The kept Secret Key, after Touch ID or the device password. */
 export const showSecretKey = () => invoke<string>("show_secret_key");
-/** Keep the Secret Key another device made, checked against the vault with the master password. */
+/** Keep the Secret Key another device made, checked against the vault with the password. */
 export const updateSecretKey = (password: string, secretKey: string) =>
   invoke<VaultState>("update_secret_key", { password, secretKey });
 export const forgetSecretKey = () => invoke<VaultState>("forget_secret_key");
@@ -149,7 +149,7 @@ export const setAutolock = (secs: number) => invoke<VaultState>("set_autolock", 
 export const quickUnlock = () => invoke<VaultState>("quick_unlock");
 /** Stop unlocking with Touch ID; the Secret Key stays kept on this Mac. */
 export const turnTouchIdOff = () => invoke<VaultState>("turn_touch_id_off");
-/** Unlock with Touch ID from now on. The master password confirms; the Secret Key only when none is on hand. */
+/** Unlock with Touch ID from now on. The password confirms; the Secret Key only when none is on hand. */
 export const turnTouchIdOn = (password: string, secretKey: string) =>
   invoke<VaultState>("turn_touch_id_on", { password, secretKey });
 export const lock = () => invoke<void>("lock");
@@ -187,7 +187,7 @@ export type Found = { name: string; items: number; lastChangeMs: number | null; 
 /** Opens the vault in `storage` with the Recovery Key code. Stores nothing. */
 export const forgotFind = (storage: Storage, code: string) =>
   invoke<Found>("forgot_find", { storage, code });
-/** Chooses the new master password and makes the new Secret Key, to be saved in a new Emergency Kit. */
+/** Chooses the new password and makes the new Secret Key, to be saved in a new Emergency Kit. */
 export const forgotPrepare = (newPassword: string, newRecoveryKey: boolean) =>
   invoke<{ secretKey: string }>("forgot_prepare", { newPassword, newRecoveryKey });
 /** Stores the new credentials and unlocks. Needs the new Emergency Kit confirmed first. */

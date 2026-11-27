@@ -31,41 +31,41 @@ pub fn password() -> Res<Zeroizing<String>> {
     if let Some(p) = from_env("FIGLOCK_PASSWORD") {
         return Ok(p);
     }
-    hidden("Master password: ")
+    hidden("Password: ")
 }
 
-/// True when the master password is typed at a terminal, so a wrong one can be asked for again.
+/// True when the password is typed at a terminal, so a wrong one can be asked for again.
 pub fn can_retry_password() -> bool {
     from_env("FIGLOCK_PASSWORD").is_none() && io::stdin().is_terminal()
 }
 
-/// A new master password, typed twice.
+/// A new password, typed twice.
 pub fn new_password() -> Res<Zeroizing<String>> {
     if let Some(p) = from_env("FIGLOCK_PASSWORD") {
         return Ok(p);
     }
-    let first = hidden("New master password: ")?;
+    let first = hidden("New password: ")?;
     if first.is_empty() {
-        return Err(Fail::new("the master password cannot be empty"));
+        return Err(Fail::new("the password cannot be empty"));
     }
-    let again = hidden("Repeat master password: ")?;
+    let again = hidden("Repeat password: ")?;
     if *first != *again {
         return Err(Fail::new("the passwords do not match"));
     }
     Ok(first)
 }
 
-/// The replacement for a master password that is being changed, typed twice. `FIGLOCK_NEW_PASSWORD` is for
+/// The replacement for a password that is being changed, typed twice. `FIGLOCK_NEW_PASSWORD` is for
 /// scripts and tests.
 pub fn changed_password() -> Res<Zeroizing<String>> {
     if let Some(p) = from_env("FIGLOCK_NEW_PASSWORD") {
         return Ok(p);
     }
-    let first = hidden("New master password: ")?;
+    let first = hidden("New password: ")?;
     if first.is_empty() {
-        return Err(Fail::new("the master password cannot be empty"));
+        return Err(Fail::new("the password cannot be empty"));
     }
-    let again = hidden("Repeat new master password: ")?;
+    let again = hidden("Repeat new password: ")?;
     if *first != *again {
         return Err(Fail::new("the passwords do not match"));
     }

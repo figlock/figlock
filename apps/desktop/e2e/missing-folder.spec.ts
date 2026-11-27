@@ -8,7 +8,7 @@ test.describe("a missing vault folder (FIG-118)", () => {
     await openApp(page, { phase: "locked", folderMissing: MISSING });
     await expect(page.getByRole("heading", { name: "Your vault folder is missing" })).toBeVisible();
     await expect(page.getByText(MISSING.path)).toBeVisible();
-    await expect(page.getByLabel("Master password")).toHaveCount(0);
+    await expect(page.getByLabel("Password")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Locate the folder" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Create a new vault" })).toBeVisible();
     await expect(
@@ -27,7 +27,7 @@ test.describe("a missing vault folder (FIG-118)", () => {
     });
     await page.getByRole("button", { name: "Locate the folder" }).click();
     await expect(page.getByRole("heading", { name: "Unlock your vault" })).toBeVisible();
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Unlock", exact: true }).click();
     await expect(page.getByRole("button", { name: "Lock" })).toBeVisible();
   });

@@ -12,7 +12,7 @@ The words MUST, SHOULD and MAY are used as in RFC 2119.
 Goals:
 
 - Storage (Google Drive, iCloud Drive, a folder) sees only ciphertext, counts, sizes and timestamps.
-- A stolen copy of the vault cannot be brute-forced from a weak master password, because a 128-bit Secret
+- A stolen copy of the vault cannot be brute-forced from a weak password, because a 128-bit Secret
   Key is also required.
 - Every device can work offline with a full local copy.
 - A revoked device cannot read anything written after revocation.
@@ -62,7 +62,7 @@ No other primitive may be used without an ADR and new test vectors.
   covers the JCS form of the object without its `signature` member, under the context string
   `figlock/v1/<device-record|vault-json>` followed by a zero byte (section 7.4).
   Op and snapshot payloads inside ciphertext are deterministic CBOR (RFC 8949 section 4.2).
-- **Text.** Master passwords are normalised to Unicode NFKD, encoded as UTF-8, with no trimming. The same
+- **Text.** Passwords are normalised to Unicode NFKD, encoded as UTF-8, with no trimming. The same
   rule applies on every platform.
 - **Identifiers.** `vault_id`, `device_id` and `item_id` are 16 random bytes, shown as lowercase hex.
 
@@ -70,7 +70,7 @@ No other primitive may be used without an ADR and new test vectors.
 
 | Name | Size | Created | Stored |
 | ---- | ---- | ------- | ------ |
-| Master password `pw` | user chosen | by the user | nowhere; in the user's head or password manager |
+| Password `pw` | user chosen | by the user | nowhere; in the user's head or password manager |
 | Secret Key `SK` | 128 bit | at vault creation | Emergency Kit (paper or file), and in each device's store whether or not quick unlock is on (ADR-0027, ADR-0034, ADR-0037: the shared OS login keychain item, or an owner-only file; deliberate releases still confirm with Touch ID or the device password when quick unlock is on) |
 | Account Unlock Key `AUK` | 256 bit | derived at each full unlock | memory only (and hardware-wrapped for quick unlock, section 8) |
 | Vault Key `VK` | 256 bit | at vault creation, random | storage, wrapped by `AUK` (and by the Recovery Key if enabled) |
@@ -285,7 +285,7 @@ Quick unlock is local to a device and is never synced.
   made with `.userPresence` (Touch ID or the device password) and the watch constraint on macOS, so a paired Apple
   Watch can approve where the Mac allows, and with `.biometryCurrentSet` on iOS (no passcode fallback, ADR-0046).
   Vectors for the software half are in `quick-unlock.json`.
-- A full master-password unlock is required: after a reboot or app restart, after 4 hours without use, after 7 days since the last full
+- A full password unlock is required: after a reboot or app restart, after 4 hours without use, after 7 days since the last full
   unlock, after 5 failed biometric attempts, after a password change or key rotation, and when the vault is
   locked by the user. These are defaults; users MAY tighten them.
   On iOS "after a reboot or app restart" means after the phone restarts (detected from the boot session id),
@@ -301,7 +301,7 @@ additional unlock path. PRF is never the only root of trust (research: PRF suppo
 
 | Event | What changes | Data re-encrypted? |
 | ----- | ------------ | ------------------ |
-| Change master password | New `pw`, new `salt`, new `AUK`; rewrap `VK`; update `vault.json` | No |
+| Change password | New `pw`, new `salt`, new `AUK`; rewrap `VK`; update `vault.json` | No |
 | Change Argon2 parameters | Same as above | No |
 | Rotate Secret Key | New `SK`, new `AUK`; rewrap `VK`; `sk_gen` + 1 (9.4); new Emergency Kit | No |
 | Revoke a device | New `VK` (epoch + 1), see 9.1 | Item keys rewrapped; payload files rewritten by compaction |
@@ -375,7 +375,7 @@ rewriting it without them (it would silently drop the Recovery Key). Without the
 ```
 
 - Enabling, replacing or removing the Recovery Key writes a new `vault.json` (`revision` + 1) and nothing else.
-  Enabling or replacing needs the master password and Secret Key, like a credential change: `VK` is not kept in
+  Enabling or replacing needs the password and Secret Key, like a credential change: `VK` is not kept in
   memory, so it is opened from `wrapped_vk` and sealed to the new `rk_pub`. Removing needs neither. A new
   `rk_pub` replaces the old one, so a code made for the old key stops working for the next `vault.json` and
   onwards.
@@ -386,13 +386,13 @@ rewriting it without them (it would silently drop the Recovery Key). Without the
   `rk_pub` is covered by the vault signature, so a storage attacker cannot swap in their own key.
 - Recovery (`pairing-recovery.md` 7.3): the holder of `rk_priv` opens `wrapped_vk_rk` to get `VK`, derives the
   authority key and checks `authority_pub` and the signature exactly as an unlock does, then writes a new
-  `vault.json` with a fresh salt and a fresh Secret Key wrapped under the new `AUK` for the new master password,
+  `vault.json` with a fresh salt and a fresh Secret Key wrapped under the new `AUK` for the new password,
   and with the same or a new `RK`. An old copy of `vault.json` still opens with the old credentials.
 
 ### 9.4 The Secret Key generation `sk_gen`
 
 `vault.json` says which Secret Key it is wrapped under with a counter, so a device whose kept key is out of
-date can tell that from a wrong master password (ADR-0034). It is in the signed body, not secret, and reveals
+date can tell that from a wrong password (ADR-0034). It is in the signed body, not secret, and reveals
 nothing about the key.
 
 ```
@@ -401,7 +401,7 @@ nothing about the key.
 
 - A new vault is generation 1. Only a new Secret Key raises it by one: a Secret Key rotation, a revocation that
   also rotates it (`revoke_device_and_change_credentials`), and recovery with a Recovery Key (it makes a fresh
-  Secret Key). A new master password, a change of Argon2 parameters, a revocation alone and enabling,
+  Secret Key). A new password, a change of Argon2 parameters, a revocation alone and enabling,
   replacing or removing the Recovery Key leave it. The counter does not wrap: at 2^32 - 1 a rotation fails.
 - A body with `sk_gen` has `min_format_version` 2 (as with the Recovery Key members, 9.3), so a client that
   predates it refuses the file instead of rewriting it without the counter. A reader refuses `sk_gen` of 0 or 1

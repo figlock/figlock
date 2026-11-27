@@ -77,7 +77,7 @@ pub fn password_change(json: bool) -> Res<()> {
     session.replace_vault_json(&r.vault_json)?;
     let pushed = crate::sync_cmd::push_after_write();
     forget_quick_unlock();
-    done(json, "The master password is changed.");
+    done(json, "The password is changed.");
     pushed.announce();
     Ok(())
 }
@@ -145,7 +145,7 @@ pub fn secret_key_kit(path: &str, force: bool, json: bool) -> Res<()> {
     if !keys.has(&vault) {
         return Err(Fail::new(
             "no Secret Key is kept on this device, so there is nothing to make the kit from. It is kept the \
-             next time you unlock with the master password and Secret Key",
+             next time you unlock with the password and Secret Key",
         ));
     }
     let place = figlock_session::config::load()?.place;
@@ -166,7 +166,7 @@ pub fn secret_key_kit(path: &str, force: bool, json: bool) -> Res<()> {
         println!("{}", json!({ "saved": path }));
     } else if path != "-" {
         println!(
-            "Saved the Emergency Kit to {path} (owner-only). Print it or keep it safe, apart from your master password."
+            "Saved the Emergency Kit to {path} (owner-only). Print it or keep it safe, apart from your password."
         );
     }
     Ok(())
@@ -186,8 +186,8 @@ pub fn secret_key_forget(json: bool) -> Res<()> {
     Ok(())
 }
 
-/// `figlock secret-key keep`: keep the Secret Key on this device again. It asks for the master password and
-/// Secret Key once, checks them against the vault, and from then on the master password is all that is typed.
+/// `figlock secret-key keep`: keep the Secret Key on this device again. It asks for the password and
+/// Secret Key once, checks them against the vault, and from then on the password is all that is typed.
 pub fn secret_key_keep(json: bool) -> Res<()> {
     let keys = secret_key_store::system()?;
     if !keys.available() {
@@ -348,7 +348,7 @@ pub fn device_revoke(
     );
     if !changing {
         eprintln!(
-            "It may still know your master password and Secret Key. If it might have been compromised, \
+            "It may still know your password and Secret Key. If it might have been compromised, \
              run `figlock device revoke` again with --change-password and --rotate-secret-key instead \
              of leaving the old ones in place."
         );

@@ -4,7 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 export type Changed = { secretKey: string | null };
 
 /**
- * Change the master password, rotate the Secret Key, or both. A blank `secretKey` means "use the one this Mac
+ * Change the password, rotate the Secret Key, or both. A blank `secretKey` means "use the one this Mac
  * keeps"; `needs_secret_key` says there is none to use.
  */
 export const changeCredentials = (

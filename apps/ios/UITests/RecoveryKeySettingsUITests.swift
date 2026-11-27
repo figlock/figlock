@@ -25,9 +25,9 @@ final class RecoveryKeySettingsUITests: XCTestCase {
     }
 
     /// The list behind the sheet has a button of the same name; the sheet's is the one in the form that holds
-    /// the master password field.
+    /// the password field.
     private func sheetTurnOffButton() -> XCUIElement {
-        app.collectionViews.containing(.secureTextField, identifier: "Master password")
+        app.collectionViews.containing(.secureTextField, identifier: "Password")
             .buttons["Turn off the Recovery Key"]
     }
 
@@ -58,18 +58,18 @@ final class RecoveryKeySettingsUITests: XCTestCase {
         let tail = app.staticTexts["debug-recovery-tail"].label
         let turnOn = app.buttons["Turn on Recovery Key"]
         type("AAAA-AAAA", into: app.textFields["Last two groups of the Recovery Key"])
-        type(Self.password, into: app.secureTextFields["Master password"])
+        type(Self.password, into: app.secureTextFields["Password"])
         XCTAssertFalse(turnOn.isEnabled, "the code was not typed back")
 
         let check = app.textFields["Last two groups of the Recovery Key"]
         check.tap()
         check.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 9) + tail)
-        let password = app.secureTextFields["Master password"]
+        let password = app.secureTextFields["Password"]
         password.tap()
         password.typeText(
             String(repeating: XCUIKeyboardKey.delete.rawValue, count: Self.password.count) + "wrong-password")
         turnOn.tap()
-        XCTAssertTrue(app.staticTexts["That master password or Secret Key is not right."].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["That password or Secret Key is not right."].waitForExistence(timeout: 30))
 
         password.tap()
         password.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 14) + Self.password)
@@ -82,21 +82,21 @@ final class RecoveryKeySettingsUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Back"].exists)
         XCTAssertTrue(app.buttons["Replace Recovery Key"].exists)
 
-        // Turning it off needs the master password too.
+        // Turning it off needs the password too.
         let turnOff = app.buttons["Turn off the Recovery Key"]
         XCTAssertTrue(turnOff.waitForExistence(timeout: 10))
         let hittable = NSPredicate(format: "isHittable == true")
         XCTAssertEqual(
             XCTWaiter.wait(for: [expectation(for: hittable, evaluatedWith: turnOff)], timeout: 10), .completed)
         turnOff.tap()
-        let offPassword = app.secureTextFields["Master password"]
+        let offPassword = app.secureTextFields["Password"]
         type("wrong-password", into: offPassword)
         sheetTurnOffButton().tap()
-        XCTAssertTrue(app.staticTexts["That master password or Secret Key is not right."].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["That password or Secret Key is not right."].waitForExistence(timeout: 30))
         // Cancelling clears what was typed; the second try opens the sheet again.
         app.buttons["Cancel"].tap()
         app.buttons["Turn off the Recovery Key"].tap()
-        type(Self.password, into: app.secureTextFields["Master password"])
+        type(Self.password, into: app.secureTextFields["Password"])
         sheetTurnOffButton().tap()
         XCTAssertTrue(
             app.staticTexts["Your Recovery Key is off. The old code opens nothing from now on."]

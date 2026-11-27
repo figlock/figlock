@@ -37,7 +37,7 @@
   // Step 1: the Recovery Key code.
   let code = $state("");
 
-  // Step 2: what was found, and the new master password.
+  // Step 2: what was found, and the new password.
   let found = $state<Found | null>(null);
   let password = $state("");
   let again = $state("");
@@ -184,7 +184,7 @@
     </form>
   </Shell>
 {:else if step === "found" && found}
-  <Shell title="Found your vault" subtitle="Choose a new master password.">
+  <Shell title="Found your vault" subtitle="Choose a new password.">
     <form class="flex flex-col gap-4" onsubmit={choosePassword}>
       <div class="rounded-(--radius-sm) bg-surface-sunken p-4" data-testid="found">
         <p class="font-semibold">{found.name}</p>
@@ -196,7 +196,7 @@
         </p>
       </div>
       <TextField
-        label="New master password"
+        label="New password"
         type="password"
         bind:value={password}
         error={fieldError.password}
@@ -205,7 +205,7 @@
         focus
       />
       <TextField
-        label="Repeat new master password"
+        label="Repeat new password"
         type="password"
         bind:value={again}
         error={fieldError.again}
@@ -290,7 +290,7 @@
       {#if error}<Alert>{error}</Alert>{/if}
       <Alert tone="warning">
         FigLock cannot recover this key. Keep your Emergency Kit somewhere safe, apart from your
-        master password.
+        password.
       </Alert>
       <div class="rounded-(--radius-sm) bg-surface-sunken p-4">
         <p

@@ -4,7 +4,7 @@
 //! has a keystore (`keystore.rs`), holds no secret: the private keys are in the keystore under the device id.
 //! Without one it also holds the keys (owner-only permissions). A `device.json` from before the keystore
 //! existed is moved over the first time it is read. Quick unlock keeps its policy state next to them
-//! (`quick.rs`). The master password and the Secret Key are never written here.
+//! (`quick.rs`). The password and the Secret Key are never written here.
 
 use std::fs;
 use std::io::Write;

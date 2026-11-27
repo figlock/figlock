@@ -90,15 +90,15 @@
             "name": "Can FigLock or my storage provider read my vault?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. Everything is encrypted on your device with keys derived from your master password and your Secret Key, and we never receive either. Item titles, URLs and usernames are encrypted too. Your storage provider sees encrypted files, how many there are, how big they are and when they changed, and nothing else."
+              "text": "No. Everything is encrypted on your device with keys derived from your password and your Secret Key, and we never receive either. Item titles, URLs and usernames are encrypted too. Your storage provider sees encrypted files, how many there are, how big they are and when they changed, and nothing else."
             }
           },
           {
             "@type": "Question",
-            "name": "What if I forget my master password?",
+            "name": "What if I forget my password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "You save your Secret Key in an Emergency Kit when you set up, and you also choose a Recovery Key, so a forgotten password is not the end of your vault. We can't reset your password for you, because we don't have it. If you lose both your master password and your Secret Key, the data can't be recovered."
+              "text": "You save your Secret Key in an Emergency Kit when you set up, and you also choose a Recovery Key, so a forgotten password is not the end of your vault. We can't reset your password for you, because we don't have it. If you lose both your password and your Secret Key, the data can't be recovered."
             }
           },
           {
@@ -122,7 +122,7 @@
             "name": "Which devices does FigLock run on?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The Mac app runs on Apple silicon and Intel Macs. The command line runs on macOS and Linux (x86_64 and ARM64), and the Linux builds are lightly tested so far. The iPhone app is in beta and coming soon. An Android app, a browser extension and Windows are planned. There is no hosted web version by design, so no website holds your vault or asks for your master password."
+              "text": "The Mac app runs on Apple silicon and Intel Macs. The command line runs on macOS and Linux (x86_64 and ARM64), and the Linux builds are lightly tested so far. The iPhone app is in beta and coming soon. An Android app, a browser extension and Windows are planned. There is no hosted web version by design, so no website holds your vault or asks for your password."
             }
           },
           {
@@ -200,10 +200,10 @@
         <p>Your vault is a set of encrypted files. A full copy sits on each of your devices, and the same files are kept in the storage you choose: Google Drive, iCloud Drive, or a folder you sync yourself. We run no server or database that holds your vault.</p>
 
         <h2>Can FigLock or my storage provider read my vault?</h2>
-        <p>No. Everything is encrypted on your device with keys derived from your master password and your Secret Key, and we never receive either. Item titles, URLs and usernames are encrypted too. Your storage provider sees encrypted files, how many there are, how big they are and when they changed, and nothing else. More on <a href="/privacy/">what we store and who can see it</a>.</p>
+        <p>No. Everything is encrypted on your device with keys derived from your password and your Secret Key, and we never receive either. Item titles, URLs and usernames are encrypted too. Your storage provider sees encrypted files, how many there are, how big they are and when they changed, and nothing else. More on <a href="/privacy/">what we store and who can see it</a>.</p>
 
-        <h2>What if I forget my master password?</h2>
-        <p>You save your Secret Key in an Emergency Kit when you set up, and you also choose a Recovery Key, so a forgotten password is not the end of your vault. We can&#x27;t reset your password for you, because we don&#x27;t have it. If you lose both your master password and your Secret Key, the data can&#x27;t be recovered.</p>
+        <h2>What if I forget my password?</h2>
+        <p>You save your Secret Key in an Emergency Kit when you set up, and you also choose a Recovery Key, so a forgotten password is not the end of your vault. We can&#x27;t reset your password for you, because we don&#x27;t have it. If you lose both your password and your Secret Key, the data can&#x27;t be recovered.</p>
 
         <h2>How can an AI agent use a secret without seeing it?</h2>
         <p>You start the broker and the agent asks for access. FigLock draws the prompt itself, never the agent, and names exactly what will happen. You approve with Touch ID, for a limited time and only for hosts you list. The broker then adds the token to the agent&#x27;s HTTP requests for it, or injects it into a command and scrubs it from the output.</p>
@@ -212,7 +212,7 @@
         <p>Only if you choose to reveal it. Reveal is opt-in per item and needs its own approval every time. Approving an agent only limits what the agent is handed, and a revealed secret can still end up in an agent&#x27;s transcript, so reveal sparingly.</p>
 
         <h2>Which devices does FigLock run on?</h2>
-        <p>The Mac app runs on Apple silicon and Intel Macs. The command line runs on macOS and Linux (x86_64 and ARM64), and the Linux builds are lightly tested so far. The iPhone app is in beta and coming soon. An Android app, a browser extension and Windows are planned. There is no hosted web version by design, so no website holds your vault or asks for your master password.</p>
+        <p>The Mac app runs on Apple silicon and Intel Macs. The command line runs on macOS and Linux (x86_64 and ARM64), and the Linux builds are lightly tested so far. The iPhone app is in beta and coming soon. An Android app, a browser extension and Windows are planned. There is no hosted web version by design, so no website holds your vault or asks for your password.</p>
 
         <h2>How do I install FigLock?</h2>
         <p>Download the Mac app from the install page, or install the command line with Homebrew using brew install figlock/tap/figlock, or with the installer script for macOS and Linux. The Mac app updates itself when you click, and the command line updates with brew upgrade figlock. See the <a href="/install/">install guide</a>.</p>

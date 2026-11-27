@@ -12,7 +12,7 @@ public struct QuickUnlock: Sendable {
         case off
         /// Face ID can be tried now.
         case ready
-        /// It was on, a rule ended it, and the master password is needed once to turn it on again.
+        /// It was on, a rule ended it, and the password is needed once to turn it on again.
         case needsPassword(QuickUnlockPolicy.Reason)
     }
 
@@ -85,7 +85,7 @@ public struct QuickUnlock: Sendable {
 
     // MARK: Turn on, off
 
-    /// Turn Face ID on, or on again after a full unlock. `key` is the unlock key the master password just gave.
+    /// Turn Face ID on, or on again after a full unlock. `key` is the unlock key the password just gave.
     /// Creates a fresh hardware key and wraps `key` to it. No prompt. Throws when the device cannot do it, and
     /// leaves nothing half done: either the key, the blob and the state are all there or Face ID stays off.
     public func enable(key: UnlockKey, vaultId: String, deviceId: String) throws {
@@ -104,7 +104,7 @@ public struct QuickUnlock: Sendable {
         }
     }
 
-    /// A full master password unlock worked while Face ID is wanted but was ended by a rule: turn it on again.
+    /// A full password unlock worked while Face ID is wanted but was ended by a rule: turn it on again.
     /// Returns whether it did.
     @discardableResult
     public func renewAfterFullUnlock(key: UnlockKey, vaultId: String, deviceId: String) -> Bool {

@@ -32,7 +32,7 @@ public protocol QuickUnlockChip: Sendable {
 /// `QK` as a permanent Secure Enclave key in the shared keychain access group, bound to the Face ID or Touch ID set
 /// enrolled when it was made and never synced (`ThisDeviceOnly`, `.biometryCurrentSet`, ADR-0046). The system ends
 /// the key when that set changes, in every process, so no code compares biometric states. The simulator has no Secure Enclave, so
-/// quick unlock is unavailable there and the master password is used.
+/// quick unlock is unavailable there and the password is used.
 public struct SecureEnclaveChip: QuickUnlockChip {
     private let tag: Data
     private let accessGroup: String?

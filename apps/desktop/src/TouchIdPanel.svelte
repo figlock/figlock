@@ -21,7 +21,7 @@
   let busy = $state(false);
   let error = $state("");
   let confirmingOff = $state(false);
-  /** Asking for the master password to turn Touch ID on. */
+  /** Asking for the password to turn Touch ID on. */
   let asking = $state(false);
   let password = $state("");
   let secretKey = $state("");
@@ -72,7 +72,7 @@
     e.preventDefault();
     fieldError = {};
     error = "";
-    if (!password) fieldError.password = "Enter your master password.";
+    if (!password) fieldError.password = "Enter your password.";
     if (askKey && (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => !g))) {
       fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
@@ -111,14 +111,14 @@
         {#if info.quickUnlock}
           <p class="font-medium">On</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="touch-id-state">
-            You can open FigLock with your fingerprint instead of typing your master password. Your
-            Secret Key stays kept on this Mac either way.
+            You can open FigLock with your fingerprint instead of typing your password. Your Secret
+            Key stays kept on this Mac either way.
           </p>
         {:else}
           <p class="font-medium">Off</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="touch-id-state">
-            You unlock with your master password. Turn Touch ID on to open FigLock with your
-            fingerprint instead.
+            You unlock with your password. Turn Touch ID on to open FigLock with your fingerprint
+            instead.
           </p>
         {/if}
       </div>
@@ -148,13 +148,13 @@
           Turn on Touch ID
         </h2>
         <p class="text-text-secondary">
-          Enter your master password{askKey ? " and Secret Key" : ""} to confirm. After this you can open
-          FigLock with your fingerprint.
+          Enter your password{askKey ? " and Secret Key" : ""} to confirm. After this you can open FigLock
+          with your fingerprint.
         </p>
       </div>
       {#if error}<Alert>{error}</Alert>{/if}
       <TextField
-        label="Master password"
+        label="Password"
         type="password"
         bind:value={password}
         error={fieldError.password}
@@ -177,7 +177,7 @@
 {#if confirmingOff}
   <ConfirmDialog
     title="Turn off Touch ID?"
-    body="You will unlock with your master password only. Your Secret Key stays kept on this Mac, so that is all you type. You can turn Touch ID on again here."
+    body="You will unlock with your password only. Your Secret Key stays kept on this Mac, so that is all you type. You can turn Touch ID on again here."
     confirm="Turn off Touch ID"
     onconfirm={turnOff}
     oncancel={() => (confirmingOff = false)}

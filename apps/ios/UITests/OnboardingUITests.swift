@@ -45,15 +45,15 @@ final class OnboardingUITests: XCTestCase {
         create.tap()
         let password = app.secureTextFields.element(boundBy: 0)
         XCTAssertTrue(password.waitForExistence(timeout: 15))
-        let eye = app.buttons["Show master password"]
+        let eye = app.buttons["Show password"]
         XCTAssertTrue(eye.exists)
         XCTAssertEqual(eye.frame.height, 44, accuracy: 1)
         // The box is what lies between its label and the hint under it (4pt and 16pt of spacing): 44pt tall, as
         // tall as the confirm box, not 44pt of button plus the field's own padding.
-        let label = app.staticTexts["Master password"]
+        let label = app.staticTexts["Password"]
         let hint = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Use at least'")).firstMatch
         XCTAssertTrue(label.exists && hint.exists)
         let box = hint.frame.minY - label.frame.maxY - 4 - 16
-        XCTAssertLessThanOrEqual(box, 46, "the master password box is \(box)pt tall")
+        XCTAssertLessThanOrEqual(box, 46, "the password box is \(box)pt tall")
     }
 }

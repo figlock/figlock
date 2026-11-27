@@ -160,9 +160,9 @@ test("a Mac that keeps no Secret Key asks for the password and key to approve", 
   await within(dialog).findByText('Add "Home Laptop"?');
   core.addDeviceApprove.mockRejectedValueOnce({
     code: "wrong_credentials",
-    message: "That master password and Secret Key do not match this vault.",
+    message: "That password and Secret Key do not match this vault.",
   });
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse battery 42");
   await user.click(within(dialog).getByLabelText("Secret Key group 1 of 8"));
   await user.paste(KEY);
   await user.click(within(dialog).getByRole("button", { name: "Approve" }));
@@ -172,7 +172,7 @@ test("a Mac that keeps no Secret Key asks for the password and key to approve", 
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
 
-test("a session that holds the Secret Key asks for the master password only, with no key field or Touch ID step", async () => {
+test("a session that holds the Secret Key asks for the password only, with no key field or Touch ID step", async () => {
   core.vaultState.mockResolvedValue({
     secretKeyKept: false,
     secretKeyHeld: true,
@@ -187,9 +187,9 @@ test("a session that holds the Secret Key asks for the master password only, wit
   expect(within(dialog).queryByText(/Touch ID/)).toBeNull();
   core.addDeviceApprove.mockResolvedValue([]);
   await user.click(within(dialog).getByRole("button", { name: "Approve" }));
-  expect(await within(dialog).findByText("Enter your master password.")).toBeTruthy();
+  expect(await within(dialog).findByText("Enter your password.")).toBeTruthy();
   expect(core.addDeviceApprove).not.toHaveBeenCalled();
-  await user.type(within(dialog).getByLabelText("Master password"), "correct horse battery 42");
+  await user.type(within(dialog).getByLabelText("Password"), "correct horse battery 42");
   await user.click(within(dialog).getByRole("button", { name: "Approve" }));
   await waitFor(() =>
     expect(core.addDeviceApprove).toHaveBeenCalledWith("correct horse battery 42", ""),

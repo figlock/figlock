@@ -96,7 +96,7 @@ private func unlocked(_ phone: Phone) async throws -> VaultSession {
     await #expect(throws: SettingsService.Failure.wrongCredentials) {
         try await service.removeRecoveryKey(password: Phone.password, typedSecretKey: nil, session: session)
     }
-    // The vault still opens with the master password.
+    // The vault still opens with the password.
     let lock = phone.makeLock()
     #expect(await lock.unlock(password: Phone.password, secretKey: nil) == .unlocked)
 }

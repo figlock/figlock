@@ -16,7 +16,7 @@ use crate::error::{Fail, FailKind, Res};
 use crate::quick;
 use crate::secret_key_store::{self, SecretKeyStore};
 
-/// The master password and Secret Key a full unlock was given.
+/// The password and Secret Key a full unlock was given.
 type Credentials = (Zeroizing<String>, SecretKey);
 
 /// How a front end asks for the credentials and reports what it noticed. Nothing here is a secret.
@@ -226,7 +226,7 @@ pub fn peek_kept_key() -> Res<figlock_core::KeptKey> {
     ))
 }
 
-/// The master password did not open the vault and the Secret Key this device keeps is current: say so, and do not
+/// The password did not open the vault and the Secret Key this device keeps is current: say so, and do not
 /// ask for the key.
 fn wrong_password() -> Fail {
     Fail::of(
@@ -236,7 +236,7 @@ fn wrong_password() -> Fail {
 }
 
 fn wrong_credentials() -> Fail {
-    Fail::new("could not unlock: wrong master password or Secret Key, or the vault file is damaged")
+    Fail::new("could not unlock: wrong password or Secret Key, or the vault file is damaged")
 }
 
 /// `vault_id` from `vault.json`, which names this vault's quick-unlock entry.
@@ -254,7 +254,7 @@ pub fn vault_id_of(vault_json: &[u8]) -> Res<String> {
 /// - the vault's is higher: the Secret Key was changed on another device, the kept key opens nothing, and the
 ///   new one is asked for (after a notice);
 /// - the vault's is lower: a rolled-back `vault.json`, refused;
-/// - equal: the kept key is current, so a failure is the master password and nothing else. It is never answered
+/// - equal: the kept key is current, so a failure is the password and nothing else. It is never answered
 ///   by asking for the key, and the kept key is never deleted for it.
 ///
 /// A key the person typed before being asked (`Ui::offered_secret_key`, for the "My Secret Key changed" fallback)
@@ -343,19 +343,19 @@ impl Session {
         }
     }
 
-    /// Unlock with quick unlock when it is on and still valid, otherwise with the master password and
+    /// Unlock with quick unlock when it is on and still valid, otherwise with the password and
     /// Secret Key.
     pub fn open(ui: Box<dyn Ui>) -> Res<Session> {
         Self::open_with(ui, false).map(|(s, _, _)| s)
     }
 
-    /// Always asks for the master password and Secret Key, and hands back the Account Unlock Key for
+    /// Always asks for the password and Secret Key, and hands back the Account Unlock Key for
     /// `figlock quick-unlock enable`.
     pub fn open_full(ui: Box<dyn Ui>) -> Res<(Session, Key)> {
         Self::open_with(ui, true).map(|(s, auk, _)| (s, auk))
     }
 
-    /// Always asks for the master password and Secret Key and hands them back, for the commands that change
+    /// Always asks for the password and Secret Key and hands them back, for the commands that change
     /// the credentials (`Vault::change_credentials` checks them again against the wrapped `VK`).
     pub fn open_for_change(ui: Box<dyn Ui>) -> Res<(Session, Zeroizing<String>, SecretKey)> {
         let (session, _, creds) = Self::open_with(ui, true)?;
@@ -410,7 +410,7 @@ impl Session {
                     }
                 },
                 quick::Fetch::Full(quick::Fallback::Expired(why)) => {
-                    ui.notice(&format!("{why}; enter the master password"));
+                    ui.notice(&format!("{why}; enter the password"));
                 }
                 quick::Fetch::Full(_) => {}
             }
@@ -1461,7 +1461,7 @@ mod tests {
             let ui = ui(None);
             let (sk, _, _) = r.creds(&r.pw, &keys, &ui).unwrap();
             assert_eq!(sk.expose(), r.sk.expose());
-            assert_eq!(ui.asked.get(), 0, "the master password is all it needed");
+            assert_eq!(ui.asked.get(), 0, "the password is all it needed");
             assert_eq!(fake.0.prompts.get(), 0, "no Touch ID or device password");
         }
 

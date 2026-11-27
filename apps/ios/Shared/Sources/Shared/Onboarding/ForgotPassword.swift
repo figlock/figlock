@@ -2,7 +2,7 @@ import FigLockFFI
 import Foundation
 
 /// "I forgot my password or Secret Key" for the vault on this iPhone (`pairing-recovery.md` 7.3, ADR-0029): the
-/// Recovery Key opens the vault, the person chooses a new master password and gets a new Secret Key and a new
+/// Recovery Key opens the vault, the person chooses a new password and gets a new Secret Key and a new
 /// Emergency Kit. The same Rust `Vault::recover` the desktop uses. Nothing is written until the new kit was
 /// confirmed, so backing out at any step leaves the vault and the phone as they were.
 extension Onboarding {
@@ -59,7 +59,7 @@ extension Onboarding {
         }
     }
 
-    /// Choose the new master password and make the new Secret Key, in memory.
+    /// Choose the new password and make the new Secret Key, in memory.
     public func prepareRecovery(_ recovering: Recovering, newPassword: String) async throws {
         let nowMs = nowMs
         do {

@@ -7,7 +7,7 @@
   type Props = {
     /** Set up (or replace) a Recovery Key, or turn it off. */
     mode: "setup" | "off";
-    /** This Mac keeps the Secret Key, so only the master password is asked for. */
+    /** This Mac keeps the Secret Key, so only the password is asked for. */
     keyKept: boolean;
     /** The vault locked or another device changed it. */
     onerror: (code: string, message: string) => void;
@@ -43,7 +43,7 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!password) fieldError.password = "Enter your master password.";
+    if (!password) fieldError.password = "Enter your password.";
     if (
       askKey &&
       (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g === ""))
@@ -96,18 +96,18 @@
       <form class="flex flex-col gap-4" onsubmit={submit}>
         <p class="text-text-secondary">
           {#if mode === "off"}
-            Any code you made stops working. If you forget your master password after this, your
-            data cannot be recovered. Enter your master password to confirm{askKey
+            Any code you made stops working. If you forget your password after this, your data
+            cannot be recovered. Enter your password to confirm{askKey
               ? ", and your Secret Key"
               : ""}.
           {:else}
-            Enter your master password{askKey ? " and your Secret Key" : ""} to add it to the vault. A
-            Recovery Key you made before stops working.
+            Enter your password{askKey ? " and your Secret Key" : ""} to add it to the vault. A Recovery
+            Key you made before stops working.
           {/if}
         </p>
         {#if error}<Alert>{error}</Alert>{/if}
         <TextField
-          label="Master password"
+          label="Password"
           type="password"
           bind:value={password}
           error={fieldError.password}

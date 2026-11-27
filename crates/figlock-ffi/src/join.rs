@@ -55,7 +55,7 @@ impl JoinHandle {
         self.attempt.record_path()
     }
 
-    /// Open the answer, check it is for this device and unlock with the typed master password. `records`
+    /// Open the answer, check it is for this device and unlock with the typed password. `records`
     /// are the files of `devices/`; this device's own signed record must be among them.
     pub fn finish(
         &self,

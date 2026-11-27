@@ -40,7 +40,7 @@
   let confirming = $state(false);
   /** The Emergency Kit was saved just now. */
   let kitSaved = $state(false);
-  /** Asking for the master password and Secret Key: to make the kit when this Mac keeps none, or to keep it again. */
+  /** Asking for the password and Secret Key: to make the kit when this Mac keeps none, or to keep it again. */
   let typing = $state(false);
   let typingFor = $state<"kit" | "keep">("kit");
   let typedPassword = $state("");
@@ -99,7 +99,7 @@
 
   /**
    * Save the Emergency Kit again (FIG-134). With a kept key this asks for Touch ID or the device password and
-   * makes the kit from it; without one, from the master password and Secret Key typed here. The person picks
+   * makes the kit from it; without one, from the password and Secret Key typed here. The person picks
    * where the file goes, and cancelling that writes nothing.
    */
   async function saveKit(typed?: { password: string; key: string }) {
@@ -133,7 +133,7 @@
     e.preventDefault();
     typedError = {};
     error = "";
-    if (!typedPassword) typedError.password = "Enter your master password.";
+    if (!typedPassword) typedError.password = "Enter your password.";
     if (typedKey.split("-").length !== 9 || typedKey.split("-").some((g) => g.length === 0)) {
       typedError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
@@ -144,7 +144,7 @@
 
   /**
    * Keep the key on this Mac again (FIG-142). An unlocked window already holds the key it unlocked with, so then
-   * nothing is typed at all; otherwise the dialog asks for the master password and Secret Key once.
+   * nothing is typed at all; otherwise the dialog asks for the password and Secret Key once.
    */
   async function keepAgain(typed?: { password: string; key: string }) {
     error = "";
@@ -214,7 +214,7 @@
             {#if info.secretKeyOptedOut || !info.touchAvailable}
               You type it from your Emergency Kit each time you unlock.
             {:else}
-              Keep it here and the master password is all you type.
+              Keep it here and the password is all you type.
             {/if}
             {#if info.secretKeyHeld}This window holds it until you lock.{/if}
           </p>
@@ -233,8 +233,7 @@
       <div class="grid gap-2 rounded-(--radius-md) border border-border bg-surface-sunken p-3">
         <p class="font-mono break-all select-all" data-testid="shown-key">{shown}</p>
         <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
-          Anyone with this key and your master password can open your vault. It hides itself in 30
-          seconds.
+          Anyone with this key and your password can open your vault. It hides itself in 30 seconds.
         </p>
         <div><Button onclick={hide}>Hide</Button></div>
       </div>
@@ -289,8 +288,8 @@
         </h2>
         <p class="text-text-secondary">
           {#if typingFor === "keep"}
-            Type your Secret Key from your Emergency Kit once. Your master password confirms it is
-            the right one. After that this Mac keeps it and the master password is all you type.
+            Type your Secret Key from your Emergency Kit once. Your password confirms it is the
+            right one. After that this Mac keeps it and the password is all you type.
           {:else}
             This Mac is not keeping your Secret Key, so type it from your old kit. Your master
             password confirms it is the right one. The kit is made on this Mac and saved only where
@@ -300,7 +299,7 @@
       </div>
       {#if error}<Alert>{error}</Alert>{/if}
       <TextField
-        label="Master password"
+        label="Password"
         type="password"
         bind:value={typedPassword}
         error={typedError.password}
@@ -325,7 +324,7 @@
 {#if confirming}
   <ConfirmDialog
     title="Stop keeping the Secret Key on this Mac?"
-    body="From now on you type the Secret Key from your Emergency Kit whenever you unlock with your master password, and this Mac can no longer hand the key to a new device."
+    body="From now on you type the Secret Key from your Emergency Kit whenever you unlock with your password, and this Mac can no longer hand the key to a new device."
     confirm="Stop keeping it"
     danger
     onconfirm={forget}

@@ -1,5 +1,5 @@
 //! The Secret Key kept on this device (`docs/adr/0027-device-stores-the-secret-key.md`), so a restart needs
-//! the master password only and a trusted device can hand the key to a new one.
+//! the password only and a trusted device can hand the key to a new one.
 //!
 //! It reuses the quick unlock backends (`quick_se.rs`: a Secure Enclave key with the login keychain
 //! underneath) with its own slot, so it has its own chip key and files and is never opened with the unlock
@@ -110,7 +110,7 @@ impl<B: Backend> SecretKeyStore<B> {
 
     /// Keep `key` for `vault`, replacing what was kept, together with the `sk_gen` of the vault it opens
     /// (`crypto.md` 9.4). It always goes to the login keychain, read with no prompt, whether or not quick
-    /// unlock is on: typing the master password must never raise a second prompt (ADR-0037).
+    /// unlock is on: typing the password must never raise a second prompt (ADR-0037).
     pub fn put(&self, vault: &str, key: &SecretKey, sk_gen: u32) -> Res<()> {
         if !self.available() {
             return Err(Fail::new(
@@ -173,7 +173,7 @@ impl<B: Backend> SecretKeyStore<B> {
         }
     }
 
-    /// The kept key with no prompt, for unlocking with the master password. A key an older build left on the
+    /// The kept key with no prompt, for unlocking with the password. A key an older build left on the
     /// chip sits behind a prompt: it is read once after Touch ID or the device password and moved to the
     /// login keychain, so it never asks again. `None` when nothing is kept or the person did not confirm; the
     /// caller then asks for the key.

@@ -50,7 +50,7 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!password) fieldError.password = "Enter your master password.";
+    if (!password) fieldError.password = "Enter your password.";
     if (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0)) {
       fieldError.key = "This Secret Key looks incomplete. It has eight groups after FL1.";
     }
@@ -100,12 +100,12 @@
         </h2>
         <p class="text-text-secondary">
           Type the new Secret Key from the Emergency Kit of the device that changed it, or from its
-          Show Secret Key. Your master password confirms it is the right one.
+          Show Secret Key. Your password confirms it is the right one.
         </p>
       </div>
       {#if error}<Alert>{error}</Alert>{/if}
       <TextField
-        label="Master password"
+        label="Password"
         type="password"
         bind:value={password}
         error={fieldError.password}

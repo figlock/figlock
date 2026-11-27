@@ -165,15 +165,13 @@ fn kit_content_matches_the_spec() {
     assert!(has("FigLock Emergency Kit"));
     assert!(has(&sk.format()), "Secret Key in the display format");
     assert!(has(INFO.vault_name) && has(INFO.storage) && has(INFO.created));
-    assert!(has("Master password (optional, write it elsewhere)"));
-    assert!(has_part("Do not store your master password with this kit"));
-    assert!(has_part("Install FigLock") && has_part("sign in") && has_part("master password"));
+    assert!(has("Password (optional, write it elsewhere)"));
+    assert!(has_part("Do not store your password with this kit"));
+    assert!(has_part("Install FigLock") && has_part("sign in") && has_part("password"));
     assert!(has_part("Secret Key"));
+    assert!(has_part("cannot reset a lost password or Secret Key"));
     assert!(has_part(
-        "cannot reset a lost master password or Secret Key"
-    ));
-    assert!(has_part(
-        "Anyone who holds this kit AND knows your master password"
+        "Anyone who holds this kit AND knows your password"
     ));
     assert!(has_part("no Recovery Key"));
 }
@@ -191,7 +189,7 @@ fn kit_holds_the_secret_key_and_no_other_secret() {
             .iter()
             .any(|x| *x == *created.secret_key.format())
     );
-    assert!(find(&pdf, pw.as_bytes()).is_none(), "no master password");
+    assert!(find(&pdf, pw.as_bytes()).is_none(), "no password");
     let raw = created.secret_key.expose();
     assert!(find(&pdf, raw).is_none(), "no raw key bytes");
     // Nothing from the vault file either: no wrapped key, no vault id.

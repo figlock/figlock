@@ -7,7 +7,7 @@ public struct AutofillAccess: Sendable {
     public enum Failure: Error, Equatable, Sendable {
         /// This phone has no usable vault: the app has not been set up.
         case noVault
-        /// Face ID is off or ended; the app must unlock with the master password first.
+        /// Face ID is off or ended; the app must unlock with the password first.
         case needsApp(QuickUnlockPolicy.Reason?)
         case cancelled
         case notRecognised(triesLeft: Int)

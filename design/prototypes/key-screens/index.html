@@ -793,9 +793,9 @@ function unlockView() {
     <div class="unlock-top"><img class="unlock-logo" src="../../logo/figlock-icon.svg" alt="FigLock" width="72" height="72" />
       <h1 class="h-title" id="pagetitle">Your vault is locked</h1></div>
     <div class="acct"><span class="avatar" aria-hidden="true">MO</span><div class="od-field od-fill"><span class="u-name">Mira Okafor</span><span class="u-sub od-truncate">mira.okafor@example.com</span></div></div>
-    <div class="fgroup"><label for="pw">Master password</label>
+    <div class="fgroup"><label for="pw">Password</label>
       <div class="input-wrap"><input class="input" id="pw" type="${u.show ? 'text' : 'password'}" autocomplete="off" value="${esc(u.pw)}" data-fk="pw" aria-describedby="pwErr"${u.error ? ' aria-invalid="true"' : ''}${u.busy ? ' disabled' : ''} />
-        <button type="button" class="icon-btn" data-action="toggle-pw" data-fk="toggle-pw" aria-label="${u.show ? 'Hide' : 'Show'} master password" aria-pressed="${u.show}">${icon(u.show ? 'eyeoff' : 'eye', 20)}</button></div>
+        <button type="button" class="icon-btn" data-action="toggle-pw" data-fk="toggle-pw" aria-label="${u.show ? 'Hide' : 'Show'} password" aria-pressed="${u.show}">${icon(u.show ? 'eyeoff' : 'eye', 20)}</button></div>
       <div id="pwErr" aria-live="polite">${err}</div></div>
     <button type="button" class="btn btn-primary btn-block" data-action="unlock" data-fk="unlock"${u.busy ? ' disabled' : ''}>${u.busy ? 'Unlocking' : 'Unlock'}</button>
     <div class="or"><span>or</span></div>
@@ -903,7 +903,7 @@ function kitBody() {
   const hidden = KIT_KEY.map((g, i) => `<span>${i === 0 ? g : '••••'}</span>`).join('<span class="sep">-</span>');
   if (k.step === 1) {
     return `<section class="card card-pad" aria-labelledby="kitH"><span class="steps">Step 1 of 2</span><h2 class="h-sec" id="kitH">${icon('key', 20)} Your Secret Key</h2>
-      <p class="small">You need your Secret Key, together with your master password, to add a new device or recover your vault.</p>
+      <p class="small">You need your Secret Key, together with your password, to add a new device or recover your vault.</p>
       <code class="secretkey" aria-label="Secret Key FL1, ABCD, EFGH, JKLM, NPQR, STUV">${shown}</code>
       <div class="note note-warning">${icon('alert', 16)}<span><strong>Keep this safe, it is shown only once.</strong> Save the Emergency Kit somewhere only you can reach, such as a password-protected file or a printed copy.</span></div>
       <div class="od-cluster">
@@ -947,7 +947,7 @@ function settingsBody() {
       ${sel('autoLock', 'Auto-lock', 'Lock the vault after this much time without activity.', opt('1', '1 minute', s.autoLock) + opt('5', '5 minutes', s.autoLock) + opt('15', '15 minutes', s.autoLock) + opt('60', '1 hour', s.autoLock))}
       ${sw('lockOnSleep', 'Lock when the device sleeps', 'The vault locks as soon as the screen turns off.')}
       ${sel('clipSecs', 'Clear clipboard after', 'Copied secrets are removed from the clipboard after this time.', opt(15, '15 seconds', s.clipSecs) + opt(30, '30 seconds', s.clipSecs) + opt(60, '1 minute', s.clipSecs) + opt(120, '2 minutes', s.clipSecs))}
-      ${sw('quick', `Quick unlock with ${bio()}`, 'Your master password is still needed after a restart.')}
+      ${sw('quick', `Quick unlock with ${bio()}`, 'Your password is still needed after a restart.')}
     </div></section>
     <section class="card card-pad" aria-labelledby="h-ag"><h2 class="h-sec" id="h-ag"><span class="od-row">${icon('bot', 20, 'ac-ic')} Agent defaults</span></h2><div>
       ${sel('agentDuration', 'Approval length', 'How long an approved agent can use a secret.', opt(5, '5 minutes', s.agentDuration) + opt(15, '15 minutes', s.agentDuration) + opt(30, '30 minutes', s.agentDuration) + opt(60, '1 hour', s.agentDuration))}
@@ -1193,7 +1193,7 @@ function fit() {
 function unlockNow() {
   const u = state.unlock; if (u.busy) return;
   const pw = u.pw.trim();
-  if (!pw) { u.error = 'Enter your master password to unlock.'; render({ focus: '#pw' }); return; }
+  if (!pw) { u.error = 'Enter your password to unlock.'; render({ focus: '#pw' }); return; }
   if (pw.toLowerCase() === 'wrong') { u.error = "That password didn't unlock the vault. Check for typos and try again."; render({ focus: '#pw' }); return; }
   u.error = ''; u.busy = true; render();
   setTimeout(() => { state.route = 'vault'; state.tab = 'list'; state.vaultView = 'normal'; state.unlock = { pw: '', error: '', busy: false, show: false }; render({ resetScroll: true }); announce('Vault unlocked.'); }, 700);

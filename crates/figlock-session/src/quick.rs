@@ -66,7 +66,7 @@ pub trait Backend {
     fn get_key_quiet(&self, vault: &str) -> Res<Option<Zeroizing<[u8; 32]>>> {
         self.get_key(vault)
     }
-    /// Changes on every reboot, so a restart asks for the master password again.
+    /// Changes on every reboot, so a restart asks for the password again.
     fn boot_id(&self) -> String;
     /// How the kept key is protected, for `quick-unlock status`: `None` when nothing is kept.
     fn protection(&self, _vault: &str) -> Option<&'static str> {
@@ -74,7 +74,7 @@ pub trait Backend {
     }
 }
 
-/// Why a command still needs the master password.
+/// Why a command still needs the password.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Fallback {
     /// Quick unlock is not turned on for this vault, or was never filled.
@@ -233,7 +233,7 @@ impl<B: Backend> Quick<B> {
         }
     }
 
-    /// Like `fetch`, but a keystore failure is a warning and a fall back to the master password, since
+    /// Like `fetch`, but a keystore failure is a warning and a fall back to the password, since
     /// quick unlock is only a convenience.
     pub fn fetch_or_full(&self, vault: &str, now: u64, ui: &dyn Ui) -> Fetch {
         self.fetch(vault, now).unwrap_or_else(|e| {

@@ -180,7 +180,7 @@ fn an_invite_that_is_not_approved_adds_nothing() {
 }
 
 #[test]
-fn a_wrong_master_password_does_not_set_the_device_up() {
+fn a_wrong_password_does_not_set_the_device_up() {
     let v = vault();
     let store = v.store.path().to_str().unwrap();
     let (adder, code) = invite(&v, &["--yes"]);
@@ -191,7 +191,7 @@ fn a_wrong_master_password_does_not_set_the_device_up() {
         None,
     );
     assert!(!joined.status.success());
-    assert!(text(&joined.stderr).contains("wrong master password"));
+    assert!(text(&joined.stderr).contains("wrong password"));
     assert!(adder.wait_with_output().unwrap().status.success());
     assert!(!finds_note(&second, &v));
 }
@@ -207,7 +207,7 @@ fn a_wrong_invite_code_is_refused() {
 }
 
 #[test]
-fn open_unlocks_with_the_master_password_and_secret_key() {
+fn open_unlocks_with_the_password_and_secret_key() {
     let v = vault();
     let store = v.store.path().to_str().unwrap();
     let second = Machine::new();

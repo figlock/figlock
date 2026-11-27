@@ -1,11 +1,11 @@
 import Foundation
 
-/// When Face ID may stand in for the master password (`crypto.md` 8). The limits are defaults a person can only
+/// When Face ID may stand in for the password (`crypto.md` 8). The limits are defaults a person can only
 /// tighten. The state is local to this phone and never synced.
 public struct QuickUnlockPolicy: Codable, Equatable, Sendable {
-    /// A full master password unlock is needed after this long without any unlock.
+    /// A full password unlock is needed after this long without any unlock.
     public static let idleLimit: TimeInterval = 4 * 3600
-    /// ... and after this long since the last full master password unlock.
+    /// ... and after this long since the last full password unlock.
     public static let fullUnlockLimit: TimeInterval = 7 * 86400
     /// ... and after this many failed Face ID attempts in a row.
     public static let failureLimit = 5
@@ -75,7 +75,7 @@ public struct QuickUnlockPolicy: Codable, Equatable, Sendable {
     }
 }
 
-/// Slows down master password guesses on this phone. The Argon2id cost already limits an offline attacker; this
+/// Slows down password guesses on this phone. The Argon2id cost already limits an offline attacker; this
 /// stops someone holding an unlocked phone from guessing at the screen. The state survives a restart of the app,
 /// so killing it does not reset the count.
 public struct PasswordThrottle: Codable, Equatable, Sendable {
@@ -127,16 +127,16 @@ extension Date {
 }
 
 extension QuickUnlockPolicy.Reason {
-    /// Why Face ID ended, in a sentence, for the AutoFill screen that cannot ask for the master password.
+    /// Why Face ID ended, in a sentence, for the AutoFill screen that cannot ask for the password.
     public var endedText: String {
         switch self {
-        case .phoneRestarted: "This iPhone restarted since you last used the master password."
+        case .phoneRestarted: "This iPhone restarted since you last used the password."
         case .idleTooLong: "FigLock has not been unlocked for several hours."
-        case .fullUnlockTooOld: "It has been a week since you last used the master password."
+        case .fullUnlockTooOld: "It has been a week since you last used the password."
         case .tooManyFailures: "Face ID did not recognise you too often."
         case .biometricsChanged: "Face ID on this iPhone changed."
         case .lockedByUser: "FigLock was locked by you."
-        case .passwordChanged: "Your master password changed."
+        case .passwordChanged: "Your password changed."
         }
     }
 }

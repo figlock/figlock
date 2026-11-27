@@ -59,7 +59,7 @@ final class CredentialProviderViewController: ASCredentialProviderViewController
                     .message(
                         .openApp(
                             why: reason.endedText,
-                            then: "Unlock FigLock with your master password once, then try again.")))
+                            then: "Unlock FigLock with your password once, then try again.")))
             case .needsApp(nil):
                 show(
                     .message(

@@ -3,8 +3,8 @@
 //!
 //! A trusted device runs `device add`, which shows an invite code and waits for a request. The new device runs
 //! `join <code>`, which shows a fingerprint and waits for the answer. The person checks that the two
-//! fingerprints match, approves, and the new device unlocks with the master password: the Secret Key arrives
-//! in the answer. `open` is the fallback when no trusted device is at hand: master password and Secret Key
+//! fingerprints match, approves, and the new device unlocks with the password: the Secret Key arrives
+//! in the answer. `open` is the fallback when no trusted device is at hand: password and Secret Key
 //! typed from the Emergency Kit.
 
 use std::thread::sleep;
@@ -24,7 +24,7 @@ use crate::{DeviceAddArgs, JoinArgs, OpenArgs, WhereArgs, prompt, quick, remotes
 /// How often to look for the other device's file.
 const POLL: Duration = Duration::from_secs(2);
 
-/// How many times `join` asks for the master password at a terminal before giving up.
+/// How many times `join` asks for the password at a terminal before giving up.
 const MAX_PASSWORD_TRIES: u32 = 3;
 
 fn already_set_up() -> Fail {
@@ -173,11 +173,11 @@ pub fn open(a: OpenArgs, json: bool) -> Res<()> {
 }
 
 fn wrong_credentials() -> Fail {
-    Fail::new("could not unlock: wrong master password or Secret Key, or the vault file is damaged")
+    Fail::new("could not unlock: wrong password or Secret Key, or the vault file is damaged")
 }
 
 /// The Secret Key to hand to the new device: the one this device keeps (after Touch ID or the device
-/// password), or typed with the master password, which must open the vault since the key is about to leave.
+/// password), or typed with the password, which must open the vault since the key is about to leave.
 fn key_to_share() -> Res<(Session, SecretKey)> {
     let vault = peek_vault_id()?;
     let keys = secret_key_store::system()?;
@@ -284,7 +284,7 @@ pub fn device_add(a: &DeviceAddArgs, json: bool) -> Res<()> {
         eprintln!("Added \"{}\".", request.device_name);
     } else {
         println!(
-            "Added \"{}\". It finishes setup with the master password.",
+            "Added \"{}\". It finishes setup with the password.",
             request.device_name
         );
     }

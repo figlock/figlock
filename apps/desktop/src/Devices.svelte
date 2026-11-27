@@ -64,7 +64,7 @@
     adding = false;
     devices = list;
     error = "";
-    done = `${name} is added. On ${name}, enter your master password to finish.`;
+    done = `${name} is added. On ${name}, enter your password to finish.`;
   }
 
   async function addFailed(code: string, message: string) {
@@ -95,7 +95,7 @@
     revoking = null;
     error = "";
     done = newPassword
-      ? `${target.name ?? "The device"} is revoked and the master password is changed. Your other devices will ask for a full unlock with the new password.`
+      ? `${target.name ?? "The device"} is revoked and the password is changed. Your other devices will ask for a full unlock with the new password.`
       : `${target.name ?? "The device"} is revoked.`;
   }
 </script>

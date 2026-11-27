@@ -1,7 +1,7 @@
 //! Signing this device in to Google Drive and out again, shared by the CLI and the desktop app (ADR-0021).
 //!
 //! The refresh token is kept in `drive-token.json` (owner-only) next to the device keys. It only unlocks
-//! ciphertext: the vault is still protected by the master password and Secret Key.
+//! ciphertext: the vault is still protected by the password and Secret Key.
 
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;

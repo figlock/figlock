@@ -73,7 +73,7 @@
     {#if error}<Alert>{error}</Alert>{/if}
     <Alert tone="warning">
       FigLock cannot recover this key. Keep your Emergency Kit somewhere safe, apart from your
-      master password.
+      password.
     </Alert>
     <div class="rounded-(--radius-sm) bg-surface-sunken p-4">
       <p

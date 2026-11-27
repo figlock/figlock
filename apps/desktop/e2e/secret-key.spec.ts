@@ -10,7 +10,7 @@ test.describe("a Secret Key changed on another device", () => {
     await expect(page.getByLabel("Secret Key group 1 of 8")).toBeVisible();
     await expectAccessible(page);
 
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password").fill(PASSWORD);
     await page.getByLabel("Secret Key group 1 of 8").click();
     await page.keyboard.insertText(NEW_KEY);
     await page.getByRole("button", { name: "Unlock" }).click();
@@ -20,7 +20,7 @@ test.describe("a Secret Key changed on another device", () => {
     await page.getByRole("button", { name: "Lock", exact: true }).click();
     await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
     await expect(page.getByText("Your Secret Key was changed on another device.")).toHaveCount(0);
-    await page.getByLabel("Master password").fill(PASSWORD);
+    await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("button", { name: /^GitHub/ })).toBeVisible();
   });
@@ -28,7 +28,7 @@ test.describe("a Secret Key changed on another device", () => {
   test("a wrong password with a current key never shows the key fields", async ({ page }) => {
     await openApp(page, { phase: "locked" });
     await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
-    await page.getByLabel("Master password").fill("not it at all");
+    await page.getByLabel("Password").fill("not it at all");
     await page.getByRole("button", { name: "Unlock" }).click();
     await expect(page.getByRole("alert")).toContainText("That password did not open the vault");
     await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
@@ -55,7 +55,7 @@ test.describe("a Secret Key changed on another device", () => {
     await expectAccessible(page);
 
     // The wrong key is refused in words and the banner stays.
-    await dialog.getByLabel("Master password").fill(PASSWORD);
+    await dialog.getByLabel("Password").fill(PASSWORD);
     await dialog.getByLabel("Secret Key group 1 of 8").click();
     await page.keyboard.insertText("FL1-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA-AAAA");
     await dialog.getByRole("button", { name: "Update" }).click();
@@ -65,7 +65,7 @@ test.describe("a Secret Key changed on another device", () => {
     // Start the dialog again with the right key.
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await banner.getByRole("button", { name: "Update now" }).click();
-    await dialog.getByLabel("Master password").fill(PASSWORD);
+    await dialog.getByLabel("Password").fill(PASSWORD);
     await dialog.getByLabel("Secret Key group 1 of 8").click();
     await page.keyboard.insertText(NEW_KEY);
     await dialog.getByRole("button", { name: "Update" }).click();

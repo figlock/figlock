@@ -108,7 +108,7 @@
     </p>
     <p class="text-(length:--text-sm) text-text-secondary">
       It may have been moved, deleted, or sit on a drive that is not connected. Nothing has been
-      deleted: your master password is not needed until the vault is found again.
+      deleted: your password is not needed until the vault is found again.
     </p>
     <div class="flex flex-col gap-2">
       <Button variant="primary" block onclick={locate} disabled={busy !== ""}>
@@ -152,8 +152,8 @@
       </button>
     </div>
     <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
-      Keep your Emergency Kit safe: its Secret Key, with your master password, is what opens the
-      vault again.
+      Keep your Emergency Kit safe: its Secret Key, with your password, is what opens the vault
+      again.
     </p>
   </div>
 </Shell>

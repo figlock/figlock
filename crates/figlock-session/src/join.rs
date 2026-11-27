@@ -1,5 +1,5 @@
 //! The new device's side of pairing (`pairing-recovery.md` 3): read the invite, leave a request, wait for the
-//! trusted device to answer, then unlock with the master password. Nothing is saved on this device until the
+//! trusted device to answer, then unlock with the password. Nothing is saved on this device until the
 //! answer has opened and the vault has unlocked, so an abandoned join leaves no trace but the request file.
 
 use figlock_core::{DeviceKeys, JoinAttempt, Joined, device_fingerprint, invite_path};
@@ -83,7 +83,7 @@ impl Join {
         Ok(true)
     }
 
-    /// Unlock with the answer and the master password. Returns the unlocked vault and the config to save.
+    /// Unlock with the answer and the password. Returns the unlocked vault and the config to save.
     pub fn finish(&self, password: &str, now_ms: u64) -> Res<(Joined, Config)> {
         let resp = self.store.get(&self.attempt.resp_path())?;
         let vault_json = self.store.get("vault.json")?;
@@ -96,9 +96,7 @@ impl Join {
         let joined = self
             .attempt
             .finish(&resp, &vault_json, &records, password, now_ms)
-            .map_err(|_| {
-                Fail::new("could not join: wrong master password, or the answer is not valid")
-            })?;
+            .map_err(|_| Fail::new("could not join: wrong password, or the answer is not valid"))?;
         Ok((
             joined,
             Config {
@@ -125,7 +123,7 @@ mod tests {
         }
     }
 
-    /// A fresh master password for one test: generated, never a literal.
+    /// A fresh password for one test: generated, never a literal.
     fn password() -> String {
         figlock_core::SecretKey::random()
             .unwrap()
@@ -172,7 +170,7 @@ mod tests {
     }
 
     /// A remote can deliver the answer before the new device's record; the join must wait for both rather
-    /// than fail with a misleading "wrong master password" (found against a real Drive).
+    /// than fail with a misleading "wrong password" (found against a real Drive).
     #[test]
     fn an_answer_that_arrives_before_the_new_devices_record_is_not_yet_an_answer() {
         let dir = tempfile::tempdir().unwrap();
@@ -204,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn a_wrong_master_password_does_not_join() {
+    fn a_wrong_password_does_not_join() {
         let dir = tempfile::tempdir().unwrap();
         let store = LocalFolder::open(dir.path()).unwrap();
         let (right, wrong) = (password(), password());

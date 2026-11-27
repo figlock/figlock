@@ -6,7 +6,7 @@
 
   type Props = {
     device: Device;
-    /** This Mac keeps the Secret Key, so only the master password is asked for. */
+    /** This Mac keeps the Secret Key, so only the password is asked for. */
     keyKept: boolean;
     /** Resolves when the device is revoked; a rejection is shown in the dialog. */
     onrevoke: (password: string, secretKey: string, newPassword: string | null) => Promise<void>;
@@ -37,7 +37,7 @@
     e.preventDefault();
     error = "";
     fieldError = {};
-    if (!password) fieldError.password = "Enter your master password.";
+    if (!password) fieldError.password = "Enter your password.";
     if (
       askKey &&
       (secretKey.split("-").length !== 9 || secretKey.split("-").some((g) => g.length === 0))
@@ -81,14 +81,14 @@
       </h2>
       <p class="text-text-secondary">
         It can no longer open anything written from now on. A copy of the vault it already has stays
-        readable, and so does anything it copied out. Enter your master password to confirm{askKey
+        readable, and so does anything it copied out. Enter your password to confirm{askKey
           ? ", and your Secret Key"
           : ""}.
       </p>
     </div>
     {#if error}<Alert>{error}</Alert>{/if}
     <TextField
-      label="Master password"
+      label="Password"
       type="password"
       bind:value={password}
       error={fieldError.password}
@@ -101,7 +101,7 @@
     <label class="flex items-start gap-2">
       <input type="checkbox" bind:checked={compromised} disabled={busy} class="mt-1" />
       <span>
-        This device may have been lost or compromised. Also set a new master password.
+        This device may have been lost or compromised. Also set a new password.
         <span class="block text-(length:--text-xs) leading-4 text-text-tertiary">
           The revoked device may still know your current password and Secret Key.
         </span>
@@ -109,7 +109,7 @@
     </label>
     {#if compromised}
       <TextField
-        label="New master password"
+        label="New password"
         type="password"
         autocomplete="new-password"
         bind:value={newPassword}
@@ -117,7 +117,7 @@
         disabled={busy}
       />
       <TextField
-        label="Repeat new master password"
+        label="Repeat new password"
         type="password"
         autocomplete="new-password"
         bind:value={repeat}

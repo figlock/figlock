@@ -55,7 +55,7 @@ final class DevicesModel {
             return nil
         } catch let failure as SettingsService.Failure {
             switch failure {
-            case .wrongCredentials: return "That master password or Secret Key is not right."
+            case .wrongCredentials: return "That password or Secret Key is not right."
             case .secretKeyNeeded: return "Type your Secret Key. It starts with FL1-."
             case .notAllowed: return "This device cannot be revoked from here."
             default: return "FigLock could not revoke the device. Nothing was changed."
@@ -236,7 +236,7 @@ struct DeviceDetailView: View {
     }
 }
 
-/// The confirmation for a revocation. It asks for the master password (and the Secret Key when this iPhone does not
+/// The confirmation for a revocation. It asks for the password (and the Secret Key when this iPhone does not
 /// keep it), because a revocation rewrites the vault's keys and the vault checks them (ADR-0018).
 private struct RevokeSheet: View {
     let model: DevicesModel
@@ -257,12 +257,12 @@ private struct RevokeSheet: View {
             Form {
                 Section {
                     Text(
-                        "\(row.displayName) will lose access to \(SettingsService.vaultName) the next time it syncs. Items already on it cannot be erased remotely. It may still know your master password and Secret Key."
+                        "\(row.displayName) will lose access to \(SettingsService.vaultName) the next time it syncs. Items already on it cannot be erased remotely. It may still know your password and Secret Key."
                     )
                     .font(FLFont.ui(FLText.base, relativeTo: .callout))
                 }
                 Section("Confirm it is you") {
-                    SecureField("Master password", text: $password)
+                    SecureField("Password", text: $password)
                         .textContentType(.password)
                     if needsSecretKey {
                         TextField("Secret Key (FL1-...)", text: $secretKey)

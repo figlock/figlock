@@ -119,7 +119,7 @@
         <ol class="steps">
           <li>
             <h3>Create a vault</h3>
-            <p>Pick a folder on this Mac and, if you like, sync it to iCloud Drive or Google Drive. FigLock shows your Secret Key and helps you save an Emergency Kit. Keep it safe: without the kit and your master password, nobody can open your vault, including us. On a Mac it then asks whether to unlock this device with Touch ID; press Enter for yes.</p>
+            <p>Pick a folder on this Mac and, if you like, sync it to iCloud Drive or Google Drive. FigLock shows your Secret Key and helps you save an Emergency Kit. Keep it safe: without the kit and your password, nobody can open your vault, including us. On a Mac it then asks whether to unlock this device with Touch ID; press Enter for yes.</p>
             <pre class="code code--cmd"><code>figlock init --store ~/Documents/figlock-vault</code></pre>
           </li>
           <li>
@@ -135,7 +135,7 @@
           </li>
           <li>
             <h3>Quick unlock (Mac)</h3>
-            <p>Unlock with Touch ID, your Apple Watch or your device password instead of typing your master password every time. Your Secret Key stays on this Mac either way; with quick unlock on it is tied to your Mac's chip. Create asks you about it; if you said no, or want it on a vault you already have, turn it on here. <code>figlock quick-unlock disable</code> turns it off.</p>
+            <p>Unlock with Touch ID, your Apple Watch or your device password instead of typing your password every time. Your Secret Key stays on this Mac either way; with quick unlock on it is tied to your Mac's chip. Create asks you about it; if you said no, or want it on a vault you already have, turn it on here. <code>figlock quick-unlock disable</code> turns it off.</p>
             <pre class="code code--cmd"><code>figlock quick-unlock enable</code></pre>
           </li>
           <li>
@@ -172,8 +172,8 @@
         <pre class="code code--cmd"><code>figlock device add</code></pre>
         <p>It shows an invite code and waits. On the new device, run <code>join</code> with that code and point it at the same vault: the synced folder, <code>--icloud</code> for a vault in iCloud Drive, or <code>--drive</code> for a vault in Google Drive.</p>
         <pre class="code code--cmd"><code>figlock join CODE --store ~/Documents/figlock-vault</code></pre>
-        <p>The new device shows a fingerprint. Check that the same fingerprint appears on the first device, then approve it there. The new device then asks for your master password. You don't need to type your Secret Key, because the approval carries it. The code works once and expires after 10 minutes. If it is never approved, nothing is added.</p>
-        <p>If no device that has the vault is at hand, use your Emergency Kit instead. This asks for your master password and Secret Key:</p>
+        <p>The new device shows a fingerprint. Check that the same fingerprint appears on the first device, then approve it there. The new device then asks for your password. You don't need to type your Secret Key, because the approval carries it. The code works once and expires after 10 minutes. If it is never approved, nothing is added.</p>
+        <p>If no device that has the vault is at hand, use your Emergency Kit instead. This asks for your password and Secret Key:</p>
         <pre class="code code--cmd"><code>figlock open --store ~/Documents/figlock-vault</code></pre>
 
         <h2 id="platforms">What runs where</h2>
@@ -184,7 +184,7 @@
             </thead>
             <tbody>
               <tr><th scope="row">macOS, Apple silicon and Intel</th><td>Mac app and command line, signed and notarized. Quick unlock uses the Secure Enclave.</td></tr>
-              <tr><th scope="row">Linux, x86_64 and ARM64</th><td>Static builds that need nothing installed. Lightly tested so far. Quick unlock isn't available yet, so you type your master password and Secret Key.</td></tr>
+              <tr><th scope="row">Linux, x86_64 and ARM64</th><td>Static builds that need nothing installed. Lightly tested so far. Quick unlock isn't available yet, so you type your password and Secret Key.</td></tr>
               <tr><th scope="row">Windows</th><td>Not yet.</td></tr>
             </tbody>
           </table>

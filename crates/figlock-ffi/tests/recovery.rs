@@ -1,4 +1,4 @@
-//! "I forgot my password" through the exported API: the Recovery Key opens the vault, a new master password and
+//! "I forgot my password" through the exported API: the Recovery Key opens the vault, a new password and
 //! Secret Key replace the old ones, and the old ones stop working. Values are generated.
 
 use std::sync::Arc;
@@ -207,7 +207,7 @@ fn settings_can_turn_the_recovery_key_on_for_a_vault_without_one() {
 }
 
 #[test]
-fn a_wrong_master_password_or_secret_key_changes_no_recovery_key() {
+fn a_wrong_password_or_secret_key_changes_no_recovery_key() {
     let w = world();
     let session = session_of(&w, w.vault_json.clone());
     let wrong_password = session.set_recovery_key(

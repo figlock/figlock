@@ -107,7 +107,7 @@ fn join_inner() {
     );
     assert_eq!(d.add_device_status().unwrap().state, "none");
 
-    // The new device reads the answer and unlocks with the master password.
+    // The new device reads the answer and unlocks with the password.
     let store = folder_store();
     let resp = store.get(&attempt.resp_path()).unwrap();
     let vault_json = store.get("vault.json").unwrap();
@@ -126,7 +126,7 @@ fn join_inner() {
 }
 
 #[test]
-fn a_held_key_still_needs_the_master_password_to_approve() {
+fn a_held_key_still_needs_the_password_to_approve() {
     scenario("held_approve_inner");
 }
 

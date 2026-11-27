@@ -2,7 +2,7 @@ import Shared
 import SwiftUI
 
 /// Turning Face ID on after onboarding, or off (ADR-0046). AutoFill needs it, because the extension unlocks only
-/// with Face ID. Turning it on asks for the master password, since the vault key is wrapped to a new hardware key.
+/// with Face ID. Turning it on asks for the password, since the vault key is wrapped to a new hardware key.
 struct FaceIDView: View {
     let context: SettingsContext
 
@@ -56,7 +56,7 @@ struct FaceIDView: View {
                 "This iPhone has no Face ID or Touch ID set up. Set one up in the iOS Settings app, then come back here. AutoFill needs it."
         }
         return
-            "Face ID unlocks FigLock and fills passwords from AutoFill. If a face is added or removed in iOS, you enter your master password once to turn it back on."
+            "Face ID unlocks FigLock and fills passwords from AutoFill. If a face is added or removed in iOS, you enter your password once to turn it back on."
     }
 
     private func toggleFaceID() {
@@ -69,7 +69,7 @@ struct FaceIDView: View {
     }
 }
 
-/// Asks for the master password to make the new Face ID key.
+/// Asks for the password to make the new Face ID key.
 private struct FaceIDPasswordSheet: View {
     let context: SettingsContext
     let turnedOn: () -> Void
@@ -84,11 +84,11 @@ private struct FaceIDPasswordSheet: View {
             List {
                 Section {
                     // No `.password` content type: it makes iOS offer "Save Password?" when the sheet closes.
-                    SecureField("Master password", text: $password)
+                    SecureField("Password", text: $password)
                 } header: {
                     Text("Confirm it is you")
                 } footer: {
-                    if failed { Text("That did not work. Check your master password and try again.") }
+                    if failed { Text("That did not work. Check your password and try again.") }
                 }
                 .listRowBackground(FLColor.surface)
 

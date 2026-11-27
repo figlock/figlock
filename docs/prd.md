@@ -92,7 +92,7 @@ Priority: **must** = MVP (phases 1-2), **should** = v1 (phases 3-5), **later** =
 
 | Requirement                                                                 | Priority |
 | --------------------------------------------------------------------------- | -------- |
-| Two-secret key derivation (master password + Secret Key)                     | must     |
+| Two-secret key derivation (password + Secret Key)                     | must     |
 | Biometric quick unlock (Touch ID, Face ID, Windows Hello, Android)           | must     |
 | Auto-lock on idle, sleep and screen lock                                     | must     |
 | Clipboard auto-clear (30 s), copy without history                            | must     |

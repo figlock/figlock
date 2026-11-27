@@ -51,7 +51,7 @@ fn scenario(name: &str) {
     scenario_in("tests", name);
 }
 
-/// A fresh master password for one scenario: generated, never a literal.
+/// A fresh password for one scenario: generated, never a literal.
 pub(super) fn password() -> String {
     SecretKey::random().unwrap().format().to_string()
 }

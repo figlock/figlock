@@ -49,7 +49,7 @@ pub const SECRET_KEY_SLOT: Slot = Slot {
     blob: "secret-key.blob",
     tmp: ".secret-key.tmp",
 };
-/// How long the system sheet may stay open before the command gives up and asks for the master password.
+/// How long the system sheet may stay open before the command gives up and asks for the password.
 const PROMPT_WAIT: Duration = Duration::from_secs(60);
 
 /// The chip. Injected so the logic here is tested without hardware or a prompt.
@@ -544,7 +544,7 @@ mod tests {
     }
 
     #[test]
-    fn a_timeout_or_a_chip_failure_falls_back_to_the_master_password() {
+    fn a_timeout_or_a_chip_failure_falls_back_to_the_password() {
         let rig = Rig::new();
         rig.quick().enable(VAULT, &auk(), T0).unwrap();
         for e in [

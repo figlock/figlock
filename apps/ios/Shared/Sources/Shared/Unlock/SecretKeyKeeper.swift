@@ -53,7 +53,7 @@ public struct SecretKeyKeeper: Sendable {
         try store.delete(secretKeyAccount(vaultId))
     }
 
-    /// "Keep it on this iPhone": clears the choice and keeps the key. The caller has checked the master password
+    /// "Keep it on this iPhone": clears the choice and keeps the key. The caller has checked the password
     /// and Secret Key against the vault first.
     public func keepAgain(_ secretKey: String, vaultId: String) throws {
         try store.write(secretKeyAccount(vaultId), Data(secretKey.utf8))

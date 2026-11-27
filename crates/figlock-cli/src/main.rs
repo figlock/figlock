@@ -1,6 +1,6 @@
 //! The `figlock` command line: create a vault in a folder you own and add, find, read, copy and export items.
 //!
-//! Secrets are never taken from arguments: master password, Secret Key and secret field values come from a
+//! Secrets are never taken from arguments: password, Secret Key and secret field values come from a
 //! hidden prompt (or stdin for field values). `get` and `export` hide secret values unless asked.
 
 #[cfg(unix)]
@@ -40,7 +40,7 @@ Getting started:
 Adding another device:
   figlock device add                                On a device that has the vault: show an invite code, approve
   figlock join <code> --store <folder>              On the new device (--drive, --icloud or --sync-folder <path> for a synced vault)
-  figlock open --store <folder>                     No device at hand: master password and Secret Key instead
+  figlock open --store <folder>                     No device at hand: password and Secret Key instead
 
 Giving an agent access without handing it the secret:
   figlock broker start                              Unlock once and approve requests (Touch ID)
@@ -99,19 +99,19 @@ enum Command {
     Run(RunArgs),
     /// Make an HTTP request through the broker, which adds the secret itself. You never see the secret.
     Http(HttpArgs),
-    /// Unlock with Touch ID or the device password instead of the master password and Secret Key.
+    /// Unlock with Touch ID or the device password instead of the password and Secret Key.
     QuickUnlock {
         #[command(subcommand)]
         action: QuickCmd,
     },
-    /// Change the master password.
+    /// Change the password.
     Password {
         #[command(subcommand)]
         action: PasswordCmd,
     },
     /// Add this device to a vault that already exists, using an invite code from a device that has it.
     Join(JoinArgs),
-    /// Open a vault that already exists with your master password and Secret Key, when no other device is at hand.
+    /// Open a vault that already exists with your password and Secret Key, when no other device is at hand.
     Open(OpenArgs),
     /// Replace, show or forget the Secret Key.
     SecretKey {
@@ -141,7 +141,7 @@ enum Command {
 
 #[derive(Subcommand)]
 enum PasswordCmd {
-    /// Ask for the current master password and Secret Key, then for a new master password.
+    /// Ask for the current password and Secret Key, then for a new password.
     Change,
 }
 
@@ -156,7 +156,7 @@ enum SecretKeyCmd {
     Kit(KitArgs),
     /// Stop keeping the Secret Key on this device. Every full unlock asks for it until you run `keep`.
     Forget,
-    /// Keep the Secret Key on this device again, after asking for the master password and Secret Key once.
+    /// Keep the Secret Key on this device again, after asking for the password and Secret Key once.
     Keep,
 }
 
@@ -183,7 +183,7 @@ enum DeviceCmd {
 pub struct RevokeArgs {
     /// The device id (4 or more hex digits) from `figlock device list`.
     pub device: String,
-    /// Also set a new master password, in the same step. Use this if the device may have been compromised.
+    /// Also set a new password, in the same step. Use this if the device may have been compromised.
     #[arg(long)]
     pub change_password: bool,
     /// Also replace the Secret Key, in the same step. Use this if the device may have been compromised.
@@ -193,7 +193,7 @@ pub struct RevokeArgs {
 
 #[derive(Subcommand)]
 enum QuickCmd {
-    /// Turn it on. Asks for the master password and Secret Key once.
+    /// Turn it on. Asks for the password and Secret Key once.
     Enable,
     /// Turn it off and delete the kept key.
     Disable,

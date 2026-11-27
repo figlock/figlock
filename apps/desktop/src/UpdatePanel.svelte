@@ -97,7 +97,7 @@
 {#if confirming}
   <ConfirmDialog
     title="Restart FigLock?"
-    body="FigLock closes and opens again with the new version. Your vault locks, and you unlock it with your master password or Touch ID."
+    body="FigLock closes and opens again with the new version. Your vault locks, and you unlock it with your password or Touch ID."
     confirm="Restart"
     onconfirm={() => {
       confirming = false;

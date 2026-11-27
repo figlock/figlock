@@ -107,10 +107,10 @@ struct CreatePasswordView: View {
 
     var body: some View {
         Screen(
-            title: "Choose a master password", step: "Step 1 of 4",
+            title: "Choose a password", step: "Step 1 of 4",
             subtitle: "FigLock can't reset it. Make it long and memorable."
         ) {
-            LabeledField(label: "Master password") {
+            LabeledField(label: "Password") {
                 Group {
                     if reveal {
                         TextField("", text: $model.password)
@@ -126,7 +126,7 @@ struct CreatePasswordView: View {
                     Image(systemName: reveal ? "eye.slash" : "eye").foregroundStyle(FLColor.textSecondary)
                 }
                 .flMinTouchTarget()
-                .accessibilityLabel(reveal ? "Hide master password" : "Show master password")
+                .accessibilityLabel(reveal ? "Hide password" : "Show password")
             }
             Text(
                 VaultPasswordRule.isLongEnough(model.password)
@@ -136,7 +136,7 @@ struct CreatePasswordView: View {
             .foregroundStyle(
                 VaultPasswordRule.isLongEnough(model.password)
                     ? FLColor.success : model.password.isEmpty ? FLColor.textTertiary : FLColor.danger)
-            LabeledField(label: "Confirm master password") {
+            LabeledField(label: "Confirm password") {
                 SecureField("", text: $model.confirmation).textContentType(.newPassword)
             }
             if !model.confirmation.isEmpty, !model.passwordsMatch {
@@ -156,7 +156,7 @@ struct SecretKeyView: View {
     var body: some View {
         Screen(
             title: "Your Secret Key", step: "Step 2 of 4",
-            subtitle: "You need it, with your master password, to add a device."
+            subtitle: "You need it, with your password, to add a device."
         ) {
             Notice(text: "Shown once. FigLock can't recover it.", isError: false)
             Text(model.secretKeyShown ? model.secretKeyText() : String(repeating: "•", count: 31))
@@ -296,9 +296,9 @@ struct PairApprovedView: View {
     var body: some View {
         Screen(
             title: "This iPhone is approved",
-            subtitle: "Enter your master password."
+            subtitle: "Enter your password."
         ) {
-            LabeledField(label: "Master password") {
+            LabeledField(label: "Password") {
                 SecureField("", text: $model.password).textContentType(.password)
             }
             FaceIDToggle(model: model)
@@ -330,7 +330,7 @@ struct DriveOpenView: View {
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                         .font(FLFont.mono(FLText.md))
                 }
-                LabeledField(label: "Master password") {
+                LabeledField(label: "Password") {
                     SecureField("", text: $model.password).textContentType(.password)
                 }
                 FaceIDToggle(model: model)

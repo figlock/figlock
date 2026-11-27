@@ -1,7 +1,7 @@
 //! The Emergency Kit PDF and its forced verification step (`pairing-recovery.md` 5).
 //!
 //! Pure: [`render_kit`] returns the bytes and the caller decides where they go. Nothing here writes a file,
-//! reads the clock or logs. The kit holds the Secret Key and nothing else secret: no master password, no
+//! reads the clock or logs. The kit holds the Secret Key and nothing else secret: no password, no
 //! `VK`, no other key.
 //!
 //! The PDF is written by hand (one page, the built-in Helvetica and Courier fonts, no compression) so the
@@ -99,15 +99,15 @@ impl Page {
 const STEPS: [&str; 5] = [
     "1. Install FigLock on the new device.",
     "2. Choose the same storage as before and sign in to it.",
-    "3. Type your master password.",
+    "3. Type your password.",
     "4. Type the Secret Key above, or scan the QR code.",
     "5. Optionally revoke the lost device from the device list.",
 ];
 
 const NOTICES: [&str; 5] = [
-    "Anyone who holds this kit AND knows your master password can open your vault.",
-    "Keep the kit somewhere safe and apart from your master password.",
-    "FigLock has no server and cannot reset a lost master password or Secret Key.",
+    "Anyone who holds this kit AND knows your password can open your vault.",
+    "Keep the kit somewhere safe and apart from your password.",
+    "FigLock has no server and cannot reset a lost password or Secret Key.",
     "If you lose the password and have no Recovery Key set up, your data cannot be recovered.",
     "If this kit is lost or photographed, rotate your Secret Key and print a new kit.",
 ];
@@ -195,7 +195,7 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
         10.0,
         MARGIN,
         y,
-        "Master password (optional, write it elsewhere)",
+        "Password (optional, write it elsewhere)",
     );
     y -= 24.0;
     p.rule(MARGIN, PAGE_W - MARGIN, y);
@@ -205,7 +205,7 @@ pub fn render_kit(info: &KitInfo, secret_key: &SecretKey) -> Result<Zeroizing<Ve
         9.0,
         MARGIN,
         y,
-        "Do not store your master password with this kit.",
+        "Do not store your password with this kit.",
     );
     y -= 30.0;
 

@@ -5,7 +5,7 @@ import Foundation
 /// deleting the Drive copy. Each call is one deliberate action (ADR-0018, ADR-0022, ADR-0035).
 public struct SettingsService: Sendable {
     public enum Failure: Error, Equatable, Sendable {
-        /// The master password or the Secret Key is wrong. One answer for both.
+        /// The password or the Secret Key is wrong. One answer for both.
         case wrongCredentials
         /// This phone keeps no Secret Key and none was typed (or it is not well formed).
         case secretKeyNeeded
@@ -56,7 +56,7 @@ public struct SettingsService: Sendable {
 
     // MARK: Revoke
 
-    /// Revoke `deviceId` (ADR-0018). Needs the master password and the Secret Key (the kept one, or `typedSecretKey`),
+    /// Revoke `deviceId` (ADR-0018). Needs the password and the Secret Key (the kept one, or `typedSecretKey`),
     /// which the vault checks. The new files are written to this phone's folder in the order a reader needs
     /// (snapshot, records, `vault.json` last), then sent to `remote` when there is one.
     public func revoke(
@@ -142,7 +142,7 @@ public struct SettingsService: Sendable {
         return try draft.renderKit(vaultName: Self.vaultName, storage: storage, created: date)
     }
 
-    /// Turn the Recovery Key on, or replace it with `draft`, after the master password and the Secret Key (the typed
+    /// Turn the Recovery Key on, or replace it with `draft`, after the password and the Secret Key (the typed
     /// one, or the kept one) were checked by the vault. A wrong pair changes nothing. The new `vault.json` is
     /// written to this phone's folder; the sync that follows sends it on.
     public func setRecoveryKey(
@@ -165,7 +165,7 @@ public struct SettingsService: Sendable {
         }.value
     }
 
-    /// Turn the Recovery Key off. Removing it needs no secret of the vault, so the master password and the Secret
+    /// Turn the Recovery Key off. Removing it needs no secret of the vault, so the password and the Secret
     /// Key are proven against the stored `vault.json` first. Codes made earlier open nothing from then on.
     public func removeRecoveryKey(password: String, typedSecretKey: String?, session: VaultSession) async throws {
         let secretKey = try secretKeyText(typed: typedSecretKey)
