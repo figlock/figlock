@@ -15,6 +15,7 @@ mod import;
 mod pairing;
 mod prompt;
 mod quick;
+mod recovery;
 mod remotes;
 mod render;
 #[cfg(unix)]
@@ -107,6 +108,13 @@ enum Command {
         #[command(subcommand)]
         action: QuickCmd,
     },
+    /// Turn the Recovery Key on, replace it or turn it off. It lets `figlock forgot` reset a forgotten password.
+    RecoveryKey {
+        #[command(subcommand)]
+        action: RecoveryCmd,
+    },
+    /// Reset a forgotten password with the Recovery Key. The old password and Secret Key stop working.
+    Forgot(ForgotArgs),
     /// Change the password.
     Password {
         #[command(subcommand)]
@@ -394,6 +402,57 @@ enum BrokerCmd {
     Lock,
 }
 
+#[derive(Subcommand)]
+enum RecoveryCmd {
+    /// Say whether the vault has a Recovery Key. Needs no password.
+    Status,
+    /// Make a Recovery Key, show it once, and add it to the vault after you confirm you saved it.
+    Enable(RecoveryArgs),
+    /// Make a new Recovery Key. The old code opens nothing from then on.
+    Replace(RecoveryArgs),
+    /// Turn the Recovery Key off. A forgotten password can then no longer be reset.
+    Disable {
+        /// Do not ask for confirmation.
+        #[arg(long)]
+        yes: bool,
+    },
+}
+
+#[derive(Args)]
+pub struct RecoveryArgs {
+    /// You have stored the code: skip typing its last two groups back. For scripts.
+    #[arg(long)]
+    pub saved: bool,
+    /// Also write the one page Recovery Key PDF to this path (owner-only; `-` is stdout).
+    #[arg(long, value_name = "PATH")]
+    pub kit: Option<String>,
+    /// Overwrite the file given with --kit.
+    #[arg(long)]
+    pub force: bool,
+}
+
+#[derive(Args)]
+pub struct ForgotArgs {
+    /// Where the vault is, on a device that does not have it yet. A device that already has the vault uses its own.
+    #[command(flatten)]
+    pub at: WhereArgs,
+    /// You have stored the new Secret Key and Recovery Key: skip typing their last two groups back. For scripts.
+    #[arg(long)]
+    pub saved: bool,
+    /// Keep the Recovery Key you just used instead of making a new one (not recommended: it was just typed).
+    #[arg(long)]
+    pub keep_recovery_key: bool,
+    /// Also write the new Emergency Kit PDF to this path (owner-only; `-` is stdout).
+    #[arg(long, value_name = "PATH")]
+    pub kit: Option<String>,
+    /// Also write the new Recovery Key PDF to this path.
+    #[arg(long, value_name = "PATH")]
+    pub recovery_kit: Option<String>,
+    /// Overwrite the files given with --kit and --recovery-kit.
+    #[arg(long)]
+    pub force: bool,
+}
+
 #[derive(Args)]
 pub struct AuditArgs {
     /// Show only the last N records.
@@ -484,6 +543,14 @@ pub struct InitArgs {
     /// Name shown for this device.
     #[arg(long, default_value = "cli")]
     pub device_name: String,
+
+    /// Make a Recovery Key now, so a forgotten password can be reset (`figlock forgot`). Without this or
+    /// --no-recovery-key, a terminal is asked.
+    #[arg(long, conflicts_with = "no_recovery_key")]
+    pub recovery_key: bool,
+    /// Do not make a Recovery Key: a forgotten password then cannot be recovered. Do not ask.
+    #[arg(long)]
+    pub no_recovery_key: bool,
     #[arg(long, value_enum, default_value = "default", hide = true)]
     pub kdf: KdfProfile,
     /// Turn on quick unlock (Touch ID) for this device without asking.
@@ -838,6 +905,13 @@ fn main() -> ExitCode {
         Command::Run(a) => run_command(a),
         Command::Http(a) => http_command(a),
         Command::QuickUnlock { action } => ok(quick_command(&action, json)),
+        Command::RecoveryKey { action } => ok(match action {
+            RecoveryCmd::Status => recovery::status(json),
+            RecoveryCmd::Enable(a) => recovery::set(&a, false, json),
+            RecoveryCmd::Replace(a) => recovery::set(&a, true, json),
+            RecoveryCmd::Disable { yes } => recovery::disable(yes, json),
+        }),
+        Command::Forgot(a) => ok(recovery::forgot(a, json)),
         Command::Password { action } => ok(match action {
             PasswordCmd::Change => credentials::password_change(json),
         }),

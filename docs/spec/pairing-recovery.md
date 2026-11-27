@@ -284,6 +284,19 @@ to give several people recovery. This number is kept so references to 7.3 and 7.
 5. It recommends revoking all other devices and re-pairing them, since whoever held the old credentials may
    still hold them.
 
+### 7.3.1 In the CLI (FIG-290)
+
+`figlock init --recovery-key` (or answering yes when asked at a terminal) makes the key with the vault;
+`--no-recovery-key` skips it. `figlock recovery-key enable`, `replace` and `disable` do the same as Settings, after the
+password and Secret Key are proved; `status` reads `vault.json` only. A new code is shown once and checked by typing
+its last two groups back (`--saved` is the script's word that it was stored) before `vault.json` is written, and
+`--kit <path>` writes the one page PDF. `figlock forgot` is 7.3 for the CLI: it opens the vault with the code (on a
+device that has the vault, or on a new one given `--store`, `--drive`, `--icloud` or `--sync-folder`), asks for a new
+password, makes a new Secret Key and, by default, a new Recovery Key (`--keep-recovery-key` keeps the one just
+used), shows them and checks them, and only then writes `vault.json`. A wrong code, a short password or a failed
+check changes nothing. Quick unlock is turned off, other devices ask for a full unlock, and the command says to
+revoke devices that are not trusted.
+
 ### 7.4 Risks stated to the user
 
 - Anyone who has the code can open the vault without the password. It should be kept apart from the Emergency Kit

@@ -13,7 +13,7 @@ use figlock_session::{docfile, now_ms};
 
 const OTHER_DEVICES: &str = "Other devices will ask for a full unlock with the new details.";
 
-fn forget_quick_unlock() {
+pub(crate) fn forget_quick_unlock() {
     let result = peek_vault_id().and_then(|vault| quick::system()?.forget(&vault));
     if let Err(e) = result {
         eprintln!("warning: quick unlock key was not removed: {e}");
@@ -22,7 +22,7 @@ fn forget_quick_unlock() {
 
 /// Keep the new Secret Key on this device, in place of the old one (ADR-0027). The vault is already changed, so a
 /// failure only warns: the key is still shown and the next full unlock asks for it.
-fn keep_secret_key(sk: &SecretKey, vault_json: &[u8]) {
+pub(crate) fn keep_secret_key(sk: &SecretKey, vault_json: &[u8]) {
     let kept = secret_key_store::system().and_then(|keys| {
         if !keys.available() {
             return Ok(());
