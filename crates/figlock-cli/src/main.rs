@@ -371,10 +371,15 @@ enum BrokerCmd {
         #[arg(long, hide = true)]
         deny_all: bool,
         /// Run for an agent with nobody at the keyboard: unlock only with quick unlock (never ask for a
-        /// password), refuse to start when nothing could ask for approval, and lock after 30 minutes with no
-        /// request and no live grant. `figlock http` and `figlock run` start it for you when it is needed.
+        /// password) and refuse to start when nothing could ask for approval. `figlock http` and
+        /// `figlock run` start it for you when it is needed.
         #[arg(long)]
         background: bool,
+        /// Lock, forgetting the vault and every grant, after this many minutes without an approved request
+        /// (0 never locks for idleness; default 30, or FIGLOCK_BROKER_IDLE_MINUTES). The broker also locks
+        /// when the Mac sleeps or the screen locks.
+        #[arg(long, value_name = "MINUTES")]
+        idle_timeout: Option<u64>,
     },
     /// Show whether the broker is running, its grants and the audit log position.
     Status,
@@ -720,7 +725,8 @@ fn broker_command(action: BrokerCmd, json: bool) -> error::Res<()> {
         BrokerCmd::Start {
             deny_all,
             background,
-        } => broker::cli::start(deny_all, background),
+            idle_timeout,
+        } => broker::cli::start(deny_all, background, idle_timeout),
         BrokerCmd::Status => broker::cli::status(json),
         BrokerCmd::Grants => broker::cli::grants(json),
         BrokerCmd::Revoke { grant } => broker::cli::revoke(&grant, json),

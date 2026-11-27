@@ -111,11 +111,14 @@ impl Env {
     }
 
     fn start_broker(&self) -> Child {
-        let mut c = self.command(
-            &["broker", "start", "--deny-all"],
-            PW,
-            Some(&self.secret_key),
-        );
+        self.start_broker_with(&[], &[])
+    }
+
+    fn start_broker_with(&self, extra_args: &[&str], envs: &[(&str, &str)]) -> Child {
+        let mut args = vec!["broker", "start", "--deny-all"];
+        args.extend_from_slice(extra_args);
+        let mut c = self.command(&args, PW, Some(&self.secret_key));
+        c.envs(envs.iter().copied());
         c.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -408,4 +411,77 @@ fn a_password_change_made_while_the_broker_runs_locks_it() {
     assert!(!env.socket().exists(), "the socket is removed");
     let late = env.run(&["broker", "status"], PW, Some(&env.secret_key), None);
     assert!(text(&late.stderr).contains("no broker is running"));
+}
+
+#[test]
+fn status_shows_the_idle_timeout_and_zero_turns_it_off() {
+    let env = Env::new();
+    let mut broker = env.start_broker();
+    let status = env.ok(&["broker", "status"]);
+    assert!(
+        status.contains("locks in 29m") || status.contains("locks in 30m"),
+        "{status}"
+    );
+    let json: Value = serde_json::from_str(&env.ok(&["--json", "broker", "status"])).unwrap();
+    assert_eq!(json["idle_timeout_secs"], 1800);
+    assert!(json["idle_left_secs"].as_u64().unwrap() > 1700);
+    env.ok(&["broker", "lock"]);
+    broker.wait().unwrap();
+
+    let mut never = env.start_broker_with(&["--idle-timeout", "0"], &[]);
+    let status = env.ok(&["broker", "status"]);
+    assert!(status.contains("no idle timeout"), "{status}");
+    let json: Value = serde_json::from_str(&env.ok(&["--json", "broker", "status"])).unwrap();
+    assert!(json["idle_timeout_secs"].is_null() && json["idle_left_secs"].is_null());
+    env.ok(&["broker", "lock"]);
+    never.wait().unwrap();
+}
+
+#[test]
+fn an_idle_broker_locks_itself_and_polling_its_status_does_not_keep_it_open() {
+    let env = Env::new();
+    let mut broker = env.start_broker_with(&[], &[("FIGLOCK_BROKER_IDLE_SECS", "3")]);
+    // Anyone on the socket can ask for status; that is not use, so it must not extend the timer.
+    let started = Instant::now();
+    let deadline = started + Duration::from_secs(30);
+    let status = loop {
+        if let Some(s) = broker.try_wait().unwrap() {
+            break s;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the broker kept running while idle"
+        );
+        let _ = env.run(&["broker", "status"], PW, Some(&env.secret_key), None);
+        std::thread::sleep(Duration::from_millis(300));
+    };
+    assert!(status.success());
+    assert!(started.elapsed() >= Duration::from_secs(3));
+    assert!(!env.socket().exists(), "the socket is removed");
+    let late = env.run(&["broker", "status"], PW, Some(&env.secret_key), None);
+    assert!(text(&late.stderr).contains("no broker is running"));
+
+    // The lock is on the record, with its reason.
+    let log: Value = serde_json::from_str(&env.ok(&["--json", "audit"])).unwrap();
+    let last = log.as_array().unwrap().last().unwrap();
+    assert_eq!(last["event"], "broker.lock");
+    assert_eq!(last["detail"]["reason"], "idle");
+}
+
+#[test]
+fn a_bad_idle_setting_is_refused_before_anything_is_unlocked() {
+    let env = Env::new();
+    let out = env
+        .command(
+            &["broker", "start", "--deny-all"],
+            PW,
+            Some(&env.secret_key),
+        )
+        .env("FIGLOCK_BROKER_IDLE_MINUTES", "soon")
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(text(&out.stderr).contains("FIGLOCK_BROKER_IDLE_MINUTES"));
+    assert!(!env.socket().exists());
 }

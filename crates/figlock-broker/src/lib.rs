@@ -113,8 +113,10 @@ pub struct Broker {
     /// request it started is queued without sleeping.
     #[cfg(test)]
     at_gate: std::sync::atomic::AtomicUsize,
-    /// When a request last came in, or a grant was last seen alive, for [`Broker::idle_for`].
+    /// When an approved request last happened (see [`Broker::touch`]), for the idle lock.
     active: Mutex<Duration>,
+    /// Lock after this long without an approved request; `None` never locks for idleness (FIG-291).
+    idle_limit: Mutex<Option<Duration>>,
     /// A pause between the person's answer and the outcome being recorded, to make the gap between them
     /// long enough for a test to see whether the next request can get into it.
     #[cfg(test)]
@@ -215,6 +217,7 @@ impl Broker {
             state: Mutex::new(st),
             gate: Mutex::new(()),
             active: Mutex::new(started),
+            idle_limit: Mutex::new(None),
             #[cfg(test)]
             at_gate: std::sync::atomic::AtomicUsize::new(0),
             #[cfg(test)]
@@ -252,18 +255,46 @@ impl Broker {
         false
     }
 
-    /// How long the broker has had nothing to do: no request and no live grant. `None` while a grant is live.
-    /// A background broker locks itself when this passes its limit (ADR-0040).
-    pub fn idle_for(&self) -> Option<Duration> {
-        let mut st = self.lock_state();
-        self.sweep(&mut st);
-        let now = self.env.now();
-        let mut active = self.active.lock().unwrap_or_else(|e| e.into_inner());
-        if !st.grants.is_empty() {
-            *active = now;
+    /// Choose how long the broker may sit without an approved request before it locks (`None`: never). The
+    /// count starts from now.
+    pub fn set_idle_limit(&self, limit: Option<Duration>) {
+        *self.idle_limit.lock().unwrap_or_else(|e| e.into_inner()) = limit;
+        self.touch();
+    }
+
+    /// The idle limit, if there is one.
+    pub fn idle_limit(&self) -> Option<Duration> {
+        *self.idle_limit.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Count now as activity. Only an approved request calls this: a grant the person said yes to, and a
+    /// request that carries a live grant's token. Status checks, denied or malformed requests, and callers
+    /// without a grant do not, so a stray process polling the socket can never keep a forgotten broker open.
+    fn touch(&self) {
+        *self.active.lock().unwrap_or_else(|e| e.into_inner()) = self.env.now();
+    }
+
+    /// How long until the idle lock, `None` when no limit is set or the broker is already locked.
+    pub fn idle_left(&self) -> Option<Duration> {
+        let limit = self.idle_limit()?;
+        if self.is_locked() {
             return None;
         }
-        Some(now.saturating_sub(*active))
+        let since = self
+            .env
+            .now()
+            .saturating_sub(*self.active.lock().unwrap_or_else(|e| e.into_inner()));
+        Some(limit.saturating_sub(since))
+    }
+
+    /// Lock, ending every grant and forgetting the vault, if the idle limit has passed. Returns whether it
+    /// locked. The reason `idle` is written to the audit log.
+    pub fn lock_if_idle(&self) -> bool {
+        if self.idle_left() == Some(Duration::ZERO) {
+            self.end("idle");
+            return true;
+        }
+        false
     }
 
     pub fn is_locked(&self) -> bool {
@@ -288,7 +319,10 @@ impl Broker {
             Ok(r) => r,
             Err(m) => return Reply::line(err(&m.id, Code::BadRequest)),
         };
-        *self.active.lock().unwrap_or_else(|e| e.into_inner()) = self.env.now();
+        let counts_as_activity = matches!(
+            req.op,
+            Op::GrantRequest(_) | Op::RunEnv { .. } | Op::HttpRequest(_)
+        );
         let id = req.id;
         let locked = self.is_locked();
         let result = match req.op {
@@ -308,6 +342,9 @@ impl Broker {
                 };
             }
         };
+        if counts_as_activity && result.is_ok() {
+            self.touch();
+        }
         Reply::line(match result {
             Ok(members) => ok(&id, members),
             Err(code) => err(&id, code),
@@ -315,12 +352,15 @@ impl Broker {
     }
 
     fn status(&self) -> Value {
+        let left = self.idle_left();
         let st = self.lock_state();
         json!({
             "locked": st.host.is_locked(),
             "grants": st.grants.len(),
             "audit_seq": st.audit.seq(),
             "audit_head": hex::encode(st.audit.head()),
+            "idle_timeout_secs": self.idle_limit().map(|d| d.as_secs()),
+            "idle_left_secs": left.map(|d| d.as_secs()),
         })
     }
 
