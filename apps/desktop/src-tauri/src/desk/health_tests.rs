@@ -9,6 +9,7 @@ use super::health::RangeSource;
 use super::items::ItemDraft;
 use super::tests::{code_of, created_key, desk, password, scenario_in};
 use super::*;
+use figlock_session::breach::Unreachable;
 
 fn scenario(name: &str) {
     scenario_in("health_tests", name);
@@ -53,10 +54,10 @@ struct Recorder {
 const BREACHED: &str = "k7#Qv9!xLm2$Zp4wRt";
 
 impl RangeSource for Recorder {
-    fn range(&self, prefix: &str) -> Result<String, ()> {
+    fn range(&self, prefix: &str) -> Result<String, Unreachable> {
         self.asked.borrow_mut().push(prefix.to_owned());
         if self.fail {
-            return Err(());
+            return Err(Unreachable);
         }
         Ok(if prefix == "4F639" {
             "003D68EB55068C33ACE09247EE4C639306B:0\r\nB0FCE9E4D86EA9B29F681C1664EF3B7184A:52579\r\n"

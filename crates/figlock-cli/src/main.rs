@@ -10,6 +10,7 @@ mod commands;
 mod credentials;
 mod drive;
 #[cfg(unix)]
+mod health;
 mod import;
 mod pairing;
 mod prompt;
@@ -88,6 +89,8 @@ enum Command {
     Export(ExportArgs),
     /// Import another manager's export or a notes dump.
     Import(ImportArgs),
+    /// Find weak, reused and old passwords, and with --breaches the ones in known breaches. Exits 1 if any.
+    Health(HealthArgs),
     /// Run and talk to the broker that gives agents approved, time-boxed access.
     Broker {
         #[command(subcommand)]
@@ -617,6 +620,19 @@ pub struct GenerateArgs {
 }
 
 #[derive(Args)]
+pub struct HealthArgs {
+    /// Also look each password up in known breaches. Only the first 5 characters of its SHA-1 are sent.
+    #[arg(long)]
+    pub breaches: bool,
+    /// Report a password as old after this many days without a change to its item.
+    #[arg(long, value_name = "DAYS", default_value_t = 365)]
+    pub old_days: u64,
+    /// Exit 0 even when problems are found.
+    #[arg(long)]
+    pub no_fail: bool,
+}
+
+#[derive(Args)]
 pub struct ExportArgs {
     /// Write secret values too. Without it they are left out.
     #[arg(long)]
@@ -775,6 +791,7 @@ fn main() -> ExitCode {
         Command::Copy(a) => ok(commands::copy(a, json)),
         Command::Generate(a) => ok(commands::generate(a, json)),
         Command::Export(a) => ok(commands::export(a)),
+        Command::Health(a) => health::run(a, json),
         Command::Import(a) => ok(import::import(a, json)),
         Command::Broker { action } => ok(broker_command(action, json)),
         Command::Audit(a) => ok(audit_command(&a, json)),

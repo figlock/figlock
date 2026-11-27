@@ -24,7 +24,7 @@ use figlock_session::{clipboard, docfile};
 
 pub(crate) use figlock_session::session::VAULT_NAME;
 
-fn print_json(v: &Value) -> Res<()> {
+pub(crate) fn print_json(v: &Value) -> Res<()> {
     println!(
         "{}",
         serde_json::to_string_pretty(v).map_err(|_| Fail::new("cannot format output"))?
