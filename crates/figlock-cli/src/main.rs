@@ -609,11 +609,40 @@ pub struct CopyArgs {
 #[derive(Args)]
 pub struct GenerateArgs {
     /// How many characters.
-    #[arg(long, short = 'l', default_value_t = 20)]
+    #[arg(long, short = 'l', default_value_t = 20, conflicts_with = "passphrase")]
     pub length: usize,
-    /// Letters and digits only.
-    #[arg(long)]
+    /// Leave out lowercase letters.
+    #[arg(long, conflicts_with = "passphrase")]
+    pub no_lower: bool,
+    /// Leave out uppercase letters.
+    #[arg(long, conflicts_with = "passphrase")]
+    pub no_upper: bool,
+    /// Leave out digits.
+    #[arg(long, conflicts_with = "passphrase")]
+    pub no_digits: bool,
+    /// Leave out symbols (letters and digits only).
+    #[arg(long, conflicts_with = "passphrase")]
     pub no_symbols: bool,
+    /// Make a passphrase of random words instead of a password.
+    #[arg(long, short = 'p')]
+    pub passphrase: bool,
+    /// How many words in the passphrase.
+    #[arg(long, default_value_t = 6, requires = "passphrase")]
+    pub words: usize,
+    /// What goes between the words.
+    #[arg(long, value_enum, default_value_t = SeparatorArg::Hyphen, requires = "passphrase")]
+    pub separator: SeparatorArg,
+    /// Capitalize every word.
+    #[arg(long, requires = "passphrase")]
+    pub capitalize: bool,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum SeparatorArg {
+    Hyphen,
+    Dot,
+    Space,
+    None,
 }
 
 #[derive(Args)]

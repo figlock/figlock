@@ -14,7 +14,7 @@ use zeroize::Zeroizing;
 use crate::render::{clean, item_json, raw_or_clean, summary_json, summary_line};
 use crate::{
     AddArgs, CopyArgs, EditArgs, ExportArgs, FindArgs, GenerateArgs, GetArgs, InitArgs, KdfProfile,
-    prompt, quick,
+    SeparatorArg, prompt, quick,
 };
 use figlock_session::config::{self, Config, Place, Remote};
 use figlock_session::error::{Fail, Res};
@@ -456,20 +456,50 @@ pub fn copy(a: CopyArgs, json: bool) -> Res<()> {
 }
 
 pub fn generate(a: GenerateArgs, json: bool) -> Res<()> {
-    let (min, max) = (generate::MIN_LEN, generate::MAX_LEN);
-    if !(min..=max).contains(&a.length) {
-        return Err(Fail::new(format!("length must be between {min} and {max}")));
-    }
-    let p = generate::password(&generate::PasswordOptions {
-        length: a.length,
-        symbols: !a.no_symbols,
-        ..Default::default()
-    })
-    .map_err(|_| Fail::new("could not generate a password"))?;
-    if json {
-        print_json(&json!({ "password": p.as_str() }))
+    let (key, secret) = if a.passphrase {
+        let (min, max) = (generate::MIN_WORDS, generate::MAX_WORDS);
+        if !(min..=max).contains(&a.words) {
+            return Err(Fail::new(format!("words must be between {min} and {max}")));
+        }
+        let separator = match a.separator {
+            SeparatorArg::Hyphen => generate::Separator::Hyphen,
+            SeparatorArg::Dot => generate::Separator::Dot,
+            SeparatorArg::Space => generate::Separator::Space,
+            SeparatorArg::None => generate::Separator::None,
+        };
+        let p = generate::passphrase(&generate::PassphraseOptions {
+            words: a.words,
+            separator,
+            capitalize: a.capitalize,
+            ..Default::default()
+        })
+        .map_err(|_| Fail::new("could not generate a passphrase"))?;
+        ("passphrase", p)
     } else {
-        println!("{}", p.as_str());
+        let (min, max) = (generate::MIN_LEN, generate::MAX_LEN);
+        if !(min..=max).contains(&a.length) {
+            return Err(Fail::new(format!("length must be between {min} and {max}")));
+        }
+        if a.no_lower && a.no_upper && a.no_digits && a.no_symbols {
+            return Err(Fail::new(
+                "at least one character type must stay on (lowercase, uppercase, digits or symbols)",
+            ));
+        }
+        let p = generate::password(&generate::PasswordOptions {
+            length: a.length,
+            lower: !a.no_lower,
+            upper: !a.no_upper,
+            digits: !a.no_digits,
+            symbols: !a.no_symbols,
+            ..Default::default()
+        })
+        .map_err(|_| Fail::new("could not generate a password"))?;
+        ("password", p)
+    };
+    if json {
+        print_json(&json!({ key: secret.as_str() }))
+    } else {
+        println!("{}", secret.as_str());
         Ok(())
     }
 }
