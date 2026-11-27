@@ -525,6 +525,82 @@ fn generate_prints_a_password_and_checks_bounds() {
     assert_eq!(json["password"].as_str().unwrap().len(), 20);
 }
 
+#[test]
+fn generate_class_toggles_each_remove_their_class() {
+    let e = Env::init();
+    let has = |s: &str, f: fn(&u8) -> bool| s.trim().bytes().any(|b| f(&b));
+    for _ in 0..20 {
+        let p = e.ok(&["generate", "--no-lower"]);
+        assert!(!has(&p, u8::is_ascii_lowercase) && has(&p, u8::is_ascii_uppercase));
+        let p = e.ok(&["generate", "--no-upper"]);
+        assert!(!has(&p, u8::is_ascii_uppercase) && has(&p, u8::is_ascii_lowercase));
+        let p = e.ok(&["generate", "--no-digits"]);
+        assert!(!has(&p, u8::is_ascii_digit) && has(&p, u8::is_ascii_punctuation));
+        let p = e.ok(&["generate", "--no-lower", "--no-upper", "--no-symbols"]);
+        assert!(p.trim().bytes().all(|b| b.is_ascii_digit()));
+    }
+}
+
+#[test]
+fn generate_needs_one_character_class() {
+    let e = Env::init();
+    let out = e.run(&[
+        "generate",
+        "--no-lower",
+        "--no-upper",
+        "--no-digits",
+        "--no-symbols",
+    ]);
+    assert!(!out.status.success());
+    assert!(text(&out.stderr).contains("at least one character type"));
+    assert!(text(&out.stdout).is_empty());
+}
+
+#[test]
+fn generate_passphrase_honours_words_separator_and_capitalize() {
+    let e = Env::init();
+    let p = e.ok(&["generate", "--passphrase"]);
+    assert_eq!(p.trim().split('-').count(), 6);
+    let p = e.ok(&[
+        "generate",
+        "--passphrase",
+        "--words",
+        "4",
+        "--separator",
+        "dot",
+    ]);
+    assert_eq!(p.trim().split('.').count(), 4);
+    let p = e.ok(&["generate", "-p", "--separator", "space", "--capitalize"]);
+    let words: Vec<&str> = p.trim().split(' ').collect();
+    assert_eq!(words.len(), 6);
+    assert!(
+        words
+            .iter()
+            .all(|w| w.chars().next().unwrap().is_uppercase())
+    );
+    let p = e.ok(&["generate", "-p", "--separator", "none", "--words", "3"]);
+    assert!(p.trim().bytes().all(|b| b.is_ascii_lowercase()));
+    let json: Value = serde_json::from_str(&e.ok(&["--json", "generate", "-p"])).unwrap();
+    assert_eq!(json["passphrase"].as_str().unwrap().split('-').count(), 6);
+    assert!(json.get("password").is_none());
+}
+
+#[test]
+fn generate_rejects_bad_passphrase_and_password_flag_mixes() {
+    let e = Env::init();
+    for args in [
+        &["generate", "-p", "--words", "2"][..],
+        &["generate", "-p", "--words", "99"],
+        &["generate", "-p", "--length", "30"],
+        &["generate", "-p", "--no-digits"],
+        &["generate", "--words", "5"],
+        &["generate", "--separator", "dot"],
+        &["generate", "--capitalize"],
+    ] {
+        assert!(!e.run(args).status.success(), "{args:?} should fail");
+    }
+}
+
 #[cfg(unix)]
 mod clipboard {
     use super::*;
