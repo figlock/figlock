@@ -9,8 +9,8 @@ mod broker;
 mod commands;
 mod credentials;
 mod drive;
-#[cfg(unix)]
 mod health;
+#[cfg(unix)]
 mod import;
 mod pairing;
 mod prompt;
