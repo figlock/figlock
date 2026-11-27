@@ -79,6 +79,15 @@ fn a_deleted_copy_does_not_make_a_password_reused() {
 }
 
 #[test]
+fn the_old_threshold_can_be_chosen() {
+    let items = [item(1, Some(STRONG_A), NOW - 40 * DAY_MS, false)];
+    assert!(analyze(&items, NOW).findings.is_empty());
+    assert!(analyze_with(&items, NOW, 41 * DAY_MS).findings.is_empty());
+    let r = analyze_with(&items, NOW, 40 * DAY_MS);
+    assert_eq!(r.findings[0].old_ms, Some(40 * DAY_MS));
+}
+
+#[test]
 fn a_future_write_time_is_not_old() {
     let items = [item(1, Some(STRONG_A), NOW + OLD_AFTER_MS, false)];
     assert!(analyze(&items, NOW).findings.is_empty());

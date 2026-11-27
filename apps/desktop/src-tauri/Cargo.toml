@@ -18,7 +18,6 @@ figlock-session = { version = "0.5.1", path = "../../../crates/figlock-session" 
 figlock-store = { version = "0.5.1", path = "../../../crates/figlock-store" }
 getrandom.workspace = true
 hex.workspace = true
-ureq.workspace = true
 zeroize.workspace = true
 serde = { version = "1", features = ["derive"] }
 # `generate_context!` expands to `serde_json` code once the config has a `plugins` entry (the update key and feed).

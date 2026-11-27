@@ -53,6 +53,11 @@ pub struct Report {
 
 /// Checks every live item that holds a password. `now_ms` is the wall clock in milliseconds.
 pub fn analyze(items: &[ItemView], now_ms: u64) -> Report {
+    analyze_with(items, now_ms, OLD_AFTER_MS)
+}
+
+/// Like [`analyze`], reporting a password as old once its item has gone `old_after_ms` unchanged.
+pub fn analyze_with(items: &[ItemView], now_ms: u64, old_after_ms: u64) -> Report {
     let held: Vec<(&ItemView, &str)> = items
         .iter()
         .filter(|i| !i.deleted)
@@ -79,7 +84,7 @@ pub fn analyze(items: &[ItemView], now_ms: u64) -> Report {
                 id: item.id,
                 weak: (strength.level == Level::Weak).then_some(strength),
                 reused_with: users[pw] - 1,
-                old_ms: (age >= OLD_AFTER_MS).then_some(age),
+                old_ms: (age >= old_after_ms).then_some(age),
             }
         })
         .filter(Finding::has_issue)
