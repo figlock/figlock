@@ -300,7 +300,72 @@ pub fn add(a: AddArgs, json: bool) -> Res<()> {
     }
 }
 
+/// Whole days from `then_ms` to `now`.
+fn days_since(then_ms: u64, now: u64) -> u64 {
+    now.saturating_sub(then_ms) / 86_400_000
+}
+
+/// "today", "1 day ago" or "N days ago" for something that happened at `then_ms`.
+fn age_text(then_ms: u64, now: u64) -> String {
+    match days_since(then_ms, now) {
+        0 => "today".to_owned(),
+        1 => "1 day ago".to_owned(),
+        n => format!("{n} days ago"),
+    }
+}
+
+/// `edit --restore-all`: bring every trashed item back, after saying how many and asking.
+fn restore_all(yes: bool, json: bool) -> Res<()> {
+    crate::sync_cmd::pull_first();
+    let mut s = Session::open(prompt::terminal())?;
+    s.ensure_writable()?;
+    let ids: Vec<_> = s
+        .items(true)
+        .into_iter()
+        .filter(|i| i.deleted)
+        .map(|i| i.id)
+        .collect();
+    let count = ids.len();
+    if count == 0 {
+        if json {
+            return print_json(&json!({ "restored": 0 }));
+        }
+        eprintln!("nothing in the trash");
+        return Ok(());
+    }
+    let noun = if count == 1 { "item" } else { "items" };
+    if !yes {
+        if !std::io::stdin().is_terminal() {
+            return Err(Fail::new(format!(
+                "this is not a terminal, so nothing was restored; pass --yes to restore all {count} {noun}"
+            )));
+        }
+        if !prompt::confirm_default_no(&format!("Restore {count} {noun} from the trash?"))? {
+            return Err(Fail::new("nothing was restored"));
+        }
+    }
+    let now = now_ms();
+    for id in &ids {
+        s.vault.restore_item(id, now)?;
+    }
+    s.commit()?;
+    let pushed = crate::sync_cmd::push_after_write();
+    if json {
+        print_json(&pushed.attach(json!({ "restored": count })))
+    } else {
+        println!("Restored {count} {noun}.");
+        pushed.announce();
+        Ok(())
+    }
+}
+
 pub fn edit(a: EditArgs, json: bool) -> Res<()> {
+    if a.restore_all {
+        return restore_all(a.yes, json);
+    }
+    let Some(reference) = a.item.as_deref() else {
+        return Err(Fail::new("give the item to edit"));
+    };
     if a.set.is_empty()
         && a.secret.is_empty()
         && a.unset.is_empty()
@@ -316,7 +381,7 @@ pub fn edit(a: EditArgs, json: bool) -> Res<()> {
     crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     s.ensure_writable()?;
-    let item = s.resolve(&a.item, a.restore)?;
+    let item = s.resolve(reference, a.restore)?;
     let id = item.id;
     let mut fields = collect_fields(item.item_type, a.set, a.secret)?;
     fields.extend(file_fields(item.item_type, &a.files)?);
@@ -375,7 +440,8 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
     } else {
         Index::build(items.iter())
     };
-    let hits = index.search(&a.query.join(" "), now_ms(), a.limit);
+    let now = now_ms();
+    let hits = index.search(&a.query.join(" "), now, a.limit);
     let found: Vec<&ItemView> = hits
         .iter()
         .filter_map(|h| items.iter().find(|i| i.id == h.id))
@@ -389,6 +455,8 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
                     if a.deleted {
                         v["deleted"] = json!(true);
                         v["deleted_ms"] = json!(i.updated.wall);
+                        v["deleted_at"] = json!(session::civil_date(i.updated.wall));
+                        v["deleted_days_ago"] = json!(days_since(i.updated.wall, now));
                     }
                     v
                 })
@@ -398,9 +466,10 @@ pub fn find(a: FindArgs, json: bool) -> Res<()> {
         for i in &found {
             if a.deleted {
                 println!(
-                    "{}  deleted {}",
+                    "{}  deleted {} ({})",
                     summary_line(i),
-                    session::civil_date(i.updated.wall)
+                    session::civil_date(i.updated.wall),
+                    age_text(i.updated.wall, now)
                 );
             } else {
                 println!("{}", summary_line(i));

@@ -612,7 +612,8 @@ pub struct AddArgs {
 #[derive(Args)]
 pub struct EditArgs {
     /// Item id, unique id prefix, or a search that finds one item.
-    pub item: String,
+    #[arg(required_unless_present = "restore_all")]
+    pub item: Option<String>,
     /// Set a non-secret field, `name=value`. Replaces the current value.
     #[arg(long = "set", value_name = "FIELD=VALUE", value_parser = parse_kv)]
     pub set: Vec<(String, String)>,
@@ -634,6 +635,15 @@ pub struct EditArgs {
     /// Bring a trashed item back.
     #[arg(long)]
     pub restore: bool,
+    /// Bring every trashed item back. Prints how many, and asks first unless `--yes` is given.
+    #[arg(
+        long,
+        conflicts_with_all = ["item", "set", "secret", "unset", "files", "remove_files", "delete", "restore"]
+    )]
+    pub restore_all: bool,
+    /// With `--restore-all`: do not ask for confirmation.
+    #[arg(long, requires = "restore_all")]
+    pub yes: bool,
 }
 
 #[derive(Args)]
@@ -646,8 +656,8 @@ pub struct FindArgs {
     /// Show at most this many matches.
     #[arg(long, default_value_t = 20)]
     pub limit: usize,
-    /// Look in the trash instead: list deleted items and when they were deleted. Restore one with
-    /// `figlock edit <id or words> --restore`.
+    /// Look in the trash instead: list deleted items and how long ago each was deleted. Restore one with
+    /// `figlock edit <id or words> --restore`, or all with `figlock edit --restore-all`.
     #[arg(long)]
     pub deleted: bool,
 }

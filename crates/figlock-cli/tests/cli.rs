@@ -247,7 +247,7 @@ fn find_deleted_lists_only_the_trash_with_the_deleted_date() {
     let trash = e.ok(&["find", "--deleted"]);
     assert!(trash.contains("Bank") && !trash.contains("Mail"), "{trash}");
     assert!(
-        trash.contains("login") && trash.contains("deleted 20"),
+        trash.contains("login") && trash.contains("deleted 20") && trash.contains("(today)"),
         "{trash}"
     );
     assert!(e.ok(&["find", "--deleted", "bank"]).contains("Bank"));
@@ -266,6 +266,61 @@ fn find_deleted_lists_only_the_trash_with_the_deleted_date() {
     assert_eq!(json[0]["title"], "Bank");
     assert_eq!(json[0]["deleted"], true);
     assert!(json[0]["deleted_ms"].as_u64().unwrap() > 0);
+    assert!(json[0]["deleted_at"].as_str().unwrap().starts_with("20"));
+    assert_eq!(json[0]["deleted_days_ago"], 0);
+}
+
+#[test]
+fn restore_all_asks_first_and_restores_every_trashed_item() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    e.add_login("Mail", &[]);
+    e.add_login("Shop", &[]);
+    e.ok(&["edit", "bank", "--delete"]);
+    e.ok(&["edit", "mail", "--delete"]);
+
+    // Without a terminal and without --yes nothing happens.
+    let refused = e.run_stdin(&["edit", "--restore-all"], "y\n");
+    assert!(!refused.status.success());
+    assert!(
+        text(&refused.stderr).contains("--yes"),
+        "{}",
+        text(&refused.stderr)
+    );
+    assert!(e.ok(&["find", "--deleted"]).contains("Bank"));
+
+    let out = e.ok(&["edit", "--restore-all", "--yes"]);
+    assert!(out.contains("Restored 2 items."), "{out}");
+    let live = e.ok(&["find"]);
+    assert!(live.contains("Bank") && live.contains("Mail") && live.contains("Shop"));
+    assert!(text(&e.run(&["find", "--deleted"]).stderr).contains("nothing in the trash"));
+}
+
+#[test]
+fn restore_all_json_counts_and_an_empty_trash_is_not_an_error() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    let none: Value =
+        serde_json::from_str(&e.ok(&["--json", "edit", "--restore-all", "--yes"])).unwrap();
+    assert_eq!(none["restored"], 0);
+    e.ok(&["edit", "bank", "--delete"]);
+    let one: Value =
+        serde_json::from_str(&e.ok(&["--json", "edit", "--restore-all", "--yes"])).unwrap();
+    assert_eq!(one["restored"], 1);
+    assert!(e.ok(&["find", "bank"]).contains("Bank"));
+}
+
+#[test]
+fn restore_all_cannot_be_combined_with_an_item_or_other_changes() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    assert!(!e.run(&["edit", "bank", "--restore-all"]).status.success());
+    assert!(
+        !e.run(&["edit", "--restore-all", "--delete"])
+            .status
+            .success()
+    );
+    assert!(!e.run(&["edit", "--yes"]).status.success());
 }
 
 #[test]
