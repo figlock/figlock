@@ -80,4 +80,57 @@ final class IPadVaultUITests: XCTestCase {
         app.buttons["Delete"].tap()
         XCTAssertTrue(app.staticTexts["No item selected"].waitForExistence(timeout: 10))
     }
+
+    // FIG-267: the delete confirmation is a popover pointing at the actions button, not a bottom sheet.
+    func testTheDeleteConfirmationIsAPopover() {
+        row("Fastmail").tap()
+        app.buttons["Item actions"].tap()
+        app.buttons["Delete"].tap()
+        XCTAssertTrue(app.popovers.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Delete"].exists)
+    }
+
+    // FIG-267: the generator opens as a popover from the toolbar button, and from the password field of the editor.
+    func testTheGeneratorIsAPopover() {
+        XCTAssertTrue(app.buttons["Password generator"].waitForExistence(timeout: 15))
+        app.buttons["Password generator"].tap()
+        XCTAssertTrue(app.popovers.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["Generator"].exists)
+    }
+
+    // FIG-267: a new item is a form sheet over the vault, and the generator pops over the form.
+    func testANewItemIsAFormSheetWithAGeneratorPopover() {
+        XCTAssertTrue(app.buttons["Add item"].waitForExistence(timeout: 15))
+        app.buttons["Add item"].tap()
+        app.buttons["Login"].tap()
+        XCTAssertTrue(app.navigationBars["New Login"].waitForExistence(timeout: 5))
+        // A form sheet is narrower than the window; a full height page would fill it.
+        XCTAssertLessThan(app.navigationBars["New Login"].frame.width, app.windows.firstMatch.frame.width - 100)
+        app.buttons["Generate a password"].tap()
+        XCTAssertTrue(app.popovers.firstMatch.waitForExistence(timeout: 5))
+    }
+}
+
+/// Onboarding and unlock are one centred column on an iPad, not stretched across the window (ADR-0048 decision 3).
+@MainActor
+final class IPadFormColumnUITests: XCTestCase {
+    override func setUpWithError() throws {
+        try XCTSkipUnless(UIDevice.current.userInterfaceIdiom == .pad, "iPad layout")
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .landscapeLeft
+    }
+
+    override func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
+    }
+
+    func testWelcomeIsACappedColumn() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-figlock-fresh"]
+        app.launch()
+        let choice = app.buttons["Create a new vault"]
+        XCTAssertTrue(choice.waitForExistence(timeout: 15))
+        XCTAssertLessThanOrEqual(choice.frame.width, 540)
+        XCTAssertLessThan(choice.frame.width, app.windows.firstMatch.frame.width / 2)
+    }
 }

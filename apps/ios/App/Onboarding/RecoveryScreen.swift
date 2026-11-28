@@ -60,6 +60,7 @@ struct RecoveryScreen: View {
                 .font(FLFont.ui(FLText.sm, relativeTo: .footnote)).foregroundStyle(FLColor.textTertiary)
             }
             .padding(FLSpace.s4).padding(.top, FLSpace.s8)
+            .flFormColumn()
         }
         .background(FLColor.bg.ignoresSafeArea())
         .fileImporter(isPresented: $picking, allowedContentTypes: [.folder]) { result in
