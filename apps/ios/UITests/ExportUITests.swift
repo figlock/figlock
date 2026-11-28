@@ -18,6 +18,8 @@ final class ExportUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 20))
         settings.tap()
         let row = app.buttons["settings-export"]
+        // The Vault rows can run past the first screen: scroll to the row before tapping it.
+        for _ in 0..<3 where !row.exists || !row.isHittable { app.swipeUp() }
         XCTAssertTrue(row.waitForExistence(timeout: 10))
         row.tap()
         XCTAssertTrue(app.navigationBars["Export"].waitForExistence(timeout: 10))

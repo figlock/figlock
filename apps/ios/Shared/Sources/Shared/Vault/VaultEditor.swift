@@ -21,6 +21,11 @@ public enum EditFailure: Error, Equatable {
     }
 }
 
+/// An import that stopped part way: `added` items are in the vault, the rest are not.
+public struct ImportPartial: Error, Equatable {
+    public let added: Int
+}
+
 /// Creates, edits, deletes and restores items. Every change goes through the core (`VaultSession`), is committed
 /// as one op file and written to the local vault folder, where the sync engine picks it up. The item then shows
 /// as not synced until a sync has finished (`PendingSync`).
@@ -107,6 +112,26 @@ public final class VaultEditor {
         _ = try await perform { session, stamp in
             for id in ids { try session.restoreItem(itemId: id, nowMs: stamp) }
             return ids
+        }
+    }
+
+    /// Add every item of `plan` (FIG-286), a hundred per op file so one file stays small, and return how many were
+    /// added. If a chunk fails, the chunks before it stay in the vault and the error says so through
+    /// `ImportPartial`, so the screen can say how many items made it.
+    public func importItems(_ plan: ImportPlan, chunk: UInt32 = 100) async throws -> Int {
+        var added = 0
+        while true {
+            let ids: [String]
+            do {
+                ids = try await perform { session, stamp in
+                    try plan.addNext(session: session, max: chunk, nowMs: stamp)
+                }
+            } catch {
+                if added > 0 { throw ImportPartial(added: added) }
+                throw error
+            }
+            if ids.isEmpty { return added }
+            added += ids.count
         }
     }
 

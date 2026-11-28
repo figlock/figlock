@@ -19,6 +19,7 @@ mod device;
 mod error;
 mod generator;
 mod health;
+mod import;
 mod join;
 mod quick;
 mod recovery;
@@ -36,6 +37,7 @@ pub use generator::{
     generate_password, passphrase_strength, password_strength,
 };
 pub use health::{BreachCheck, BreachHit, HealthFinding, HealthSummary, RangeAnswer};
+pub use import::{ImportFailure, ImportPlan, ImportPreview, prepare_import};
 pub use join::{
     JoinHandle, JoinOutcome, JoinStart, RequestFile, fingerprint_of, invite_code_canonical,
     invite_code_is_valid, invite_path, start_join,
