@@ -80,7 +80,7 @@ struct ExportView: View {
                         exporter.cleanUp()
                     }
                 )
-                .presentationDetents([.medium, .large]).presentationSizing(.form).ignoresSafeArea()
+                .presentationDetents([.medium, .large]).ignoresSafeArea()
             }
         }
         .onChange(of: scenePhase) { _, phase in

@@ -34,7 +34,7 @@ struct KitShareButton<Label: View>: View {
             label()
         }
         .sheet(isPresented: $sharing) {
-            KitShareSheet(url: url).presentationDetents([.medium, .large]).presentationSizing(.form).ignoresSafeArea()
+            KitShareSheet(url: url).presentationDetents([.medium, .large]).ignoresSafeArea()
         }
     }
 }
