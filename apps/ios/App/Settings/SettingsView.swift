@@ -94,6 +94,12 @@ struct SettingsView: View {
                         symbol: "arrow.triangle.2.circlepath", title: "Sync",
                         value: context.sync.summary)
                 }
+                NavigationLink {
+                    ExportView(context: context)
+                } label: {
+                    SettingsRow(symbol: "square.and.arrow.up", title: "Export")
+                }
+                .accessibilityIdentifier("settings-export")
             } header: {
                 FLSectionHeader("Vault")
             }

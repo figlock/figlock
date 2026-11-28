@@ -48,6 +48,14 @@ pasteboard still holds that copy. `SecretReveal` gates reveal behind Face ID or 
 needs no extra check (the vault is unlocked), revealing does. Face ID and the real pasteboard do not run on the
 simulator. The views are in `App/Vault`.
 
+## Export
+
+Settings > Export saves the vault as the JSON `figlock export` writes (`figlock_core::export_json`, through
+`VaultSession.exportJson`). Without secrets it asks nothing; with them `VaultExporter` asks for Face ID or the passcode
+every time and makes no file when that is refused. The file is a temporary one handed to the share sheet (Copy is
+excluded, as for the Emergency Kit) and removed when the sheet closes or the screen goes away. Debug builds take
+`-figlock-allow-device-auth` and `-figlock-deny-device-auth` so the UI tests do not depend on simulator biometrics.
+
 ## Forgot password
 
 The lock screen's "I forgot my password or Secret Key" opens `ForgotPasswordView`: Recovery Key code, new
