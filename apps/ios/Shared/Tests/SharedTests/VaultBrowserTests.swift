@@ -39,23 +39,15 @@ private func login(_ title: String, user: String, url: String, password: String 
     defer { seeded.cleanup() }
     let browser = await seeded.browser()
 
-    browser.query = "fastmial"
-    #expect(browser.visible.first?.title == "Fastmail")
-    browser.query = "linear.app"
-    #expect(browser.visible.first?.title == "Linear")
-    browser.query = "stripe"
-    #expect(browser.visible.first?.title == "Stripe API key")
+    #expect(browser.rows(query: "fastmial", scope: .all).first?.title == "Fastmail")
+    #expect(browser.rows(query: "linear.app", scope: .all).first?.title == "Linear")
+    #expect(browser.rows(query: "stripe", scope: .all).first?.title == "Stripe API key")
     // A secret value is never searchable.
-    browser.query = "fl_demo_st_generated"
-    #expect(browser.visible.isEmpty)
+    #expect(browser.rows(query: "fl_demo_st_generated", scope: .all).isEmpty)
 
-    browser.query = ""
-    browser.filter = .other
-    #expect(browser.visible.map(\.title) == ["Stripe API key"])
-    browser.filter = .login
-    #expect(browser.visible.count == 2)
-    browser.filter = .note
-    #expect(browser.visible.isEmpty)
+    #expect(browser.rows(query: "", scope: .otherKinds).map(\.title) == ["Stripe API key"])
+    #expect(browser.rows(query: "", scope: .kind(.login)).count == 2)
+    #expect(browser.rows(query: "", scope: .kind(.note)).isEmpty)
 }
 
 @MainActor
@@ -67,15 +59,12 @@ private func login(_ title: String, user: String, url: String, password: String 
     defer { seeded.cleanup() }
     let browser = await seeded.browser()
 
-    browser.query = "fastmail"
-    let all = browser.visible.map(\.id)
+    let all = browser.rows(query: "fastmail", scope: .all).map(\.id)
     #expect(Set(all).count == 2)
-    browser.filter = .other
-    #expect(browser.visible.count == 1)
-    browser.filter = .all
-    #expect(browser.visible.map(\.id) == all)
+    #expect(browser.rows(query: "fastmail", scope: .otherKinds).count == 1)
+    #expect(browser.rows(query: "fastmail", scope: .all).map(\.id) == all)
     await browser.reload()
-    #expect(browser.visible.map(\.id) == all)
+    #expect(browser.rows(query: "fastmail", scope: .all).map(\.id) == all)
 }
 
 @MainActor
@@ -126,19 +115,14 @@ private func login(_ title: String, user: String, url: String, password: String 
     // The index is built while loading, so the first search is as fast as the next. The CI runner
     // runs the whole suite in parallel, so each figure is the best of five runs: a scheduling stall
     // can hit one run, not all of them, while a real slowdown shows in every run.
-    func best(_ query: String, _ work: () -> Void) -> Duration {
-        (0..<5).map { _ in
-            ready.query = query
-            return clock.measure(work)
-        }.min()!
-    }
+    func best(_ work: () -> Void) -> Duration { (0..<5).map { _ in clock.measure(work) }.min()! }
     var firstHits: [VaultItem] = []
-    let first = best("fastmial") { firstHits = ready.visible }
+    let first = best { firstHits = ready.rows(query: "fastmial", scope: .all) }
     #expect(firstHits.first?.title.contains("Fastmail") == true)
     var hits: [VaultItem] = []
-    let warm = best("site9999") { hits = ready.visible }
+    let warm = best { hits = ready.rows(query: "site9999", scope: .all) }
     #expect(hits.first?.title.hasPrefix("Service 9999") == true)
-    let list = best("") { _ = ready.visible }
+    let list = best { _ = ready.rows(query: "", scope: .all) }
 
     print(
         "FIG-162 timings at 10000 items: load \(load) (off the main thread), first search \(first), warm search \(warm), list \(list)"

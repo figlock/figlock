@@ -7,33 +7,6 @@ import Observation
 @MainActor
 @Observable
 public final class VaultBrowser {
-    public enum Filter: String, CaseIterable, Identifiable, Sendable {
-        case all
-        case login
-        case note
-        case other
-
-        public var id: String { rawValue }
-
-        public var title: String {
-            switch self {
-            case .all: "All"
-            case .login: "Logins"
-            case .note: "Notes"
-            case .other: "Other"
-            }
-        }
-
-        func matches(_ kind: ItemKind) -> Bool {
-            switch self {
-            case .all: true
-            case .login: kind == .login
-            case .note: kind == .note
-            case .other: kind != .login && kind != .note
-            }
-        }
-    }
-
     /// The most hits a search returns; the list shows the best first and a person narrows the query from there.
     public static let searchLimit: UInt32 = 200
 
@@ -43,8 +16,6 @@ public final class VaultBrowser {
     /// Ids of items that failed to decrypt: shown as damaged, never dropped.
     public private(set) var damagedCount = 0
     public private(set) var loadFailures: [String] = []
-    public var query = ""
-    public var filter: Filter = .all
     /// When set, the system's QuickType suggestions follow the list after every load.
     @ObservationIgnored public var identitySync: CredentialIdentitySync?
 
@@ -140,26 +111,39 @@ public final class VaultBrowser {
 
     public func item(id: String) -> VaultItem? { byId[id] }
 
-    /// What the list shows now: the search hits in score order, or every item newest first, through the filter.
-    public var visible: [VaultItem] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        let base: [VaultItem]
-        if trimmed.isEmpty {
-            base = items
-        } else {
-            if let cached = cachedHits, cached.query == trimmed, cached.revision == revision {
-                base = cached.ids.compactMap { byId[$0] }
-            } else {
-                let hits =
-                    (try? session.search(
-                        query: trimmed, nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: Self.searchLimit))
-                    ?? []
-                cachedHits = CachedHits(query: trimmed, revision: revision, ids: hits.map(\.id))
-                base = hits.compactMap { byId[$0.id] }
-            }
-        }
-        return filter == .all ? base : base.filter { filter.matches($0.kind) }
+    /// What a window's list shows: the search hits in score order, or every live item newest first, through the
+    /// scope. The query and scope belong to the window (`VaultNavigation`), so two windows search independently.
+    public func rows(query: String, scope: VaultScope) -> [VaultItem] {
+        if scope == .deleted { return deletedItems }
+        let base = search(query: query) ?? items
+        return scope == .all ? base : base.filter(scope.matches)
     }
 
-    public var isSearching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
+    /// How many live items carry each tag, by name, for the sidebar.
+    public var tagCounts: [(tag: String, count: Int)] {
+        var counts: [String: Int] = [:]
+        for item in items { for tag in item.tags { counts[tag, default: 0] += 1 } }
+        return counts.map { (tag: $0.key, count: $0.value) }.sorted {
+            $0.tag.localizedCaseInsensitiveCompare($1.tag) == .orderedAscending
+        }
+    }
+
+    /// How many items a scope lists, for the sidebar.
+    public func count(in scope: VaultScope) -> Int {
+        scope == .deleted ? deletedItems.count : items.filter(scope.matches).count
+    }
+
+    private func search(query: String) -> [VaultItem]? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let cached = cachedHits, cached.query == trimmed, cached.revision == revision {
+            return cached.ids.compactMap { byId[$0] }
+        }
+        let hits =
+            (try? session.search(
+                query: trimmed, nowMs: UInt64(now().timeIntervalSince1970 * 1000), limit: Self.searchLimit))
+            ?? []
+        cachedHits = CachedHits(query: trimmed, revision: revision, ids: hits.map(\.id))
+        return hits.compactMap { byId[$0.id] }
+    }
 }

@@ -4,13 +4,14 @@ import SwiftUI
 /// The vault list (`design/prototypes/ios`, "list"): items newest first, a type filter, and search that is always shown
 /// above the list.
 struct VaultListView: View {
-    @Bindable var browser: VaultBrowser
+    let browser: VaultBrowser
+    @Bindable var navigation: VaultNavigation
     let copier: ClipboardCopier
     let sync: SyncModel
 
     var body: some View {
         List {
-            VaultHeader(sync: sync, query: $browser.query)
+            VaultHeader(sync: sync, query: $navigation.query)
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -32,12 +33,12 @@ struct VaultListView: View {
                 .listRowBackground(FLColor.warningSubtle)
             }
             if !browser.items.isEmpty {
-                FilterRail(selection: $browser.filter)
+                FilterRail(chips: VaultScope.chips, selection: $navigation.scope)
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
-            let rows = browser.visible
+            let rows = browser.rows(query: navigation.query, scope: navigation.scope.forCompact)
             if !browser.items.isEmpty {
                 Text(rows.count == 1 ? "1 item" : "\(rows.count) items")
                     .font(FLFont.ui(FLText.base, relativeTo: .callout))
@@ -47,7 +48,7 @@ struct VaultListView: View {
                     .listRowSeparator(.hidden)
             }
             if rows.isEmpty {
-                EmptyState(isSearching: browser.isSearching, hasItems: !browser.items.isEmpty)
+                EmptyState(isSearching: navigation.isSearching, hasItems: !browser.items.isEmpty)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             }
@@ -55,16 +56,7 @@ struct VaultListView: View {
                 NavigationLink(value: item.id) { ItemRow(item: item) }
                     .flTileRows()
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        if let field = item.secretFields.first {
-                            Button {
-                                if let value = try? browser.session.revealField(itemId: item.id, field: field) {
-                                    copier.copy(value, key: item.id + field)
-                                }
-                            } label: {
-                                Label("Copy \(VaultItem.label(forSecret: field))", systemImage: "doc.on.doc")
-                            }
-                            .tint(FLColor.primary)
-                        }
+                        CopySecretButton(item: item, browser: browser, copier: copier).tint(FLColor.primary)
                     }
             }
         }
@@ -79,7 +71,7 @@ struct VaultListView: View {
         .navigationDestination(for: String.self) { id in
             ItemDetailHost(id: id, browser: browser, copier: copier)
         }
-        .modifier(ItemManagementToolbar(browser: browser, copier: copier))
+        .modifier(ItemManagementToolbar(browser: browser, copier: copier, listsDeleted: true))
         .refreshable {
             await sync.syncNow(force: true)
             await browser.reload()
@@ -87,18 +79,20 @@ struct VaultListView: View {
     }
 }
 
-/// The type filter as a row of large chips (the prototype's "All, Logins, ..."): each is a full 44 pt target.
-private struct FilterRail: View {
-    @Binding var selection: VaultBrowser.Filter
+/// The type filter as a row of large chips (the prototype's "All, Logins, ..."): each is a full 44 pt target. When the
+/// window's scope is one a chip cannot show (a tag, a single kind of the "Other" group) none is selected.
+struct FilterRail: View {
+    let chips: [(title: String, scope: VaultScope)]
+    @Binding var selection: VaultScope
 
     var body: some View {
         HStack(spacing: FLSpace.s2) {
-            ForEach(VaultBrowser.Filter.allCases) { filter in
-                let chosen = filter == selection
+            ForEach(chips, id: \.title) { chip in
+                let chosen = chip.scope == selection.forCompact
                 Button {
-                    selection = filter
+                    selection = chip.scope
                 } label: {
-                    Text(filter.title)
+                    Text(chip.title)
                         .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
                         .foregroundStyle(chosen ? FLColor.textOnPrimary : FLColor.text)
                         .lineLimit(1)
@@ -120,22 +114,44 @@ private struct FilterRail: View {
     }
 }
 
+/// "Copy password" (or the first secret's name) for a row: the swipe action of the phone list and the context menu of
+/// the iPad list. Nothing when the item has no secret.
+struct CopySecretButton: View {
+    let item: VaultItem
+    let browser: VaultBrowser
+    let copier: ClipboardCopier
+
+    var body: some View {
+        if let field = item.secretFields.first {
+            Button {
+                if let value = try? browser.session.revealField(itemId: item.id, field: field) {
+                    copier.copy(value, key: item.id + field)
+                }
+            } label: {
+                Label("Copy \(VaultItem.label(forSecret: field))", systemImage: "doc.on.doc")
+            }
+        }
+    }
+}
+
 struct ItemRow: View {
     let item: VaultItem
+    /// The row is the selected one of the iPad list: light text on the primary highlight.
+    var isSelected = false
     @Environment(VaultEditor.self) private var editor: VaultEditor?
     private var unsynced: Bool { editor?.isUnsynced(item.id) == true }
 
     var body: some View {
         HStack(spacing: FLSpace.s3) {
-            TypeTile(kind: item.kind, size: 40)
+            TypeTile(kind: item.kind, size: 40, isSelected: isSelected)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(FLFont.ui(FLText.md, weight: FLWeight.semibold))
-                    .foregroundStyle(FLColor.text)
+                    .foregroundStyle(isSelected ? FLColor.textOnPrimary : FLColor.text)
                     .lineLimit(1)
                 Text(item.subtitle)
                     .font(FLFont.ui(FLText.base, relativeTo: .callout))
-                    .foregroundStyle(FLColor.textSecondary)
+                    .foregroundStyle(isSelected ? FLColor.textOnPrimary.opacity(0.85) : FLColor.textSecondary)
                     .lineLimit(1)
             }
             if unsynced {
@@ -154,18 +170,22 @@ struct ItemRow: View {
 struct TypeTile: View {
     let kind: ItemKind
     let size: CGFloat
+    var isSelected = false
 
     var body: some View {
         Image(systemName: kind.symbol)
             .font(.system(size: size * 0.45, weight: .medium))
-            .foregroundStyle(FLColor.primary)
+            .foregroundStyle(isSelected ? FLColor.textOnPrimary : FLColor.primary)
             .frame(width: size, height: size)
-            .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
+            .background(
+                isSelected ? Color.white.opacity(0.18) : FLColor.primarySubtle,
+                in: RoundedRectangle(cornerRadius: FLRadius.sm)
+            )
             .accessibilityHidden(true)
     }
 }
 
-private struct EmptyState: View {
+struct EmptyState: View {
     let isSearching: Bool
     let hasItems: Bool
 
@@ -241,7 +261,7 @@ private struct VaultHeader: View {
 
 /// "Syncing", "Synced" (three seconds), "Offline", or a problem that needs the person (it opens Sync). Plain text with
 /// a small icon; nothing at all, and no space, when there is nothing to say.
-private struct SyncStatusText: View {
+struct SyncStatusText: View {
     let sync: SyncModel
     @Environment(\.settingsContext) private var context
 

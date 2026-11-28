@@ -13,6 +13,8 @@ import UniformTypeIdentifiers
 struct ItemManagementToolbar: ViewModifier {
     let browser: VaultBrowser
     let copier: ClipboardCopier
+    /// The phone reaches Recently deleted from this menu; the iPad has it in the sidebar.
+    let listsDeleted: Bool
     @Environment(VaultEditor.self) private var editor: VaultEditor?
 
     @State private var creating: ItemKind?
@@ -29,10 +31,12 @@ struct ItemManagementToolbar: ViewModifier {
                         } label: {
                             Label("Password generator", systemImage: "wand.and.stars")
                         }
-                        Button {
-                            showDeleted = true
-                        } label: {
-                            Label("Recently deleted", systemImage: "trash")
+                        if listsDeleted {
+                            Button {
+                                showDeleted = true
+                            } label: {
+                                Label("Recently deleted", systemImage: "trash")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
@@ -206,6 +210,7 @@ struct ItemActions: ViewModifier {
     let item: VaultItem
     let copier: ClipboardCopier
     @Environment(VaultEditor.self) private var editor: VaultEditor?
+    @Environment(VaultNavigation.self) private var navigation: VaultNavigation?
     @Environment(\.dismiss) private var dismiss
 
     @State private var editing = false
@@ -255,6 +260,8 @@ struct ItemActions: ViewModifier {
     private func delete() async {
         do {
             try await editor?.delete(id: item.id)
+            // The phone pops the pushed screen; the iPad empties the detail column. Both follow the selection.
+            navigation?.selectedItemId = nil
             dismiss()
         } catch let error as EditFailure {
             failure = error.message

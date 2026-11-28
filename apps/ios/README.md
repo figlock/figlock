@@ -48,6 +48,17 @@ pasteboard still holds that copy. `SecretReveal` gates reveal behind Face ID or 
 needs no extra check (the vault is unlocked), revealing does. Face ID and the real pasteboard do not run on the
 simulator. The views are in `App/Vault`.
 
+## iPad layout
+
+On a regular width window `VaultRootView` shows `VaultSplitView`: a sidebar (All, kinds, tags, Recently deleted,
+Settings at the foot), the item list and the detail. On compact width (iPhone, Split View 1/3, Slide Over) it shows
+the phone's tabs and stack. A window can cross that line at any time, so what the person is looking at (sidebar
+choice, search, selected item, list anchor) is one `VaultNavigation` per window that both layouts read and write
+(ADR-0048 decision 2); nothing in it is written to disk. The browser, the writer and the copier belong to the unlock,
+not to a view: `AppEnvironment.unlockedVault()` builds one `UnlockedVault` per unlocked session and
+`endUnlockedVault()` drops it on lock. There is no Favourites entry yet because the vault has no favourite flag.
+`UITests/IPadVaultUITests` runs on an iPad simulator and skips on an iPhone.
+
 ## Export
 
 Settings > Export saves the vault as the JSON `figlock export` writes (`figlock_core::export_json`, through

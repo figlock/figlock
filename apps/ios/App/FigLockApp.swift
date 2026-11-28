@@ -51,12 +51,9 @@ struct RootView: View {
                 } else {
                     switch environment.vault.status() {
                     case .ready:
-                        if environment.lock.isUnlocked {
-                            VaultRootView(
-                                lock: environment.lock, vault: environment.vault, sync: environment.sync,
-                                identitySync: environment.identitySync
-                            )
-                            .environment(\.settingsContext, environment.settings)
+                        if let unlocked = environment.unlockedVault() {
+                            VaultRootView(unlocked: unlocked, sync: environment.sync)
+                                .environment(\.settingsContext, environment.settings)
                         } else {
                             LockScreen(lock: environment.lock, environment: environment)
                         }
@@ -74,6 +71,9 @@ struct RootView: View {
             }
             // Onboarding and recovery change the vault under this view; a new version redraws it.
             .id(environment.lock.vaultVersion)
+            .onChange(of: environment.lock.isUnlocked) { _, unlocked in
+                if !unlocked { environment.endUnlockedVault() }
+            }
         }
         .ignoresSafeArea()
     }
