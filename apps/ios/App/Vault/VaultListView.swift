@@ -143,7 +143,7 @@ struct ItemRow: View {
                 NotSyncedMark()
             }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, FLSpace.s3)
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(

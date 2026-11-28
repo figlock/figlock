@@ -133,7 +133,7 @@ private struct DeviceRowView: View {
                     .foregroundStyle(FLColor.success)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, FLRow.verticalPadding)
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .combine)
     }
