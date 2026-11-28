@@ -154,6 +154,44 @@ async fn export_vault(
     Ok(true)
 }
 
+/// Ask which file to import and read it here. The window gets only a preview (counts and titles); `None` when
+/// the person cancels the dialog. Nothing is written until `import_commit` (FIG-285).
+#[tauri::command]
+async fn import_choose(
+    app: AppHandle,
+    desk: State<'_, Desk>,
+    source: String,
+) -> CmdRes<Option<desk::import::ImportPreview>> {
+    let (name, exts): (&str, &[&str]) = if source == "notes" {
+        ("Notes", &["txt", "md", "text"])
+    } else {
+        ("CSV", &["csv"])
+    };
+    let Some(path) = app
+        .dialog()
+        .file()
+        .add_filter(name, exts)
+        .blocking_pick_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    desk.import_prepare(&source, &path).map(Some)
+}
+
+/// Add the previewed items to the vault; how many were added.
+#[tauri::command]
+async fn import_commit(desk: State<'_, Desk>) -> CmdRes<usize> {
+    desk.import_commit()
+}
+
+/// The person went back or cancelled: forget the previewed file.
+#[tauri::command]
+async fn import_discard(desk: State<'_, Desk>) -> CmdRes<()> {
+    desk.import_discard();
+    Ok(())
+}
+
 /// Make a new Recovery Key to show.
 #[tauri::command]
 async fn recovery_prepare(desk: State<'_, Desk>) -> CmdRes<RecoveryMaterial> {
@@ -1061,6 +1099,9 @@ pub fn run() {
             item_detail,
             reveal_field,
             export_vault,
+            import_choose,
+            import_commit,
+            import_discard,
             copy_field,
             copy_text,
             add_item,

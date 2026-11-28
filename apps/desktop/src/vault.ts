@@ -128,6 +128,24 @@ export const exportVault = (
     password: password ?? null,
     secretKey: secretKey ?? null,
   });
+/** What an import file holds, for a preview. No secret value (FIG-285). */
+export type ImportPreview = {
+  logins: number;
+  notes: number;
+  tokens: number;
+  tokensDetected: number;
+  skipped: number;
+  titles: string[];
+  more: number;
+};
+export type ImportSource = "chrome" | "apple" | "notes";
+/** Ask for the file (native dialog) and parse it. Nothing is written. `null` when the dialog is cancelled. */
+export const importChoose = (source: ImportSource) =>
+  invoke<ImportPreview | null>("import_choose", { source });
+/** Add the previewed items to the vault; resolves how many were added. */
+export const importCommit = () => invoke<number>("import_commit");
+/** Forget the previewed file. */
+export const importDiscard = () => invoke<void>("import_discard");
 /** The vault removed this Mac: stop using it here. Nothing is deleted from the folder or Google Drive. */
 export const leaveVault = () => invoke<void>("leave_vault");
 export const checkKitKey = (typed: string) => invoke<boolean>("check_kit_key", { typed });

@@ -191,6 +191,8 @@ struct Inner {
     cache: Option<items::Cache>,
     /// Files chosen for a document item, until it is saved or the editor closes.
     staged: std::collections::HashMap<String, items::StagedData>,
+    /// A parsed import file waiting for the person to confirm (FIG-285); dropped when the session locks.
+    importing: Option<import::Pending>,
     /// What the last copy left on the clipboard.
     copied: Option<items::Copied>,
     creating: Option<Creating>,
@@ -246,6 +248,7 @@ impl Inner {
         self.recovering = None;
         self.cache = None;
         self.staged.clear();
+        self.importing = None;
     }
 }
 
@@ -422,6 +425,7 @@ impl Desk {
                 held_key: None,
                 cache: None,
                 staged: std::collections::HashMap::new(),
+                importing: None,
                 copied: None,
                 creating: None,
                 reissued: None,
@@ -1061,6 +1065,7 @@ pub mod folder;
 pub mod forgot;
 pub mod generate;
 pub mod health;
+pub mod import;
 pub mod items;
 pub mod pairing;
 pub mod recovery;
@@ -1089,6 +1094,8 @@ mod folder_tests;
 mod forgot_tests;
 #[cfg(test)]
 mod health_tests;
+#[cfg(test)]
+mod import_tests;
 #[cfg(test)]
 mod item_tests;
 #[cfg(test)]

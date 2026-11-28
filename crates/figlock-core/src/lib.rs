@@ -54,7 +54,7 @@ pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
 pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};
 pub use import::{
     Detected, Draft, ImportError, MAX_INPUT_BYTES, MAX_RECORDS, Report, SkipReason, Skipped,
-    Source, detect_tokens, parse as parse_import,
+    Source, Summary as ImportSummary, detect_tokens, parse as parse_import,
 };
 pub use invite::{
     INBOX_MAX_BYTES, INBOX_STALE_MS, INVITE_TTL_MS, InboxKind, Invite, InviteOffer, JoinAttempt,

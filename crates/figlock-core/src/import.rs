@@ -116,6 +116,50 @@ pub struct Report {
     pub tokens_detected: usize,
 }
 
+/// What a [`Report`] found, for a preview: counts and titles, never a secret value. The CLI, desktop and iOS
+/// all show this before anything is written.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Summary {
+    pub logins: usize,
+    pub notes: usize,
+    pub tokens: usize,
+    pub tokens_detected: usize,
+    pub skipped_empty: usize,
+    pub skipped_too_large: usize,
+    pub skipped_unsupported: usize,
+    /// The item titles in file order, at most `limit` of them.
+    pub titles: Vec<String>,
+}
+
+impl Report {
+    /// Counts and the first `title_limit` titles. Titles are not secret but are already length-capped by the parser.
+    pub fn summary(&self, title_limit: usize) -> Summary {
+        let count = |t: ItemType| self.items.iter().filter(|d| d.item_type == t).count();
+        let skipped = |r: SkipReason| self.skipped.iter().filter(|s| s.reason == r).count();
+        Summary {
+            logins: count(ItemType::Login),
+            notes: count(ItemType::Note),
+            tokens: count(ItemType::Token),
+            tokens_detected: self.tokens_detected,
+            skipped_empty: skipped(SkipReason::Empty),
+            skipped_too_large: skipped(SkipReason::FieldTooLarge),
+            skipped_unsupported: skipped(SkipReason::UnsupportedType),
+            titles: self
+                .items
+                .iter()
+                .take(title_limit)
+                .map(|d| {
+                    d.fields
+                        .iter()
+                        .find(|(n, _)| n == "title")
+                        .map(|(_, v)| v.to_string())
+                        .unwrap_or_default()
+                })
+                .collect(),
+        }
+    }
+}
+
 /// Parse `bytes` as an export of `source`.
 pub fn parse(source: Source, bytes: &[u8]) -> Result<Report, ImportError> {
     if bytes.len() > MAX_INPUT_BYTES {
