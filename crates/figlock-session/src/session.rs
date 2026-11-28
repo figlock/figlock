@@ -215,8 +215,7 @@ pub fn peek_kept_key() -> Res<figlock_core::KeptKey> {
     let store = crate::store::open(&cfg.place)?;
     let vault_json = read_vault_json(store.as_ref())?;
     let vault = vault_id_of(&vault_json)?;
-    let vault_gen =
-        Vault::sk_gen_in(&vault_json).map_err(|_| Fail::new("vault.json is damaged"))?;
+    let vault_gen = Vault::sk_gen_in(&vault_json).map_err(|_| damaged_vault())?;
     if !crate::secret_key_store::system()?.has(&vault) {
         return Ok(figlock_core::KeptKey::Current);
     }
@@ -235,8 +234,22 @@ fn wrong_password() -> Fail {
     )
 }
 
-fn wrong_credentials() -> Fail {
-    Fail::new("could not unlock: wrong password or Secret Key, or the vault file is damaged")
+/// The one explanation when a vault will not open with the password and Secret Key given. The two are checked
+/// together, so FigLock cannot say which is wrong; a damaged vault file looks the same from outside.
+pub fn wrong_credentials() -> Fail {
+    Fail::new(
+        "could not unlock: the password or Secret Key is wrong (FigLock cannot tell which), or the vault file is \
+         damaged. Check both against your Emergency Kit. If you cannot get in, `figlock forgot` resets a password \
+         with the Recovery Key, or `figlock forget` removes the vault from this device so you can `figlock open` \
+         or `figlock join` again",
+    )
+}
+
+fn damaged_vault() -> Fail {
+    Fail::new(
+        "vault.json is damaged. Restore the vault folder from a synced copy or a backup, or run `figlock forget` \
+         and open the vault again",
+    )
 }
 
 /// `vault_id` from `vault.json`, which names this vault's quick-unlock entry.
@@ -244,7 +257,7 @@ pub fn vault_id_of(vault_json: &[u8]) -> Res<String> {
     serde_json::from_slice::<serde_json::Value>(vault_json)
         .ok()
         .and_then(|v| v["vault_id"].as_str().map(str::to_owned))
-        .ok_or_else(|| Fail::new("vault.json is damaged"))
+        .ok_or_else(damaged_vault)
 }
 
 /// The Secret Key, the Account Unlock Key and the opened vault for a full unlock. The key this device keeps is
@@ -268,7 +281,7 @@ fn credentials<B: quick::Backend, T>(
     ui: &dyn Ui,
     open: &dyn Fn(&Key) -> Res<Result<T, figlock_core::Error>>,
 ) -> Res<(SecretKey, Key, T)> {
-    let vault_gen = Vault::sk_gen_in(vault_json).map_err(|_| Fail::new("vault.json is damaged"))?;
+    let vault_gen = Vault::sk_gen_in(vault_json).map_err(|_| damaged_vault())?;
     let try_key = |secret_key: SecretKey| -> Res<(SecretKey, Key, T)> {
         let auk = Vault::unlock_key(vault_json, password, &secret_key)
             .map_err(|_| wrong_credentials())?;
@@ -538,7 +551,7 @@ impl Session {
     pub fn refresh(&mut self) -> Res<Refreshed> {
         let vault_json = read_vault_json(self.store.as_ref())?;
         let v: serde_json::Value =
-            serde_json::from_slice(&vault_json).map_err(|_| Fail::new("vault.json is damaged"))?;
+            serde_json::from_slice(&vault_json).map_err(|_| damaged_vault())?;
         let settings_changed = v["revision"].as_u64() != Some(self.vault.revision())
             || v["key_epoch"].as_u64() != Some(u64::from(self.vault.epoch()));
         if settings_changed {
