@@ -101,20 +101,22 @@
 
   onMount(() => {
     const query = window.matchMedia?.("(min-width: 1000px)");
+    const onWidth = (e: MediaQueryListEvent) => {
+      wide = e.matches;
+      // Narrow again: the item that was open beside the list becomes the page on top of it.
+      const r = nav.current;
+      if (!wide && r.p === "list" && r.sel) nav.push({ p: "item", id: r.sel, from: r.f });
+    };
     if (query) {
       wide = query.matches;
-      query.addEventListener("change", (e) => {
-        wide = e.matches;
-        // Narrow again: the item that was open beside the list becomes the page on top of it.
-        const r = nav.current;
-        if (!wide && r.p === "list" && r.sel) nav.push({ p: "item", id: r.sel, from: r.f });
-      });
+      query.addEventListener("change", onWidth);
     }
     void library.refresh();
     const stopSync = sync.start();
     // FigLock > About FigLock in the app menu.
     const stopAbout = onOpenAbout(() => nav.go({ p: "settings", page: "about" }));
     return () => {
+      query?.removeEventListener("change", onWidth);
       library.stop();
       stopSync();
       void stopAbout.then((off) => off());
