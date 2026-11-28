@@ -691,8 +691,10 @@ fn generate_needs_one_character_class() {
 #[test]
 fn generate_passphrase_honours_words_separator_and_capitalize() {
     let e = Env::init();
+    // Some words in the list contain a hyphen themselves ("drop-down"), so a hyphen-joined passphrase has at
+    // least six parts, not exactly six.
     let p = e.ok(&["generate", "--passphrase"]);
-    assert_eq!(p.trim().split('-').count(), 6);
+    assert!(p.trim().split('-').count() >= 6, "{p}");
     let p = e.ok(&[
         "generate",
         "--passphrase",
@@ -711,9 +713,13 @@ fn generate_passphrase_honours_words_separator_and_capitalize() {
             .all(|w| w.chars().next().unwrap().is_uppercase())
     );
     let p = e.ok(&["generate", "-p", "--separator", "none", "--words", "3"]);
-    assert!(p.trim().bytes().all(|b| b.is_ascii_lowercase()));
+    assert!(
+        p.trim()
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b == b'-')
+    );
     let json: Value = serde_json::from_str(&e.ok(&["--json", "generate", "-p"])).unwrap();
-    assert_eq!(json["passphrase"].as_str().unwrap().split('-').count(), 6);
+    assert!(json["passphrase"].as_str().unwrap().split('-').count() >= 6);
     assert!(json.get("password").is_none());
 }
 
