@@ -1,6 +1,6 @@
 # ADR-0048: iPad app - one universal build, a split view layout, several windows, one lock
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-28
 - Decision: D49 in `docs/decisions.md`
 - Amends: ADR-0041 (decision 1: the app is no longer iPhone only)
@@ -29,8 +29,9 @@ an iPad:
   both: twice the memory, and two writers on one log in one process.
 - **Capture detection reads the main screen.** `CaptureMonitor` uses `UIScreen.main.isCaptured`. That says nothing
   about a window on an external display or one scene being recorded.
-- **Share sheets.** The Emergency Kit share sheet is a `UIActivityViewController`, which crashes on iPad unless it is
-  given a popover anchor.
+- **Share sheets.** The Emergency Kit share sheet is a `UIActivityViewController`. It is hosted as the content of a
+  SwiftUI sheet, so it may need no popover anchor, but any such controller that UIKit presents as a popover on iPad
+  needs one. FIG-265 found no other use; FIG-277 checks the kit share on an iPad.
 - **Quick unlock.** ADR-0046 binds `QK` to `.biometryCurrentSet`. That works with Touch ID as with Face ID, but the
   strings say "Face ID" (`NSFaceIDUsageDescription`, Settings, onboarding).
 - **The extension.** The credential provider runs on iPad too, in a popover or a form sized sheet, with the same
@@ -72,8 +73,8 @@ that runs iPadOS 18 has a Secure Enclave, and has Touch ID, Face ID or only a pa
 - **Onboarding, pairing, unlock and recovery** are not sheets on iPad. They are one centred column capped at form
   width (about 540 pt) on the app background; a sheet over an empty screen reads wrong. A sheet is used only for
   what comes over the vault.
-- **Every `UIActivityViewController`, document picker and similar UIKit presentation is given a source anchor.**
-  FIG-265 audits and fixes `KitShareSheet` and any other.
+- **Every UIKit controller that is presented as a popover on iPad (share sheet, document picker, print) is given a
+  source anchor.** The kit share sheet is hosted as sheet content and is checked on an iPad in FIG-277.
 - Concrete sizes, spacing and the 11 and 13 inch screens come from the approved designs (FIG-264), not from this ADR.
 
 **4. Several windows, one lock, one session.**
