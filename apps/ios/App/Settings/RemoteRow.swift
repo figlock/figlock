@@ -25,7 +25,7 @@ struct RemoteRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, FLRow.verticalPadding)
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .combine)
     }

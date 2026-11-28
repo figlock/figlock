@@ -181,7 +181,7 @@ struct SettingsRow: View {
                     FLColor.textSecondary)
             }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, FLRow.verticalPadding)
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .combine)
     }
