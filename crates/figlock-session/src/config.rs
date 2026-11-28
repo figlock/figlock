@@ -364,15 +364,31 @@ pub fn forget() {
 }
 
 fn forget_in(home: &Path, store: Option<&dyn SecretStore>) {
+    let _ = remove_device_in(home, store);
+}
+
+/// Like [`forget`], but says so when a key or file could not be removed. A key that will not delete leaves
+/// `device.json` in place, so running it again can finish the job.
+pub fn remove_device() -> Res<()> {
+    remove_device_in(&home()?, keystore::system().as_deref())
+}
+
+fn remove_device_in(home: &Path, store: Option<&dyn SecretStore>) -> Res<()> {
     if let (Some(store), Ok(raw)) = (store, fs::read(device_path(home)))
         && let Some(id) = serde_json::from_slice::<Value>(&raw)
             .ok()
             .and_then(|v| v.get("device_id")?.as_str().map(str::to_owned))
     {
-        let _ = store.delete(&id);
+        store.delete(&id)?;
     }
-    let _ = fs::remove_file(config_path(home));
-    let _ = fs::remove_file(device_path(home));
+    for path in [config_path(home), device_path(home)] {
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
 }
 
 fn not_set_up() -> Fail {
@@ -739,6 +755,7 @@ mod tests {
     struct Fake {
         items: RefCell<HashMap<String, Vec<u8>>>,
         fail_put: Cell<bool>,
+        fail_delete: Cell<bool>,
     }
 
     impl SecretStore for Fake {
@@ -759,6 +776,9 @@ mod tests {
                 .map(|v| Zeroizing::new(v.clone())))
         }
         fn delete(&self, account: &str) -> Res<()> {
+            if self.fail_delete.get() {
+                return Err(Fail::new("keystore is locked"));
+            }
             self.items.borrow_mut().remove(account);
             Ok(())
         }
@@ -921,6 +941,20 @@ mod tests {
         forget_in(d.path(), Some(&store));
         assert!(store.items.borrow().is_empty());
         assert!(!device_path(d.path()).exists() && !config_path(d.path()).exists());
+    }
+
+    #[test]
+    fn removing_a_device_reports_a_keystore_that_will_not_delete_and_keeps_device_json() {
+        let d = tempfile::tempdir().unwrap();
+        let (store, keys) = (Fake::default(), DeviceKeys::generate().unwrap());
+        save_in(d.path(), &cfg(), &keys, Some(&store)).unwrap();
+        store.fail_delete.set(true);
+        assert!(remove_device_in(d.path(), Some(&store)).is_err());
+        assert!(device_path(d.path()).exists());
+        store.fail_delete.set(false);
+        remove_device_in(d.path(), Some(&store)).unwrap();
+        assert!(!device_path(d.path()).exists() && !config_path(d.path()).exists());
+        remove_device_in(d.path(), Some(&store)).unwrap();
     }
 
     #[test]

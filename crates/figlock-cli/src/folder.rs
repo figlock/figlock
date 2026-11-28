@@ -192,7 +192,7 @@ pub fn forget(yes: bool, json: bool) -> Res<()> {
             return Err(Fail::new("nothing was removed"));
         }
     }
-    config::forget();
+    config::remove_device()?;
     if json {
         println!("{}", json!({ "status": "forgotten" }));
     } else {
