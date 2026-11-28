@@ -32,8 +32,8 @@ pub struct Status {
 }
 
 /// The Google account's email as recorded at sign-in, when known. No network call.
-pub fn account_email() -> Option<String> {
-    config::drive_account_email()
+pub fn linked_account() -> Option<String> {
+    config::drive_linked_account()
 }
 
 pub fn status() -> Res<Status> {
@@ -93,13 +93,13 @@ pub fn sign_in_until(show_url: impl FnOnce(&str), cancel: &AtomicBool) -> Res<()
             e => e.into(),
         })?;
     // Which account was just linked. Best effort: the sign-in stands without it, and the email is never logged.
-    let email = GoogleDrive::new(oauth.token_source(figlock_store::Credentials {
+    let account = GoogleDrive::new(oauth.token_source(figlock_store::Credentials {
         refresh_token: creds.refresh_token.clone(),
     }))
     .account_email()
     .ok()
     .flatten();
-    config::save_drive_token_with_email(&creds.refresh_token, email.as_deref())?;
+    config::save_drive_token_with_email(&creds.refresh_token, account.as_deref())?;
     crate::sync::clear_sign_in_refused();
     Ok(())
 }

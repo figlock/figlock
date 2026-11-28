@@ -402,7 +402,7 @@ pub fn status(json: bool) -> Res<()> {
             "remotes": cfg.place.remotes.iter().map(Remote::id).collect::<Vec<_>>(),
             "details": details.iter().map(RemoteStatus::json).collect::<Vec<_>>(),
             "signed_in": signed_in,
-            "email": if signed_in { json!(drive::account_email()) } else { json!(null) },
+            "email": if signed_in { json!(drive::linked_account()) } else { json!(null) },
             "sign_in_refused": refused,
             "last_sync_seconds_ago": last,
         }));
@@ -462,8 +462,8 @@ impl RemoteStatus {
                 None,
                 signed_in,
                 if signed_in {
-                    match drive::account_email() {
-                        Some(email) => format!("Signed in to Google: yes ({email})"),
+                    match drive::linked_account() {
+                        Some(account) => format!("Signed in to Google: yes ({account})"),
                         None => "Signed in to Google: yes".to_owned(),
                     }
                 } else if refused {

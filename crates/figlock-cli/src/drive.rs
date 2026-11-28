@@ -14,12 +14,12 @@ pub fn login(json: bool) -> Res<()> {
             "Opening your browser to sign in to Google. If nothing opens, visit:\n\n  {url}\n"
         );
     })?;
-    let email = drive::account_email();
+    let account = drive::linked_account();
     if json {
-        println!("{}", json!({"status": "signed-in", "email": email}));
+        println!("{}", json!({"status": "signed-in", "email": account}));
     } else {
-        match &email {
-            Some(email) => println!("Signed in to Google Drive as {email}."),
+        match &account {
+            Some(account) => println!("Signed in to Google Drive as {account}."),
             None => println!("Signed in to Google Drive."),
         }
         println!("FigLock can only see its own hidden app folder.");
