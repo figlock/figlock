@@ -55,6 +55,7 @@
       preview = null;
       await w.library.refresh();
     } catch (e) {
+      preview = null;
       error = failure(w, e);
     } finally {
       busy = false;
