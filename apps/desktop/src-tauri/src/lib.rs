@@ -122,6 +122,38 @@ async fn save_emergency_kit_again(
     Ok(true)
 }
 
+/// Ask where to save the vault as JSON and write it there, owner-only. Secrets are included only after Touch ID
+/// or the password again (FIG-287). `false` when the person cancels the save dialog; nothing is written then.
+#[tauri::command]
+async fn export_vault(
+    app: AppHandle,
+    desk: State<'_, Desk>,
+    include_secrets: bool,
+    include_deleted: bool,
+    password: Option<String>,
+    secret_key: Option<String>,
+) -> CmdRes<bool> {
+    let text = desk.export_vault(
+        include_secrets,
+        include_deleted,
+        password.as_deref(),
+        secret_key.as_deref(),
+    )?;
+    let Some(path) = app
+        .dialog()
+        .file()
+        .set_file_name("figlock-export.json")
+        .add_filter("JSON", &["json"])
+        .blocking_save_file()
+        .and_then(|p| p.into_path().ok())
+    else {
+        return Ok(false);
+    };
+    figlock_session::docfile::write_out(text.as_bytes(), &path.display().to_string(), true)
+        .map_err(CmdError::from)?;
+    Ok(true)
+}
+
 /// Make a new Recovery Key to show.
 #[tauri::command]
 async fn recovery_prepare(desk: State<'_, Desk>) -> CmdRes<RecoveryMaterial> {
@@ -1028,6 +1060,7 @@ pub fn run() {
             list_deleted,
             item_detail,
             reveal_field,
+            export_vault,
             copy_field,
             copy_text,
             add_item,

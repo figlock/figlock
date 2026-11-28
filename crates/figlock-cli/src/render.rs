@@ -4,11 +4,12 @@
 use std::borrow::Cow;
 use std::io::IsTerminal;
 
-use figlock_core::{ItemView, is_secret_field};
-use serde_json::{Map, Value, json};
+use figlock_core::ItemView;
+use serde_json::{Value, json};
 
 use figlock_session::session::{id_hex, title_of};
 
+pub use figlock_core::item_json;
 pub use figlock_session::clean;
 
 /// Text for stdout where a script may read it raw: cleaned only when a person is looking at a terminal.
@@ -55,29 +56,5 @@ pub fn summary_json(item: &ItemView) -> Value {
         "urls": non_secret("url/"),
         "allowed_hosts": non_secret("allowed_hosts/"),
         "updated_ms": item.updated.wall,
-    })
-}
-
-/// Full item as JSON. Secret values are included only with `reveal`.
-pub fn item_json(item: &ItemView, reveal: bool) -> Value {
-    let mut fields = Map::new();
-    let mut secret_fields = Vec::new();
-    for (name, v) in &item.fields {
-        if is_secret_field(name) {
-            secret_fields.push(name.clone());
-            if !reveal {
-                continue;
-            }
-        }
-        fields.insert(name.clone(), Value::String(v.to_string()));
-    }
-    json!({
-        "id": id_hex(&item.id),
-        "type": item.item_type.as_str(),
-        "vault": item.vault,
-        "deleted": item.deleted,
-        "updated_ms": item.updated.wall,
-        "fields": fields,
-        "secret_fields": secret_fields,
     })
 }

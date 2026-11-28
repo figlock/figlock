@@ -30,9 +30,9 @@ ciborium.workspace = true
 base64.workspace = true
 qrcode.workspace = true
 zxcvbn.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
-hex.workspace = true
 proptest.workspace = true
 rqrr.workspace = true
 

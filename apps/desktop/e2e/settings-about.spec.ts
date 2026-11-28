@@ -8,7 +8,7 @@ test.describe("Settings list and About (FIG-304, FIG-305)", () => {
     for (const group of ["General", "This vault", "More"]) {
       await expect(page.getByRole("heading", { name: group })).toBeVisible();
     }
-    for (const row of ["security", "sync", "devices", "updates", "advanced", "about"]) {
+    for (const row of ["security", "sync", "devices", "export", "updates", "advanced", "about"]) {
       await expect(page.getByTestId(`settings-${row}`)).toBeVisible();
     }
     // No paragraph of explanation on the list itself.

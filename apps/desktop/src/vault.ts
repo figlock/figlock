@@ -111,6 +111,23 @@ export const saveEmergencyKitAgain = (password?: string, secretKey?: string) =>
     password: password ?? null,
     secretKey: secretKey ?? null,
   });
+/**
+ * Save the vault as JSON where the person chooses (FIG-287). Secrets are included only with `includeSecrets`, and
+ * then the backend asks again: Touch ID or the device password when there is no password here, otherwise the
+ * password (and the Secret Key when this Mac keeps none). Resolves `false` when the save dialog is cancelled.
+ */
+export const exportVault = (
+  includeSecrets: boolean,
+  includeDeleted: boolean,
+  password?: string,
+  secretKey?: string,
+) =>
+  invoke<boolean>("export_vault", {
+    includeSecrets,
+    includeDeleted,
+    password: password ?? null,
+    secretKey: secretKey ?? null,
+  });
 /** The vault removed this Mac: stop using it here. Nothing is deleted from the folder or Google Drive. */
 export const leaveVault = () => invoke<void>("leave_vault");
 export const checkKitKey = (typed: string) => invoke<boolean>("check_kit_key", { typed });

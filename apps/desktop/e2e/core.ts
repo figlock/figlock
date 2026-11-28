@@ -48,6 +48,8 @@ export type Options = {
   keyNotKept?: boolean;
   /** The person cancels the save dialog of the Emergency Kit. */
   kitDialogCancelled?: boolean;
+  /** Touch ID is not confirmed when a secrets export asks for it. */
+  touchDeclined?: boolean;
   /** Deleting the Drive copy fails with this error (code and words). */
   deleteFails?: { code: string; message: string };
 };

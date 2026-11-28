@@ -68,6 +68,7 @@
     devices: "Devices",
     updates: "Updates",
     advanced: "Command line tool",
+    export: "Export",
     about: "About FigLock",
   };
   const NAMES: Record<string, string> = { all: "All items", deleted: "Recently deleted" };
