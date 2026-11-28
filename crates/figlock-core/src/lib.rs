@@ -15,6 +15,7 @@ mod aead;
 mod audit;
 mod document;
 mod error;
+mod export;
 mod file;
 pub mod generate;
 pub mod health;
@@ -48,6 +49,7 @@ pub use audit::{
 };
 pub use document::{MAX_FILE_BYTES, decode_file, encode_file};
 pub use error::{Error, Result};
+pub use export::{EXPORT_FORMAT, export_json, export_value, item_json};
 pub use file::{FILE_HEADER_LEN, FileId, Kind, build_file, read_file};
 pub use hlc::{Hlc, MAX_DRIFT_MS, Stamp, is_held};
 pub use import::{

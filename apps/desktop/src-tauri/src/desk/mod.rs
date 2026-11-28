@@ -1056,6 +1056,7 @@ pub mod cli_tool;
 pub mod credentials;
 pub mod devices;
 pub mod drive;
+pub mod export;
 pub mod folder;
 pub mod forgot;
 pub mod generate;
@@ -1080,6 +1081,8 @@ mod cli_tool_tests;
 mod credential_tests;
 #[cfg(test)]
 mod device_tests;
+#[cfg(test)]
+mod export_tests;
 #[cfg(test)]
 mod folder_tests;
 #[cfg(test)]

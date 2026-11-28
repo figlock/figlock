@@ -75,6 +75,9 @@
     // What the save dialog does: the kits written so far, and whether the person cancels the dialog.
     kitsSaved: [],
     kitDialogCancelled: opts.kitDialogCancelled ?? false,
+    // Exports written so far (FIG-287), and whether Touch ID is declined when a secrets export asks.
+    exports: [],
+    touchDeclined: opts.touchDeclined ?? false,
     // What deleting the Drive copy answers (FIG-122): the files deleted so far, and an error to give instead.
     driveDeletes: [],
     deleteFails: opts.deleteFails ?? null,
@@ -521,6 +524,28 @@
       if (core.kitDialogCancelled) return false;
       core.kitsSaved.push(secretKey ?? KEY);
       return true;
+    },
+    export_vault: ({ includeSecrets, includeDeleted, password, secretKey }) => {
+      if (includeSecrets) {
+        if (password) {
+          if (core.keyNotKept && !secretKey)
+            return fail(
+              "needs_secret_key",
+              "Type your Secret Key from your Emergency Kit to continue.",
+            );
+          if (password !== PASSWORD || (core.keyNotKept && secretKey !== KEY))
+            return fail(
+              "wrong_credentials",
+              "That password and Secret Key do not match this vault.",
+            );
+        } else if (!core.quickUnlock || core.keyNotKept) {
+          return fail("needs_password", "Type your password to export with secrets.");
+        } else if (core.touchDeclined) {
+          return fail("not_confirmed", "Nothing was exported because Touch ID was not confirmed.");
+        }
+      }
+      core.exports.push({ includeSecrets, includeDeleted, password: password ?? null });
+      return !core.kitDialogCancelled;
     },
     leave_vault: () => {
       if (core.removedAtMs === null) return fail("not_removed", "This Mac has not been removed.");

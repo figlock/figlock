@@ -5,6 +5,7 @@
   import CommandLinePanel from "./CommandLinePanel.svelte";
   import CredentialsPanel from "./CredentialsPanel.svelte";
   import Devices from "./Devices.svelte";
+  import ExportPanel from "./ExportPanel.svelte";
   import RecoveryPanel from "./RecoveryPanel.svelte";
   import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import SettingsGroup from "./SettingsGroup.svelte";
@@ -48,6 +49,8 @@
   <SettingsPage title="Updates"><UpdatePanel /></SettingsPage>
 {:else if page === "advanced"}
   <SettingsPage title="Command line tool"><CommandLinePanel /></SettingsPage>
+{:else if page === "export"}
+  <SettingsPage title="Export"><ExportPanel /></SettingsPage>
 {:else if page === "about"}
   <AboutPage />
 {:else}
@@ -88,6 +91,13 @@
         title="Devices"
         testid="settings-devices"
         onclick={() => nav.go({ p: "settings", page: "devices" })}
+      />
+      <SettingsRow
+        icon="download"
+        title="Export"
+        testid="settings-export"
+        hint="Save your items as a JSON file"
+        onclick={() => nav.go({ p: "settings", page: "export" })}
       />
     </SettingsGroup>
 

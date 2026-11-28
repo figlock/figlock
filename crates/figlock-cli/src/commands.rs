@@ -646,16 +646,11 @@ pub fn export(a: ExportArgs) -> Res<()> {
     crate::sync_cmd::pull_first();
     let mut s = Session::open(prompt::terminal())?;
     let items = s.items(a.include_deleted);
-    let list: Vec<Value> = items
-        .iter()
-        .map(|i| item_json(i, a.include_secrets))
-        .collect();
     if a.include_secrets {
         eprintln!("warning: this output contains secrets in plain text");
     }
-    print_json(&json!({
-        "format": "figlock-export-1",
-        "secrets_included": a.include_secrets,
-        "items": list,
-    }))
+    let text = figlock_core::export_json(&items, a.include_secrets)
+        .ok_or_else(|| Fail::new("cannot format output"))?;
+    println!("{}", text.as_str());
+    Ok(())
 }
