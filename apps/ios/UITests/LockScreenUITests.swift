@@ -20,6 +20,7 @@ final class LockScreenUITests: XCTestCase {
         field.tap()
         field.typeText("not-the-password")
         XCTAssertTrue(app.keyboards.firstMatch.exists)
+        settleKeyboard()
         app.buttons["Unlock"].tap()
         XCTAssertTrue(
             app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"isn't right\"")).firstMatch
@@ -36,6 +37,7 @@ final class LockScreenUITests: XCTestCase {
             if attempt == 1 { XCTAssertTrue(field.waitForExistence(timeout: 15)) }
             field.tap()
             field.typeText("not-the-password")
+            settleKeyboard()
             app.buttons["Unlock"].tap()
             if attempt < 3 {
                 XCTAssertTrue(
@@ -48,6 +50,9 @@ final class LockScreenUITests: XCTestCase {
                 .waitForExistence(timeout: 15))
         assertFieldEmpty()
     }
+
+    /// A tap right after `typeText` can be swallowed while the keyboard and its suggestion bar settle.
+    private func settleKeyboard() { Thread.sleep(forTimeInterval: 1.5) }
 
     /// An empty secure field reports its placeholder ("Password") as its value.
     private func assertFieldEmpty(file: StaticString = #filePath, line: UInt = #line) {
