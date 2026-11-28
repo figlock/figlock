@@ -95,6 +95,12 @@ struct SettingsView: View {
                         value: context.sync.summary)
                 }
                 NavigationLink {
+                    ImportView()
+                } label: {
+                    SettingsRow(symbol: "square.and.arrow.down", title: "Import")
+                }
+                .accessibilityIdentifier("settings-import")
+                NavigationLink {
                     ExportView(context: context)
                 } label: {
                     SettingsRow(symbol: "square.and.arrow.up", title: "Export")

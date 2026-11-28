@@ -59,6 +59,14 @@ not to a view: `AppEnvironment.unlockedVault()` builds one `UnlockedVault` per u
 `endUnlockedVault()` drops it on lock. There is no Favourites entry yet because the vault has no favourite flag.
 `UITests/IPadVaultUITests` runs on an iPad simulator and skips on an iPhone.
 
+## Import
+
+Settings > Import brings items from Chrome (CSV), Apple Passwords (CSV) or a notes text file. The person picks the source
+first, then the file from the Files app. `prepareImport` (`figlock-ffi`, the `figlock import` parsers) parses it in Rust and
+returns an `ImportPlan`: the preview shows counts and titles only, nothing is written until Import is tapped, and
+`VaultEditor.importItems` then adds 100 items per op file, so the items show as not synced until a sync runs. Debug builds
+take `-figlock-import-fixture good|bad` to stand in for the file picker in UI tests.
+
 ## Export
 
 Settings > Export saves the vault as the JSON `figlock export` writes (`figlock_core::export_json`, through

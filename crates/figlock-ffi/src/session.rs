@@ -114,7 +114,7 @@ impl VaultSession {
     }
 
     /// Like `with_vault`, for calls that change items: the search index is dropped afterwards.
-    fn mutate<T>(&self, f: impl FnOnce(&mut Vault) -> Result<T>) -> Result<T> {
+    pub(crate) fn mutate<T>(&self, f: impl FnOnce(&mut Vault) -> Result<T>) -> Result<T> {
         let mut st = self.state()?;
         st.index = None;
         let vault = st.vault.as_mut().ok_or(FigLockError::Locked)?;
