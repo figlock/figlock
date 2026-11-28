@@ -18,7 +18,8 @@ and you should do it in a way that keeps the value out of this conversation.
 4. **Do not use `figlock get --reveal`, `figlock export --include-secrets` or `figlock copy`.** They put
    a value where you can read it. Only the user decides to do that, on their own terminal.
 5. **Do not retry a denied request.** If the user declines or the approval times out, say so and stop.
-6. **Do not try to list the vault.** Ask the user for the item's title if you do not know it.
+6. **Do not try to list the vault.** Ask the user for the item's title if you do not know it. That
+   includes `figlock find --deleted`, `figlock health` and `figlock recovery-key`: they are for the user.
 
 ## Call an API: `figlock http`
 
@@ -63,6 +64,9 @@ figlock run --item "Cloud account" --env AWS_SECRET_ACCESS_KEY=secret -- terrafo
   (or run `figlock broker start` in a terminal). You cannot do either for them. When the FigLock app is
   unlocked it answers agents itself and nothing needs starting.
 - `figlock broker status` and `figlock broker grants` show what is active (never a token).
+- The broker locks itself after 30 minutes without an approved request (the user can change that with
+  `figlock broker start --idle-timeout`), and when the Mac sleeps or the screen locks. A locked broker is
+  the same case as above: tell the user to unlock it, and do not try to work around it.
 
 ## If something goes wrong
 
