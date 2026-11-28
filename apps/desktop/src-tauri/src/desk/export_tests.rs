@@ -41,14 +41,15 @@ fn export_inner() {
         "locked"
     );
     let (pw, key) = unlocked(&d);
-    d.add_item("login", login("GitHub", "hunter2-secret"))
-        .unwrap();
-    let gone = d.add_item("login", login("Old", "old-secret")).unwrap();
+    let kept_secret = format!("kept-{}", SecretKey::random().unwrap().format().as_str());
+    let gone_secret = format!("gone-{}", SecretKey::random().unwrap().format().as_str());
+    d.add_item("login", login("GitHub", &kept_secret)).unwrap();
+    let gone = d.add_item("login", login("Old", &gone_secret)).unwrap();
     d.delete_item(&gone).unwrap();
 
     // Without secrets: no proof, no secret value, and the secret fields are only named.
     let text = d.export_vault(false, false, None, None).unwrap();
-    assert!(!text.contains("hunter2-secret") && !text.contains("old-secret"));
+    assert!(!text.contains(&kept_secret) && !text.contains(&gone_secret));
     let doc: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(doc["format"], "figlock-export-1");
     assert_eq!(doc["secrets_included"], false);
@@ -90,5 +91,5 @@ fn export_inner() {
     let full: Value =
         serde_json::from_str(&d.export_vault(true, false, Some(&pw), Some(&key)).unwrap()).unwrap();
     assert_eq!(full["secrets_included"], true);
-    assert_eq!(full["items"][0]["fields"]["password"], "hunter2-secret");
+    assert_eq!(full["items"][0]["fields"]["password"], kept_secret.as_str());
 }
