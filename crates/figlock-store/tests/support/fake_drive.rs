@@ -35,6 +35,8 @@ pub struct State {
     /// After the next create, answer 503 even though the file was stored (an ambiguous failure).
     pub lose_next_create_response: bool,
     pub requests: Vec<(String, String)>,
+    /// What the `about` call reports as the signed-in account (`None`: no email in the answer).
+    pub account_email: Option<String>,
     pub max_multipart_seen: usize,
 }
 
@@ -180,6 +182,17 @@ fn route(
     base: &str,
 ) -> Response<std::io::Cursor<Vec<u8>>> {
     match (method, path) {
+        (Method::Get, "/drive/v3/about") => {
+            assert_eq!(
+                q.get("fields").map(String::as_str),
+                Some("user(emailAddress)")
+            );
+            let user = s
+                .account_email
+                .as_ref()
+                .map_or(json!({}), |e| json!({ "emailAddress": e }));
+            json_resp(200, json!({ "user": user }))
+        }
         (Method::Get, "/drive/v3/files") => {
             assert_eq!(q.get("spaces").map(String::as_str), Some("appDataFolder"));
             let name = q.get("q").and_then(|q| {

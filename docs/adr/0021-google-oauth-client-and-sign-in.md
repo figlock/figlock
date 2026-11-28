@@ -47,6 +47,11 @@ Two things shaped the decision:
 - The refresh token is stored owner-only (`drive-token.json`, mode 0600) in the device config directory. The device keys
   have since moved to the macOS keychain (FIG-73); the token follows them to the platform keystore (FIG-69). It is never logged or printed. `figlock drive logout` revokes it at
   Google and deletes the local copy even when the file is damaged or has loose permissions.
+- The signed-in Google address is looked up once at sign-in with the Drive `about` call (`fields=user(emailAddress)`,
+  no extra scope), best effort: a failed or implausible answer never fails the sign-in. It is stored in
+  `drive-token.json` beside the refresh token (so logout removes both), replaced on every sign-in, never logged,
+  and shown by `figlock drive login` and `figlock sync status` (`email` in `--json`). Sign-ins from before this
+  show no address.
 - There is deliberately no environment override for the OAuth or Drive endpoints: a hostile environment could
   then receive the bearer token.
 

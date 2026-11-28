@@ -228,3 +228,52 @@ fn deleting_the_drive_copy_needs_the_phrase_and_a_sign_in_and_changes_nothing_wi
     assert!(home.path().join("sync-state.json").exists());
     assert!(home.path().join("drive-token.json").exists());
 }
+
+/// FIG-298: `sync status` says which Google account is linked (from what sign-in recorded, no network), in
+/// text and in --json, and signing out removes the address with the token.
+#[cfg(unix)]
+#[test]
+fn sync_status_shows_the_linked_google_account_and_logout_clears_it() {
+    let home = TempDir::new().unwrap();
+    synced_device(&home, false);
+    // A sign-in from before the email was kept says nothing about an account.
+    let out = figlock(&home, &["sync", "status"]);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Signed in to Google: yes"), "{text}");
+    assert!(!text.contains('@'), "{text}");
+    let v: Value =
+        serde_json::from_slice(&figlock(&home, &["--json", "sync", "status"]).stdout).unwrap();
+    assert_eq!(v["email"], Value::Null);
+
+    token_file(
+        &home,
+        br#"{"refresh_token":"generated-test-token","email":"person@example.com"}"#,
+        0o600,
+    );
+    let out = figlock(&home, &["sync", "status"]);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        text.contains("Signed in to Google: yes (person@example.com)"),
+        "{text}"
+    );
+    let v: Value =
+        serde_json::from_slice(&figlock(&home, &["--json", "sync", "status"]).stdout).unwrap();
+    assert_eq!(v["email"], "person@example.com");
+
+    // The refresh token is never printed alongside it.
+    assert!(!text.contains("generated-test-token"));
+
+    let out = logout_offline(&home);
+    assert!(out.status.success());
+    let all = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(!all.contains("person@example.com"), "{all}");
+    assert!(!home.path().join("drive-token.json").exists());
+    let v: Value =
+        serde_json::from_slice(&figlock(&home, &["--json", "sync", "status"]).stdout).unwrap();
+    assert_eq!(v["email"], Value::Null);
+    assert_eq!(v["signed_in"], false);
+}

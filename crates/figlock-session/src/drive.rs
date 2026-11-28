@@ -6,7 +6,7 @@
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use figlock_store::{GoogleOAuth, StoreError};
+use figlock_store::{GoogleDrive, GoogleOAuth, StoreError};
 
 use crate::config::{self, StoredDriveToken};
 use crate::error::{Fail, FailKind, Res};
@@ -29,6 +29,11 @@ pub struct Status {
     pub can_sign_in: bool,
     /// A sign-in is stored on this device. It may still have been revoked at Google.
     pub signed_in: bool,
+}
+
+/// The Google account's email as recorded at sign-in, when known. No network call.
+pub fn signed_in_as() -> Option<String> {
+    config::drive_signed_in_as()
 }
 
 pub fn status() -> Res<Status> {
@@ -87,7 +92,14 @@ pub fn sign_in_until(show_url: impl FnOnce(&str), cancel: &AtomicBool) -> Res<()
             ),
             e => e.into(),
         })?;
-    config::save_drive_token(&creds.refresh_token)?;
+    // Which account was just linked. Best effort: the sign-in stands without it, and the email is never logged.
+    let who = GoogleDrive::new(oauth.token_source(figlock_store::Credentials {
+        refresh_token: creds.refresh_token.clone(),
+    }))
+    .account_email()
+    .ok()
+    .flatten();
+    config::save_drive_token_with_email(&creds.refresh_token, who.as_deref())?;
     crate::sync::clear_sign_in_refused();
     Ok(())
 }
