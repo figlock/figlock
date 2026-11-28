@@ -20,6 +20,26 @@ final class AppEnvironment {
     let appearance: AppearanceModel
     /// Set when the App Group container cannot be reached; the app then shows this instead of working elsewhere.
     let startupError: String?
+    /// The browser, writer and copier of the current unlock (ADR-0048 decision 4), built once when the vault
+    /// unlocks and dropped when it locks.
+    private var unlocked: UnlockedVault?
+
+    /// The vault of the current unlocked session, built on first use. A new unlock has a new session, so it gets a
+    /// new one; nil while locked.
+    func unlockedVault() -> UnlockedVault? {
+        guard let session = lock.session else { return nil }
+        if let unlocked, unlocked.session === session { return unlocked }
+        unlocked?.copier.clearNow()
+        let fresh = UnlockedVault(session: session, vault: vault, sync: sync, identitySync: identitySync)
+        unlocked = fresh
+        return fresh
+    }
+
+    /// The vault locked: forget what it held and take a copied secret off the pasteboard.
+    func endUnlockedVault() {
+        unlocked?.copier.clearNow()
+        unlocked = nil
+    }
 
     init() {
         var failure: String?
