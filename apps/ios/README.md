@@ -57,6 +57,9 @@ choice, search, selected item, list anchor) is one `VaultNavigation` per window 
 (ADR-0048 decision 2); nothing in it is written to disk. The browser, the writer and the copier belong to the unlock,
 not to a view: `AppEnvironment.unlockedVault()` builds one `UnlockedVault` per unlocked session and
 `endUnlockedVault()` drops it on lock. There is no Favourites entry yet because the vault has no favourite flag.
+On regular width, new and edit item are form sized sheets, the generator and the delete confirmation are popovers
+anchored to their button (the generator falls back to a sheet on compact), and onboarding, pairing, unlock and recovery
+are one centred column (`flFormColumn`, ADR-0048 decision 3).
 `UITests/IPadVaultUITests` runs on an iPad simulator and skips on an iPhone.
 
 ## Export
