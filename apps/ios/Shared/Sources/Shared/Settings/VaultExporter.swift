@@ -22,7 +22,6 @@ public final class VaultExporter {
     private let authenticator: any Authenticating
     private let folder: URL
     private var generation = 0
-    private var authenticating = false
 
     public init(
         authenticator: any Authenticating = DeviceAuthenticator(),
@@ -36,9 +35,7 @@ public final class VaultExporter {
         cleanUp()
         let started = generation
         if includeSecrets {
-            authenticating = true
             let confirmed = await authenticator.authenticate(reason: "Export your FigLock vault with its secrets")
-            authenticating = false
             guard confirmed, started == generation, !Task.isCancelled else { return .notConfirmed }
         }
         guard
@@ -56,11 +53,10 @@ public final class VaultExporter {
         return .ready(url)
     }
 
-    /// The app left the foreground. Face ID's own sheet takes the scene to `inactive`, which must not throw away
-    /// the export it is asking for (same cause as FIG-233); a real `background` does.
+    /// Only a real `background` removes the file. `inactive` also happens under Face ID, AirDrop, Save to Files
+    /// and Notification Center while the share sheet is still using it.
     public func cleanUpForScenePhase(isBackground: Bool) {
-        if authenticating && !isBackground { return }
-        cleanUp()
+        if isBackground { cleanUp() }
     }
 
     public func cleanUp() {

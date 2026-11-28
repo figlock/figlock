@@ -114,3 +114,28 @@ private func folder() throws -> URL {
         await exporter.prepare(session: vault.session, includeSecrets: false, includeDeleted: false) == .failed)
     #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).isEmpty)
 }
+
+@MainActor
+@Test func onlyBackgroundingRemovesTheFileAnInactiveSceneKeepsIt() async throws {
+    let vault = try seeded()
+    _ = await vault.browser()
+    let dir = try folder()
+    defer {
+        vault.cleanup()
+        try? FileManager.default.removeItem(at: dir)
+    }
+    let exporter = VaultExporter(authenticator: FakeAuthenticator(allow: true), folder: dir)
+    guard
+        case .ready(let url) = await exporter.prepare(
+            session: vault.session, includeSecrets: false, includeDeleted: false)
+    else {
+        Issue.record("expected a file")
+        return
+    }
+    exporter.cleanUpForScenePhase(isBackground: false)
+    #expect(FileManager.default.fileExists(atPath: url.path))
+    #expect(exporter.file == url)
+    exporter.cleanUpForScenePhase(isBackground: true)
+    #expect(!FileManager.default.fileExists(atPath: url.path))
+    #expect(exporter.file == nil)
+}

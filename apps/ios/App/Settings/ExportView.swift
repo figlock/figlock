@@ -84,7 +84,7 @@ struct ExportView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase != .active { exporter.cleanUpForScenePhase(isBackground: phase == .background) }
+            if phase == .background { exporter.cleanUpForScenePhase(isBackground: true) }
         }
         .onDisappear { exporter.cleanUp() }
     }
