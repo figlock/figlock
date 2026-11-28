@@ -1560,6 +1560,7 @@ dependencies = [
  "figlock-sync",
  "p256",
  "serde_json",
+ "sha1",
  "tempfile",
  "uniffi",
  "zeroize",

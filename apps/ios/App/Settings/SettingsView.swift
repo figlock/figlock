@@ -5,9 +5,12 @@ import SwiftUI
 /// The Settings tab: the settings list once the context is in the environment.
 struct SettingsTab: View {
     @Environment(\.settingsContext) private var context
+    /// The loaded vault, for the screens that open an item (Password health). Nil until it has loaded.
+    let browser: VaultBrowser?
+    let copier: ClipboardCopier
 
     var body: some View {
-        if let context { SettingsView(context: context) }
+        if let context { SettingsView(context: context, browser: browser, copier: copier) }
     }
 }
 
@@ -15,6 +18,8 @@ struct SettingsTab: View {
 /// the vault from this iPhone.
 struct SettingsView: View {
     let context: SettingsContext
+    let browser: VaultBrowser?
+    let copier: ClipboardCopier
 
     @State private var confirmingRemoval = false
     @State private var removalFailed = false
@@ -37,6 +42,14 @@ struct SettingsView: View {
                     SettingsRow(symbol: "faceid", title: "Face ID", value: FaceIDView.summary(context.lock))
                 }
                 .accessibilityIdentifier("settings-face-id")
+                if let browser {
+                    NavigationLink {
+                        PasswordHealthView(browser: browser, copier: copier)
+                    } label: {
+                        SettingsRow(symbol: "checkmark.shield", title: "Password health")
+                    }
+                    .accessibilityIdentifier("settings-password-health")
+                }
                 NavigationLink {
                     EmergencyKitView(context: context)
                 } label: {

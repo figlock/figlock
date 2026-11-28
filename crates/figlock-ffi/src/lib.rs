@@ -18,6 +18,7 @@ mod created;
 mod device;
 mod error;
 mod generator;
+mod health;
 mod join;
 mod quick;
 mod recovery;
@@ -34,6 +35,7 @@ pub use generator::{
     GeneratedSecretStrength, PassphraseSeparator, StrengthLevel, generate_passphrase,
     generate_password, passphrase_strength, password_strength,
 };
+pub use health::{BreachCheck, BreachHit, HealthFinding, HealthSummary, RangeAnswer};
 pub use join::{
     JoinHandle, JoinOutcome, JoinStart, RequestFile, fingerprint_of, invite_code_canonical,
     invite_code_is_valid, invite_path, start_join,
