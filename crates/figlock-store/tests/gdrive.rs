@@ -328,3 +328,33 @@ fn a_stale_listing_never_returns_old_or_wrong_data() {
     mine.put_replace("vault.json", b"v3").unwrap();
     assert_eq!(mine.get("vault.json").unwrap(), b"v3");
 }
+
+#[test]
+fn the_account_email_comes_from_the_about_call_and_hostile_values_are_dropped() {
+    let fake = FakeDrive::start();
+    let d = drive(&fake);
+    fake.state.lock().unwrap().account_email = Some("person@example.com".into());
+    assert_eq!(
+        d.account_email().unwrap().as_deref(),
+        Some("person@example.com")
+    );
+    assert_eq!(count(&fake, "GET", "/drive/v3/about"), 1);
+
+    // No email in the answer, or text that is not an address (it would be printed to a terminal).
+    for odd in [
+        None,
+        Some("no-at-sign"),
+        Some("a@b"),
+        Some("a@b.c\u{1b}[31m"),
+        Some("@x.com"),
+    ] {
+        fake.state.lock().unwrap().account_email = odd.map(str::to_owned);
+        assert_eq!(d.account_email().unwrap(), None, "{odd:?}");
+    }
+
+    // A refused token is an error, not a missing address.
+    let stranger = GoogleDrive::with_endpoint(&fake.base, StaticToken("bad".into()))
+        .unwrap()
+        .with_retry_delays(vec![Duration::from_millis(5); 3]);
+    assert_eq!(stranger.account_email(), Err(StoreError::Unauthorized));
+}

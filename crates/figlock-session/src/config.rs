@@ -245,14 +245,24 @@ fn drive_token_path(home: &Path) -> PathBuf {
 /// Keep the Google refresh token, owner-only. Written to a private temporary file and renamed into place, so
 /// the token is never visible to other users and a crash cannot leave half a file.
 pub fn save_drive_token(refresh_token: &str) -> Res<()> {
-    save_drive_token_in(&home()?, refresh_token)
+    save_drive_token_with_email(refresh_token, None)
 }
 
-fn save_drive_token_in(home: &Path, refresh_token: &str) -> Res<()> {
+/// [`save_drive_token`], with the Google account's email kept in the same file so that signing out removes
+/// both at once. The email is only ever shown to the person, never logged.
+pub fn save_drive_token_with_email(refresh_token: &str, email: Option<&str>) -> Res<()> {
+    save_drive_token_in(&home()?, refresh_token, email)
+}
+
+fn save_drive_token_in(home: &Path, refresh_token: &str, email: Option<&str>) -> Res<()> {
     private_dir(home)?;
     let tmp = home.join(".drive-token.json.tmp");
     let _ = fs::remove_file(&tmp);
-    let body = Zeroizing::new(json!({ "refresh_token": refresh_token }).to_string());
+    let mut doc = json!({ "refresh_token": refresh_token });
+    if let Some(email) = email {
+        doc["email"] = json!(email);
+    }
+    let body = Zeroizing::new(doc.to_string());
     let written = create_private(&tmp).and_then(|mut f| {
         f.write_all(body.as_bytes())?;
         f.sync_all()
@@ -315,6 +325,22 @@ fn parse_drive_token(raw: &[u8]) -> Option<Zeroizing<String>> {
         .and_then(Value::as_str)
         .filter(|t| !t.is_empty())?;
     Some(Zeroizing::new(token.to_owned()))
+}
+
+/// The Google account's email as recorded at sign-in, or `None` when not signed in, signed in before the email
+/// was kept, or Google did not say. Never makes a network call.
+pub fn drive_account_email() -> Option<String> {
+    drive_account_email_in(&home().ok()?)
+}
+
+fn drive_account_email_in(home: &Path) -> Option<String> {
+    let raw = Zeroizing::new(fs::read(drive_token_path(home)).ok()?);
+    parse_drive_token(&raw)?;
+    let v: Value = serde_json::from_slice(&raw).ok()?;
+    v.get("email")?
+        .as_str()
+        .filter(|e| !e.is_empty())
+        .map(str::to_owned)
 }
 
 /// What sign-out finds on disk. Unlike [`load_drive_token`] it reads a token file with loose permissions too:
@@ -689,8 +715,8 @@ mod tests {
     fn drive_token_round_trips_and_is_owner_only() {
         let d = tempfile::tempdir().unwrap();
         assert!(load_drive_token_in(d.path()).unwrap().is_none());
-        save_drive_token_in(d.path(), "refresh-a").unwrap();
-        save_drive_token_in(d.path(), "refresh-b").unwrap();
+        save_drive_token_in(d.path(), "refresh-a", None).unwrap();
+        save_drive_token_in(d.path(), "refresh-b", None).unwrap();
         assert_eq!(
             &**load_drive_token_in(d.path()).unwrap().unwrap(),
             "refresh-b"
@@ -719,9 +745,30 @@ mod tests {
     }
 
     #[test]
+    fn the_account_email_lives_beside_the_token_and_goes_with_it() {
+        let d = tempfile::tempdir().unwrap();
+        assert_eq!(drive_account_email_in(d.path()), None);
+        save_drive_token_in(d.path(), "refresh-a", Some("me@example.com")).unwrap();
+        assert_eq!(
+            drive_account_email_in(d.path()).as_deref(),
+            Some("me@example.com")
+        );
+        assert_eq!(
+            &**load_drive_token_in(d.path()).unwrap().unwrap(),
+            "refresh-a"
+        );
+        // Signing in again as someone else must not keep the old address.
+        save_drive_token_in(d.path(), "refresh-b", None).unwrap();
+        assert_eq!(drive_account_email_in(d.path()), None);
+        save_drive_token_in(d.path(), "refresh-c", Some("me@example.com")).unwrap();
+        fs::remove_file(drive_token_path(d.path())).unwrap();
+        assert_eq!(drive_account_email_in(d.path()), None);
+    }
+
+    #[test]
     fn a_damaged_drive_token_asks_for_a_new_sign_in() {
         let d = tempfile::tempdir().unwrap();
-        save_drive_token_in(d.path(), "x").unwrap();
+        save_drive_token_in(d.path(), "x", None).unwrap();
         fs::write(drive_token_path(d.path()), b"{}").unwrap();
         assert!(
             load_drive_token_in(d.path())

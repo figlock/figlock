@@ -235,6 +235,18 @@ impl GoogleDrive {
 
     // ---- Drive operations ----------------------------------------------------------------------------
 
+    /// The email address of the signed-in Google account, from the Drive `about` call. It needs no scope
+    /// beyond `drive.appdata`. `None` when Google does not say, or says something that is not an address.
+    pub fn account_email(&self) -> Result<Option<String>> {
+        let url = self.url("/drive/v3/about", &[("fields", "user(emailAddress)")]);
+        let resp = self.send("GET", &url, &[], None, Retry::Yes)?;
+        let v: Value = serde_json::from_slice(&resp.body).map_err(|_| StoreError::Unavailable)?;
+        Ok(v["user"]["emailAddress"]
+            .as_str()
+            .filter(|e| plausible_email(e))
+            .map(str::to_owned))
+    }
+
     /// Every file in the appDataFolder, optionally only those with exactly `name`. Foreign or malformed
     /// entries are dropped; the rest are validated.
     fn list_remote(&self, name: Option<&str>) -> Result<Vec<Remote>> {
@@ -430,6 +442,14 @@ fn reason(body: &[u8]) -> Option<String> {
 }
 
 /// Map a final HTTP status to the store's error vocabulary. 2xx passes through.
+/// Google's answer is untrusted text that will be printed: keep it to something that looks like an address.
+fn plausible_email(e: &str) -> bool {
+    e.len() <= 254
+        && e.split_once('@')
+            .is_some_and(|(local, domain)| !local.is_empty() && domain.contains('.'))
+        && e.bytes().all(|b| b.is_ascii_graphic())
+}
+
 fn check_status(r: Response) -> Result<Response> {
     match r.status {
         200..=299 => Ok(r),
