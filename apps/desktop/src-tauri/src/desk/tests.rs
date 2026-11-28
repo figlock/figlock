@@ -472,6 +472,15 @@ fn sign_out_inner() {
     let v = d.sync_status().unwrap();
     assert!(v.signed_in && v.enabled);
     assert!(v.signed_in_secs_ago.is_some_and(|s| s < 60));
+    // Signed in without a recorded address: none is shown, and asking offline changes nothing.
+    assert_eq!(v.signed_in_as, None);
+
+    // Signed in with an address: the window gets it, and signing out takes it away again.
+    config::save_drive_token_with_email(&password(), Some("mira@example.com")).unwrap();
+    assert_eq!(
+        d.sync_status().unwrap().signed_in_as.as_deref(),
+        Some("mira@example.com")
+    );
 
     // A damaged token file has nothing to revoke at Google, so this needs no network.
     let token = config::home().unwrap().join("drive-token.json");
@@ -481,6 +490,7 @@ fn sign_out_inner() {
     assert!(!token.exists(), "the local sign-in is gone");
     let v = d.sync_status().unwrap();
     assert!(!v.signed_in && !v.enabled && v.state == "off");
+    assert_eq!(v.signed_in_as, None, "the address goes with the sign-in");
     assert!(!config::load().unwrap().place.syncs());
     // The vault on this Mac is untouched and still open.
     assert_eq!(d.state().unwrap().phase, "unlocked");

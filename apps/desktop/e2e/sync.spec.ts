@@ -35,6 +35,7 @@ test.describe("sync", () => {
         state: "sign_in",
         signedIn: false,
         signedInSecsAgo: null,
+        signedInAs: null,
         message: "Your Google sign-in has expired. Sign in again to keep syncing.",
       },
     });
@@ -104,11 +105,16 @@ test.describe("sync", () => {
   test("turn off sync, sign out of Google, then turn sync on again with a fresh sign-in", async ({
     page,
   }) => {
-    await openApp(page, { sync: { ...synced, signedInSecsAgo: 86_400 } });
+    await openApp(page, {
+      sync: { ...synced, signedInSecsAgo: 86_400, learnableAs: "mira@example.com" },
+    });
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByTestId("settings-sync").click();
     await expect(page.getByText("Signed in to Google")).toBeVisible();
     await expect(page.getByTestId("google-signin")).toContainText("Signed in 24 hours ago");
+    // Signed in before the address was kept: Settings learns it as it opens, and the old sentence is gone.
+    await expect(page.getByTestId("google-account")).toHaveText("mira@example.com");
+    await expect(page.getByText("cannot show which account")).toHaveCount(0);
 
     // Turning sync off keeps the Google sign-in, and says so.
     await page.getByRole("button", { name: "Turn off sync" }).click();
@@ -125,11 +131,13 @@ test.describe("sync", () => {
     await page.getByRole("button", { name: "Sign out of Google" }).click();
     await page.getByRole("dialog").getByRole("button", { name: "Sign out of Google" }).click();
     await expect(page.getByText("Signed in to Google")).toHaveCount(0);
+    await expect(page.getByTestId("google-account")).toHaveCount(0);
 
     // Turn on sync signs in again and turns sync on, with no second click.
     await page.getByRole("button", { name: "Turn on sync" }).click();
     await expect(page.getByRole("button", { name: "Turn off sync" })).toBeVisible();
     await expect(page.getByText("Signed in to Google")).toBeVisible();
+    await expect(page.getByTestId("google-account")).toHaveText("mira@example.com");
   });
 
   test("use a different Google account in one flow", async ({ page }) => {

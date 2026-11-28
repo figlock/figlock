@@ -7,6 +7,7 @@ import type { SyncView } from "./sync";
 /** A stand-in for the app core's sync commands. */
 const core = vi.hoisted(() => ({
   syncStatus: vi.fn(),
+  syncRefreshAccount: vi.fn(),
   syncNow: vi.fn(),
   syncEnable: vi.fn(),
   syncDisable: vi.fn(),
@@ -21,6 +22,7 @@ const core = vi.hoisted(() => ({
 vi.mock("./sync", async (original) => ({
   ...(await original<typeof import("./sync")>()),
   syncStatus: core.syncStatus,
+  syncRefreshAccount: core.syncRefreshAccount,
   syncNow: core.syncNow,
   syncEnable: core.syncEnable,
   syncDisable: core.syncDisable,
@@ -53,6 +55,7 @@ const view = (over: Partial<SyncView> = {}): SyncView => {
     state: "idle" as const,
     signedIn: true,
     signedInSecsAgo: 3 * 86_400,
+    signedInAs: null,
     canSignIn: true,
     lastSyncSecsAgo: 120,
     message: null,
@@ -97,6 +100,8 @@ beforeEach(() => {
     return Promise.resolve(() => {});
   });
   core.syncStatus.mockResolvedValue(view());
+  // Offline unless a test says Google answers.
+  core.syncRefreshAccount.mockRejectedValue(new Error("offline"));
   core.lock.mockResolvedValue(undefined);
 });
 
@@ -330,6 +335,39 @@ test("Settings says this Mac is signed in to Google and since when", async () =>
   await toSettings();
   expect(screen.getByText("Signed in to Google")).toBeTruthy();
   expect(screen.getByTestId("google-signin").textContent).toContain("Signed in 3 days ago.");
+});
+
+test("Settings shows the Google account's email, and asks nothing when it is already known", async () => {
+  core.syncStatus.mockResolvedValue(view({ signedInAs: "mira@example.com" }));
+  await toSettings();
+  expect(screen.getByTestId("google-account").textContent).toBe("mira@example.com");
+  expect(core.syncRefreshAccount).not.toHaveBeenCalled();
+});
+
+test("a sign-in made before the address was kept learns it once when Settings opens", async () => {
+  core.syncStatus.mockResolvedValue(view({ signedInAs: null }));
+  core.syncRefreshAccount.mockResolvedValue(view({ signedInAs: "mira@example.com" }));
+  await toSettings();
+  expect((await screen.findByTestId("google-account")).textContent).toBe("mira@example.com");
+  expect(core.syncRefreshAccount).toHaveBeenCalledTimes(1);
+});
+
+test("offline, the page shows no address and still reads fine", async () => {
+  core.syncStatus.mockResolvedValue(view({ signedInAs: null }));
+  core.syncRefreshAccount.mockRejectedValue(new Error("offline"));
+  await toSettings();
+  await waitFor(() => expect(core.syncRefreshAccount).toHaveBeenCalled());
+  expect(screen.queryByTestId("google-account")).toBeNull();
+  expect(screen.getByText("Signed in to Google")).toBeTruthy();
+});
+
+test("signed out, no address is shown or asked for", async () => {
+  core.syncStatus.mockResolvedValue(
+    view({ enabled: false, state: "off", signedIn: false, signedInSecsAgo: null }),
+  );
+  await toSettings();
+  expect(screen.queryByTestId("google-account")).toBeNull();
+  expect(core.syncRefreshAccount).not.toHaveBeenCalled();
 });
 
 test("signing out of Google asks first, then signs out and turns sync off", async () => {

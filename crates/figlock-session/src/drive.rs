@@ -36,6 +36,26 @@ pub fn signed_in_as() -> Option<String> {
     config::drive_signed_in_as()
 }
 
+/// The signed-in account's email. Answers from what sign-in recorded; for a sign-in made before the address was
+/// kept, asks Drive once (the `about` call needs no scope beyond `drive.appdata`) and keeps the answer beside the
+/// token. Blocks on the network in that case, so call it off the UI thread. Offline, expired or odd answers give
+/// `None` and change nothing: the address is a label, never a reason to fail. It is never logged.
+pub fn account_email() -> Option<String> {
+    if let Some(known) = signed_in_as() {
+        return Some(known);
+    }
+    let token = config::load_drive_token().ok()??;
+    let oauth = GoogleOAuth::from_env()?;
+    let email = GoogleDrive::new(oauth.token_source(figlock_store::Credentials {
+        refresh_token: token.to_string(),
+    }))
+    .account_email()
+    .ok()??;
+    config::save_drive_email_for(&token, &email)
+        .ok()?
+        .then_some(email)
+}
+
 pub fn status() -> Res<Status> {
     Ok(Status {
         can_sign_in: GoogleOAuth::from_env().is_some(),

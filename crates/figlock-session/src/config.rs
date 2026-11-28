@@ -274,6 +274,42 @@ fn save_drive_token_in(home: &Path, refresh_token: &str, email: Option<&str>) ->
     Ok(())
 }
 
+/// Records `email` for the sign-in that holds `refresh_token`, for a sign-in made before the address was kept.
+/// Does nothing (returns `false`) when the stored sign-in is no longer that token, so a slow answer for the
+/// previous account can never label a newer sign-in. The file keeps its modification time, which is the
+/// sign-in time ([`drive_signed_in_ms`]).
+pub fn save_drive_email_for(refresh_token: &str, email: &str) -> Res<bool> {
+    save_drive_email_in(&home()?, refresh_token, email)
+}
+
+fn save_drive_email_in(home: &Path, refresh_token: &str, email: &str) -> Res<bool> {
+    let path = drive_token_path(home);
+    let raw = match fs::read(&path) {
+        Ok(r) => Zeroizing::new(r),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(e) => return Err(e.into()),
+    };
+    let mut doc: Value = serde_json::from_slice(&raw).map_err(|_| Fail::new("damaged sign-in"))?;
+    if parse_drive_token(&raw).is_none_or(|t| *t != refresh_token) {
+        return Ok(false);
+    }
+    let signed_in_at = fs::metadata(&path)?.modified()?;
+    doc["email"] = json!(email);
+    let tmp = home.join(".drive-token.json.tmp");
+    let _ = fs::remove_file(&tmp);
+    let body = Zeroizing::new(doc.to_string());
+    let written = create_private(&tmp).and_then(|mut f| {
+        f.write_all(body.as_bytes())?;
+        f.set_modified(signed_in_at)?;
+        f.sync_all()
+    });
+    if let Err(e) = written.and_then(|()| fs::rename(&tmp, &path)) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e.into());
+    }
+    Ok(true)
+}
+
 /// When this device signed in to Google, as milliseconds since the epoch: the token file is only written at
 /// sign-in, so its modification time is the sign-in time. `None` when there is no sign-in.
 pub fn drive_signed_in_ms() -> Option<u64> {
@@ -779,6 +815,46 @@ mod tests {
         save_drive_token_in(d.path(), "refresh-c", Some("me@example.com")).unwrap();
         fs::remove_file(drive_token_path(d.path())).unwrap();
         assert_eq!(drive_signed_in_as_in(d.path()), None);
+    }
+
+    #[test]
+    fn a_late_email_is_kept_for_the_same_sign_in_only_and_keeps_the_sign_in_time() {
+        let d = tempfile::tempdir().unwrap();
+        // Nothing stored: nothing to label.
+        assert!(!save_drive_email_in(d.path(), "refresh-a", "me@example.com").unwrap());
+
+        save_drive_token_in(d.path(), "refresh-a", None).unwrap();
+        let earlier = std::time::SystemTime::now() - std::time::Duration::from_secs(5 * 86_400);
+        fs::OpenOptions::new()
+            .write(true)
+            .open(drive_token_path(d.path()))
+            .unwrap()
+            .set_modified(earlier)
+            .unwrap();
+
+        // An answer for a token that is no longer the stored one is dropped.
+        assert!(!save_drive_email_in(d.path(), "refresh-old", "other@example.com").unwrap());
+        assert_eq!(drive_signed_in_as_in(d.path()), None);
+
+        assert!(save_drive_email_in(d.path(), "refresh-a", "me@example.com").unwrap());
+        assert_eq!(
+            drive_signed_in_as_in(d.path()).as_deref(),
+            Some("me@example.com")
+        );
+        assert_eq!(
+            &**load_drive_token_in(d.path()).unwrap().unwrap(),
+            "refresh-a"
+        );
+        let after = fs::metadata(drive_token_path(d.path()))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(after, earlier, "the sign-in time must not move");
+        let names: Vec<_> = fs::read_dir(d.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["drive-token.json"], "no temporary file left behind");
     }
 
     #[test]

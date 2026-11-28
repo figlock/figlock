@@ -352,6 +352,17 @@ async fn sync_status(desk: State<'_, Desk>) -> CmdRes<SyncView> {
     desk.sync_status()
 }
 
+/// Learns which Google account this Mac is signed in with, for a sign-in made before the address was kept.
+/// Asks Drive, so it runs off the async runtime; offline just changes nothing.
+#[tauri::command]
+async fn sync_refresh_account(app: AppHandle) -> CmdRes<SyncView> {
+    tauri::async_runtime::spawn_blocking(move || {
+        tauri::Manager::state::<Desk>(&app).sync_refresh_account()
+    })
+    .await
+    .map_err(|_| CmdError::new("failed", "Reading the Google account stopped unexpectedly."))?
+}
+
 /// Sync once now: every place, or only `remote` (its id). `reupload` is the person's confirmation after the vault
 /// was lost from a place.
 #[tauri::command]
@@ -967,6 +978,7 @@ pub fn run() {
             drive_cancel_sign_in,
             drive_sign_out,
             sync_status,
+            sync_refresh_account,
             icloud_status,
             sync_now,
             sync_enable,

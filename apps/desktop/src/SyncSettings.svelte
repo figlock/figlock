@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Alert, Button, ConfirmDialog, Icon } from "@figlock/ui";
+  import { onMount } from "svelte";
 
   import DeleteDriveDialog from "./DeleteDriveDialog.svelte";
   import { ago, type SyncView } from "./sync";
@@ -28,6 +29,9 @@
     if (PAUSED.includes(r.state)) return "Paused";
     return `Synced ${ago(r.lastSyncSecsAgo)}`;
   }
+
+  // A sign-in made before the address was kept learns it once, when this page opens.
+  onMount(() => void sync.learnAccount());
 
   let confirming = $state<
     "off" | "reupload" | "signout" | "switch" | "delete" | "icloud-off" | null
@@ -171,6 +175,9 @@
           <Icon name="globe" class="text-text-tertiary" />
           <div class="min-w-0 flex-1">
             <p class="font-medium">Signed in to Google</p>
+            {#if view.signedInAs}
+              <p class="truncate text-text" data-testid="google-account">{view.signedInAs}</p>
+            {/if}
             <p class="text-(length:--text-sm) text-text-secondary" data-testid="google-signin">
               {view.signedInSecsAgo === null
                 ? "Linked to a Google account."
