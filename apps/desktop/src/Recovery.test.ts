@@ -206,6 +206,7 @@ async function toSettings(enabled: boolean, keyKept = true) {
   const onlocked = vi.fn();
   render(Workspace, { onlock: vi.fn(), onlocked });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-security"));
   await screen.findByRole("heading", { name: "Recovery Key" });
   return Object.assign(user, { onlocked });
 }
@@ -233,7 +234,7 @@ test("Settings shows when there is no Recovery Key and sets one up with the cred
   await user.click(within(dialog).getByRole("button", { name: "Save Recovery Key" }));
   await waitFor(() => expect(core.recoveryEnable).toHaveBeenCalledWith("correct horse 42", ""));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(screen.getByText(/The Recovery Key is set up/)).toBeTruthy();
+  expect(screen.getByText(/Recovery Key is set up/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Replace" })).toBeTruthy();
 });
 

@@ -205,7 +205,6 @@
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="key-where">
             Stored {where}.
             {#if info.quickUnlock}Showing it asks for Touch ID or your device password.{/if}
-            You only type it again if another device changes it.
           </p>
         {:else}
           <p class="font-medium">Not kept on this Mac</p>
@@ -258,12 +257,9 @@
     </div>
     <p class="text-(length:--text-xs) leading-4 text-text-tertiary" aria-live="polite">
       {#if kitSaved}
-        <span data-testid="kit-saved">
-          Saved. It carries the same Secret Key as before and today's date.
-        </span>
+        <span data-testid="kit-saved"> Saved. </span>
       {:else}
-        Lost your Emergency Kit, or never printed it? Save a new copy, made now from this Mac's
-        Secret Key.
+        Lost your Emergency Kit? Save a new copy.
       {/if}
     </p>
   {/if}
@@ -288,12 +284,9 @@
         </h2>
         <p class="text-text-secondary">
           {#if typingFor === "keep"}
-            Type your Secret Key from your Emergency Kit once. Your password confirms it is the
-            right one. After that this Mac keeps it and the password is all you type.
+            Type your Secret Key from your Emergency Kit once. After that this Mac keeps it.
           {:else}
-            This Mac is not keeping your Secret Key, so type it from your old kit. Your password
-            confirms it is the right one. The kit is made on this Mac and saved only where you
-            choose.
+            Type your Secret Key from your old kit. The new kit is saved only where you choose.
           {/if}
         </p>
       </div>
@@ -324,7 +317,7 @@
 {#if confirming}
   <ConfirmDialog
     title="Stop keeping the Secret Key on this Mac?"
-    body="From now on you type the Secret Key from your Emergency Kit whenever you unlock with your password, and this Mac can no longer hand the key to a new device."
+    body="You will type the Secret Key from your Emergency Kit each time you unlock, and this Mac can no longer give the key to a new device."
     confirm="Stop keeping it"
     danger
     onconfirm={forget}

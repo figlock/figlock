@@ -105,7 +105,8 @@ async function toSettings(over?: Partial<SyncView>) {
   const user = userEvent.setup();
   render(Workspace, { onlock: vi.fn(), onlocked });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
-  await screen.findByText("Google Drive sync");
+  await user.click(await screen.findByTestId("settings-sync"));
+  await screen.findByText("Google Drive");
   return user;
 }
 
@@ -135,7 +136,7 @@ test("with sync off there is no badge, and one click turns it on from a signed-o
   await user.click(screen.getByRole("button", { name: "Turn on sync" }));
   expect(await screen.findByRole("button", { name: "Turn off sync" })).toBeTruthy();
   expect(order).toEqual(["sign-in", "enable"]);
-  expect(screen.getByTestId("last-sync").textContent).toContain("Last synced just now");
+  expect(screen.getByTestId("last-sync").textContent).toContain("Synced just now");
   // Other panels may complain about this file's partial mocks; sync itself must not.
   const alerts = screen.queryAllByRole("alert").map((a) => a.textContent ?? "");
   expect(alerts.filter((t) => /google|sync/i.test(t))).toEqual([]);
@@ -257,7 +258,7 @@ test("a vault missing from Drive is only uploaded again after the person confirm
     state: "lost",
     message: "The vault is no longer in your Google Drive. You can upload it again from this Mac.",
   });
-  expect(screen.getByTestId("last-sync").textContent).toContain("Sync is paused");
+  expect(screen.getByTestId("last-sync").textContent).toContain("Paused");
   // A paused sync is not a healthy one: no green shield beside it.
   const card = screen.getByTestId("last-sync").closest("div")!.parentElement!;
   expect(card.querySelector("svg.text-success")).toBeNull();
@@ -297,7 +298,7 @@ test("settings changed on another device ask for a lock and unlock", async () =>
 
 test("a settings fork is explained", async () => {
   await toSettings({ fork: true });
-  expect(screen.getByText(/changed the vault's settings .* at the same time/)).toBeTruthy();
+  expect(screen.getByText(/changed the vault's settings at once/)).toBeTruthy();
 });
 
 test("turning sync off asks first and leaves the vault alone", async () => {

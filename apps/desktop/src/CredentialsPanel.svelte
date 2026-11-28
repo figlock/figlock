@@ -59,9 +59,7 @@
 
 <section aria-labelledby="credentials-title" class="grid gap-3">
   <h3 id="credentials-title" class="font-semibold">Password and Secret Key</h3>
-  <p class="text-text-secondary">
-    Change either one without removing a device. To lock out a lost device, revoke it below.
-  </p>
+  <p class="text-text-secondary">Change either one without removing a device.</p>
   {#if done}<Alert tone="info">{done}</Alert>{/if}
   <div class="flex flex-wrap gap-2">
     <Button onclick={() => start("password")}>Change password</Button>
@@ -83,8 +81,7 @@
     secretKey={newKey}
     ondone={() => {
       newKey = "";
-      done =
-        "Your Secret Key is rotated and the new Emergency Kit is confirmed. Your other devices will ask for the new key the next time they unlock.";
+      done = "Secret Key rotated. Your other devices will ask for the new key.";
     }}
   />
 {/if}

@@ -12,6 +12,7 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
   }) => {
     await openApp(page, { items: [GITHUB], touchAvailable: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await page.getByRole("button", { name: "Stop keeping it on this Mac" }).click();
     await page.getByRole("button", { name: "Stop keeping it", exact: true }).click();
     await expect(page.getByTestId("key-why")).toContainText("You stopped keeping it here");
@@ -25,6 +26,7 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
     await typeKey(page);
     await page.getByRole("button", { name: "Unlock" }).click();
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await expect(page.getByTestId("key-why")).toContainText("You stopped keeping it here");
 
     // Opted back in from the open window: the key is held, so nothing is typed.
@@ -45,6 +47,7 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
   }) => {
     await openApp(page, { touchAvailable: true, keyOptedOut: true, keyHeld: false });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await page.getByRole("button", { name: "Keep it on this Mac" }).click();
     await expect(
       page.getByRole("heading", { name: "Keep your Secret Key on this Mac" }),
@@ -61,6 +64,7 @@ test.describe("keeping the Secret Key on this Mac again (FIG-142)", () => {
   test("a Mac with no secure place offers no keep button", async ({ page }) => {
     await openApp(page, { keyNotKept: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await expect(page.getByRole("button", { name: "Keep it on this Mac" })).toHaveCount(0);
   });
 });

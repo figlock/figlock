@@ -27,6 +27,7 @@ test.describe("updates", () => {
     await openApp(page);
     await expect(page.getByTestId("update-badge")).toHaveCount(0);
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-updates").click();
     await page.getByRole("button", { name: "Check for updates" }).click();
     await expect(page.getByTestId("update-current")).toContainText("9.9.9");
     await expectAccessible(page);
@@ -35,6 +36,7 @@ test.describe("updates", () => {
   test("a build that cannot update says so", async ({ page }) => {
     await openApp(page, { updateUnavailable: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-updates").click();
     await expect(page.getByTestId("update-unavailable")).toBeVisible();
     await expect(page.getByRole("button", { name: "Check for updates" })).toHaveCount(0);
   });

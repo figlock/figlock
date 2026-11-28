@@ -12,9 +12,10 @@ test.describe("sync", () => {
   test("Sync now runs and the status moves to just now", async ({ page }) => {
     await openApp(page, { sync: synced });
     await page.getByRole("button", { name: "Settings" }).click();
-    await expect(page.getByText("Last synced 2 minutes ago")).toBeVisible();
+    await page.getByTestId("settings-sync").click();
+    await expect(page.getByTestId("last-sync")).toHaveText("Synced 2 minutes ago");
     await page.getByRole("button", { name: "Sync now" }).click();
-    await expect(page.getByText("Last synced just now")).toBeVisible();
+    await expect(page.getByTestId("last-sync")).toHaveText("Synced just now");
   });
 
   test("a sync that needs sign-in is called out with a warning", async ({ page }) => {
@@ -23,6 +24,7 @@ test.describe("sync", () => {
     });
     await expect(page.getByTestId("sync-badge")).toHaveText("Sign in to keep syncing");
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await expect(page.getByText("Sign in to Google again to keep syncing.")).toBeVisible();
   });
 
@@ -37,6 +39,7 @@ test.describe("sync", () => {
       },
     });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await expect(page.getByText("Your Google sign-in has expired.")).toBeVisible();
     await expect(page.getByText("Signed in to Google", { exact: true })).toHaveCount(0);
     await expect(page.getByTestId("google-signin")).toHaveCount(0);
@@ -50,6 +53,7 @@ test.describe("sync", () => {
   }) => {
     await openApp(page, { signInHangs: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await page.getByRole("button", { name: "Turn on sync" }).click();
     await expect(page.getByRole("button", { name: "Waiting for Google..." })).toBeDisabled();
     await page.getByRole("button", { name: "Cancel" }).click();
@@ -70,6 +74,7 @@ test.describe("sync", () => {
       };
     });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await page.getByRole("button", { name: "Turn on sync" }).click();
     await expect(page.getByRole("alert")).toHaveText(
       "Google sign-in did not finish. Nothing was changed. Try again.",
@@ -83,6 +88,7 @@ test.describe("sync", () => {
     await openApp(page);
     await expect(page.getByTestId("sync-badge")).toHaveCount(0);
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     // One click from a signed-out Mac: Google, then sync on, no second click.
     await page.getByRole("button", { name: "Turn on sync" }).click();
     await expect(page.getByRole("button", { name: "Turn off sync" })).toBeVisible();
@@ -100,6 +106,7 @@ test.describe("sync", () => {
   }) => {
     await openApp(page, { sync: { ...synced, signedInSecsAgo: 86_400 } });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await expect(page.getByText("Signed in to Google")).toBeVisible();
     await expect(page.getByTestId("google-signin")).toContainText("Signed in 24 hours ago");
 
@@ -128,6 +135,7 @@ test.describe("sync", () => {
   test("use a different Google account in one flow", async ({ page }) => {
     await openApp(page, { sync: { ...synced, signedInSecsAgo: 60 } });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await page.getByRole("button", { name: "Use a different Google account" }).click();
     await expect(page.getByRole("dialog")).toContainText("different FigLock vault");
     await page.getByRole("button", { name: "Sign out and choose another" }).click();

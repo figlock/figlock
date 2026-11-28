@@ -84,6 +84,7 @@ async function toDevices() {
   const onlocked = vi.fn();
   render(Workspace, { onlock: vi.fn(), onlocked });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-devices"));
   await screen.findByRole("list", { name: "Devices" });
   return Object.assign(user, { onlocked });
 }

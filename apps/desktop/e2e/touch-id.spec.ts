@@ -5,6 +5,7 @@ test.describe("Touch ID in Settings (FIG-141)", () => {
   test("off, then on again: the Unlock screen follows each state", async ({ page }) => {
     await openApp(page, { items: [GITHUB], touchAvailable: true, quickUnlock: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await expect(page.getByTestId("touch-id-state")).toContainText("fingerprint");
     await expect(page.getByTestId("key-where")).toContainText("asks for Touch ID");
     await expectAccessible(page);
@@ -22,6 +23,7 @@ test.describe("Touch ID in Settings (FIG-141)", () => {
     await page.getByRole("button", { name: "Unlock" }).click();
 
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await page.getByRole("button", { name: "Turn on Touch ID" }).click();
     // The Secret Key is kept on this Mac, so only the password is asked for.
     await expect(page.getByLabel("Secret Key group 1 of 8")).toHaveCount(0);
@@ -46,6 +48,7 @@ test.describe("Touch ID in Settings (FIG-141)", () => {
       keyHeld: false,
     });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await page.getByRole("button", { name: "Turn on Touch ID" }).click();
     await expect(page.getByLabel("Secret Key group 1 of 8")).toBeVisible();
     await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
@@ -58,6 +61,7 @@ test.describe("Touch ID in Settings (FIG-141)", () => {
   test("no panel on a Mac without Touch ID", async ({ page }) => {
     await openApp(page);
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await expect(page.getByRole("heading", { name: "Touch ID" })).toHaveCount(0);
   });
 });

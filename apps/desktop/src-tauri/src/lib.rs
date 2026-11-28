@@ -1,6 +1,7 @@
 //! The desktop shell. The window only gets what a screen shows: the vault key and plaintext items stay on
 //! this side of the IPC boundary (ADR-0020), and every command here is an explicit, narrow entry point.
 
+mod about;
 mod desk;
 
 use std::time::Duration;
@@ -886,6 +887,7 @@ pub fn run() {
                 app.handle()
                     .plugin(tauri_plugin_updater::Builder::new().build())?;
             }
+            about::install_menu(app.handle())?;
             // An agent request shows a card in the window and posts a notification (ADR-0040). If neither can
             // be seen, the broker falls back to the direct Touch ID prompt.
             let handle = app.handle().clone();
@@ -1002,6 +1004,7 @@ pub fn run() {
             update_check,
             update_install,
             restart_app,
+            about::open_about_page,
             cli_tool_status,
             install_cli_tool,
             remove_cli_tool,

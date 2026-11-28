@@ -70,9 +70,10 @@ test.describe("save the Emergency Kit again (FIG-134)", () => {
   test("a Mac that keeps the key saves it from Settings", async ({ page }) => {
     await openApp(page, { sync: synced });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await expectAccessible(page);
     await page.getByRole("button", { name: "Save Emergency Kit" }).click();
-    await expect(page.getByTestId("kit-saved")).toContainText("same Secret Key");
+    await expect(page.getByTestId("kit-saved")).toContainText("Saved");
     const saved = await page.evaluate(() => (window as any).__core.kitsSaved as string[]);
     expect(saved).toEqual([KEY]);
   });
@@ -80,6 +81,7 @@ test.describe("save the Emergency Kit again (FIG-134)", () => {
   test("cancelling the save dialog saves nothing", async ({ page }) => {
     await openApp(page, { sync: synced, kitDialogCancelled: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await page.getByRole("button", { name: "Save Emergency Kit" }).click();
     await expect(page.getByTestId("kit-saved")).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).__core.kitsSaved.length)).toBe(0);
@@ -90,6 +92,7 @@ test.describe("save the Emergency Kit again (FIG-134)", () => {
   }) => {
     await openApp(page, { sync: synced, keyNotKept: true });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-security").click();
     await page.getByRole("button", { name: "Save Emergency Kit" }).click();
     const dialog = page.getByRole("dialog", { name: "Save your Emergency Kit" });
     await expectAccessible(page);
@@ -112,6 +115,7 @@ test.describe("delete the vault from Google Drive (FIG-122)", () => {
   test("needs the phrase typed, and leaves sync off and the vault here", async ({ page }) => {
     await openApp(page, { items: [GITHUB], sync: synced });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await page.getByRole("button", { name: "Delete from Google Drive" }).click();
     const dialog = page.getByRole("dialog", { name: "Delete this vault from Google Drive?" });
     await expect(dialog).toContainText("The vault on this Mac stays exactly as it is");
@@ -147,6 +151,7 @@ test.describe("delete the vault from Google Drive (FIG-122)", () => {
       },
     });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await page.getByRole("button", { name: "Delete from Google Drive" }).click();
     const dialog = page.getByRole("dialog", { name: "Delete this vault from Google Drive?" });
     await expect(dialog).toContainText("Sync stays off on this Mac");
@@ -161,6 +166,7 @@ test.describe("delete the vault from Google Drive (FIG-122)", () => {
   test("is not offered when this Mac is not signed in to Google", async ({ page }) => {
     await openApp(page, { sync: { enabled: false, state: "off", signedIn: false } });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await expect(page.getByRole("button", { name: "Delete from Google Drive" })).toHaveCount(0);
   });
 
@@ -175,6 +181,7 @@ test.describe("delete the vault from Google Drive (FIG-122)", () => {
     });
     await expect(page.getByTestId("sync-badge")).toHaveText("Vault missing from Drive");
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await expect(page.getByRole("button", { name: "Upload from this Mac" })).toBeVisible();
   });
 });

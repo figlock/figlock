@@ -24,15 +24,12 @@
   onMount(() => run(cliToolStatus));
 </script>
 
-<section aria-labelledby="cli-title" class="grid gap-3">
-  <h3 id="cli-title" class="font-semibold">Command line tool</h3>
-
+<section aria-label="Command line tool" class="grid gap-3">
   {#if info === null}
     {#if !error}<p class="text-text-secondary">Checking...</p>{/if}
   {:else if info.state === "unavailable"}
     <p class="text-text-secondary" data-testid="cli-unavailable">
-      This build of FigLock does not include the command line tool. Install a release build to get
-      it.
+      This build does not include the command line tool. Use a release build.
     </p>
   {:else}
     <div class="flex items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3">
@@ -45,22 +42,18 @@
           <p class="font-medium">Installed</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="cli-where">
             Terminal can run <span class="font-mono">figlock</span> from
-            <span class="font-mono break-all">{info.link}</span>. It is always the same version as
-            this app.
+            <span class="font-mono break-all">{info.link}</span>.
           </p>
         {:else if info.state === "moved"}
           <p class="font-medium">Needs repair</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="cli-where">
-            <span class="font-mono break-all">{info.link}</span> points at a copy of FigLock that was
-            moved or removed.
+            <span class="font-mono break-all">{info.link}</span> points at a copy of FigLock that is gone.
           </p>
         {:else if info.state === "external"}
           <p class="font-medium">Already installed</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="cli-external">
-            The command line tool is already on this Mac at
-            <span class="font-mono break-all">{info.external}</span>, so FigLock does not add
-            another copy. Update it the way you installed it, for example with
-            <span class="font-mono">brew upgrade figlock</span>.
+            Already at <span class="font-mono break-all">{info.external}</span>. Update it the way
+            you installed it, for example with <span class="font-mono">brew upgrade figlock</span>.
           </p>
         {:else if info.state === "conflict"}
           <p class="font-medium">Not installed</p>
@@ -70,9 +63,8 @@
         {:else}
           <p class="font-medium">Not installed</p>
           <p class="text-(length:--text-sm) text-text-secondary">
-            Lets you and your AI agents use FigLock from Terminal. This adds one link at
-            <span class="font-mono break-all">{info.link}</span>. It does not change your PATH or
-            shell settings.
+            For you and your AI agents, from Terminal. Adds one link at
+            <span class="font-mono break-all">{info.link}</span>. Your PATH is not changed.
           </p>
         {/if}
       </div>
@@ -89,19 +81,17 @@
 
     {#if info.state === "conflict"}
       <Alert tone="warning">
-        Something else is already at <span class="font-mono break-all">{info.link}</span>, such as a
-        Homebrew or script install, so FigLock left it alone. Remove it yourself if you want to use
-        the tool from this app.
+        Something else is at <span class="font-mono break-all">{info.link}</span>, so FigLock left
+        it alone.
       </Alert>
     {/if}
 
     {#if info.state === "installed"}
       <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
-        If Terminal says <span class="font-mono">figlock</span> is not found, open a new window. If
-        it still is not, add
-        <span class="font-mono break-all">{info.dir}</span> to your PATH, for example with
-        <span class="font-mono break-all select-all">export PATH="$HOME/.local/bin:$PATH"</span> in your
-        shell profile. FigLock never edits it for you.
+        If Terminal says <span class="font-mono">figlock</span> is not found, open a new window or
+        add
+        <span class="font-mono break-all">{info.dir}</span> to your PATH yourself. FigLock never edits
+        it.
       </p>
     {/if}
 
