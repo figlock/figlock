@@ -91,7 +91,7 @@ struct DevicesView: View {
             } footer: {
                 Text("To add a device, choose Join my vault by pairing on it.")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             let revoked = model.rows.filter(\.isRevoked)
             if !revoked.isEmpty {
@@ -100,7 +100,7 @@ struct DevicesView: View {
                 } header: {
                     FLSectionHeader("Revoked")
                 }
-                .listRowBackground(FLColor.surface)
+                .flTileRows()
             }
         }
         .flTileList()
@@ -114,12 +114,7 @@ private struct DeviceRowView: View {
 
     var body: some View {
         HStack(spacing: FLSpace.s3) {
-            Image(systemName: "iphone")
-                .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(row.isRevoked ? FLColor.textTertiary : FLColor.primary)
-                .frame(width: 36, height: 36)
-                .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                .accessibilityHidden(true)
+            FLIconTile(symbol: "iphone", color: row.isRevoked ? FLColor.textTertiary : FLColor.primary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.displayName)
                     .font(FLFont.ui(FLRowText.title))
@@ -138,6 +133,7 @@ private struct DeviceRowView: View {
                     .foregroundStyle(FLColor.success)
             }
         }
+        .padding(.vertical, 6)
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .combine)
     }
@@ -171,7 +167,7 @@ struct DeviceDetailView: View {
                             Text(row.fingerprint).font(FLFont.mono(FLText.sm)).textSelection(.enabled)
                         }
                     }
-                    .listRowBackground(FLColor.surface)
+                    .flTileRows()
 
                     if row.isThisDevice {
                         Section {
@@ -182,7 +178,7 @@ struct DeviceDetailView: View {
                             .font(FLFont.ui(FLText.base, relativeTo: .callout))
                             .foregroundStyle(FLColor.textSecondary)
                         }
-                        .listRowBackground(FLColor.surface)
+                        .flTileRows()
                     }
 
                     Section {
@@ -205,7 +201,7 @@ struct DeviceDetailView: View {
                     } footer: {
                         Text("The new name shows on this iPhone only.")
                     }
-                    .listRowBackground(FLColor.surface)
+                    .flTileRows()
                 }
                 .listStyle(.insetGrouped)
                 .scrollContentBackground(.hidden)

@@ -33,7 +33,7 @@ struct ItemDetailView: View {
                         SecretRow(item: item, field: field, reveal: reveal, copier: copier)
                     }
                 }
-                .listRowBackground(FLColor.surface)
+                .flTileRows()
             }
             if !item.files.isEmpty {
                 FilesSection(item: item, session: session)
@@ -46,7 +46,7 @@ struct ItemDetailView: View {
                 } header: {
                     Text("Tags")
                 }
-                .listRowBackground(FLColor.surface)
+                .flTileRows()
             }
         }
         .listStyle(.insetGrouped)
@@ -88,6 +88,7 @@ private struct PlainRow: View {
             Spacer(minLength: FLSpace.s2)
             if copier.copiedKey == key { CopiedMark() }
         }
+        .padding(.vertical, 6)
         .frame(minHeight: FLSize.controlHeightLg)
         .contentShape(Rectangle())
         .onTapGesture { copier.copy(value, key: key) }
@@ -144,6 +145,7 @@ private struct SecretRow: View {
             .flMinTouchTarget()
             .accessibilityLabel("\(shown != nil ? "Hide" : "Show") \(label.lowercased())")
         }
+        .padding(.vertical, 6)
         .frame(minHeight: FLSize.controlHeightLg)
         .animation(.easeOut(duration: 0.15), value: copier.copiedKey)
         .sensoryFeedback(.success, trigger: copier.copiedKey) { _, new in new == copyKey }

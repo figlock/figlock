@@ -171,7 +171,7 @@ struct RecoveryKeyView: View {
                     "FigLock can't show it again. If you lost it, make a new one."
                 )
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 Button {
@@ -196,7 +196,7 @@ struct RecoveryKeyView: View {
                     .tint(FLColor.danger)
                 }
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)

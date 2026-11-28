@@ -26,7 +26,7 @@ final class LockScreenUITests: XCTestCase {
                 .waitForExistence(timeout: 15))
         XCTAssertTrue(app.buttons["Unlock"].exists)
         XCTAssertFalse(app.buttons["Unlock"].isEnabled, "the empty field disables Unlock")
-        XCTAssertEqual(app.secureTextFields.firstMatch.value as? String ?? "", "")
+        assertFieldEmpty()
     }
 
     // FIG-220: the attempt that starts the pause clears the field too.
@@ -46,6 +46,12 @@ final class LockScreenUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts.matching(NSPredicate(format: "label CONTAINS \"Too many tries\"")).firstMatch
                 .waitForExistence(timeout: 15))
-        XCTAssertEqual(app.secureTextFields.firstMatch.value as? String ?? "", "")
+        assertFieldEmpty()
+    }
+
+    /// An empty secure field reports its placeholder ("Password") as its value.
+    private func assertFieldEmpty(file: StaticString = #filePath, line: UInt = #line) {
+        let value = app.secureTextFields.firstMatch.value as? String ?? ""
+        XCTAssertTrue(value.isEmpty || value == "Password", "the field still holds text", file: file, line: line)
     }
 }

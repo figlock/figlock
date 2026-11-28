@@ -9,11 +9,7 @@ struct RemoteRow: View {
 
     var body: some View {
         HStack(spacing: FLSpace.s3) {
-            Image(systemName: row.entry.symbol)
-                .font(.system(size: 19, weight: .medium)).foregroundStyle(FLColor.primary)
-                .frame(width: 36, height: 36)
-                .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                .accessibilityHidden(true)
+            FLIconTile(symbol: row.entry.symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text(row.entry.name).font(FLFont.ui(FLRowText.title)).foregroundStyle(FLColor.text)
                 if let account {
@@ -29,8 +25,8 @@ struct RemoteRow: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.vertical, FLSpace.s1)
-        .frame(minHeight: FLSize.controlHeightLg + FLSpace.s3)
+        .padding(.vertical, 6)
+        .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .combine)
     }
 }
