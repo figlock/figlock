@@ -4,6 +4,7 @@
 - Date: 2026-11-22
 - Decision: D41 in `docs/decisions.md`
 - Amended by: ADR-0043 (section 4: a device has a list of remotes, not one active remote)
+- Amended by: ADR-0048 (decision 1: the app is universal, iPad is in scope; layout, windows and lock rules for iPad)
 - Builds on: ADR-0004 (native shell, shared Rust core), ADR-0025, ADR-0026, ADR-0027, ADR-0034, ADR-0037, ADR-0038
 - Task: FIG-153. Unblocks FIG-154 (FFI), FIG-155 (build), FIG-159 (storage), FIG-160 (unlock), FIG-166 (AutoFill)
 
@@ -37,7 +38,7 @@ answers, and several are expensive to change later. What the code and specs say 
 both using a shared Swift package (`Shared`) that wraps the generated bindings. Bundle ids, the App Group and
 the keychain access group are created under the existing Apple Developer account (FIG-44). The app is built
 for **iPhone only** in v1 (`TARGETED_DEVICE_FAMILY = 1`, not offered as an iPhone app on Mac or Vision). Minimum
-version is **iOS 18** (confirmed by the owner: modern credential provider API, one test matrix). iPad is a later task (FIG-178) with its own layout ADR; nothing in v1 may assume a phone
+version is **iOS 18** (confirmed by the owner: modern credential provider API, one test matrix). iPad is a later task (FIG-178) with its own layout ADR (now ADR-0048, which makes the build universal); nothing in v1 may assume a phone
 screen size in the core or in `Shared`.
 
 **2. The vault is always a local folder in the App Group container** (the ADR-0026 rule, with the container as
