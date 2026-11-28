@@ -39,7 +39,7 @@ struct FaceIDView: View {
             } footer: {
                 Text(footer)
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -90,7 +90,7 @@ private struct FaceIDPasswordSheet: View {
                 } footer: {
                     if failed { Text("That did not work. Check your password and try again.") }
                 }
-                .listRowBackground(FLColor.surface)
+                .flTileRows()
 
                 Section {
                     Button {
@@ -100,7 +100,7 @@ private struct FaceIDPasswordSheet: View {
                     }
                     .disabled(password.isEmpty || working)
                 }
-                .listRowBackground(FLColor.surface)
+                .flTileRows()
             }
             .scrollContentBackground(.hidden)
             .navigationTitle("Turn on Face ID")

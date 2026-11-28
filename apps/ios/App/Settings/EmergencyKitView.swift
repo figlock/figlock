@@ -33,7 +33,7 @@ struct EmergencyKitView: View {
             } footer: {
                 if reveal.isKept { Text("It stays hidden until you choose Show. Showing it needs Face ID.") }
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             if reveal.isKept {
                 Section {

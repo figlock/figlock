@@ -40,7 +40,7 @@ struct SyncSettingsView: View {
             } footer: {
                 Text("Each place syncs on its own. If one fails, the others keep working.")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 Button {
@@ -77,7 +77,7 @@ struct SyncSettingsView: View {
                     }
                 }
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
         }
         .flTileList()
         .navigationTitle("Sync")
@@ -286,7 +286,7 @@ private struct RemoteDetailView: View {
                 }
             }
         }
-        .listRowBackground(FLColor.surface)
+        .flTileRows()
     }
 
     @ViewBuilder
@@ -325,7 +325,7 @@ private struct RemoteDetailView: View {
                     : "Only the encrypted vault is written to this folder. Stopping never deletes its files."
             )
         }
-        .listRowBackground(FLColor.surface)
+        .flTileRows()
     }
 
     /// Run a sync the person asked for and say how it went, including when the answer is the same problem as

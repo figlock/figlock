@@ -53,7 +53,7 @@ struct VaultListView: View {
             }
             ForEach(rows) { item in
                 NavigationLink(value: item.id) { ItemRow(item: item) }
-                    .listRowBackground(FLColor.surface)
+                    .flTileRows()
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if let field = item.secretFields.first {
                             Button {
@@ -103,7 +103,7 @@ private struct FilterRail: View {
                         .foregroundStyle(chosen ? FLColor.textOnPrimary : FLColor.text)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
-                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightLg + 4)
+                        .frame(maxWidth: .infinity, minHeight: FLSize.controlHeightMd)
                         .background(
                             chosen ? FLColor.primary : FLColor.surface,
                             in: RoundedRectangle(cornerRadius: FLRadius.lg))
@@ -143,6 +143,7 @@ struct ItemRow: View {
                 NotSyncedMark()
             }
         }
+        .padding(.vertical, 8)
         .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
@@ -229,7 +230,7 @@ private struct VaultHeader: View {
                 }
             }
             .padding(.horizontal, FLSpace.s3)
-            .frame(minHeight: FLSize.controlHeightLg + 4)
+            .frame(minHeight: FLSize.controlHeightMd)
             .background(FLColor.surface, in: RoundedRectangle(cornerRadius: FLRadius.lg))
         }
         .padding(.horizontal, FLSpace.s4)

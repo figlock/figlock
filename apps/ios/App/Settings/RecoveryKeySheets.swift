@@ -17,7 +17,7 @@ struct CredentialsSection: View {
                     .autocorrectionDisabled()
             }
         }
-        .listRowBackground(FLColor.surface)
+        .flTileRows()
     }
 }
 
@@ -70,7 +70,7 @@ struct SetUpRecoveryKeySheet: View {
                 "Shown once. Store it offline, not in this vault. Anyone with it can open your vault."
             )
         }
-        .listRowBackground(FLColor.surface)
+        .flTileRows()
         Section {
             if let url = model.kitURL {
                 KitShareButton(
@@ -115,7 +115,7 @@ struct SetUpRecoveryKeySheet: View {
                 "Type the last two groups of your Recovery Key."
             )
         }
-        .listRowBackground(FLColor.surface)
+        .flTileRows()
         CredentialsSection(model: model)
         if let errorText = model.errorText {
             Section { Notice(text: errorText, isError: true).listRowInsets(EdgeInsets()) }

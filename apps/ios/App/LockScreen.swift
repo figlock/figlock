@@ -16,6 +16,9 @@ struct LockScreen: View {
 
     private enum Field { case password, secretKey }
 
+    /// A text field is 50 pt tall, as the system's sign-in fields are.
+    private static let fieldHeight: CGFloat = 50
+
     private var quick: QuickUnlock.Status { lock.quickUnlockStatus }
     private var faceIDReady: Bool { quick == .ready }
     private var needsSecretKey: Bool { lock.needsSecretKeyTyped() }
@@ -82,28 +85,25 @@ struct LockScreen: View {
         VStack(spacing: FLSpace.s4) {
             if needsSecretKey {
                 VStack(alignment: .leading, spacing: FLSpace.s1) {
-                    Text("Secret Key").font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(
-                        FLColor.textSecondary)
-                    TextField("FL1-...", text: $secretKey)
+                    TextField("Secret Key (FL1-...)", text: $secretKey)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .font(FLFont.mono(FLText.md))
                         .focused($focus, equals: .secretKey)
-                        .padding(FLSpace.s3)
+                        .padding(.horizontal, FLSpace.s3)
+                        .frame(minHeight: Self.fieldHeight)
                         .background(
                             Color(uiColor: .tertiarySystemFill),
                             in: RoundedRectangle(cornerRadius: FLRadius.md))
                 }
             }
             VStack(alignment: .leading, spacing: FLSpace.s1) {
-                Text("Password").font(FLFont.ui(FLText.sm, weight: FLWeight.medium)).foregroundStyle(
-                    FLColor.textSecondary)
                 HStack {
                     Group {
                         if revealPassword {
-                            TextField("", text: $password)
+                            TextField("Password", text: $password)
                         } else {
-                            SecureField("", text: $password)
+                            SecureField("Password", text: $password)
                         }
                     }
                     .textContentType(.password)
@@ -121,6 +121,7 @@ struct LockScreen: View {
                     .accessibilityLabel(revealPassword ? "Hide password" : "Show password")
                 }
                 .padding(.horizontal, FLSpace.s3)
+                .frame(minHeight: Self.fieldHeight)
                 .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: FLRadius.md))
             }
             Button("Unlock") { Task { await unlock() } }

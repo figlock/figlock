@@ -52,7 +52,7 @@ struct SettingsView: View {
             } header: {
                 FLSectionHeader("Security")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 NavigationLink {
@@ -66,7 +66,7 @@ struct SettingsView: View {
             } header: {
                 FLSectionHeader("Display")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 NavigationLink {
@@ -84,7 +84,7 @@ struct SettingsView: View {
             } header: {
                 FLSectionHeader("Vault")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 NavigationLink {
@@ -96,7 +96,7 @@ struct SettingsView: View {
             } header: {
                 FLSectionHeader("About")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 Button {
@@ -107,7 +107,7 @@ struct SettingsView: View {
                         .frame(minHeight: FLSize.controlHeightLg, alignment: .leading)
                 }
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
 
             Section {
                 Button(role: .destructive) {
@@ -122,7 +122,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Your items stay in your sync places and on your other devices.")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
         }
         .flTileList()
         .navigationTitle("Settings")
@@ -167,12 +167,7 @@ struct SettingsRow: View {
 
     var body: some View {
         HStack(spacing: FLSpace.s3) {
-            Image(systemName: symbol)
-                .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(FLColor.primary)
-                .frame(width: 36, height: 36)
-                .background(FLColor.primarySubtle, in: RoundedRectangle(cornerRadius: FLRadius.sm))
-                .accessibilityHidden(true)
+            FLIconTile(symbol: symbol)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(FLFont.ui(FLRowText.title)).foregroundStyle(FLColor.text)
                 if let detail {
@@ -186,8 +181,8 @@ struct SettingsRow: View {
                     FLColor.textSecondary)
             }
         }
-        .padding(.vertical, FLSpace.s1)
-        .frame(minHeight: FLSize.controlHeightLg + FLSpace.s3)
+        .padding(.vertical, 6)
+        .frame(minHeight: FLSize.controlHeightLg)
         .accessibilityElement(children: .combine)
     }
 }
@@ -225,7 +220,7 @@ struct AutoLockView: View {
             } footer: {
                 Text("Locks after you leave the app for this long.")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
             if failed {
                 Notice(text: "Could not save. Try again.", isError: true)
                     .listRowBackground(Color.clear)
@@ -277,7 +272,7 @@ struct AppearanceView: View {
             } footer: {
                 Text("System follows the light or dark setting of this iPhone.")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
             if failed {
                 Notice(text: "Could not save. Try again.", isError: true)
                     .listRowBackground(Color.clear)

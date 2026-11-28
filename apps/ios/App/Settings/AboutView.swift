@@ -76,7 +76,7 @@ struct AboutView: View {
             } header: {
                 FLSectionHeader("Learn more")
             }
-            .listRowBackground(FLColor.surface)
+            .flTileRows()
         }
         .flTileList()
         .navigationTitle("About FigLock")
