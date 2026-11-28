@@ -22,6 +22,19 @@ extension View {
     }
 }
 
+/// The width of a centred form on a wide screen (ADR-0048 decision 3): onboarding, pairing, unlock and recovery are
+/// one column this wide on the app background, not a sheet and not stretched across an iPad.
+enum FLForm {
+    static let maxWidth: CGFloat = 540
+}
+
+extension View {
+    /// Cap the content at form width and centre it. On a phone the content is narrower than the cap, so nothing changes.
+    func flFormColumn() -> some View {
+        frame(maxWidth: FLForm.maxWidth).frame(maxWidth: .infinity)
+    }
+}
+
 /// Row sizes, taken from the password generator's option rows: 16 pt above and below a 31 pt control is 63 pt. A row
 /// with a subtitle or more lines grows from the same 16 pt padding, so every row is in proportion.
 enum FLRow {

@@ -69,16 +69,6 @@ struct ItemFormView: View {
                 }
             }
             .interactiveDismissDisabled(saving)
-            .sheet(
-                isPresented: Binding(get: { generatingFor != nil }, set: { if !$0 { generatingFor = nil } })
-            ) {
-                GeneratorView(copier: copier) { generated in
-                    if let name = generatingFor {
-                        draft.values[name] = generated
-                        shownSecrets.insert(name)
-                    }
-                }
-            }
             .fileImporter(
                 isPresented: $showFilePicker, allowedContentTypes: [.item], allowsMultipleSelection: true,
                 onCompletion: addFiles)
@@ -130,15 +120,7 @@ struct ItemFormView: View {
                 .flMinTouchTarget()
                 .accessibilityLabel(shown ? "Hide \(spec.label.lowercased())" : "Show \(spec.label.lowercased())")
             }
-            if spec.offersGenerator {
-                Button {
-                    generatingFor = spec.name
-                } label: {
-                    Image(systemName: "wand.and.stars").foregroundStyle(FLColor.textSecondary)
-                }
-                .flMinTouchTarget()
-                .accessibilityLabel("Generate a password")
-            }
+            if spec.offersGenerator { generatorButton(spec.name, binding) }
         }
         if spec.offersGenerator, let rating = GeneratorSettings.rating(of: binding.wrappedValue) {
             StrengthLabel(rating: rating)
@@ -152,6 +134,26 @@ struct ItemFormView: View {
             .font(FLFont.ui(FLText.sm, weight: FLWeight.medium, relativeTo: .footnote))
             .foregroundStyle(removed ? FLColor.textLink : FLColor.danger)
         }
+    }
+
+    /// The wand in a password field: a popover pointing at it on the iPad, a sheet on the phone.
+    private func generatorButton(_ name: String, _ binding: Binding<String>) -> some View {
+        Button {
+            generatingFor = name
+        } label: {
+            Image(systemName: "wand.and.stars").foregroundStyle(FLColor.textSecondary)
+        }
+        .popover(
+            isPresented: Binding(
+                get: { generatingFor == name }, set: { if !$0 && generatingFor == name { generatingFor = nil } })
+        ) {
+            GeneratorPopover(copier: copier) { generated in
+                binding.wrappedValue = generated
+                shownSecrets.insert(name)
+            }
+        }
+        .flMinTouchTarget()
+        .accessibilityLabel("Generate a password")
     }
 
     private func placeholder(stored: Bool, removed: Bool) -> String {

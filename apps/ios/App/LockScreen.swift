@@ -49,7 +49,8 @@ struct LockScreen: View {
                 }
                 .padding(.horizontal, FLSpace.s4)
                 .padding(.bottom, FLSpace.s4)
-                .frame(maxWidth: .infinity, minHeight: proxy.size.height)
+                .flFormColumn()
+                .frame(minHeight: proxy.size.height)
             }
         }
         .scrollDismissesKeyboard(.interactively)

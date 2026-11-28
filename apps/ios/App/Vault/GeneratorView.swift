@@ -171,3 +171,16 @@ struct StrengthLabel: View {
         }
     }
 }
+
+/// The generator as a popover on a wide screen (ADR-0048 decision 3); `presentationCompactAdaptation` makes it the
+/// phone's sheet on a narrow window.
+struct GeneratorPopover: View {
+    let copier: ClipboardCopier
+    var onUse: ((String) -> Void)?
+
+    var body: some View {
+        GeneratorView(copier: copier, onUse: onUse)
+            .frame(idealWidth: 400, idealHeight: 620)
+            .presentationCompactAdaptation(.sheet)
+    }
+}

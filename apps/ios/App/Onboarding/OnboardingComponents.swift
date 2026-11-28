@@ -23,6 +23,7 @@ struct Screen<Content: View>: View {
             }
             .padding(FLSpace.s4)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .flFormColumn()
         }
         .scrollDismissesKeyboard(.interactively)
         .background(FLColor.bg.ignoresSafeArea())

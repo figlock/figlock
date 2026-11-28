@@ -69,6 +69,7 @@ struct WelcomeView: View {
             }
             .padding(FLSpace.s4)
             .padding(.top, FLSpace.s8)
+            .flFormColumn()
         }
         .background(FLColor.bg.ignoresSafeArea())
     }
