@@ -26,7 +26,7 @@ struct VaultRootView: View {
                 }
             }
             Tab("Settings", systemImage: "gearshape") {
-                NavigationStack { SettingsTab() }
+                NavigationStack { SettingsTab(browser: browser, copier: copier) }
             }
         }
         .tint(FLColor.primary)

@@ -41,6 +41,20 @@
             ("note", [("title", "Wifi at home"), ("body", "Network: demo-net")]),
         ]
 
+        /// `-figlock-seed-health` (with `-figlock-seed-demo`) adds three more logins: one with a weak password and two
+        /// that share one, so the password health screen has something to list.
+        private static let healthItems: [(type: String, fields: [(String, String)])] = [
+            ("login", [("title", "Old forum"), ("username", "mira"), ("password", "summer2020")]),
+            ("login", [("title", "Shared one"), ("username", "mira"), ("password", "Gravel-Pine-Lantern-58")]),
+            ("login", [("title", "Shared two"), ("username", "mira"), ("password", "Gravel-Pine-Lantern-58")]),
+        ]
+
+        /// `-figlock-breach-offline` makes the breach check behave as if the service cannot be reached, so the UI
+        /// test does not depend on the network.
+        static var breachServiceOffline: Bool {
+            ProcessInfo.processInfo.arguments.contains("-figlock-breach-offline")
+        }
+
         /// `-figlock-unlock-demo` also unlocks with the demo password, to look at the vault screens in a simulator.
         @MainActor
         static func unlockIfRequested(_ environment: AppEnvironment) {
@@ -114,7 +128,10 @@
                 // A few made-up items, committed as an op file like any edit.
                 let writer = try created.takeSession()
                 let now = UInt64(Date().timeIntervalSince1970 * 1000)
-                for (offset, item) in demoItems.enumerated() {
+                let seeded =
+                    ProcessInfo.processInfo.arguments.contains("-figlock-seed-health")
+                    ? demoItems + healthItems : demoItems
+                for (offset, item) in seeded.enumerated() {
                     _ = try writer.addItem(
                         itemType: item.type, vault: "personal",
                         fields: item.fields.map { FieldInput(name: $0.0, value: $0.1) }, nowMs: now + UInt64(offset))

@@ -111,6 +111,15 @@ never keeps the code and never shows an old one again. The sheets (`RecoveryKeyS
 vault change and the sync runs afterwards. The UI test (`RecoveryKeySettingsUITests`) runs on the demo
 vault.
 
+Settings > Security > Password health (`App/Settings/PasswordHealthView.swift`, logic in `Shared/Vault/PasswordHealth.swift`)
+is the same report as the Mac Health page: weak, reused and old passwords come from `figlock-core::health` through
+`VaultSession.healthReport`, and each item that needs attention opens its item. The breach check is opt-in per run
+(`startBreachCheck`, `BreachCheck.finish`): the app does the Have I Been Pwned range request itself (`URLSession`, only the
+5 character SHA-1 prefix leaves the phone, no redirects, a size cap, `Add-Padding`). If the service cannot be reached the
+screen says so and keeps the other results, and one failed prefix fails the whole check so a half-checked vault is never
+shown as clean. Debug builds accept `-figlock-seed-health` (a made-up vault with weak, reused and old items) and
+`-figlock-breach-offline` (the range service always fails) so `PasswordHealthUITests` needs no network.
+
 ## Sync
 
 `Shared/Sources/Shared/Sync` mirrors the local vault to a list of remotes (ADR-0043): Google Drive and any number of
