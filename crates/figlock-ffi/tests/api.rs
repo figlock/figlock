@@ -288,6 +288,7 @@ fn a_locked_session_refuses_everything() {
     assert_eq!(s.epoch().err(), locked);
     assert_eq!(s.revision().err(), locked);
     assert_eq!(s.has_pending().err(), locked);
+    assert_eq!(s.export_json(true, true).err(), locked);
 }
 
 #[test]
@@ -574,4 +575,39 @@ fn a_commit_whose_file_could_not_be_stored_can_be_taken_back_and_retried() {
     s.discard_pending().unwrap();
     assert!(!s.has_pending().unwrap());
     assert!(s.commit().unwrap().is_none());
+}
+
+#[test]
+fn the_export_is_the_cli_document_and_holds_secrets_only_when_asked() {
+    let c = created();
+    let s = c.take_session().unwrap();
+    let id = add_login(&s);
+    let gone = s
+        .add_item(
+            "note".into(),
+            "personal".into(),
+            vec![field("title", "Old"), field("body", "old-note-body")],
+            T0 + 2,
+        )
+        .unwrap();
+    s.delete_item(gone, T0 + 3).unwrap();
+
+    let plain: serde_json::Value =
+        serde_json::from_str(&s.export_json(false, false).unwrap()).unwrap();
+    assert_eq!(plain["format"], "figlock-export-1");
+    assert_eq!(plain["secrets_included"], false);
+    assert_eq!(plain["items"].as_array().unwrap().len(), 1);
+    assert_eq!(plain["items"][0]["id"], id);
+    assert!(plain["items"][0]["fields"].get("password").is_none());
+    assert_eq!(plain["items"][0]["secret_fields"][0], "password");
+    assert!(!plain.to_string().contains(SECRET));
+
+    let with_deleted: serde_json::Value =
+        serde_json::from_str(&s.export_json(false, true).unwrap()).unwrap();
+    assert_eq!(with_deleted["items"].as_array().unwrap().len(), 2);
+
+    let full: serde_json::Value =
+        serde_json::from_str(&s.export_json(true, false).unwrap()).unwrap();
+    assert_eq!(full["secrets_included"], true);
+    assert_eq!(full["items"][0]["fields"]["password"], SECRET);
 }

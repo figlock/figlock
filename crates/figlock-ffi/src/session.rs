@@ -249,6 +249,19 @@ impl VaultSession {
         })
     }
 
+    /// The vault as the JSON `figlock export` writes (`format: figlock-export-1`), for the app to hand to the
+    /// Files app or the share sheet. With `include_secrets` it holds every secret in plain text, so like
+    /// `reveal_field` the caller must have the person's approval (Face ID or the passcode) first, and must keep
+    /// the text only as long as it takes to write the file.
+    pub fn export_json(&self, include_secrets: bool, include_deleted: bool) -> Result<String> {
+        self.with_vault(|v| {
+            let (items, _corrupt) = v.items(include_deleted);
+            figlock_core::export_json(&items, include_secrets)
+                .map(|text| text.to_string())
+                .ok_or(FigLockError::Failed)
+        })
+    }
+
     /// Read one secret (or any) field value. This is the only call that returns a stored secret; the
     /// caller must have the user's approval and should wipe the string after use.
     pub fn reveal_field(&self, item_id: String, field: String) -> Result<String> {
