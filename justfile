@@ -81,6 +81,15 @@ ios-uitest: ios-xcframework ios-project
 ios-build: ios-xcframework ios-project
     cd apps/ios && xcodebuild -project FigLock.xcodeproj -scheme FigLock -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
 
-# iOS: build, install and launch the app on a booted simulator (boots "iPhone 17" when none is running).
+# iOS: build the app for an iPad simulator ("iPad Pro 11-inch"), so a broken iPad build shows up (ADR-0048). Signed
+# for the simulator (no CODE_SIGNING_ALLOWED=NO): without the App Group entitlement the app shows "Storage unavailable".
+ios-build-ipad: ios-xcframework ios-project
+    cd apps/ios && xcodebuild -project FigLock.xcodeproj -scheme FigLock -destination 'platform=iOS Simulator,id='"$({{justfile_directory()}}/apps/ios/scripts/simulator-id.sh ipad)" -derivedDataPath build build
+
+# iOS: build, install and launch the app on the "iPhone 17" simulator (booted if needed, other simulators untouched).
 ios-run: ios-build
-    apps/ios/scripts/run-simulator.sh
+    apps/ios/scripts/run-simulator.sh iphone
+
+# iOS: build, install and launch the app on the "iPad Pro 11-inch" simulator.
+ios-run-ipad: ios-build-ipad
+    apps/ios/scripts/run-simulator.sh ipad

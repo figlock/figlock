@@ -26,7 +26,10 @@ public struct SecretScreen<Content: View>: UIViewRepresentable {
     }
 
     public func sizeThatFits(_ proposal: ProposedViewSize, uiView: Host, context: Context) -> CGSize? {
-        uiView.host.sizeThatFits(in: CGSize(width: proposal.width ?? 390, height: proposal.height ?? 844))
+        // An unspecified side means "as large as it likes": no device size is assumed here (ADR-0041, ADR-0048).
+        let open = UIView.layoutFittingExpandedSize
+        let size = CGSize(width: proposal.width ?? open.width, height: proposal.height ?? open.height)
+        return uiView.host.sizeThatFits(in: size)
     }
 }
 
