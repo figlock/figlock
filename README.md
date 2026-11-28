@@ -17,7 +17,7 @@ until the security audit (phase 6) is done.
 
 - **Mac app** (Apple silicon and Intel, signed and notarized, updates itself when you click): browse, search and
   edit items, generator, password health report, Touch ID quick unlock, auto-lock, optional Google Drive and iCloud Drive sync,
-  device pairing and revocation, Emergency Kit and Recovery Key, JSON export (without secrets by default), and an opt-in install of the command line tool.
+  device pairing and revocation, Emergency Kit and Recovery Key, JSON export (without secrets by default), import from Chrome, Apple Passwords and notes with a preview first, and an opt-in install of the command line tool.
 - **`figlock` CLI** (macOS and Linux): create and open vaults, add, edit, find, get, copy, generate, export and import
   items, sync, pair devices, change the password, rotate the Secret Key, and let an agent use a secret
   through the broker (`figlock --help`).

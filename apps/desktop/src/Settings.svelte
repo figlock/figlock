@@ -6,6 +6,7 @@
   import CredentialsPanel from "./CredentialsPanel.svelte";
   import Devices from "./Devices.svelte";
   import ExportPanel from "./ExportPanel.svelte";
+  import ImportPanel from "./ImportPanel.svelte";
   import RecoveryPanel from "./RecoveryPanel.svelte";
   import SecretKeyPanel from "./SecretKeyPanel.svelte";
   import SettingsGroup from "./SettingsGroup.svelte";
@@ -51,6 +52,8 @@
   <SettingsPage title="Command line tool"><CommandLinePanel /></SettingsPage>
 {:else if page === "export"}
   <SettingsPage title="Export"><ExportPanel /></SettingsPage>
+{:else if page === "import"}
+  <SettingsPage title="Import"><ImportPanel /></SettingsPage>
 {:else if page === "about"}
   <AboutPage />
 {:else}
@@ -91,6 +94,13 @@
         title="Devices"
         testid="settings-devices"
         onclick={() => nav.go({ p: "settings", page: "devices" })}
+      />
+      <SettingsRow
+        icon="upload"
+        title="Import"
+        testid="settings-import"
+        hint="Bring items from Chrome, Apple Passwords or notes"
+        onclick={() => nav.go({ p: "settings", page: "import" })}
       />
       <SettingsRow
         icon="download"

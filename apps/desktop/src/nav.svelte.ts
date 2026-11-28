@@ -2,7 +2,7 @@ import type { Kind } from "./items";
 
 /** The screens one level below the Settings list. */
 export type SettingsPage =
-  "security" | "sync" | "devices" | "updates" | "advanced" | "export" | "about";
+  "security" | "sync" | "devices" | "updates" | "advanced" | "export" | "import" | "about";
 
 /** What the sidebar lists. */
 export type Filter = "all" | Kind | "deleted";

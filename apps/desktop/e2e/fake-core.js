@@ -78,6 +78,11 @@
     kitDialogCancelled: opts.kitDialogCancelled ?? false,
     // Exports written so far (FIG-287), and whether Touch ID is declined when a secrets export asks.
     exports: [],
+    // Import (FIG-285): what the chosen file gives, the sources asked for, and how many items were added.
+    importFile: opts.importFile ?? {},
+    importAsked: [],
+    importHeld: false,
+    importAdded: [],
     touchDeclined: opts.touchDeclined ?? false,
     // What deleting the Drive copy answers (FIG-122): the files deleted so far, and an error to give instead.
     driveDeletes: [],
@@ -547,6 +552,24 @@
       }
       core.exports.push({ includeSecrets, includeDeleted, password: password ?? null });
       return !core.kitDialogCancelled;
+    },
+    import_choose: ({ source }) => {
+      const f = core.importFile;
+      core.importAsked.push(source);
+      if (f.cancelled) return null;
+      if (f.error) return fail(f.error.code, f.error.message);
+      core.importHeld = true;
+      return f.preview;
+    },
+    import_commit: () => {
+      if (!core.importHeld) return fail("nothing_to_import", "Choose a file to import first.");
+      core.importHeld = false;
+      const n = core.importFile.preview.logins + core.importFile.preview.notes;
+      core.importAdded.push(n);
+      return n;
+    },
+    import_discard: () => {
+      core.importHeld = false;
     },
     leave_vault: () => {
       if (core.removedAtMs === null) return fail("not_removed", "This Mac has not been removed.");

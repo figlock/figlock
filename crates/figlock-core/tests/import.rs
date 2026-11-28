@@ -506,3 +506,17 @@ proptest! {
         assert_addable(&r.items);
     }
 }
+
+#[test]
+fn the_summary_counts_and_lists_titles_without_any_secret() {
+    let pw = format!("pw-{}", sample(ALNUM, 20, 1));
+    let csv = format!(
+        "name,url,username,password,note\nGitHub,https://github.com,me,{pw},\nBank,https://bank.example,me,{pw},\n,,,,\n"
+    );
+    let report = run(Source::Chrome, &csv);
+    let s = report.summary(1);
+    assert_eq!((s.logins, s.notes, s.tokens), (2, 0, 0));
+    assert_eq!(s.skipped_empty, 1);
+    assert_eq!(s.titles, vec!["GitHub".to_owned()]);
+    assert!(!format!("{s:?}").contains(&pw));
+}
