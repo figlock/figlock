@@ -57,6 +57,7 @@
     } catch (e) {
       preview = null;
       error = failure(w, e);
+      await w.library.refresh().catch(() => {});
     } finally {
       busy = false;
     }
