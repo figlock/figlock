@@ -92,7 +92,7 @@ and named by its owner:
 - `figlock sync` runs one pull and push and prints what moved (`--json` supported); `--reupload` is the
   person's confirmation after the remote was lost. `figlock sync on` and `figlock sync off` enable and
   disable the Drive remote (`on` only stays on if the first sync works); `figlock sync status` shows signed
-  in, last sync and the local path, with no network call. `figlock drive login` and `logout` are unchanged.
+  in (with the Google address stored at sign-in, ADR-0021), last sync and the local path, with no network call. `figlock drive login` and `logout` are unchanged.
 - Ordinary commands read and write the local folder and never depend on the network. Before a command that
   unlocks the vault, the CLI pulls if the last sync is more than a minute old (the desktop app and broker
   poll every 15 seconds; a one-shot command that paid a Drive round trip every time would be slow for an
