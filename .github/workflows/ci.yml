@@ -160,7 +160,7 @@ jobs:
       - name: iOS version script (tag must match the workspace version)
         run: scripts/test-ios-version.sh
 
-  # iPhone app (ADR-0041): only when the app or the Rust crates it links change (ADR-0015).
+  # iPhone and iPad app (ADR-0041, ADR-0048): only when the app or the Rust crates it links change (ADR-0015).
   ios:
     needs: changes
     if: needs.changes.outputs.ios == 'true'
@@ -176,6 +176,8 @@ jobs:
         run: just ios-test
       - name: Build the app for the simulator
         run: just ios-build
+      - name: Build the app for an iPad simulator (universal build, ADR-0048)
+        run: just ios-build-ipad
       - name: UI tests on a simulator
         run: just ios-uitest
       - name: Keep the test results of a failure

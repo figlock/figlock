@@ -1,7 +1,7 @@
-# FigLock for iPhone
+# FigLock for iPhone and iPad
 
-SwiftUI app plus an AutoFill Credential Provider extension over the Rust core (ADR-0041). iPhone only, iOS 18
-or later.
+SwiftUI app plus an AutoFill Credential Provider extension over the Rust core (ADR-0041). One universal build
+for iPhone and iPad (ADR-0048), iOS 18 or later.
 
 ```
 App/                  the app target
@@ -141,7 +141,8 @@ just ios-project       # generate FigLock.xcodeproj
 just ios-test          # Shared package tests on a simulator (the extension memory test runs alone in a second run)
 just ios-uitest        # UI tests (FigLockUITests) on a simulator against the demo vault
 just ios-lint          # SwiftLint and swift-format (strict); `just ios-fmt` fixes formatting
-just ios-run           # build, then install and launch on a simulator (SIMULATOR="iPhone 17" by default)
+just ios-run           # build, then install and launch on the "iPhone 17" simulator (SIMULATOR=<name or id> overrides)
+just ios-run-ipad      # the same on the "iPad Pro 11-inch" simulator
 ```
 
 The xcframework and the Swift bindings (`Shared/Frameworks`, `Shared/Sources/FigLockFFI`) are generated from the
