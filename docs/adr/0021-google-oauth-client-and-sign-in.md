@@ -50,8 +50,10 @@ Two things shaped the decision:
 - The signed-in Google address is looked up once at sign-in with the Drive `about` call (`fields=user(emailAddress)`,
   no extra scope), best effort: a failed or implausible answer never fails the sign-in. It is stored in
   `drive-token.json` beside the refresh token (so logout removes both), replaced on every sign-in, never logged,
-  and shown by `figlock drive login` and `figlock sync status` (`email` in `--json`). Sign-ins from before this
-  show no address.
+  and shown by `figlock drive login`, `figlock sync status` (`email` in `--json`) and the desktop app's Sync
+  settings. A sign-in from before this learns it once when the desktop Sync settings page opens (best effort,
+  offline changes nothing, and the file keeps its mtime because that is the sign-in time); the CLI shows no
+  address for it until the next sign-in.
 - There is deliberately no environment override for the OAuth or Drive endpoints: a hostile environment could
   then receive the bearer token.
 

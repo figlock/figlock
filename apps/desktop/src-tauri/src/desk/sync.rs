@@ -157,9 +157,12 @@ pub struct SyncView {
     pub state: &'static str,
     /// Google sign-in. It is Drive's alone; iCloud has none.
     pub signed_in: bool,
-    /// How long ago this Mac signed in to Google. The sign-in carries no account name (the app folder scope
-    /// gives no email), so this is all the window can say about it.
+    /// How long ago this Mac signed in to Google.
     pub signed_in_secs_ago: Option<u64>,
+    /// The Google account's email, kept beside the sign-in (the Drive `about` call needs no scope beyond the app
+    /// folder). `None` for a sign-in made before it was kept, until [`Desk::sync_refresh_account`] learns it.
+    /// Shown to the person only, never logged.
+    pub signed_in_as: Option<String>,
     /// This build can sign in to Google at all.
     pub can_sign_in: bool,
     pub last_sync_secs_ago: Option<u64>,
@@ -354,6 +357,7 @@ impl Desk {
             signed_in_secs_ago: config::drive_signed_in_ms()
                 .filter(|_| signed_in)
                 .map(|t| now.saturating_sub(t) / 1000),
+            signed_in_as: drive::signed_in_as().filter(|_| signed_in),
             can_sign_in: drive.can_sign_in,
             last_sync_secs_ago: sync::last_sync_ms().map(|t| now.saturating_sub(t) / 1000),
             message: if enabled { message } else { None },
@@ -363,6 +367,13 @@ impl Desk {
             remotes: views,
             icloud: icloud_view(),
         })
+    }
+
+    /// Learns the Google account's email for a sign-in made before it was kept, then returns the status. Asks
+    /// Drive, so it blocks on the network: run it off the async runtime. Offline or refused changes nothing.
+    pub fn sync_refresh_account(&self) -> CmdRes<SyncView> {
+        let _ = drive::account_email();
+        self.sync_status()
     }
 
     /// Sign out of Google: turn Drive sync off first (a Mac with Drive sync on and no sign-in would only sit at

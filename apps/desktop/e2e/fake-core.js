@@ -24,6 +24,7 @@
       state: "off",
       signedIn: false,
       signedInSecsAgo: null,
+      signedInAs: null,
       canSignIn: true,
       lastSyncSecsAgo: null,
       message: null,
@@ -534,6 +535,7 @@
         enabled: false,
         signedIn: false,
         signedInSecsAgo: null,
+        signedInAs: null,
         state: "off",
         lastSyncSecsAgo: null,
       };
@@ -545,12 +547,23 @@
           cancelSignIn = () =>
             reject({ code: "sign_in_cancelled", message: "Google sign-in was cancelled." });
         });
-      core.sync = { ...core.sync, signedIn: true, signedInSecsAgo: 0 };
+      core.sync = {
+        ...core.sync,
+        signedIn: true,
+        signedInSecsAgo: 0,
+        signedInAs: "mira@example.com",
+      };
       return { canSignIn: true, signedIn: true };
     },
     drive_cancel_sign_in: () => {
       cancelSignIn?.();
       cancelSignIn = null;
+    },
+    // A sign-in made before the address was kept: Google tells it once, and offline says nothing.
+    sync_refresh_account: () => {
+      if (core.sync.signedIn && !core.sync.signedInAs && core.sync.learnableAs)
+        core.sync = { ...core.sync, signedInAs: core.sync.learnableAs };
+      return syncView();
     },
     drive_status: () => ({ canSignIn: true, signedIn: core.sync.signedIn }),
     devices: () => [

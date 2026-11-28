@@ -46,8 +46,10 @@ export type SyncView = {
   /** All places in one word, for the sidebar. */
   state: SyncState;
   signedIn: boolean;
-  /** How long ago this Mac signed in to Google; the sign-in carries no account name. */
+  /** How long ago this Mac signed in to Google. */
   signedInSecsAgo: number | null;
+  /** The Google account's email, when known. Missing for a sign-in made before it was kept, until learned. */
+  signedInAs: string | null;
   /** This build can sign in to Google at all (source builds cannot, ADR-0021). */
   canSignIn: boolean;
   lastSyncSecsAgo: number | null;
@@ -63,6 +65,8 @@ export type SyncView = {
 };
 
 export const syncStatus = () => invoke<SyncView>("sync_status");
+/** Asks Google which account this Mac is signed in with, for a sign-in that has no address yet. */
+export const syncRefreshAccount = () => invoke<SyncView>("sync_refresh_account");
 /**
  * Sync now: every place, or only `remote` (its id). `reupload` is the person's yes to uploading everything again
  * after the vault was lost from a place.

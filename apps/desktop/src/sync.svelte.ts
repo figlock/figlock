@@ -7,6 +7,7 @@ import {
   syncEnable,
   syncEnableIcloud,
   syncNow,
+  syncRefreshAccount,
   syncSignOut,
   syncStatus,
   type SyncView,
@@ -31,6 +32,16 @@ export class SyncStatus {
       this.view = await syncStatus();
     } catch {
       // Sync is an extra: a window that cannot read its state just shows none.
+    }
+  }
+
+  /** Learns the Google account's email for a sign-in that has none yet. Best effort: offline changes nothing. */
+  async learnAccount() {
+    if (this.view?.signedIn !== true || this.view.signedInAs) return;
+    try {
+      this.view = await syncRefreshAccount();
+    } catch {
+      // The address is a label; the page reads fine without it.
     }
   }
 
