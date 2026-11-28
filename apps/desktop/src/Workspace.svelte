@@ -45,8 +45,15 @@
   let scroller = $state<HTMLElement>();
   let search = $state<HTMLInputElement>();
   let query = $state("");
+  /** Wide enough for the list and the open item side by side; narrower shows one page at a time. */
+  let wide = $state(true);
 
   const route = $derived(nav.current);
+  const split = $derived(wide && (route.p === "list" || route.p === "item"));
+  /** The open item in the three-column layout. */
+  const selected = $derived(
+    route.p === "list" ? route.sel : route.p === "item" ? route.id : undefined,
+  );
   const section = $derived<Filter | null>(
     route.p === "list"
       ? route.f
@@ -93,11 +100,23 @@
   ];
 
   onMount(() => {
+    const query = window.matchMedia?.("(min-width: 1000px)");
+    const onWidth = (e: MediaQueryListEvent) => {
+      wide = e.matches;
+      // Narrow again: the item that was open beside the list becomes the page on top of it.
+      const r = nav.current;
+      if (!wide && r.p === "list" && r.sel) nav.push({ p: "item", id: r.sel, from: r.f });
+    };
+    if (query) {
+      wide = query.matches;
+      query.addEventListener("change", onWidth);
+    }
     void library.refresh();
     const stopSync = sync.start();
     // FigLock > About FigLock in the app menu.
     const stopAbout = onOpenAbout(() => nav.go({ p: "settings", page: "about" }));
     return () => {
+      query?.removeEventListener("change", onWidth);
       library.stop();
       stopSync();
       void stopAbout.then((off) => off());
@@ -113,8 +132,12 @@
       last = now;
     };
   });
+  // Picking another item in the three-column layout keeps the list where it is and the focus on it.
+  const pageKey = $derived(
+    split ? `${nav.index}:split:${section}` : `${nav.index}:${JSON.stringify(route)}`,
+  );
   $effect(() => {
-    nav.current;
+    pageKey;
     const index = nav.index;
     void tick().then(() => {
       if (scroller) scroller.scrollTop = nav.scroll.get(index) ?? 0;
@@ -136,7 +159,29 @@
       ? nav.go({ p: "edit", kind: section, from: section })
       : nav.go({ p: "pick", from: section ?? "all" });
 
+  const typing = (t: EventTarget | null) =>
+    t instanceof HTMLElement &&
+    (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
+
   function keys(e: KeyboardEvent) {
+    if (!e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && !typing(e.target)) {
+      if (e.key === "/") {
+        e.preventDefault();
+        search?.focus();
+        return;
+      }
+    }
+    // Esc leaves the editor, asking first when there are unsaved changes.
+    if (
+      e.key === "Escape" &&
+      route.p === "edit" &&
+      !nav.pending &&
+      !document.querySelector('[role="dialog"],[role="alertdialog"]')
+    ) {
+      e.preventDefault();
+      nav.back();
+      return;
+    }
     if (!e.metaKey || e.altKey || e.ctrlKey) return;
     const act: Record<string, () => void> = {
       "[": () => nav.back(),
@@ -328,27 +373,61 @@
       <AgentRequests />
     </div>
 
-    <div bind:this={scroller} class="min-h-0 overflow-auto bg-bg">
-      <main class="mx-auto flex max-w-190 flex-col gap-5 px-8 pt-6 pb-12 max-[720px]:px-4">
-        {#key `${nav.index}:${JSON.stringify(route)}`}
-          {#if route.p === "list"}
-            <ItemList filter={route.f} />
-          {:else if route.p === "item"}
-            <ItemPage id={route.id} from={route.from} />
-          {:else if route.p === "generator"}
-            <GeneratorPage />
-          {:else if route.p === "health"}
-            <HealthPage />
-          {:else if route.p === "settings"}
-            <Settings />
-          {:else if route.p === "pick"}
-            <NewItem from={route.from} />
-          {:else}
-            <ItemEditor id={route.id} kind={route.kind} from={route.from} />
-          {/if}
-        {/key}
-      </main>
-    </div>
+    {#if split && section}
+      <div class="grid min-h-0 grid-cols-[minmax(280px,360px)_minmax(0,1fr)] bg-bg">
+        <div
+          bind:this={scroller}
+          class="min-h-0 overflow-auto border-r border-border px-3 pt-4 pb-8"
+        >
+          <section aria-label="Items" class="flex flex-col gap-3">
+            {#key section}
+              <ItemList filter={section} split {selected} />
+            {/key}
+          </section>
+        </div>
+        <div class="min-h-0 overflow-auto">
+          <section
+            aria-label="Item"
+            class="mx-auto flex max-w-190 flex-col gap-5 px-8 pt-6 pb-12 max-[1100px]:px-5"
+          >
+            {#key selected}
+              {#if selected}
+                <ItemPage id={selected} from={section} split />
+              {:else}
+                <div class="flex flex-col items-center gap-2 px-6 py-24 text-center">
+                  <p class="font-semibold text-text-secondary">No item selected</p>
+                  <p class="text-(length:--text-sm) text-text-tertiary">
+                    Pick an item from the list to see it here.
+                  </p>
+                </div>
+              {/if}
+            {/key}
+          </section>
+        </div>
+      </div>
+    {:else}
+      <div bind:this={scroller} class="min-h-0 overflow-auto bg-bg">
+        <main class="mx-auto flex max-w-190 flex-col gap-5 px-8 pt-6 pb-12 max-[720px]:px-4">
+          {#key `${nav.index}:${JSON.stringify(route)}`}
+            {#if route.p === "list"}
+              <ItemList filter={route.f} />
+            {:else if route.p === "item"}
+              <ItemPage id={route.id} from={route.from} />
+            {:else if route.p === "generator"}
+              <GeneratorPage />
+            {:else if route.p === "health"}
+              <HealthPage />
+            {:else if route.p === "settings"}
+              <Settings />
+            {:else if route.p === "pick"}
+              <NewItem from={route.from} />
+            {:else}
+              <ItemEditor id={route.id} kind={route.kind} from={route.from} />
+            {/if}
+          {/key}
+        </main>
+      </div>
+    {/if}
   </div>
 </div>
 

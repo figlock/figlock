@@ -28,11 +28,20 @@ export class Library {
     }
   }
 
-  /** Search as the person types, at most every 120 ms. */
+  /** Search as the person types: the first keystroke runs at once, later ones settle for 40 ms. */
   search(query: string) {
     this.query = query;
+    const idle = this.#timer === undefined;
     clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => void this.#search(), query ? 120 : 0);
+    if (idle || !query) {
+      void this.#search();
+      this.#timer = idle && query ? setTimeout(() => (this.#timer = undefined), 40) : undefined;
+      return;
+    }
+    this.#timer = setTimeout(() => {
+      this.#timer = undefined;
+      void this.#search();
+    }, 40);
   }
 
   async #search() {
@@ -49,5 +58,6 @@ export class Library {
 
   stop() {
     clearTimeout(this.#timer);
+    this.#timer = undefined;
   }
 }

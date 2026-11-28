@@ -17,8 +17,13 @@
   import { ageText, dayDiff, expiryState, fmtDate, fmtSize, suffixed } from "./util";
   import { failure, getWorkspace } from "./workspace";
 
-  type Props = { id: string; from: Filter };
-  let { id, from }: Props = $props();
+  type Props = {
+    id: string;
+    from: Filter;
+    /** Shown beside the list: deleting leaves the list with nothing open, and the heading is not the page's. */
+    split?: boolean;
+  };
+  let { id, from, split = false }: Props = $props();
 
   const ws = getWorkspace();
   const { nav, library } = ws;
@@ -64,7 +69,8 @@
       await deleteItem(id);
       await library.refresh();
       toast.show(`Deleted ${title}`);
-      nav.leave();
+      if (split) nav.select(from);
+      else nav.leave();
     } catch (e) {
       error = failure(ws, e);
     }
@@ -98,11 +104,15 @@
 
 {#if missing}
   <div class="flex flex-col items-center gap-3 px-6 py-16 text-center">
-    <h2 id="page-title" tabindex="-1" class="text-(length:--text-md) leading-6 font-semibold">
+    <h2
+      id={split ? "detail-title" : "page-title"}
+      tabindex="-1"
+      class="text-(length:--text-md) leading-6 font-semibold"
+    >
       This item is no longer in the vault
     </h2>
     {#if error}<p class="text-text-secondary">{error}</p>{/if}
-    <Button onclick={() => nav.back()}>Go back</Button>
+    {#if !split}<Button onclick={() => nav.back()}>Go back</Button>{/if}
   </div>
 {:else if item && info}
   <div class="flex items-center gap-4">
@@ -113,7 +123,7 @@
     </span>
     <div class="min-w-0 flex-1">
       <h1
-        id="page-title"
+        id={split ? "detail-title" : "page-title"}
         tabindex="-1"
         class="text-(length:--text-2xl) leading-7 font-semibold wrap-anywhere"
       >

@@ -7,7 +7,7 @@ export type SettingsPage = "security" | "sync" | "devices" | "updates" | "advanc
 export type Filter = "all" | Kind | "deleted";
 
 export type Route =
-  | { p: "list"; f: Filter }
+  | { p: "list"; f: Filter; sel?: string }
   | { p: "item"; id: string; from: Filter }
   | { p: "pick"; from: Filter }
   | { p: "generator" }
@@ -55,6 +55,12 @@ export class Nav {
   /** Swap the current page for another, so back does not return to it. */
   replace(route: Route) {
     this.stack = this.stack.map((r, i) => (i === this.index ? route : r));
+  }
+
+  /** Pick the open item in the three-column layout. It swaps the page instead of adding one, so a click
+   * does not flood the history; back and forward still step between pages. */
+  select(f: Filter, sel?: string) {
+    this.replace({ p: "list", f, sel });
   }
 
   back() {

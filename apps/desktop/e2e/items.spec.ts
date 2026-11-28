@@ -22,8 +22,9 @@ test.describe("items", () => {
     await page.getByRole("button", { name: "Add item" }).click();
 
     await expect(page.getByRole("heading", { name: "Example bank", level: 1 })).toBeVisible();
-    await expect(page.getByText("me@example.test")).toBeVisible();
-    await expect(page.getByText("https://bank.example.test")).toBeVisible();
+    const detail = page.getByRole("region", { name: "Item", exact: true });
+    await expect(detail.getByText("me@example.test")).toBeVisible();
+    await expect(detail.getByText("https://bank.example.test")).toBeVisible();
     // The page never received the value: it is only fetched on Show.
     await expect(page.getByText("s3cret-pass-demo")).toHaveCount(0);
     await expect(page.getByRole("group", { name: "Password" })).toContainText("Hidden");
@@ -106,7 +107,8 @@ test.describe("items", () => {
     await expect(page.getByRole("button", { name: /^GitHub/ })).toHaveCount(0);
   });
 
-  test("Back returns to the list", async ({ page }) => {
+  test("Back returns to the list in the narrow layout", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 700 });
     await openApp(page, { items: [GITHUB] });
     await page.getByRole("button", { name: /^GitHub/ }).click();
     await page.getByRole("button", { name: "Back" }).click();

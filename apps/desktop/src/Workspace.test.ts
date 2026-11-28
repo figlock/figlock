@@ -178,7 +178,9 @@ test("a secret stays hidden until Show, and Copy never hands the value to the wi
   const { container } = open();
   await user.click(await screen.findByRole("button", { name: /Cloudflare/ }));
   expect(await screen.findByRole("heading", { name: "Cloudflare" })).toBeTruthy();
-  expect(screen.getByText("ops@example.test")).toBeTruthy();
+  expect(
+    within(screen.getByRole("region", { name: "Item" })).getByText("ops@example.test"),
+  ).toBeTruthy();
   expect(container.textContent).not.toContain(password);
   expect(core.revealField).not.toHaveBeenCalled();
 
