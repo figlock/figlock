@@ -19,7 +19,7 @@ and you should do it in a way that keeps the value out of this conversation.
    a value where you can read it. Only the user decides to do that, on their own terminal.
 5. **Do not retry a denied request.** If the user declines or the approval times out, say so and stop.
 6. **Do not try to list the vault.** Ask the user for the item's title if you do not know it. That
-   includes `figlock find --deleted`, `figlock health` and `figlock recovery-key`: they are for the user.
+   includes `figlock find --deleted`, `figlock edit --restore-all`, `figlock health` and `figlock recovery-key`: they are for the user.
 
 ## Call an API: `figlock http`
 
