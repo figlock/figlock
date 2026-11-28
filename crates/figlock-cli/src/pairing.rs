@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 use figlock_core::{DeviceKeys, Invite, Key, SecretKey, Vault};
 use figlock_session::config::{self, Config, Place};
 use figlock_session::error::{Fail, Res};
-use figlock_session::session::{Session, now_ms, peek_vault_id};
+use figlock_session::session::{Session, now_ms, peek_vault_id, wrong_credentials};
 use figlock_session::{join, secret_key_store, store, sync};
 use figlock_store::StoreError;
 use serde_json::json;
@@ -170,10 +170,6 @@ pub fn open(a: OpenArgs, json: bool) -> Res<()> {
         &a.at,
         json,
     )
-}
-
-fn wrong_credentials() -> Fail {
-    Fail::new("could not unlock: wrong password or Secret Key, or the vault file is damaged")
 }
 
 /// The Secret Key to hand to the new device: the one this device keeps (after Touch ID or the device

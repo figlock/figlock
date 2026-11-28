@@ -15,11 +15,11 @@ pub fn open_local(path: &std::path::Path) -> Res<Box<dyn BlobStore>> {
     if !path.is_dir() {
         return Err(Fail::new(format!(
             "the vault folder is missing or not available: {}\n\
-             If it was moved or is on a drive that is not connected, put it back there. The FigLock desktop app \
-             offers the other ways forward (locate the folder, restore from Google Drive, create a new vault, remove \
-             this vault from this Mac). Without it, delete config.json and device.json in the FigLock config folder \
-             to forget the vault on this machine (nothing in the vault folder or Drive is touched), then run \
-             `figlock open` or `figlock init`.",
+             Nothing was created and nothing was deleted. If it was moved, point FigLock at it with \
+             `figlock locate <folder>`. If it is on a drive that is not connected, connect it. If sync was on, \
+             `figlock restore-vault` brings the vault back from Google Drive or iCloud Drive. To stop using this \
+             vault on this device, run `figlock forget` (the folder and synced copies are not touched); the \
+             desktop app offers the same ways forward.",
             path.display()
         )));
     }
@@ -135,6 +135,8 @@ mod tests {
         };
         assert!(message.contains(&gone.display().to_string()));
         assert!(message.contains("desktop app"));
-        assert!(message.contains("figlock open"));
+        for way in ["figlock locate", "figlock restore-vault", "figlock forget"] {
+            assert!(message.contains(way), "{message}");
+        }
     }
 }

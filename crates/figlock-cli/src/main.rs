@@ -9,6 +9,7 @@ mod broker;
 mod commands;
 mod credentials;
 mod drive;
+mod folder;
 mod health;
 #[cfg(unix)]
 mod import;
@@ -38,6 +39,11 @@ Getting started:
   figlock find github                               Search (fuzzy)
   figlock get github --reveal                       Show an item with its secrets
   figlock copy github                               Copy the password; the clipboard is cleared after 30 seconds
+
+If the vault folder is gone, moved or will not unlock:
+  figlock locate <folder>                           Point this device at the folder you moved the vault to
+  figlock restore-vault [--drive|--icloud]          Bring the vault back from Google Drive or iCloud Drive
+  figlock forget                                    Remove the vault from this device (the folder and synced copies stay)
 
 Adding another device:
   figlock device add                                On a device that has the vault: show an invite code, approve
@@ -124,6 +130,12 @@ enum Command {
     Join(JoinArgs),
     /// Open a vault that already exists with your password and Secret Key, when no other device is at hand.
     Open(OpenArgs),
+    /// The vault folder is missing: point this device at the folder you moved it to.
+    Locate(LocateArgs),
+    /// The vault folder is missing: download the vault from Google Drive or iCloud Drive into a new folder.
+    RestoreVault(RestoreVaultArgs),
+    /// Remove the vault from this device. The vault folder and synced copies are not touched.
+    Forget(ForgetArgs),
     /// Replace, show or forget the Secret Key.
     SecretKey {
         #[command(subcommand)]
@@ -610,6 +622,32 @@ pub struct AddArgs {
 }
 
 #[derive(Args)]
+pub struct LocateArgs {
+    /// The full path of the folder that holds the vault (it has a `vault.json` in it).
+    pub folder: PathBuf,
+}
+
+#[derive(Args)]
+pub struct RestoreVaultArgs {
+    /// Download from Google Drive.
+    #[arg(long, conflicts_with = "icloud")]
+    pub drive: bool,
+    /// Copy from the FigLock folder in iCloud Drive.
+    #[arg(long)]
+    pub icloud: bool,
+    /// The full path of the new local vault folder. Default: the FigLock config folder's `vault`.
+    #[arg(long, value_name = "FOLDER")]
+    pub folder: Option<PathBuf>,
+}
+
+#[derive(Args)]
+pub struct ForgetArgs {
+    /// Do not ask for confirmation.
+    #[arg(long)]
+    pub yes: bool,
+}
+
+#[derive(Args)]
 pub struct EditArgs {
     /// Item id, unique id prefix, or a search that finds one item.
     #[arg(required_unless_present = "restore_all")]
@@ -892,6 +930,21 @@ fn quick_command(action: &QuickCmd, json: bool) -> error::Res<()> {
     }
 }
 
+/// What to do next, for the failures that leave a person stuck rather than just mistaken.
+fn next_step(kind: figlock_session::error::FailKind) -> Option<&'static str> {
+    use figlock_session::error::FailKind;
+    match kind {
+        FailKind::VaultMissing => Some(
+            "There is no vault in this device's vault folder. Point at the right folder with `figlock locate <folder>`, \
+             bring the vault back from a synced copy with `figlock restore-vault`, or stop using it here with `figlock forget`.",
+        ),
+        FailKind::DeviceRevoked | FailKind::DeviceKeysLost => Some(
+            "Run `figlock forget` to remove the vault from this device, then `figlock join` with a new invite from a device that still has it.",
+        ),
+        _ => None,
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json = cli.json;
@@ -900,6 +953,9 @@ fn main() -> ExitCode {
         Command::Init(a) => ok(commands::init(a, json)),
         Command::Join(a) => ok(pairing::join(a, json)),
         Command::Open(a) => ok(pairing::open(a, json)),
+        Command::Locate(a) => ok(folder::locate(&a.folder, json)),
+        Command::RestoreVault(a) => ok(folder::restore(&a, json)),
+        Command::Forget(a) => ok(folder::forget(a.yes, json)),
         Command::Add(a) => ok(commands::add(a, json)),
         Command::Edit(a) => ok(commands::edit(a, json)),
         Command::Find(a) => ok(commands::find(a, json)),
@@ -966,6 +1022,9 @@ fn main() -> ExitCode {
         Ok(code) => ExitCode::from(u8::try_from(code & 0xff).unwrap_or(1)),
         Err(e) => {
             eprintln!("error: {e}");
+            if let Some(hint) = next_step(e.1) {
+                eprintln!("{hint}");
+            }
             if e.1 == figlock_session::error::FailKind::Unavailable {
                 // `EX_UNAVAILABLE`: nothing could answer, and only a person can change that.
                 ExitCode::from(69)

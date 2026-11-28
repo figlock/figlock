@@ -1480,3 +1480,203 @@ fn a_folder_remote_that_is_the_vault_folder_is_refused_and_changes_nothing() {
     let state = fs::read(e.home.path().join("sync-state.json")).unwrap_or_default();
     assert!(!String::from_utf8_lossy(&state).contains("\"synced\""));
 }
+
+/// FIG-296: the vault folder is gone. Every command says what happened and the ways forward, nothing is created
+/// in its place, and nothing is deleted.
+#[test]
+fn a_missing_vault_folder_explains_itself_and_is_never_recreated() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    let holder = TempDir::new().unwrap();
+    let moved = holder.path().join("moved-vault");
+    fs::rename(e.store.path(), &moved).unwrap();
+
+    for args in [
+        &["find"][..],
+        &["get", "bank"],
+        &["add", "--type", "note", "--title", "x"],
+    ] {
+        let out = e.run(args);
+        assert!(!out.status.success(), "{args:?}");
+        let err = text(&out.stderr);
+        for way in [
+            "is missing",
+            "figlock locate",
+            "figlock restore-vault",
+            "figlock forget",
+        ] {
+            assert!(err.contains(way), "{args:?}: {err}");
+        }
+    }
+    // The folder was not made again, and an init cannot start an empty vault in its place.
+    assert!(!e.store.path().exists());
+    let store = e.store.path().to_str().unwrap();
+    assert!(
+        !e.run(&["init", "--store", store, "--kdf", "floor"])
+            .status
+            .success()
+    );
+    assert!(!e.store.path().exists());
+
+    // Pointing at the moved folder brings everything back.
+    let located = e.ok(&["locate", moved.to_str().unwrap()]);
+    assert!(located.contains("now uses the vault"), "{located}");
+    assert!(e.ok(&["find", "bank"]).contains("Bank"));
+    // With the folder back there is nothing to recover.
+    let again = e.run(&["locate", moved.to_str().unwrap()]);
+    assert!(text(&again.stderr).contains("nothing to recover"));
+    assert!(!e.run(&["restore-vault"]).status.success());
+}
+
+#[test]
+fn locate_refuses_a_folder_without_a_vault_and_changes_nothing() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    let holder = TempDir::new().unwrap();
+    let gone = holder.path().join("gone");
+    fs::rename(e.store.path(), &gone).unwrap();
+    let empty = TempDir::new().unwrap();
+
+    for bad in [
+        empty.path().to_str().unwrap(),
+        "relative/path",
+        "/no/such/folder/anywhere",
+    ] {
+        let out = e.run(&["locate", bad]);
+        assert!(!out.status.success(), "{bad}");
+        assert!(text(&out.stdout).is_empty());
+    }
+    assert!(text(&e.run(&["find"]).stderr).contains("is missing"));
+    assert_eq!(fs::read_dir(empty.path()).unwrap().count(), 0);
+}
+
+#[test]
+fn restore_vault_without_a_synced_copy_says_so_and_creates_nothing() {
+    let e = Env::init();
+    let holder = TempDir::new().unwrap();
+    fs::rename(e.store.path(), holder.path().join("gone")).unwrap();
+    let target = holder.path().join("restored");
+    let target_arg = target.to_str().unwrap();
+    for flag in [&[][..], &["--drive"], &["--icloud"]] {
+        let mut args = vec!["restore-vault", "--folder", target_arg];
+        args.extend_from_slice(flag);
+        let out = e.run(&args);
+        assert!(!out.status.success(), "{flag:?}");
+        assert!(
+            text(&out.stderr).contains("was not turned on"),
+            "{}",
+            text(&out.stderr)
+        );
+    }
+    assert!(!target.exists());
+    assert!(
+        !e.run(&["restore-vault", "--drive", "--icloud"])
+            .status
+            .success()
+    );
+}
+
+#[test]
+fn restore_vault_from_drive_needs_a_sign_in_first() {
+    let e = Env::init();
+    // This device syncs to Google Drive but is not signed in.
+    let config = e.home.path().join("config.json");
+    let mut v: Value = serde_json::from_str(&fs::read_to_string(&config).unwrap()).unwrap();
+    v["remote"] = "drive".into();
+    fs::write(&config, v.to_string()).unwrap();
+    let holder = TempDir::new().unwrap();
+    fs::rename(e.store.path(), holder.path().join("gone")).unwrap();
+    let target = holder.path().join("restored");
+    let out = e.run(&["restore-vault", "--folder", target.to_str().unwrap()]);
+    assert!(!out.status.success());
+    assert!(
+        text(&out.stderr).contains("figlock drive login"),
+        "{}",
+        text(&out.stderr)
+    );
+    assert!(!target.exists());
+}
+
+#[test]
+fn forget_removes_only_this_devices_setup_after_a_confirmation() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+    let files_before = e.ops();
+
+    // No terminal and no --yes: nothing happens.
+    let refused = e.run_stdin(&["forget"], "y\n");
+    assert!(!refused.status.success());
+    assert!(text(&refused.stderr).contains("--yes"));
+    assert!(e.ok(&["find"]).contains("Bank"));
+
+    let out = e.ok(&["forget", "--yes"]);
+    assert!(out.contains("Nothing was deleted"), "{out}");
+    assert!(!e.home.path().join("config.json").exists());
+    assert!(!e.home.path().join("device.json").exists());
+    // The vault folder is exactly as it was.
+    assert_eq!(e.ops(), files_before);
+    assert!(e.store.path().join("vault.json").is_file());
+    // This device no longer has a vault, and a second forget says so rather than pretending.
+    assert!(text(&e.run(&["find"]).stderr).contains("no vault is set up"));
+    assert!(!e.run(&["forget", "--yes"]).status.success());
+
+    // The vault can be opened here again with the password and Secret Key.
+    let store = e.store.path().to_str().unwrap();
+    let reopened = e.run(&["open", "--store", store]);
+    assert!(reopened.status.success(), "{}", text(&reopened.stderr));
+    assert!(e.ok(&["find"]).contains("Bank"));
+}
+
+#[test]
+fn forget_in_json_and_a_missing_folder_work_together() {
+    let e = Env::init();
+    let holder = TempDir::new().unwrap();
+    fs::rename(e.store.path(), holder.path().join("gone")).unwrap();
+    let v: Value = serde_json::from_str(&e.ok(&["--json", "forget", "--yes"])).unwrap();
+    assert_eq!(v["status"], "forgotten");
+}
+
+/// FIG-296: one plain explanation when the vault will not unlock, with the ways forward, for each state.
+#[test]
+fn a_vault_that_will_not_unlock_gets_one_plain_explanation() {
+    let e = Env::init();
+    e.add_login("Bank", &[]);
+
+    // Wrong password, or wrong Secret Key: one message, which does not say which.
+    let wrong_pw = text(
+        &e.run_with(&["find"], None, "not-the-password", Some(&e.secret_key))
+            .stderr,
+    );
+    let other = Env::init();
+    let wrong_sk = text(
+        &e.run_with(&["find"], None, PW, Some(&other.secret_key))
+            .stderr,
+    );
+    for err in [&wrong_pw, &wrong_sk] {
+        for part in [
+            "could not unlock",
+            "Emergency Kit",
+            "figlock forgot",
+            "figlock forget",
+        ] {
+            assert!(err.contains(part), "{err}");
+        }
+    }
+    assert!(!wrong_pw.contains(PW) && !wrong_pw.contains("not-the-password"));
+
+    // A vault file that is not a vault: damaged, with a way out.
+    fs::write(e.store.path().join("vault.json"), b"not json").unwrap();
+    let damaged = text(&e.run(&["find"]).stderr);
+    assert!(
+        damaged.contains("damaged") && damaged.contains("figlock forget"),
+        "{damaged}"
+    );
+
+    // No vault.json at all in an existing folder: missing, with the same ways forward.
+    fs::remove_file(e.store.path().join("vault.json")).unwrap();
+    let missing = text(&e.run(&["find"]).stderr);
+    assert!(
+        missing.contains("figlock locate") && missing.contains("figlock restore-vault"),
+        "{missing}"
+    );
+}
