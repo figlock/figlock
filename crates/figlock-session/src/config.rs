@@ -329,11 +329,11 @@ fn parse_drive_token(raw: &[u8]) -> Option<Zeroizing<String>> {
 
 /// The Google account's email as recorded at sign-in, or `None` when not signed in, signed in before the email
 /// was kept, or Google did not say. Never makes a network call.
-pub fn drive_linked_account() -> Option<String> {
-    drive_linked_account_in(&home().ok()?)
+pub fn drive_signed_in_as() -> Option<String> {
+    drive_signed_in_as_in(&home().ok()?)
 }
 
-fn drive_linked_account_in(home: &Path) -> Option<String> {
+fn drive_signed_in_as_in(home: &Path) -> Option<String> {
     let raw = Zeroizing::new(fs::read(drive_token_path(home)).ok()?);
     parse_drive_token(&raw)?;
     let v: Value = serde_json::from_slice(&raw).ok()?;
@@ -747,10 +747,10 @@ mod tests {
     #[test]
     fn the_account_email_lives_beside_the_token_and_goes_with_it() {
         let d = tempfile::tempdir().unwrap();
-        assert_eq!(drive_linked_account_in(d.path()), None);
+        assert_eq!(drive_signed_in_as_in(d.path()), None);
         save_drive_token_in(d.path(), "refresh-a", Some("me@example.com")).unwrap();
         assert_eq!(
-            drive_linked_account_in(d.path()).as_deref(),
+            drive_signed_in_as_in(d.path()).as_deref(),
             Some("me@example.com")
         );
         assert_eq!(
@@ -759,10 +759,10 @@ mod tests {
         );
         // Signing in again as someone else must not keep the old address.
         save_drive_token_in(d.path(), "refresh-b", None).unwrap();
-        assert_eq!(drive_linked_account_in(d.path()), None);
+        assert_eq!(drive_signed_in_as_in(d.path()), None);
         save_drive_token_in(d.path(), "refresh-c", Some("me@example.com")).unwrap();
         fs::remove_file(drive_token_path(d.path())).unwrap();
-        assert_eq!(drive_linked_account_in(d.path()), None);
+        assert_eq!(drive_signed_in_as_in(d.path()), None);
     }
 
     #[test]
