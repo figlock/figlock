@@ -134,3 +134,20 @@ export function badge(v: SyncView): { text: string; attention: boolean } {
         : { text: `Synced ${ago(v.lastSyncSecsAgo)}`, attention: false };
   }
 }
+
+/** What the Settings list says next to Sync: one plain word. */
+export function syncValue(v: SyncView | null): string {
+  if (!v) return "";
+  if (v.remotes.length === 0) return "Off";
+  switch (v.state) {
+    case "syncing":
+      return "Syncing";
+    case "offline":
+      return "Offline";
+    case "idle":
+    case "waiting":
+      return v.needsUnlock ? "Needs attention" : "Synced";
+    default:
+      return "Needs attention";
+  }
+}

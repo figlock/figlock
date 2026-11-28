@@ -111,14 +111,12 @@
         {#if info.quickUnlock}
           <p class="font-medium">On</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="touch-id-state">
-            You can open FigLock with your fingerprint instead of typing your password. Your Secret
-            Key stays kept on this Mac either way.
+            Open FigLock with your fingerprint.
           </p>
         {:else}
           <p class="font-medium">Off</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="touch-id-state">
-            You unlock with your password. Turn Touch ID on to open FigLock with your fingerprint
-            instead.
+            Unlock with your password.
           </p>
         {/if}
       </div>
@@ -148,8 +146,7 @@
           Turn on Touch ID
         </h2>
         <p class="text-text-secondary">
-          Enter your password{askKey ? " and Secret Key" : ""} to confirm. After this you can open FigLock
-          with your fingerprint.
+          Enter your password{askKey ? " and Secret Key" : ""} to confirm.
         </p>
       </div>
       {#if error}<Alert>{error}</Alert>{/if}
@@ -177,7 +174,7 @@
 {#if confirmingOff}
   <ConfirmDialog
     title="Turn off Touch ID?"
-    body="You will unlock with your password only. Your Secret Key stays kept on this Mac, so that is all you type. You can turn Touch ID on again here."
+    body="You will unlock with your password only. You can turn Touch ID on again here."
     confirm="Turn off Touch ID"
     onconfirm={turnOff}
     oncancel={() => (confirmingOff = false)}

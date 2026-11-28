@@ -9,6 +9,7 @@
   import RemovedBanner from "./RemovedBanner.svelte";
   import SecretKeyBanner from "./SecretKeyBanner.svelte";
   import Settings from "./Settings.svelte";
+  import { onOpenAbout } from "./about";
   import { SyncStatus } from "./sync.svelte";
   import { badge } from "./sync";
   import ItemEditor from "./ItemEditor.svelte";
@@ -54,6 +55,14 @@
         : route.from,
   );
 
+  const SETTINGS_TITLES: Record<string, string> = {
+    security: "Security",
+    sync: "Sync",
+    devices: "Devices",
+    updates: "Updates",
+    advanced: "Command line tool",
+    about: "About FigLock",
+  };
   const NAMES: Record<string, string> = { all: "All items", deleted: "Recently deleted" };
   const nameOf = (f: Filter) => NAMES[f] ?? kindInfo(f).plural;
   const title = $derived(
@@ -62,7 +71,7 @@
       : route.p === "health"
         ? "Password health"
         : route.p === "settings"
-          ? "Settings"
+          ? (SETTINGS_TITLES[route.page ?? ""] ?? "Settings")
           : route.p === "pick" || (route.p === "edit" && !route.id)
             ? "New item"
             : route.p === "edit"
@@ -86,9 +95,12 @@
   onMount(() => {
     void library.refresh();
     const stopSync = sync.start();
+    // FigLock > About FigLock in the app menu.
+    const stopAbout = onOpenAbout(() => nav.go({ p: "settings", page: "about" }));
     return () => {
       library.stop();
       stopSync();
+      void stopAbout.then((off) => off());
     };
   });
 
@@ -227,7 +239,7 @@
       {#if updates.pending}
         <button
           type="button"
-          onclick={() => nav.go({ p: "settings" })}
+          onclick={() => nav.go({ p: "settings", page: "updates" })}
           title="Updates"
           class="mb-1 flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left text-(length:--text-xs) font-medium text-text hover:bg-border max-[860px]:hidden"
         >
@@ -240,8 +252,8 @@
       {#if syncBadge}
         <button
           type="button"
-          onclick={() => nav.go({ p: "settings" })}
-          title="Google Drive sync"
+          onclick={() => nav.go({ p: "settings", page: "sync" })}
+          title="Sync"
           class="mb-1 flex h-8 w-full items-center gap-2 rounded-(--radius-sm) px-2 text-left text-(length:--text-xs) hover:bg-border max-[860px]:hidden {syncBadge.attention
             ? 'text-warning'
             : 'text-text-secondary'}"

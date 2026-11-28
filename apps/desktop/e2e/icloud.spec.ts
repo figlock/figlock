@@ -8,12 +8,13 @@ test.describe("iCloud Drive sync", () => {
   test("turns on with no sign-in, shows its own row, and turns off alone", async ({ page }) => {
     await openApp(page);
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     const section = page.getByTestId("icloud-section");
     await expect(section.getByText("Off", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in with Google" })).toHaveCount(0);
 
     await section.getByRole("button", { name: "Turn on iCloud Drive sync" }).click();
-    await expect(page.getByTestId("icloud-status")).toHaveText("Last synced just now");
+    await expect(page.getByTestId("icloud-status")).toHaveText("Synced just now");
     await expect(page.getByTestId("sync-badge")).toHaveText("Synced just now");
     expect(await calls(page)).toContain("sync_enable_icloud");
     expect(await calls(page)).not.toContain("drive_sign_in");
@@ -35,6 +36,7 @@ test.describe("iCloud Drive sync", () => {
   }) => {
     await openApp(page, { icloud: { ready: false } });
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     const section = page.getByTestId("icloud-section");
     await expect(section.getByRole("alert")).toContainText("System Settings");
     await expect(section.getByRole("button", { name: "Turn on iCloud Drive sync" })).toBeDisabled();
@@ -44,7 +46,8 @@ test.describe("iCloud Drive sync", () => {
   test("a computer without iCloud Drive shows no iCloud section", async ({ page }) => {
     await openApp(page, { icloud: { available: false, ready: false } });
     await page.getByRole("button", { name: "Settings" }).click();
-    await expect(page.getByText("Google Drive sync", { exact: true })).toBeVisible();
+    await page.getByTestId("settings-sync").click();
+    await expect(page.getByText("Google Drive", { exact: true })).toBeVisible();
     await expect(page.getByTestId("icloud-section")).toHaveCount(0);
   });
 
@@ -53,13 +56,14 @@ test.describe("iCloud Drive sync", () => {
   }) => {
     await openApp(page, { sync: drive, icloudOn: true });
     await page.getByRole("button", { name: "Settings" }).click();
-    await expect(page.getByTestId("last-sync")).toHaveText("Last synced 2 minutes ago");
-    await expect(page.getByTestId("icloud-status")).toHaveText("Last synced 2 minutes ago");
+    await page.getByTestId("settings-sync").click();
+    await expect(page.getByTestId("last-sync")).toHaveText("Synced 2 minutes ago");
+    await expect(page.getByTestId("icloud-status")).toHaveText("Synced 2 minutes ago");
 
     // Syncing iCloud alone leaves Drive's line as it was.
     await page.getByTestId("icloud-section").getByRole("button", { name: "Sync now" }).click();
-    await expect(page.getByTestId("icloud-status")).toHaveText("Last synced just now");
-    await expect(page.getByTestId("last-sync")).toHaveText("Last synced 2 minutes ago");
+    await expect(page.getByTestId("icloud-status")).toHaveText("Synced just now");
+    await expect(page.getByTestId("last-sync")).toHaveText("Synced 2 minutes ago");
 
     // Turning iCloud off leaves Drive working.
     await page.getByRole("button", { name: "Turn off iCloud Drive sync" }).click();
@@ -67,7 +71,7 @@ test.describe("iCloud Drive sync", () => {
       .getByRole("dialog")
       .getByRole("button", { name: "Turn off iCloud Drive sync" })
       .click();
-    await expect(page.getByTestId("last-sync")).toHaveText("Last synced 2 minutes ago");
+    await expect(page.getByTestId("last-sync")).toHaveText("Synced 2 minutes ago");
     await expect(
       page.getByTestId("icloud-section").getByText("Off", { exact: true }),
     ).toBeVisible();
@@ -83,9 +87,8 @@ test.describe("iCloud Drive sync", () => {
     });
     await expect(page.getByTestId("sync-badge")).toHaveText("Waiting for iCloud...");
     await page.getByRole("button", { name: "Settings" }).click();
-    await expect(page.getByTestId("icloud-status")).toHaveText(
-      "Waiting for iCloud to finish downloading the vault...",
-    );
+    await page.getByTestId("settings-sync").click();
+    await expect(page.getByTestId("icloud-status")).toHaveText("Waiting for iCloud...");
     await expect(page.getByTestId("icloud-section").locator(".text-warning")).toHaveCount(0);
   });
 
@@ -101,11 +104,12 @@ test.describe("iCloud Drive sync", () => {
     });
     await expect(page.getByTestId("sync-badge")).toHaveText("iCloud Drive not available");
     await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByTestId("settings-sync").click();
     await expect(page.getByTestId("icloud-section").getByRole("alert")).toContainText(
       "System Settings",
     );
     // Google Drive is unaffected.
-    await expect(page.getByTestId("last-sync")).toHaveText("Last synced 2 minutes ago");
+    await expect(page.getByTestId("last-sync")).toHaveText("Synced 2 minutes ago");
   });
 
   test("the recovery screen offers iCloud Drive next to Google Drive when that remote was on", async ({

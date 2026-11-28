@@ -104,7 +104,7 @@
   <div class="flex items-start justify-between gap-3">
     <div class="grid gap-1">
       <h3 id="devices-title" class="font-semibold">Devices</h3>
-      <p class="text-text-secondary">The devices that can open this vault.</p>
+      <p class="text-text-secondary">Devices that can open this vault.</p>
     </div>
     <Button onclick={() => void startAdd()}><Icon name="plus" />Add a device</Button>
   </div>

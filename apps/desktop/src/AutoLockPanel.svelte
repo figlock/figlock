@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { Alert, Icon, SelectField } from "@figlock/ui";
+  import { Alert } from "@figlock/ui";
   import { onMount } from "svelte";
 
+  import SettingsRow from "./SettingsRow.svelte";
   import { errorOf, setAutolock, vaultState } from "./vault";
 
   /** The times Settings offers, in seconds. There is no "never" (FIG-133). */
@@ -37,19 +38,22 @@
   });
 </script>
 
-<section aria-labelledby="autolock-title" class="grid gap-3">
-  <h3 id="autolock-title" class="font-semibold">Auto-lock</h3>
-  <div
-    class="flex flex-wrap items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3"
-  >
-    <Icon name="lock" class="text-text-tertiary" />
-    <div class="min-w-0 flex-1">
-      <p class="text-(length:--text-sm) text-text-secondary">
-        FigLock locks when you have not used it for this long. It also locks when the Mac sleeps or
-        the screen locks, whatever you choose here.
-      </p>
-    </div>
-    <SelectField label="Lock after" bind:value={chosen} {options} />
-  </div>
-  {#if error}<Alert>{error}</Alert>{/if}
-</section>
+<SettingsRow
+  icon="clock"
+  title="Lock after"
+  hint="Also locks when the Mac sleeps."
+  testid="autolock-row"
+>
+  {#snippet control()}
+    <select
+      aria-label="Lock after"
+      bind:value={chosen}
+      class="h-(--control-height-md) rounded-(--radius-sm) border border-border-strong bg-surface px-3 text-text"
+    >
+      {#each options as o (o.value)}
+        <option value={o.value}>{o.label}</option>
+      {/each}
+    </select>
+  {/snippet}
+</SettingsRow>
+{#if error}<div class="p-3"><Alert>{error}</Alert></div>{/if}

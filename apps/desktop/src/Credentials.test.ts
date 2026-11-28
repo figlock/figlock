@@ -78,6 +78,7 @@ async function toSettings() {
   const onlocked = vi.fn();
   render(Workspace, { onlock: vi.fn(), onlocked });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-security"));
   await screen.findByRole("heading", { name: "Password and Secret Key" });
   return Object.assign(user, { onlocked });
 }
@@ -163,7 +164,7 @@ test("rotating the key shows the new key and cannot be closed until it is confir
   await user.click(within(dialog).getByRole("button", { name: "Done" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(core.endRotation).toHaveBeenCalledTimes(1);
-  expect(screen.getByText(/Secret Key is rotated/)).toBeTruthy();
+  expect(screen.getByText(/Secret Key rotated/)).toBeTruthy();
 });
 
 test("a Mac that does not keep the key asks for it, and the old key is never shown again", async () => {

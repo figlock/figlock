@@ -557,6 +557,10 @@
       { id: "dev-1", name: "This Mac", fingerprint: "AB12-CD34", thisDevice: true, revoked: false },
     ],
     suggested_folder: () => "/Users/test/FigLock",
+    // The in-app page window: the fake only records which page was asked for.
+    open_about_page: ({ pageId }) => {
+      (core.aboutPages ??= []).push(pageId);
+    },
     "plugin:event|listen": () => 1,
     "plugin:event|unlisten": () => {},
   };

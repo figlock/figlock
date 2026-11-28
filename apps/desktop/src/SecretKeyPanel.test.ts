@@ -81,6 +81,7 @@ async function toSettings() {
   const user = userEvent.setup();
   render(Workspace, { onlock: vi.fn(), onlocked: vi.fn() });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-security"));
   await screen.findByText("Secret Key");
   return user;
 }
@@ -114,6 +115,7 @@ test("a shown key hides itself after 30 seconds", async () => {
   const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
   render(Workspace, { onlock: vi.fn(), onlocked: vi.fn() });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-security"));
   await user.click(await screen.findByRole("button", { name: "Show Secret Key" }));
   await screen.findByTestId("shown-key");
   await vi.advanceTimersByTimeAsync(30_001);
@@ -184,7 +186,7 @@ test("a kept key saves the kit after the prompt, with no key typed and a note of
   const user = await toSettings();
   await user.click(await screen.findByRole("button", { name: "Save Emergency Kit" }));
   await waitFor(() => expect(core.saveKit).toHaveBeenCalledWith(undefined, undefined));
-  expect((await screen.findByTestId("kit-saved")).textContent).toContain("same Secret Key");
+  expect((await screen.findByTestId("kit-saved")).textContent).toContain("Saved");
   expect(screen.queryByRole("dialog")).toBeNull();
 });
 

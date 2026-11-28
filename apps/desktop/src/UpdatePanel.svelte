@@ -13,12 +13,10 @@
   let confirming = $state(false);
 </script>
 
-<section aria-labelledby="updates-title" class="grid gap-3">
-  <h3 id="updates-title" class="font-semibold">Updates</h3>
-
+<section aria-label="Updates" class="grid gap-3">
   {#if view?.state === "unavailable"}
     <p class="text-text-secondary" data-testid="update-unavailable">
-      This build of FigLock does not update itself. Install a release build to get updates.
+      This build does not update itself. Use a release build.
     </p>
   {:else}
     <div class="flex items-center gap-3 rounded-(--radius-md) border border-border bg-surface p-3">
@@ -41,25 +39,23 @@
         {:else if view?.state === "ready"}
           <p class="font-medium">FigLock {view.version} is installed</p>
           <p class="text-(length:--text-sm) text-text-secondary">
-            Restart FigLock to start using it. Your vault locks when it restarts.
+            Restart to use it. Your vault locks on restart.
           </p>
         {:else if view?.state === "available"}
           <p class="font-medium" data-testid="update-available">
             FigLock {view.version} is available
           </p>
           <p class="text-(length:--text-sm) text-text-secondary">
-            You have {view.current}. It installs only when you choose to.
+            You have {view.current}.
           </p>
         {:else if view?.state === "up_to_date"}
           <p class="font-medium">FigLock is up to date</p>
           <p class="text-(length:--text-sm) text-text-secondary" data-testid="update-current">
-            You have the latest version, {view.current}.
+            Version {view.current}.
           </p>
         {:else}
           <p class="font-medium">{updates.checking ? "Checking..." : "Updates"}</p>
-          <p class="text-(length:--text-sm) text-text-secondary">
-            Check whether a newer version of FigLock is available.
-          </p>
+          <p class="text-(length:--text-sm) text-text-secondary">Check for a newer version.</p>
         {/if}
       </div>
       {#if view?.state === "ready"}
@@ -87,9 +83,7 @@
     {#if updates.error}<Alert>{updates.error}</Alert>{/if}
 
     <p class="text-(length:--text-xs) leading-4 text-text-tertiary">
-      FigLock asks figlock.com for the newest version when it starts. That request carries nothing
-      from your vault. Every update is signed, and FigLock checks the signature before it installs
-      anything.
+      Updates are signed and checked before they install. Nothing from your vault is sent.
     </p>
   {/if}
 </section>
@@ -97,7 +91,7 @@
 {#if confirming}
   <ConfirmDialog
     title="Restart FigLock?"
-    body="FigLock closes and opens again with the new version. Your vault locks, and you unlock it with your password or Touch ID."
+    body="FigLock restarts and your vault locks."
     confirm="Restart"
     onconfirm={() => {
       confirming = false;

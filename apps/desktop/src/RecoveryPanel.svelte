@@ -52,7 +52,7 @@
     done =
       was === "off"
         ? "The Recovery Key is turned off."
-        : "The Recovery Key is set up. Keep it apart from your password.";
+        : "Recovery Key is set up. Keep it apart from your password.";
   }
 </script>
 
@@ -71,9 +71,7 @@
         <p class="text-text-secondary">Checking...</p>
       {:else if enabled}
         <p class="font-medium">On <Badge tone="success">Protected</Badge></p>
-        <p class="text-(length:--text-sm) text-text-secondary">
-          Setting up a new one makes the old code stop working.
-        </p>
+        <p class="text-(length:--text-sm) text-text-secondary">A new code replaces the old one.</p>
       {:else}
         <p class="font-medium">Off</p>
         <p class="text-(length:--text-sm) text-text-secondary">

@@ -121,8 +121,7 @@
       <span class="flex flex-col gap-1">
         <span class="font-medium">Sync with Google Drive</span>
         <span class="text-(length:--text-xs) leading-4 text-text-secondary">
-          Keep an encrypted copy in FigLock's own hidden Drive folder, to open the vault on your
-          other devices. You can change this later in Settings.
+          Use your vault on other devices. You can change this later.
         </span>
       </span>
     </label>
@@ -137,9 +136,7 @@
         <span class="flex flex-col gap-1">
           <span class="font-medium">Sync with iCloud Drive</span>
           <span class="text-(length:--text-xs) leading-4 text-text-secondary">
-            Keep an encrypted copy in the FigLock folder of your iCloud Drive, to open the vault on
-            your other Apple devices. It can be on together with Google Drive. You can change this
-            later in Settings.
+            Use your vault on your other Apple devices. Can be on with Google Drive.
           </span>
         </span>
       </label>

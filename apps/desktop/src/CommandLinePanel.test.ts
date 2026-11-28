@@ -39,13 +39,13 @@ test("nothing is installed until the person asks, and the copy says PATH is left
   const user = userEvent.setup();
   render(CommandLinePanel);
 
-  expect(await screen.findByText(/It does not change your PATH or shell settings/)).toBeTruthy();
+  expect(await screen.findByText(/Your PATH is not changed/)).toBeTruthy();
   expect(core.install).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole("button", { name: "Install command line tool" }));
   expect(core.install).toHaveBeenCalledTimes(1);
   expect((await screen.findByTestId("cli-where")).textContent).toContain("~/.local/bin/figlock");
-  expect(screen.getByText(/FigLock never edits it for you/)).toBeTruthy();
+  expect(screen.getByText(/FigLock never edits it/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Install command line tool" })).toBeNull();
 });
 

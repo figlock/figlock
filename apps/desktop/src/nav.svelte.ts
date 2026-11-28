@@ -1,5 +1,8 @@
 import type { Kind } from "./items";
 
+/** The screens one level below the Settings list. */
+export type SettingsPage = "security" | "sync" | "devices" | "updates" | "advanced" | "about";
+
 /** What the sidebar lists. */
 export type Filter = "all" | Kind | "deleted";
 
@@ -9,7 +12,7 @@ export type Route =
   | { p: "pick"; from: Filter }
   | { p: "generator" }
   | { p: "health" }
-  | { p: "settings" }
+  | { p: "settings"; page?: SettingsPage }
   | { p: "edit"; id?: string; kind?: Kind; from: Filter };
 
 /** The page history behind the back and forward buttons, and a guard for unsaved edits. */

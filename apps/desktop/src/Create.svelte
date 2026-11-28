@@ -140,10 +140,7 @@
   <Shell title="Create your vault" subtitle="Choose where it lives and a password.">
     <form class="flex flex-col gap-4" onsubmit={next}>
       {#if error}<Alert>{error}</Alert>{/if}
-      <StoragePicker
-        {storage}
-        folderHelp="Only encrypted files are kept here, in a folder on this Mac. Use the options below to sync it to iCloud Drive or Google Drive."
-      />
+      <StoragePicker {storage} folderHelp="Only encrypted files are kept here." />
       <TextField
         label="Password"
         type="password"

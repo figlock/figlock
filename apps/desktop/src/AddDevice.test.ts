@@ -122,6 +122,7 @@ async function openDialog() {
   const onlocked = vi.fn();
   render(Workspace, { onlock: vi.fn(), onlocked });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-devices"));
   await user.click(await screen.findByRole("button", { name: "Add a device" }));
   await screen.findByTestId("invite-code");
   return Object.assign(user, { onlocked });
@@ -223,6 +224,7 @@ test("an offline start is explained and leaves no code", async () => {
   const user = userEvent.setup({ advanceTimers: (ms) => vi.advanceTimersByTime(ms) });
   render(Workspace, { onlock: vi.fn(), onlocked: vi.fn() });
   await user.click(await screen.findByRole("button", { name: "Settings" }));
+  await user.click(await screen.findByTestId("settings-devices"));
   await user.click(await screen.findByRole("button", { name: "Add a device" }));
   expect(await screen.findByText(/could not reach Google Drive/)).toBeTruthy();
   expect(screen.queryByTestId("invite-code")).toBeNull();
