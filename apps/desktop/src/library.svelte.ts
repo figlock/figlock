@@ -28,11 +28,11 @@ export class Library {
     }
   }
 
-  /** Search as the person types, at most every 120 ms. */
+  /** Search as the person types, at most every 40 ms. */
   search(query: string) {
     this.query = query;
     clearTimeout(this.#timer);
-    this.#timer = setTimeout(() => void this.#search(), query ? 120 : 0);
+    this.#timer = setTimeout(() => void this.#search(), query ? 40 : 0);
   }
 
   async #search() {
